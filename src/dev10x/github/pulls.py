@@ -12,6 +12,7 @@ import asyncio
 import json
 from typing import Any
 
+from dev10x.core.paths import skill_script
 from dev10x.domain.common.result import ErrorResult, Result, err, ok
 from dev10x.domain.pr_body import (
     fixes_references,
@@ -43,7 +44,7 @@ async def pr_get(
     if repo:
         args.append(repo)
     return await _gateway._run_and_parse(
-        "skills/gh-context/scripts/gh-pr-get.sh",
+        skill_script(skill="gh-context", rel="gh-pr-get.sh"),
         *args,
         fallback=parse_key_value_output,
     )
@@ -162,7 +163,7 @@ async def create_pr(
     args.append(repo or "")
 
     result = await _gateway.async_run_script(
-        "skills/gh-pr-create/scripts/create-pr.sh",
+        skill_script(skill="gh-pr-create", rel="create-pr.sh"),
         *args,
     )
 

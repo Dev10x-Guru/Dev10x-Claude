@@ -11,6 +11,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+from dev10x.core.paths import skill_script
 from dev10x.domain.common.result import ErrorResult, Result, SuccessResult, err, ok
 from dev10x.github import _gateway
 from dev10x.subprocess_utils import parse_key_value_output
@@ -25,7 +26,7 @@ async def issue_get(
     if repo:
         args.append(repo)
     return await _gateway._run_and_parse(
-        "skills/gh-context/scripts/gh-issue-get.sh",
+        skill_script(skill="gh-context", rel="gh-issue-get.sh"),
         *args,
         fallback=parse_key_value_output,
     )
@@ -40,7 +41,7 @@ async def issue_comments(
     if repo:
         args.append(repo)
     return await _gateway._run_and_parse(
-        "skills/gh-context/scripts/gh-issue-comments.sh",
+        skill_script(skill="gh-context", rel="gh-issue-comments.sh"),
         *args,
     )
 
@@ -64,7 +65,7 @@ async def issue_create(
     if repo:
         args.extend(["--repo", repo])
     return await _gateway._run_and_parse(
-        "skills/gh-context/scripts/gh-issue-create.sh",
+        skill_script(skill="gh-context", rel="gh-issue-create.sh"),
         *args,
         fallback=parse_key_value_output,
     )

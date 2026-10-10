@@ -10,6 +10,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from dev10x.core.paths import skill_script
 from dev10x.domain.common.result import Result, err, ok
 from dev10x.domain.dead_letter import record_undelivered
 from dev10x.github import _gateway
@@ -25,7 +26,7 @@ async def generate_commit_list(
         args.append(base_branch)
 
     result = await _gateway.async_run_script(
-        "skills/gh-pr-create/scripts/generate-commit-list.sh",
+        skill_script(skill="gh-pr-create", rel="generate-commit-list.sh"),
         *args,
     )
 
@@ -49,7 +50,7 @@ async def post_summary_comment(
             env_vars["GH_TOKEN"] = bot_env["GH_TOKEN"]
             env_vars["GITHUB_TOKEN"] = bot_env["GITHUB_TOKEN"]
     result = await _gateway.async_run_script(
-        "skills/gh-pr-create/scripts/post-summary-comment.sh",
+        skill_script(skill="gh-pr-create", rel="post-summary-comment.sh"),
         issue_id,
         summary_text,
         env_vars=env_vars or None,

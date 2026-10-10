@@ -1,0 +1,4045 @@
+{
+  "cli": {
+    "audit_analyze_actions": {
+      "properties": {
+        "output_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Output Path"
+        },
+        "transcript_path": {
+          "title": "Transcript Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "transcript_path"
+      ],
+      "title": "audit_analyze_actionsArguments",
+      "type": "object"
+    },
+    "audit_analyze_permissions": {
+      "properties": {
+        "output_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Output Path"
+        },
+        "settings_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Settings Path"
+        },
+        "transcript_path": {
+          "title": "Transcript Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "transcript_path"
+      ],
+      "title": "audit_analyze_permissionsArguments",
+      "type": "object"
+    },
+    "audit_extract_session": {
+      "properties": {
+        "jsonl_path": {
+          "title": "Jsonl Path",
+          "type": "string"
+        },
+        "output_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Output Path"
+        }
+      },
+      "required": [
+        "jsonl_path"
+      ],
+      "title": "audit_extract_sessionArguments",
+      "type": "object"
+    },
+    "audit_hook_log_path": {
+      "properties": {},
+      "title": "audit_hook_log_pathArguments",
+      "type": "object"
+    },
+    "audit_hook_recent": {
+      "properties": {
+        "hook_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hook Name"
+        },
+        "limit": {
+          "default": 50,
+          "title": "Limit",
+          "type": "integer"
+        },
+        "log_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Log Path"
+        },
+        "span_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Span Id"
+        }
+      },
+      "title": "audit_hook_recentArguments",
+      "type": "object"
+    },
+    "author_reference_rules": {
+      "properties": {
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "diff_limit": {
+          "default": 20,
+          "title": "Diff Limit",
+          "type": "integer"
+        },
+        "limit": {
+          "default": 50,
+          "title": "Limit",
+          "type": "integer"
+        },
+        "max_fp_rate": {
+          "default": 0.5,
+          "title": "Max Fp Rate",
+          "type": "number"
+        },
+        "min_frequency": {
+          "default": 2,
+          "title": "Min Frequency",
+          "type": "integer"
+        },
+        "repos": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repos"
+        },
+        "top_n": {
+          "default": 20,
+          "title": "Top N",
+          "type": "integer"
+        }
+      },
+      "title": "author_reference_rulesArguments",
+      "type": "object"
+    },
+    "background_preamble": {
+      "properties": {},
+      "title": "background_preambleArguments",
+      "type": "object"
+    },
+    "candidate_rules_report": {
+      "properties": {
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "limit": {
+          "default": 50,
+          "title": "Limit",
+          "type": "integer"
+        },
+        "repos": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repos"
+        },
+        "top_n": {
+          "default": 20,
+          "title": "Top N",
+          "type": "integer"
+        }
+      },
+      "title": "candidate_rules_reportArguments",
+      "type": "object"
+    },
+    "check_top_level_comments": {
+      "properties": {
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "pr_number": {
+          "title": "Pr Number",
+          "type": "integer"
+        },
+        "repo": {
+          "title": "Repo",
+          "type": "string"
+        }
+      },
+      "required": [
+        "pr_number",
+        "repo"
+      ],
+      "title": "check_top_level_commentsArguments",
+      "type": "object"
+    },
+    "ci_check_status": {
+      "properties": {
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "initial_wait": {
+          "default": 60,
+          "title": "Initial Wait",
+          "type": "integer"
+        },
+        "max_polls": {
+          "default": 40,
+          "title": "Max Polls",
+          "type": "integer"
+        },
+        "poll_interval": {
+          "default": 30,
+          "title": "Poll Interval",
+          "type": "integer"
+        },
+        "pr_number": {
+          "title": "Pr Number",
+          "type": "integer"
+        },
+        "repo": {
+          "title": "Repo",
+          "type": "string"
+        },
+        "required_only": {
+          "default": false,
+          "title": "Required Only",
+          "type": "boolean"
+        },
+        "wait": {
+          "default": false,
+          "title": "Wait",
+          "type": "boolean"
+        },
+        "wait_for": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Wait For"
+        },
+        "wait_out_pending": {
+          "default": true,
+          "title": "Wait Out Pending",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "pr_number",
+        "repo"
+      ],
+      "title": "ci_check_statusArguments",
+      "type": "object"
+    },
+    "cluster_review_comments": {
+      "properties": {
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "limit": {
+          "default": 50,
+          "title": "Limit",
+          "type": "integer"
+        },
+        "repos": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repos"
+        },
+        "top_n": {
+          "default": 20,
+          "title": "Top N",
+          "type": "integer"
+        }
+      },
+      "title": "cluster_review_commentsArguments",
+      "type": "object"
+    },
+    "collect_prs": {
+      "properties": {
+        "from_tag": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "From Tag"
+        },
+        "repo_path": {
+          "title": "Repo Path",
+          "type": "string"
+        },
+        "ticket_pattern": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ticket Pattern"
+        },
+        "to_tag": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "To Tag"
+        }
+      },
+      "required": [
+        "repo_path"
+      ],
+      "title": "collect_prsArguments",
+      "type": "object"
+    },
+    "create_pr": {
+      "properties": {
+        "base_branch": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Base Branch"
+        },
+        "body": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Body"
+        },
+        "closes": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Closes"
+        },
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "draft": {
+          "default": true,
+          "title": "Draft",
+          "type": "boolean"
+        },
+        "fixes_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fixes Url"
+        },
+        "head": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Head"
+        },
+        "head_repo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Head Repo"
+        },
+        "issue_id": {
+          "title": "Issue Id",
+          "type": "string"
+        },
+        "job_story": {
+          "default": "",
+          "title": "Job Story",
+          "type": "string"
+        },
+        "milestone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Milestone"
+        },
+        "repo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repo"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "title",
+        "issue_id"
+      ],
+      "title": "create_prArguments",
+      "type": "object"
+    },
+    "create_worktree": {
+      "properties": {
+        "base": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Base"
+        },
+        "branch": {
+          "title": "Branch",
+          "type": "string"
+        },
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Path"
+        }
+      },
+      "required": [
+        "branch"
+      ],
+      "title": "create_worktreeArguments",
+      "type": "object"
+    },
+    "detect_base_branch": {
+      "properties": {
+        "base": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Base"
+        },
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "force": {
+          "default": false,
+          "title": "Force",
+          "type": "boolean"
+        }
+      },
+      "title": "detect_base_branchArguments",
+      "type": "object"
+    },
+    "detect_tracker": {
+      "properties": {
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "ticket_id": {
+          "title": "Ticket Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ticket_id"
+      ],
+      "title": "detect_trackerArguments",
+      "type": "object"
+    },
+    "generate_commit_list": {
+      "properties": {
+        "base_branch": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Base Branch"
+        },
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "pr_number": {
+          "title": "Pr Number",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "pr_number"
+      ],
+      "title": "generate_commit_listArguments",
+      "type": "object"
+    },
+    "generate_skill_index": {
+      "properties": {
+        "force": {
+          "default": false,
+          "title": "Force",
+          "type": "boolean"
+        }
+      },
+      "title": "generate_skill_indexArguments",
+      "type": "object"
+    },
+    "human_review_status": {
+      "properties": {
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        }
+      },
+      "title": "human_review_statusArguments",
+      "type": "object"
+    },
+    "ide_status": {
+      "properties": {
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        }
+      },
+      "title": "ide_statusArguments",
+      "type": "object"
+    },
+    "issue_close": {
+      "properties": {
+        "comment": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Comment"
+        },
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "number": {
+          "title": "Number",
+          "type": "integer"
+        },
+        "reason": {
+          "default": "completed",
+          "title": "Reason",
+          "type": "string"
+        },
+        "repo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repo"
+        }
+      },
+      "required": [
+        "number"
+      ],
+      "title": "issue_closeArguments",
+      "type": "object"
+    },
+    "issue_comment": {
+      "properties": {
+        "body": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Body"
+        },
+        "body_file": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Body File"
+        },
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "number": {
+          "title": "Number",
+          "type": "integer"
+        },
+        "repo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repo"
+        }
+      },
+      "required": [
+        "number"
+      ],
+      "title": "issue_commentArguments",
+      "type": "object"
+    },
+    "issue_comment_delete": {
+      "properties": {
+        "comment_id": {
+          "title": "Comment Id",
+          "type": "integer"
+        },
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "repo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repo"
+        }
+      },
+      "required": [
+        "comment_id"
+      ],
+      "title": "issue_comment_deleteArguments",
+      "type": "object"
+    },
+    "issue_comment_edit": {
+      "properties": {
+        "body": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Body"
+        },
+        "body_file": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Body File"
+        },
+        "comment_id": {
+          "title": "Comment Id",
+          "type": "integer"
+        },
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "repo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repo"
+        }
+      },
+      "required": [
+        "comment_id"
+      ],
+      "title": "issue_comment_editArguments",
+      "type": "object"
+    },
+    "issue_comments": {
+      "properties": {
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "number": {
+          "title": "Number",
+          "type": "integer"
+        },
+        "repo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repo"
+        }
+      },
+      "required": [
+        "number"
+      ],
+      "title": "issue_commentsArguments",
+      "type": "object"
+    },
+    "issue_create": {
+      "properties": {
+        "body": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Body"
+        },
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "labels": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Labels"
+        },
+        "milestone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Milestone"
+        },
+        "repo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repo"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "title"
+      ],
+      "title": "issue_createArguments",
+      "type": "object"
+    },
+    "issue_edit": {
+      "properties": {
+        "body": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Body"
+        },
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "labels": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Labels"
+        },
+        "milestone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Milestone"
+        },
+        "number": {
+          "title": "Number",
+          "type": "integer"
+        },
+        "repo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repo"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        }
+      },
+      "required": [
+        "number"
+      ],
+      "title": "issue_editArguments",
+      "type": "object"
+    },
+    "issue_get": {
+      "properties": {
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "number": {
+          "title": "Number",
+          "type": "integer"
+        },
+        "repo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repo"
+        }
+      },
+      "required": [
+        "number"
+      ],
+      "title": "issue_getArguments",
+      "type": "object"
+    },
+    "issue_labels": {
+      "properties": {
+        "action": {
+          "default": "list",
+          "title": "Action",
+          "type": "string"
+        },
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "labels": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Labels"
+        },
+        "number": {
+          "title": "Number",
+          "type": "integer"
+        },
+        "repo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repo"
+        }
+      },
+      "required": [
+        "number"
+      ],
+      "title": "issue_labelsArguments",
+      "type": "object"
+    },
+    "issue_list": {
+      "properties": {
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "labels": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Labels"
+        },
+        "limit": {
+          "default": 30,
+          "title": "Limit",
+          "type": "integer"
+        },
+        "milestone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Milestone"
+        },
+        "repo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repo"
+        },
+        "search": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Search"
+        },
+        "state": {
+          "default": "open",
+          "title": "State",
+          "type": "string"
+        }
+      },
+      "title": "issue_listArguments",
+      "type": "object"
+    },
+    "issue_reopen": {
+      "properties": {
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "number": {
+          "title": "Number",
+          "type": "integer"
+        },
+        "repo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repo"
+        }
+      },
+      "required": [
+        "number"
+      ],
+      "title": "issue_reopenArguments",
+      "type": "object"
+    },
+    "issues_bulk_create": {
+      "properties": {
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "issues": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Issues",
+          "type": "array"
+        },
+        "repo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repo"
+        }
+      },
+      "required": [
+        "issues"
+      ],
+      "title": "issues_bulk_createArguments",
+      "type": "object"
+    },
+    "issues_bulk_edit": {
+      "properties": {
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "edits": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Edits",
+          "type": "array"
+        },
+        "repo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repo"
+        }
+      },
+      "required": [
+        "edits"
+      ],
+      "title": "issues_bulk_editArguments",
+      "type": "object"
+    },
+    "list_client_roots": {
+      "properties": {},
+      "title": "list_client_rootsArguments",
+      "type": "object"
+    },
+    "mass_rewrite": {
+      "properties": {
+        "config_path": {
+          "title": "Config Path",
+          "type": "string"
+        },
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        }
+      },
+      "required": [
+        "config_path"
+      ],
+      "title": "mass_rewriteArguments",
+      "type": "object"
+    },
+    "merge_pr": {
+      "properties": {
+        "admin": {
+          "default": false,
+          "title": "Admin",
+          "type": "boolean"
+        },
+        "auto": {
+          "default": false,
+          "title": "Auto",
+          "type": "boolean"
+        },
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "delete_branch": {
+          "default": true,
+          "title": "Delete Branch",
+          "type": "boolean"
+        },
+        "expected_head_sha": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected Head Sha"
+        },
+        "pr_number": {
+          "title": "Pr Number",
+          "type": "integer"
+        },
+        "repo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repo"
+        },
+        "strategy": {
+          "default": "rebase",
+          "title": "Strategy",
+          "type": "string"
+        },
+        "use_bot": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Use Bot"
+        }
+      },
+      "required": [
+        "pr_number"
+      ],
+      "title": "merge_prArguments",
+      "type": "object"
+    },
+    "milestone_close": {
+      "properties": {
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "number": {
+          "title": "Number",
+          "type": "integer"
+        },
+        "repo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repo"
+        }
+      },
+      "required": [
+        "number"
+      ],
+      "title": "milestone_closeArguments",
+      "type": "object"
+    },
+    "milestone_create": {
+      "properties": {
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "due_on": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Due On"
+        },
+        "repo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repo"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "title"
+      ],
+      "title": "milestone_createArguments",
+      "type": "object"
+    },
+    "milestone_edit": {
+      "properties": {
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "due_on": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Due On"
+        },
+        "number": {
+          "title": "Number",
+          "type": "integer"
+        },
+        "repo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repo"
+        },
+        "state": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "State"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        }
+      },
+      "required": [
+        "number"
+      ],
+      "title": "milestone_editArguments",
+      "type": "object"
+    },
+    "milestone_list": {
+      "properties": {
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "repo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repo"
+        },
+        "state": {
+          "default": "open",
+          "title": "State",
+          "type": "string"
+        }
+      },
+      "title": "milestone_listArguments",
+      "type": "object"
+    },
+    "milestone_reopen": {
+      "properties": {
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "number": {
+          "title": "Number",
+          "type": "integer"
+        },
+        "repo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repo"
+        }
+      },
+      "required": [
+        "number"
+      ],
+      "title": "milestone_reopenArguments",
+      "type": "object"
+    },
+    "milestones_bulk_create": {
+      "properties": {
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "milestones": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Milestones",
+          "type": "array"
+        },
+        "repo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repo"
+        }
+      },
+      "required": [
+        "milestones"
+      ],
+      "title": "milestones_bulk_createArguments",
+      "type": "object"
+    },
+    "minimize_comments": {
+      "properties": {
+        "classifier": {
+          "default": "OUTDATED",
+          "title": "Classifier",
+          "type": "string"
+        },
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "node_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Node Ids",
+          "type": "array"
+        },
+        "repo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repo"
+        }
+      },
+      "required": [
+        "node_ids"
+      ],
+      "title": "minimize_commentsArguments",
+      "type": "object"
+    },
+    "mktmp": {
+      "properties": {
+        "create": {
+          "default": false,
+          "title": "Create",
+          "type": "boolean"
+        },
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "directory": {
+          "default": false,
+          "title": "Directory",
+          "type": "boolean"
+        },
+        "ext": {
+          "default": "",
+          "title": "Ext",
+          "type": "string"
+        },
+        "namespace": {
+          "title": "Namespace",
+          "type": "string"
+        },
+        "prefix": {
+          "title": "Prefix",
+          "type": "string"
+        }
+      },
+      "required": [
+        "namespace",
+        "prefix"
+      ],
+      "title": "mktmpArguments",
+      "type": "object"
+    },
+    "next_worktree_name": {
+      "properties": {
+        "base_dir": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Base Dir"
+        },
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        }
+      },
+      "title": "next_worktree_nameArguments",
+      "type": "object"
+    },
+    "permission_catalog_gap": {
+      "properties": {
+        "verbose": {
+          "default": false,
+          "title": "Verbose",
+          "type": "boolean"
+        }
+      },
+      "title": "permission_catalog_gapArguments",
+      "type": "object"
+    },
+    "pin_gate_preset": {
+      "$defs": {
+        "PinScope": {
+          "description": "Scope of a durable pin \u2014 a preset, a tracker, an IDE, ... (GH-855, GH-1452).\n\n``REPO`` (the default) covers the repo *and every present or future\nworktree of it*, because a pin chosen in one worktree is a statement\nabout the repo, not about the ephemeral directory it was chosen\nfrom. ``REPO_ONLY`` pins the main checkout alone, leaving sibling\nworktrees on ``defaults:``. ``DIR`` pins one directory, verbatim.\n\nWas previously a bare ``scope: str`` re-declared at eight-plus call\nsites with the same three-line docstring copy-pasted four times\n(GH-1452) \u2014 a typo surfaced only inside :func:`match_globs_for_repo`.\nTyping it here means a caller's typo is now a type error, or \u2014 at\nthe MCP boundary, where FastMCP derives an enum-constrained schema\nfrom this annotation \u2014 a rejected call before any Python runs.",
+          "enum": [
+            "repo",
+            "repo-only",
+            "dir"
+          ],
+          "title": "PinScope",
+          "type": "string"
+        }
+      },
+      "properties": {
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "gate_overrides": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Gate Overrides"
+        },
+        "overlays": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Overlays"
+        },
+        "preset": {
+          "title": "Preset",
+          "type": "string"
+        },
+        "scope": {
+          "$ref": "#/$defs/PinScope",
+          "default": "repo"
+        }
+      },
+      "required": [
+        "preset"
+      ],
+      "title": "pin_gate_presetArguments",
+      "type": "object"
+    },
+    "pin_ide": {
+      "$defs": {
+        "PinScope": {
+          "description": "Scope of a durable pin \u2014 a preset, a tracker, an IDE, ... (GH-855, GH-1452).\n\n``REPO`` (the default) covers the repo *and every present or future\nworktree of it*, because a pin chosen in one worktree is a statement\nabout the repo, not about the ephemeral directory it was chosen\nfrom. ``REPO_ONLY`` pins the main checkout alone, leaving sibling\nworktrees on ``defaults:``. ``DIR`` pins one directory, verbatim.\n\nWas previously a bare ``scope: str`` re-declared at eight-plus call\nsites with the same three-line docstring copy-pasted four times\n(GH-1452) \u2014 a typo surfaced only inside :func:`match_globs_for_repo`.\nTyping it here means a caller's typo is now a type error, or \u2014 at\nthe MCP boundary, where FastMCP derives an enum-constrained schema\nfrom this annotation \u2014 a rejected call before any Python runs.",
+          "enum": [
+            "repo",
+            "repo-only",
+            "dir"
+          ],
+          "title": "PinScope",
+          "type": "string"
+        }
+      },
+      "properties": {
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "ide": {
+          "title": "Ide",
+          "type": "string"
+        },
+        "scope": {
+          "$ref": "#/$defs/PinScope",
+          "default": "repo"
+        }
+      },
+      "required": [
+        "ide"
+      ],
+      "title": "pin_ideArguments",
+      "type": "object"
+    },
+    "pin_supervisor_review": {
+      "$defs": {
+        "PinScope": {
+          "description": "Scope of a durable pin \u2014 a preset, a tracker, an IDE, ... (GH-855, GH-1452).\n\n``REPO`` (the default) covers the repo *and every present or future\nworktree of it*, because a pin chosen in one worktree is a statement\nabout the repo, not about the ephemeral directory it was chosen\nfrom. ``REPO_ONLY`` pins the main checkout alone, leaving sibling\nworktrees on ``defaults:``. ``DIR`` pins one directory, verbatim.\n\nWas previously a bare ``scope: str`` re-declared at eight-plus call\nsites with the same three-line docstring copy-pasted four times\n(GH-1452) \u2014 a typo surfaced only inside :func:`match_globs_for_repo`.\nTyping it here means a caller's typo is now a type error, or \u2014 at\nthe MCP boundary, where FastMCP derives an enum-constrained schema\nfrom this annotation \u2014 a rejected call before any Python runs.",
+          "enum": [
+            "repo",
+            "repo-only",
+            "dir"
+          ],
+          "title": "PinScope",
+          "type": "string"
+        }
+      },
+      "properties": {
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "scope": {
+          "$ref": "#/$defs/PinScope",
+          "default": "repo"
+        },
+        "supervisor_review": {
+          "title": "Supervisor Review",
+          "type": "string"
+        }
+      },
+      "required": [
+        "supervisor_review"
+      ],
+      "title": "pin_supervisor_reviewArguments",
+      "type": "object"
+    },
+    "pin_tracker": {
+      "$defs": {
+        "PinScope": {
+          "description": "Scope of a durable pin \u2014 a preset, a tracker, an IDE, ... (GH-855, GH-1452).\n\n``REPO`` (the default) covers the repo *and every present or future\nworktree of it*, because a pin chosen in one worktree is a statement\nabout the repo, not about the ephemeral directory it was chosen\nfrom. ``REPO_ONLY`` pins the main checkout alone, leaving sibling\nworktrees on ``defaults:``. ``DIR`` pins one directory, verbatim.\n\nWas previously a bare ``scope: str`` re-declared at eight-plus call\nsites with the same three-line docstring copy-pasted four times\n(GH-1452) \u2014 a typo surfaced only inside :func:`match_globs_for_repo`.\nTyping it here means a caller's typo is now a type error, or \u2014 at\nthe MCP boundary, where FastMCP derives an enum-constrained schema\nfrom this annotation \u2014 a rejected call before any Python runs.",
+          "enum": [
+            "repo",
+            "repo-only",
+            "dir"
+          ],
+          "title": "PinScope",
+          "type": "string"
+        }
+      },
+      "properties": {
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "scope": {
+          "$ref": "#/$defs/PinScope",
+          "default": "repo"
+        },
+        "tracker": {
+          "title": "Tracker",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tracker"
+      ],
+      "title": "pin_trackerArguments",
+      "type": "object"
+    },
+    "plan_sync_archive": {
+      "properties": {
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        }
+      },
+      "title": "plan_sync_archiveArguments",
+      "type": "object"
+    },
+    "plan_sync_json_summary": {
+      "properties": {
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        }
+      },
+      "title": "plan_sync_json_summaryArguments",
+      "type": "object"
+    },
+    "plan_sync_set_context": {
+      "properties": {
+        "args": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Args",
+          "type": "array"
+        },
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        }
+      },
+      "required": [
+        "args"
+      ],
+      "title": "plan_sync_set_contextArguments",
+      "type": "object"
+    },
+    "post_summary_comment": {
+      "properties": {
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "issue_id": {
+          "title": "Issue Id",
+          "type": "string"
+        },
+        "summary_text": {
+          "title": "Summary Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "issue_id",
+        "summary_text"
+      ],
+      "title": "post_summary_commentArguments",
+      "type": "object"
+    },
+    "pr_close": {
+      "properties": {
+        "comment": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Comment"
+        },
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "pr_number": {
+          "title": "Pr Number",
+          "type": "integer"
+        },
+        "repo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repo"
+        }
+      },
+      "required": [
+        "pr_number"
+      ],
+      "title": "pr_closeArguments",
+      "type": "object"
+    },
+    "pr_comment_reply": {
+      "properties": {
+        "body": {
+          "title": "Body",
+          "type": "string"
+        },
+        "comment_id": {
+          "title": "Comment Id",
+          "type": "integer"
+        },
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "pr_number": {
+          "title": "Pr Number",
+          "type": "integer"
+        },
+        "repo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repo"
+        }
+      },
+      "required": [
+        "pr_number",
+        "comment_id",
+        "body"
+      ],
+      "title": "pr_comment_replyArguments",
+      "type": "object"
+    },
+    "pr_comments": {
+      "properties": {
+        "action": {
+          "title": "Action",
+          "type": "string"
+        },
+        "body": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Body"
+        },
+        "comment_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Comment Id"
+        },
+        "comment_ids": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Comment Ids"
+        },
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "pr_number": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pr Number"
+        },
+        "repo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repo"
+        },
+        "review_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Review Id"
+        },
+        "unresolved_only": {
+          "default": false,
+          "title": "Unresolved Only",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "title": "pr_commentsArguments",
+      "type": "object"
+    },
+    "pr_detect": {
+      "properties": {
+        "arg": {
+          "title": "Arg",
+          "type": "string"
+        },
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        }
+      },
+      "required": [
+        "arg"
+      ],
+      "title": "pr_detectArguments",
+      "type": "object"
+    },
+    "pr_get": {
+      "properties": {
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "number": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Number"
+        },
+        "pr_number": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pr Number"
+        },
+        "repo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repo"
+        }
+      },
+      "title": "pr_getArguments",
+      "type": "object"
+    },
+    "pr_issue_comment": {
+      "properties": {
+        "body": {
+          "title": "Body",
+          "type": "string"
+        },
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "pr_number": {
+          "title": "Pr Number",
+          "type": "integer"
+        },
+        "repo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repo"
+        }
+      },
+      "required": [
+        "pr_number",
+        "body"
+      ],
+      "title": "pr_issue_commentArguments",
+      "type": "object"
+    },
+    "pr_labels": {
+      "properties": {
+        "action": {
+          "default": "list",
+          "title": "Action",
+          "type": "string"
+        },
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "labels": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Labels"
+        },
+        "pr_number": {
+          "title": "Pr Number",
+          "type": "integer"
+        },
+        "repo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repo"
+        }
+      },
+      "required": [
+        "pr_number"
+      ],
+      "title": "pr_labelsArguments",
+      "type": "object"
+    },
+    "pr_list": {
+      "properties": {
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "limit": {
+          "default": 30,
+          "title": "Limit",
+          "type": "integer"
+        },
+        "repo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repo"
+        },
+        "search": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Search"
+        },
+        "state": {
+          "default": "open",
+          "title": "State",
+          "type": "string"
+        }
+      },
+      "title": "pr_listArguments",
+      "type": "object"
+    },
+    "pr_notify": {
+      "properties": {
+        "action": {
+          "default": "prepare",
+          "title": "Action",
+          "type": "string"
+        },
+        "channel": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Channel"
+        },
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "message": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Message"
+        },
+        "message_file": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Message File"
+        },
+        "pr_number": {
+          "title": "Pr Number",
+          "type": "integer"
+        },
+        "repo": {
+          "title": "Repo",
+          "type": "string"
+        },
+        "reviewer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reviewer"
+        },
+        "skip_checklist": {
+          "default": false,
+          "title": "Skip Checklist",
+          "type": "boolean"
+        },
+        "skip_reviewers": {
+          "default": false,
+          "title": "Skip Reviewers",
+          "type": "boolean"
+        },
+        "skip_slack": {
+          "default": false,
+          "title": "Skip Slack",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "pr_number",
+        "repo"
+      ],
+      "title": "pr_notifyArguments",
+      "type": "object"
+    },
+    "pr_ready": {
+      "properties": {
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "pr_number": {
+          "title": "Pr Number",
+          "type": "integer"
+        },
+        "repo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repo"
+        },
+        "undo": {
+          "default": false,
+          "title": "Undo",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "pr_number"
+      ],
+      "title": "pr_readyArguments",
+      "type": "object"
+    },
+    "pr_review_comment_edit": {
+      "properties": {
+        "body": {
+          "title": "Body",
+          "type": "string"
+        },
+        "comment_id": {
+          "title": "Comment Id",
+          "type": "integer"
+        },
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "repo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repo"
+        }
+      },
+      "required": [
+        "comment_id",
+        "body"
+      ],
+      "title": "pr_review_comment_editArguments",
+      "type": "object"
+    },
+    "pr_review_edit": {
+      "properties": {
+        "body": {
+          "title": "Body",
+          "type": "string"
+        },
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "pr_number": {
+          "title": "Pr Number",
+          "type": "integer"
+        },
+        "repo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repo"
+        },
+        "review_id": {
+          "title": "Review Id",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "pr_number",
+        "review_id",
+        "body"
+      ],
+      "title": "pr_review_editArguments",
+      "type": "object"
+    },
+    "pre_pr_checks": {
+      "properties": {
+        "base_branch": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Base Branch"
+        },
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        }
+      },
+      "title": "pre_pr_checksArguments",
+      "type": "object"
+    },
+    "preset_pin_status": {
+      "properties": {
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        }
+      },
+      "title": "preset_pin_statusArguments",
+      "type": "object"
+    },
+    "push_safe": {
+      "properties": {
+        "args": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Args",
+          "type": "array"
+        },
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "protected_branches": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Protected Branches"
+        }
+      },
+      "required": [
+        "args"
+      ],
+      "title": "push_safeArguments",
+      "type": "object"
+    },
+    "rebase_groom": {
+      "properties": {
+        "base_ref": {
+          "title": "Base Ref",
+          "type": "string"
+        },
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "seq_path": {
+          "title": "Seq Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "seq_path",
+        "base_ref"
+      ],
+      "title": "rebase_groomArguments",
+      "type": "object"
+    },
+    "record_rule_feedback": {
+      "properties": {
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "outcome": {
+          "title": "Outcome",
+          "type": "string"
+        },
+        "rule_id": {
+          "title": "Rule Id",
+          "type": "string"
+        },
+        "store_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Store Path"
+        }
+      },
+      "required": [
+        "rule_id",
+        "outcome"
+      ],
+      "title": "record_rule_feedbackArguments",
+      "type": "object"
+    },
+    "record_upgrade": {
+      "properties": {
+        "version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Version"
+        }
+      },
+      "title": "record_upgradeArguments",
+      "type": "object"
+    },
+    "request_review": {
+      "properties": {
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "pr_number": {
+          "title": "Pr Number",
+          "type": "integer"
+        },
+        "repo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repo"
+        },
+        "reviewers": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Reviewers",
+          "type": "array"
+        },
+        "team": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Team"
+        }
+      },
+      "required": [
+        "pr_number",
+        "reviewers"
+      ],
+      "title": "request_reviewArguments",
+      "type": "object"
+    },
+    "request_sampling": {
+      "properties": {
+        "max_tokens": {
+          "default": 512,
+          "title": "Max Tokens",
+          "type": "integer"
+        },
+        "prompt": {
+          "title": "Prompt",
+          "type": "string"
+        },
+        "system_prompt": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "System Prompt"
+        },
+        "temperature": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Temperature"
+        }
+      },
+      "required": [
+        "prompt"
+      ],
+      "title": "request_samplingArguments",
+      "type": "object"
+    },
+    "resolve_gate": {
+      "properties": {
+        "context": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Context"
+        },
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "gate": {
+          "title": "Gate",
+          "type": "string"
+        }
+      },
+      "required": [
+        "gate"
+      ],
+      "title": "resolve_gateArguments",
+      "type": "object"
+    },
+    "resolve_plugin_origin": {
+      "properties": {
+        "skill_paths": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Skill Paths",
+          "type": "array"
+        }
+      },
+      "required": [
+        "skill_paths"
+      ],
+      "title": "resolve_plugin_originArguments",
+      "type": "object"
+    },
+    "resolve_review_thread": {
+      "properties": {
+        "comment_ids": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Comment Ids"
+        },
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "repo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repo"
+        },
+        "thread_ids": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Thread Ids"
+        }
+      },
+      "title": "resolve_review_threadArguments",
+      "type": "object"
+    },
+    "rule_confidence_report": {
+      "properties": {
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "store_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Store Path"
+        }
+      },
+      "title": "rule_confidence_reportArguments",
+      "type": "object"
+    },
+    "run_node_tests": {
+      "properties": {
+        "args": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Args"
+        },
+        "coverage": {
+          "default": true,
+          "title": "Coverage",
+          "type": "boolean"
+        },
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "env": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Env"
+        },
+        "runner": {
+          "default": "jest",
+          "title": "Runner",
+          "type": "string"
+        },
+        "script": {
+          "default": "test",
+          "title": "Script",
+          "type": "string"
+        },
+        "timeout": {
+          "default": 600,
+          "title": "Timeout",
+          "type": "integer"
+        }
+      },
+      "title": "run_node_testsArguments",
+      "type": "object"
+    },
+    "run_tests": {
+      "properties": {
+        "args": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Args"
+        },
+        "coverage": {
+          "default": true,
+          "title": "Coverage",
+          "type": "boolean"
+        },
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "timeout": {
+          "default": 1080,
+          "title": "Timeout",
+          "type": "integer"
+        }
+      },
+      "title": "run_testsArguments",
+      "type": "object"
+    },
+    "setup_aliases": {
+      "properties": {},
+      "title": "setup_aliasesArguments",
+      "type": "object"
+    },
+    "slack_thread_is_forward": {
+      "properties": {
+        "parent_body": {
+          "title": "Parent Body",
+          "type": "string"
+        },
+        "reply_count": {
+          "title": "Reply Count",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "parent_body",
+        "reply_count"
+      ],
+      "title": "slack_thread_is_forwardArguments",
+      "type": "object"
+    },
+    "start_split_rebase": {
+      "properties": {
+        "base_branch": {
+          "default": "develop",
+          "title": "Base Branch",
+          "type": "string"
+        },
+        "commit_hash": {
+          "title": "Commit Hash",
+          "type": "string"
+        },
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        }
+      },
+      "required": [
+        "commit_hash"
+      ],
+      "title": "start_split_rebaseArguments",
+      "type": "object"
+    },
+    "supervisor_review_status": {
+      "properties": {
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        }
+      },
+      "title": "supervisor_review_statusArguments",
+      "type": "object"
+    },
+    "task_index_append": {
+      "properties": {
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "entry": {
+          "additionalProperties": true,
+          "title": "Entry",
+          "type": "object"
+        }
+      },
+      "required": [
+        "entry"
+      ],
+      "title": "task_index_appendArguments",
+      "type": "object"
+    },
+    "task_index_get": {
+      "properties": {
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        }
+      },
+      "title": "task_index_getArguments",
+      "type": "object"
+    },
+    "task_index_set": {
+      "properties": {
+        "branch": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Branch"
+        },
+        "continuation_prompt": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Continuation Prompt"
+        },
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "insights": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Insights"
+        },
+        "tickets": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tickets"
+        },
+        "wrapped_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Wrapped At"
+        }
+      },
+      "title": "task_index_setArguments",
+      "type": "object"
+    },
+    "tracker_status": {
+      "properties": {
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        }
+      },
+      "title": "tracker_statusArguments",
+      "type": "object"
+    },
+    "triage_roster": {
+      "properties": {
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "repo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repo"
+        }
+      },
+      "title": "triage_rosterArguments",
+      "type": "object"
+    },
+    "unresolved_threads": {
+      "properties": {
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "limit": {
+          "default": 200,
+          "title": "Limit",
+          "type": "integer"
+        },
+        "pr_number": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pr Number"
+        },
+        "repo": {
+          "title": "Repo",
+          "type": "string"
+        }
+      },
+      "required": [
+        "repo"
+      ],
+      "title": "unresolved_threadsArguments",
+      "type": "object"
+    },
+    "update_paths": {
+      "properties": {
+        "dry_run": {
+          "default": false,
+          "title": "Dry Run",
+          "type": "boolean"
+        },
+        "ensure_base": {
+          "default": false,
+          "title": "Ensure Base",
+          "type": "boolean"
+        },
+        "ensure_reads": {
+          "default": false,
+          "title": "Ensure Reads",
+          "type": "boolean"
+        },
+        "ensure_scripts": {
+          "default": false,
+          "title": "Ensure Scripts",
+          "type": "boolean"
+        },
+        "generalize": {
+          "default": false,
+          "title": "Generalize",
+          "type": "boolean"
+        },
+        "init": {
+          "default": false,
+          "title": "Init",
+          "type": "boolean"
+        },
+        "quiet": {
+          "default": false,
+          "title": "Quiet",
+          "type": "boolean"
+        },
+        "version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Version"
+        }
+      },
+      "title": "update_pathsArguments",
+      "type": "object"
+    },
+    "update_pr": {
+      "properties": {
+        "base_branch": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Base Branch"
+        },
+        "body": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Body"
+        },
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "milestone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Milestone"
+        },
+        "pr_number": {
+          "title": "Pr Number",
+          "type": "integer"
+        },
+        "repo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repo"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        }
+      },
+      "required": [
+        "pr_number"
+      ],
+      "title": "update_prArguments",
+      "type": "object"
+    },
+    "usage_blocks": {
+      "properties": {
+        "active": {
+          "default": true,
+          "title": "Active",
+          "type": "boolean"
+        }
+      },
+      "title": "usage_blocksArguments",
+      "type": "object"
+    },
+    "validate_candidate_patterns": {
+      "properties": {
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "diff_limit": {
+          "default": 20,
+          "title": "Diff Limit",
+          "type": "integer"
+        },
+        "limit": {
+          "default": 50,
+          "title": "Limit",
+          "type": "integer"
+        },
+        "max_fp_rate": {
+          "default": 0.5,
+          "title": "Max Fp Rate",
+          "type": "number"
+        },
+        "min_frequency": {
+          "default": 2,
+          "title": "Min Frequency",
+          "type": "integer"
+        },
+        "repos": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repos"
+        },
+        "top_n": {
+          "default": 20,
+          "title": "Top N",
+          "type": "integer"
+        }
+      },
+      "title": "validate_candidate_patternsArguments",
+      "type": "object"
+    },
+    "verify_pr_state": {
+      "properties": {
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "force": {
+          "default": false,
+          "title": "Force",
+          "type": "boolean"
+        }
+      },
+      "title": "verify_pr_stateArguments",
+      "type": "object"
+    }
+  },
+  "db": {
+    "query": {
+      "properties": {
+        "database": {
+          "title": "Database",
+          "type": "string"
+        },
+        "sql": {
+          "title": "Sql",
+          "type": "string"
+        }
+      },
+      "required": [
+        "database",
+        "sql"
+      ],
+      "title": "queryArguments",
+      "type": "object"
+    }
+  }
+}
