@@ -107,6 +107,8 @@ class TestMovedPackages:
             ("dev10x.domain.cwd_resolver", "dev10x.core.domain.cwd_resolver"),
             ("dev10x.domain.common.result", "dev10x.core.domain.common.result"),
             ("dev10x.domain.events.hook_input", "dev10x.core.domain.events.hook_input"),
+            ("dev10x.subprocess_utils", "dev10x.core.subprocess_utils"),
+            ("dev10x.subprocess_timeouts", "dev10x.core.subprocess_timeouts"),
         ],
     )
     def test_old_path_is_the_moved_module(self, old: str, new: str) -> None:
