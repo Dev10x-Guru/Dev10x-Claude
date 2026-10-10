@@ -87,7 +87,7 @@ def _run_git_safe(git: GitContext, *args: str) -> str:
 
 
 def _plugin_root() -> Path:
-    return Path(__file__).parents[3]
+    return Path(__file__).parents[4]
 
 
 def drain_stdin() -> None:

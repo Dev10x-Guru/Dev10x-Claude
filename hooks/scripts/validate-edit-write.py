@@ -6,7 +6,7 @@
 """PreToolUse hook: thin shim delegating to dev10x.hooks.edit_validator.
 
 Kept for backward compatibility with plugin.json hook config.
-All logic lives in src/dev10x/hooks/edit_validator.py.
+All logic lives in src/dev10x/core/hooks/edit_validator.py.
 """
 
 import json

@@ -10,7 +10,12 @@ from unittest.mock import patch
 
 import pytest
 
-from dev10x.core.module_alias import PackageAlias, alias_module, alias_package
+from dev10x.core.module_alias import (
+    PackageAlias,
+    alias_module,
+    alias_package,
+    alias_submodules,
+)
 
 
 @pytest.fixture
@@ -79,6 +84,54 @@ class TestAliasPackage:
         assert len(finders) == 1
 
 
+@pytest.fixture
+def partial_tree(toy_tree: Path) -> Path:
+    old_pkg = toy_tree / "toyalias_partial"
+    old_pkg.mkdir()
+    (old_pkg / "__init__.py").write_text(
+        "from dev10x.core.module_alias import alias_submodules\n"
+        "alias_submodules(old=__name__, new='toyalias_new')\n"
+    )
+    (old_pkg / "stays.py").write_text("WHERE = 'old'\n")
+    return toy_tree
+
+
+@pytest.mark.usefixtures("partial_tree")
+class TestAliasSubmodules:
+    def test_moved_submodule_is_the_new_module(self) -> None:
+        moved = importlib.import_module("toyalias_partial.sub.deep")
+
+        assert moved is importlib.import_module("toyalias_new.sub.deep")
+
+    def test_unmoved_submodule_loads_from_the_old_package(self) -> None:
+        stays = importlib.import_module("toyalias_partial.stays")
+
+        assert stays.WHERE == "old"
+        assert stays.__name__ == "toyalias_partial.stays"
+
+    def test_old_package_stays_its_own_package(self) -> None:
+        old = importlib.import_module("toyalias_partial")
+
+        assert old is not importlib.import_module("toyalias_new")
+
+    def test_from_import_binds_the_moved_module(self) -> None:
+        from toyalias_partial import leaf  # type: ignore[import-not-found]
+
+        assert leaf is importlib.import_module("toyalias_new.leaf")
+
+    def test_installs_one_finder_per_old_name(self) -> None:
+        importlib.import_module("toyalias_partial")
+        alias_submodules(old="toyalias_partial", new="toyalias_new")
+
+        finders = [
+            finder
+            for finder in sys.meta_path
+            if isinstance(finder, PackageAlias) and finder.old == "toyalias_partial"
+        ]
+
+        assert len(finders) == 1
+
+
 class TestPackageAliasTarget:
     @pytest.mark.parametrize(
         ("fullname", "expected"),
@@ -123,10 +176,20 @@ class TestMovedPackages:
             ("dev10x.validators", "dev10x.core.validators"),
             ("dev10x.validators.registry", "dev10x.core.validators.registry"),
             ("dev10x.validators.skill_redirect", "dev10x.core.validators.skill_redirect"),
+            ("dev10x.hooks.session", "dev10x.core.hooks.session"),
+            ("dev10x.hooks.edit_validator", "dev10x.core.hooks.edit_validator"),
+            ("dev10x.hooks.stop_verdict", "dev10x.core.hooks.stop_verdict"),
         ],
     )
     def test_old_path_is_the_moved_module(self, old: str, new: str) -> None:
         assert importlib.import_module(old) is importlib.import_module(new)
+
+    @pytest.mark.parametrize(
+        "name",
+        ["dev10x.hooks.task_plan_sync"],
+    )
+    def test_module_kept_by_another_namespace_stays_put(self, name: str) -> None:
+        assert importlib.import_module(name).__name__ == name
 
 
 @pytest.mark.usefixtures("toy_tree")
