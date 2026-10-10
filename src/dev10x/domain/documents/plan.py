@@ -387,6 +387,12 @@ class Plan:
 
         idx = self._find_index(task_id=task_id)
         if idx is None:
+            self._restore_unknown_task(
+                task_id=task_id,
+                target_status=target_status,
+                raw_status=raw_status,
+                tool_input=tool_input,
+            )
             return
 
         task = self.tasks[idx]
@@ -413,6 +419,42 @@ class Plan:
                 task = task.with_metadata_merged(updates=updates)
 
         self.tasks[idx] = task
+
+    def _restore_unknown_task(
+        self,
+        *,
+        task_id: str,
+        target_status: TaskStatus | None,
+        raw_status: Any,
+        tool_input: dict[str, Any],
+    ) -> None:
+        """Re-add a task the mirror lost when an update shows it is open (GH-1514).
+
+        Dropping the update left the Stop hook counting zero open tasks
+        mid-plan. Only updates that prove the task is open restore it: an
+        explicit pending/in_progress status, or an ``awaiting`` tag, which
+        is only ever set on a task still waiting. Any other metadata-only
+        update could be touching a task the harness already completed, so
+        it — like completing or deleting an unknown task — stays a no-op.
+        """
+        metadata = tool_input.get("metadata")
+        reopens = target_status in _OPEN_STATUSES
+        tags_waiting_task = (
+            raw_status is None and isinstance(metadata, dict) and bool(metadata.get("awaiting"))
+        )
+        if not (reopens or tags_waiting_task):
+            return
+        task = Task(
+            id=task_id,
+            subject=tool_input.get("subject") or f"Task #{task_id}",
+            status=TaskStatus.PENDING,
+            created_at=_now_iso(),
+            description=tool_input.get("description", "") or "",
+            metadata=dict(metadata) if isinstance(metadata, dict) else {},
+        )
+        if target_status is not None:
+            task = task.with_status(status=target_status, timestamp=_now_iso())
+        self.tasks.append(task)
 
     def check_all_completed(self) -> None:
         if self.tasks and all(t.status is TaskStatus.COMPLETED for t in self.tasks):
