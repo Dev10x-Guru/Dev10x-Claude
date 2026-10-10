@@ -60,9 +60,15 @@ from dev10x.domain.plugin_root import resolve_plugin_root
 # two shapes — the blind spot `@github_tool` occupied. So `_tool` is a
 # convention with teeth: a new wrapper keeps the suffix, or widens both
 # matchers in the same commit.
-_SERVER_GLOBS: dict[str, tuple[str, str]] = {
-    "dev10x_cli": ("src/dev10x/mcp", "*_tools.py"),
-    "dev10x_db": ("src/dev10x/mcp", "server_db.py"),
+#
+# GH-1539: gate_tools.py moved to src/dev10x/core/mcp (ADR-0034); the
+# file left at the old path is an alias shim with no registrations.
+_SERVER_GLOBS: dict[str, tuple[tuple[str, str], ...]] = {
+    "dev10x_cli": (
+        ("src/dev10x/mcp", "*_tools.py"),
+        ("src/dev10x/core/mcp", "*_tools.py"),
+    ),
+    "dev10x_db": (("src/dev10x/mcp", "server_db.py"),),
 }
 
 
@@ -196,10 +202,11 @@ def discover_mcp_tools(*, root: Path | None = None) -> dict[str, list[str]]:
     """
     root = root or resolve_plugin_root() or plugin_root()
     catalog: dict[str, list[str]] = {}
-    for server, (rel_dir, pattern) in _SERVER_GLOBS.items():
+    for server, globs in _SERVER_GLOBS.items():
         names: list[str] = []
-        for module in sorted((root / rel_dir).glob(pattern)):
-            names.extend(_parse_tool_names(module))
+        for rel_dir, pattern in globs:
+            for module in sorted((root / rel_dir).glob(pattern)):
+                names.extend(_parse_tool_names(module))
         if not names:
             continue
         server_key = server.split("_", 1)[1] if "_" in server else server

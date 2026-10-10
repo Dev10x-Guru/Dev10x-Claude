@@ -114,6 +114,7 @@ jobs:
             -v --tb=short \
             -o 'addopts=' \
             --cov=src/dev10x/mcp \
+            --cov=src/dev10x/core/mcp \
             --cov=src/dev10x/audit \
             --cov=src/dev10x/db \
             --cov=src/dev10x/git \
@@ -168,7 +169,7 @@ jobs:
         run: uv run coverage report --include='src/dev10x/commands/*' --fail-under=60
 
       - name: Enforce mcp floor
-        run: uv run coverage report --include='src/dev10x/mcp/*' --fail-under=95
+        run: uv run coverage report --include='src/dev10x/mcp/*,src/dev10x/core/mcp/*' --fail-under=95
 
       - name: Enforce domain floor
         run: uv run coverage report --include='src/dev10x/core/domain/*' --fail-under=95

@@ -15,8 +15,8 @@ dev10x.commands.skill -> dev10x.skills.notifications.gchat_review_request
 dev10x.commands.skill -> dev10x.skills.notifications.slack_notify
 dev10x.commands.skill -> dev10x.skills.notifications.slack_review_request
 dev10x.core.hooks.audit_emit -> dev10x.audit.log_reader
+dev10x.core.mcp.gate_query -> dev10x.github
 dev10x.hooks.task_plan_sync -> dev10x.plan.service
-dev10x.mcp.gate_query -> dev10x.github
 dev10x.mcp.misc_tools -> dev10x.core.utilities.slack
 dev10x.mcp.misc_tools -> dev10x.runner
 dev10x.mcp.misc_tools -> dev10x.skill_index

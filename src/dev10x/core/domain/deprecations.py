@@ -83,7 +83,7 @@ REGISTER: tuple[Deprecation, ...] = (
         removed_in="0.109.0",
         replacement="supervisor_review_status",
         issue="GH-1161",
-        locations=("src/dev10x/mcp/gate_tools.py",),
+        locations=("src/dev10x/core/mcp/gate_tools.py",),
     ),
     Deprecation(
         name="human_review",
@@ -92,7 +92,7 @@ REGISTER: tuple[Deprecation, ...] = (
         removed_in="0.109.0",
         replacement="supervisor_review",
         issue="GH-1161",
-        locations=("src/dev10x/mcp/gate_tools.py",),
+        locations=("src/dev10x/core/mcp/gate_tools.py",),
     ),
     Deprecation(
         name="human_review",

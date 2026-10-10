@@ -22,8 +22,8 @@ from dev10x.subprocess_utils import get_plugin_root
 
 def _server_cli_tool_paths() -> list[Path]:
     """Return all per-domain tool modules for the CLI server (GH-243/A6)."""
-    mcp_dir = get_plugin_root() / "src" / "dev10x" / "mcp"
-    return sorted(mcp_dir.glob("*_tools.py"))
+    src = get_plugin_root() / "src" / "dev10x"
+    return sorted([*(src / "mcp").glob("*_tools.py"), *(src / "core" / "mcp").glob("*_tools.py")])
 
 
 def _is_server_tool(decorator: ast.expr) -> bool:
