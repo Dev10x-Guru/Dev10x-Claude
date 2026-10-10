@@ -24,7 +24,7 @@ from dev10x.hooks.hook_transport import emit
 if TYPE_CHECKING:
     from dev10x.domain.rules.rule_engine import RuleEngine
 
-_YAML_PATH = Path(__file__).parent.parent / "core" / "validators" / "command-skill-map.yaml"
+_YAML_PATH = Path(__file__).parent.parent / "validators" / "command-skill-map.yaml"
 
 
 @functools.cache

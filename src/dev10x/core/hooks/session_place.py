@@ -63,7 +63,7 @@ def session_tmpdir(data: dict | None = None) -> None:
 
     Path(f"/tmp/Dev10x/{session_id}").mkdir(parents=True, exist_ok=True)
 
-    plugin_root = Path(__file__).parents[3]
+    plugin_root = Path(__file__).parents[4]
     mktmp_src = plugin_root / "bin" / "mktmp.sh"
     dest_bin = Path("/tmp/Dev10x/bin")
     dest_bin.mkdir(parents=True, exist_ok=True)

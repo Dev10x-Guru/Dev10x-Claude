@@ -85,6 +85,7 @@ jobs:
           uv run --extra dev pytest tests/hooks/ \
             -v --tb=short \
             -o 'addopts=' \
+            --cov=src/dev10x/core/hooks \
             --cov=src/dev10x/hooks \
             --cov-config=.coveragerc-hooks \
             --cov-report=term-missing --cov-fail-under=70
@@ -185,7 +186,7 @@ jobs:
         run: uv run coverage report --include='src/dev10x/audit/*' --fail-under=87
 
       - name: Enforce hooks floor
-        run: uv run coverage report --include='src/dev10x/hooks/*' --fail-under=80
+        run: uv run coverage report --include='src/dev10x/core/hooks/*,src/dev10x/hooks/*' --fail-under=80
 
       - name: Enforce skills floor
         run: uv run coverage report --include='src/dev10x/skills/*' --fail-under=78

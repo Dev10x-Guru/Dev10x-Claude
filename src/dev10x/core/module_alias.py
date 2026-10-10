@@ -5,6 +5,11 @@ A star-import shim would hand ``mock.patch`` a copy, and pointing the old
 package's ``__path__`` at the new directory would load every module twice.
 Both break shared module state such as the ``cwd_resolver`` seam, so the
 old names resolve to the very module objects the new path loads.
+
+A package that keeps some modules at the old path (one owned by another
+namespace) uses ``alias_submodules``: the old package stays a real
+package, moved names resolve to the new modules, and a name the new
+package lacks falls through to the old directory.
 """
 
 from __future__ import annotations
@@ -57,9 +62,13 @@ class PackageAlias(importlib.abc.MetaPathFinder):
         )
 
 
-def alias_package(*, old: str, new: str) -> ModuleType:
+def alias_submodules(*, old: str, new: str) -> None:
     if not any(isinstance(finder, PackageAlias) and finder.old == old for finder in sys.meta_path):
         sys.meta_path.insert(0, PackageAlias(old=old, new=new))
+
+
+def alias_package(*, old: str, new: str) -> ModuleType:
+    alias_submodules(old=old, new=new)
     package = importlib.import_module(new)
     sys.modules[old] = package
     return package
@@ -71,4 +80,4 @@ def alias_module(*, old: str, new: str) -> ModuleType:
     return module
 
 
-__all__ = ["PackageAlias", "alias_module", "alias_package"]
+__all__ = ["PackageAlias", "alias_module", "alias_package", "alias_submodules"]

@@ -5,7 +5,7 @@
 # ///
 """PreCompact hook: thin shim delegating to dev10x.hooks.session.
 
-All logic lives in src/dev10x/hooks/session.py.
+All logic lives in src/dev10x/core/hooks/session.py.
 """
 
 import sys

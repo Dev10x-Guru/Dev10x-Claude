@@ -6,7 +6,7 @@
 """PreToolUse hook: thin shim delegating to dev10x.hooks.task_guard.
 
 Enforces the empty-task-list invariant (GH-681 / GH-149). All logic
-lives in src/dev10x/hooks/task_guard.py.
+lives in src/dev10x/core/hooks/task_guard.py.
 """
 
 import sys

@@ -6,7 +6,7 @@
 """Thin CLI shim: record a wrap-phase audit entry.
 
 Invoked by hooks/scripts/audit-wrap after a child process exits.
-All logic lives in src/dev10x/hooks/audit_emit.py so the wrap record
+All logic lives in src/dev10x/core/hooks/audit_emit.py so the wrap record
 format stays consistent with decorator-written body records.
 
 Usage: audit-record.py <hook> <span_id> <total_ms> <exit_code> [argv...]
