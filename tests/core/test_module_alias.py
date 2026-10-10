@@ -181,6 +181,9 @@ class TestMovedPackages:
             ("dev10x.hooks.stop_verdict", "dev10x.core.hooks.stop_verdict"),
             ("dev10x.permission", "dev10x.core.permission"),
             ("dev10x.permission.service", "dev10x.core.permission.service"),
+            ("dev10x.session.service", "dev10x.core.session.service"),
+            ("dev10x.session.preset_pin", "dev10x.core.session.preset_pin"),
+            ("dev10x.session.tracker_pin", "dev10x.core.session.tracker_pin"),
         ],
     )
     def test_old_path_is_the_moved_module(self, old: str, new: str) -> None:
@@ -188,7 +191,7 @@ class TestMovedPackages:
 
     @pytest.mark.parametrize(
         "name",
-        ["dev10x.hooks.task_plan_sync"],
+        ["dev10x.hooks.task_plan_sync", "dev10x.session.task_index"],
     )
     def test_module_kept_by_another_namespace_stays_put(self, name: str) -> None:
         assert importlib.import_module(name).__name__ == name
