@@ -172,6 +172,14 @@ fold. With a single owner there is nothing to split across, so aborting
 would print multi-owner remediation for a one-element list — an
 unactionable dead end.
 
+**A commit and its own fixups are one owner (GH-1512).** Before
+counting, every `fixup!` / `squash!` / `amend!` owner (nested prefixes
+included) is folded into the branch commit autosquash would target —
+exact subject first, then the oldest subject it prefixes. Re-fixing a
+commit that already has fixups therefore resolves to `single` against
+the original commit. A fixup whose target is not on the branch stays
+its own owner.
+
 **Multi-owner handling** (`status == "multi"`):
 
 Print the owner list returned by the script and stop. Example:

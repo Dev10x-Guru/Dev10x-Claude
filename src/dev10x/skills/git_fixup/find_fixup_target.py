@@ -264,6 +264,72 @@ def resolve_owners(
     return list(owners_by_sha.values()), orphans
 
 
+_AUTOSQUASH_PREFIXES = ("fixup! ", "squash! ", "amend! ")
+
+
+def _autosquash_subject(subject: str) -> str | None:
+    """Return the subject a fixup!/squash!/amend! commit targets, or None.
+
+    Nested prefixes (``fixup! fixup! X``) peel down to ``X``: autosquash
+    places a fixup of a fixup with the commit the inner one targets.
+    """
+    stripped = subject
+    while stripped.startswith(_AUTOSQUASH_PREFIXES):
+        stripped = stripped.split(" ", 1)[1]
+    return None if stripped == subject else stripped
+
+
+def branch_subjects(base: str, *, cwd: Path | None = None) -> list[tuple[str, str]]:
+    """Return ``(sha, subject)`` for ``base..HEAD``, oldest first."""
+    out = _run(["git", "log", "--reverse", "--format=%H%x00%s", f"{base}..HEAD"], cwd=cwd)
+    pairs = (line.partition("\x00") for line in out.splitlines() if line)
+    return [(sha, subject) for sha, _, subject in pairs]
+
+
+def _autosquash_target(subject: str, older: list[tuple[str, str]]) -> str | None:
+    """Find the commit autosquash would fold ``subject`` into.
+
+    Mirrors git's own matching over the commits OLDER than the fixup: an
+    exact subject wins, otherwise the oldest non-fixup commit whose subject
+    starts with the target text. An empty target (``fixup! `` alone)
+    matches nothing.
+    """
+    wanted = _autosquash_subject(subject)
+    if not wanted:
+        return None
+    candidates = [(sha, s) for sha, s in older if _autosquash_subject(s) is None]
+    for sha, s in candidates:
+        if s == wanted:
+            return sha
+    for sha, s in candidates:
+        if s.startswith(wanted):
+            return sha
+    return None
+
+
+def collapse_fixup_owners(owners: list[Owner], commits: list[tuple[str, str]]) -> list[Owner]:
+    """Fold fixup!/squash!/amend! owners into the commit autosquash targets.
+
+    GH-1512: such a commit and its target become one commit on autosquash,
+    applied in order, so a further fixup cannot conflict across them.
+    Counting them as distinct owners reported ``multi`` and prescribed an
+    interactive per-owner restage for what is a single target. Owners whose
+    target is not on the branch stay as they are.
+    """
+    subjects = dict(commits)
+    position = {sha: index for index, (sha, _) in enumerate(commits)}
+    collapsed: dict[str, Owner] = {}
+    for owner in owners:
+        older = commits[: position.get(owner.sha, len(commits))]
+        target_sha = _autosquash_target(owner.subject, older) or owner.sha
+        target = collapsed.get(target_sha)
+        if target is None:
+            target = Owner(sha=target_sha, subject=subjects.get(target_sha, owner.subject))
+            collapsed[target_sha] = target
+        target.hunks.extend(hunk for hunk in owner.hunks if hunk not in target.hunks)
+    return list(collapsed.values())
+
+
 def _owner_to_dict(owner: Owner) -> dict:
     return {
         "sha": owner.sha,
@@ -335,6 +401,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     owners, orphans = resolve_owners(hunks, branch_shas, cwd=cwd)
+    owners = collapse_fixup_owners(owners, branch_subjects(base, cwd=cwd))
 
     if not owners:
         # Every hunk landed on base-branch history. This is a legitimate
