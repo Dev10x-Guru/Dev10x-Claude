@@ -111,6 +111,8 @@ class TestMovedPackages:
             ("dev10x.subprocess_timeouts", "dev10x.core.subprocess_timeouts"),
             ("dev10x.config", "dev10x.core.config"),
             ("dev10x.config.friction_presets", "dev10x.core.config.friction_presets"),
+            ("dev10x.platform", "dev10x.core.platform"),
+            ("dev10x.platform.registry", "dev10x.core.platform.registry"),
         ],
     )
     def test_old_path_is_the_moved_module(self, old: str, new: str) -> None:
