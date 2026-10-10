@@ -59,7 +59,7 @@ namespaces:
   dev10x.skills.notifications: comm
   dev10x.skills.orchestration: coding
   dev10x.skills.release: coding
-  dev10x.spec: scoping
+  dev10x.spec: core
   dev10x.subprocess_timeouts: core
   dev10x.subprocess_utils: core
   dev10x.tasks: tasks
