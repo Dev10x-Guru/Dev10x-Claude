@@ -186,6 +186,154 @@ class TestMultiOwner:
         assert {h["path"] for h in c2_owner["hunks"]} == {"tests.py"}
 
 
+class TestFixupChainOwners:
+    """GH-1512: a commit and its own fixup! commits are one autosquash target.
+
+    Layout on top of the shared ``repo`` fixture:
+        F1 — "fixup! C1 patch payments line 3", modifies payments.py:4
+        F2 — "fixup! fixup! C1 patch payments line 3", modifies payments.py:5
+    Staging edits to lines 3, 4 and 5 blames to C1, F1 and F2 — three
+    SHAs, but autosquash folds all of them into C1.
+    """
+
+    @pytest.fixture
+    def chain_repo(self, repo: Path) -> Path:
+        _write(repo / "payments.py", "L1\nL2\nC1_PATCH_L3\nF1_L4\nL5\n")
+        _git("commit", "-q", "-am", "fixup! C1 patch payments line 3", cwd=repo)
+        _write(repo / "payments.py", "L1\nL2\nC1_PATCH_L3\nF1_L4\nF2_L5\n")
+        _git("commit", "-q", "-am", "fixup! fixup! C1 patch payments line 3", cwd=repo)
+        return repo
+
+    @pytest.fixture
+    def chain_payload(
+        self, chain_repo: Path, capsys: pytest.CaptureFixture[str]
+    ) -> tuple[int, dict]:
+        _write(chain_repo / "payments.py", "L1\nL2\nX3\nX4\nX5\n")
+        _git("add", "payments.py", cwd=chain_repo)
+        return _run_main(chain_repo, capsys)
+
+    def test_owner_and_its_fixup_chain_is_single(self, chain_payload: tuple[int, dict]) -> None:
+        _, payload = chain_payload
+
+        assert payload["status"] == "single"
+
+    def test_chain_resolves_to_the_original_commit(
+        self, chain_repo: Path, chain_payload: tuple[int, dict]
+    ) -> None:
+        _, payload = chain_payload
+
+        assert payload["target"] == _sha(chain_repo, "HEAD~3")  # C1
+
+    def test_shared_hunk_is_listed_once_after_collapse(
+        self, chain_payload: tuple[int, dict]
+    ) -> None:
+        """Lines 3-5 are one -U0 hunk blamed to C1, F1 and F2 — not three copies."""
+        _, payload = chain_payload
+
+        assert payload["hunks"] == [{"path": "payments.py", "start": 3, "count": 3}]
+
+    def test_squash_owner_collapses_too(
+        self, repo: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        _write(repo / "payments.py", "L1\nL2\nC1_PATCH_L3\nS_L4\nL5\n")
+        _git("commit", "-q", "-am", "squash! C1 patch payments line 3", cwd=repo)
+        _write(repo / "payments.py", "L1\nL2\nX3\nX4\nL5\n")
+        _git("add", "payments.py", cwd=repo)
+
+        _, payload = _run_main(repo, capsys)
+
+        assert payload["target"] == _sha(repo, "HEAD~2")  # C1
+
+    def test_truncated_subject_matches_by_prefix_like_autosquash(
+        self, repo: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """git folds `fixup! C1 patch` into the commit whose subject starts so."""
+        _write(repo / "payments.py", "L1\nL2\nC1_PATCH_L3\nP_L4\nL5\n")
+        _git("commit", "-q", "-am", "fixup! C1 patch", cwd=repo)
+        _write(repo / "payments.py", "L1\nL2\nX3\nX4\nL5\n")
+        _git("add", "payments.py", cwd=repo)
+
+        _, payload = _run_main(repo, capsys)
+
+        assert payload["target"] == _sha(repo, "HEAD~2")  # C1
+
+    def test_amend_owner_collapses_too(
+        self, repo: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        _write(repo / "payments.py", "L1\nL2\nC1_PATCH_L3\nA_L4\nL5\n")
+        _git("commit", "-q", "-am", "amend! C1 patch payments line 3", cwd=repo)
+        _write(repo / "payments.py", "L1\nL2\nX3\nX4\nL5\n")
+        _git("add", "payments.py", cwd=repo)
+
+        _, payload = _run_main(repo, capsys)
+
+        assert payload["target"] == _sha(repo, "HEAD~2")  # C1
+
+    def test_fixup_only_folds_into_an_older_commit(
+        self, repo: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Autosquash never moves a fixup backwards onto a later commit."""
+        _write(repo / "payments.py", "L1\nL2\nC1_PATCH_L3\nEARLY_L4\nL5\n")
+        _git("commit", "-q", "-am", "fixup! Later feature", cwd=repo)
+        _write(repo / "payments.py", "L1\nL2\nC1_PATCH_L3\nEARLY_L4\nLATER_L5\n")
+        _git("commit", "-q", "-am", "Later feature", cwd=repo)
+        _write(repo / "payments.py", "L1\nL2\nC1_PATCH_L3\nX4\nX5\n")
+        _git("add", "payments.py", cwd=repo)
+
+        _, payload = _run_main(repo, capsys)
+
+        assert {o["sha"] for o in payload["owners"]} == {
+            _sha(repo, "HEAD~1"),  # the early fixup, no older target
+            _sha(repo, "HEAD"),  # "Later feature"
+        }
+
+    def test_empty_fixup_target_matches_nothing(
+        self, repo: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        _write(repo / "payments.py", "L1\nL2\nC1_PATCH_L3\nE_L4\nL5\n")
+        _git("commit", "-q", "-am", "fixup! ", cwd=repo)
+        _write(repo / "payments.py", "L1\nL2\nX3\nX4\nL5\n")
+        _git("add", "payments.py", cwd=repo)
+
+        _, payload = _run_main(repo, capsys)
+
+        assert {o["sha"] for o in payload["owners"]} == {
+            _sha(repo, "HEAD"),  # the empty fixup stays its own owner
+            _sha(repo, "HEAD~2"),  # C1
+        }
+
+    def test_fixup_of_another_commit_stays_multi(
+        self, chain_repo: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Collapsing must not merge genuinely distinct targets (C1 vs C2)."""
+        _write(chain_repo / "payments.py", "L1\nL2\nC1_PATCH_L3\nX4\nF2_L5\n")
+        _write(chain_repo / "tests.py", "T1\nX2\nT3\n")
+        _git("add", "payments.py", "tests.py", cwd=chain_repo)
+
+        _, payload = _run_main(chain_repo, capsys)
+
+        assert {o["sha"] for o in payload["owners"]} == {
+            _sha(chain_repo, "HEAD~3"),  # C1, via F1
+            _sha(chain_repo, "HEAD~2"),  # C2
+        }
+
+    def test_fixup_whose_target_is_outside_the_branch_stays_its_own_owner(
+        self, repo: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """No branch commit carries the subject, so there is nothing to fold into."""
+        _write(repo / "payments.py", "OUT_L1\nL2\nC1_PATCH_L3\nL4\nL5\n")
+        _git("commit", "-q", "-am", "fixup! B0 base commit", cwd=repo)
+        _write(repo / "payments.py", "X1\nL2\nX3\nL4\nL5\n")
+        _git("add", "payments.py", cwd=repo)
+
+        _, payload = _run_main(repo, capsys)
+
+        assert {o["sha"] for o in payload["owners"]} == {
+            _sha(repo, "HEAD"),  # the unresolvable fixup
+            _sha(repo, "HEAD~2"),  # C1
+        }
+
+
 class TestNoStaged:
     def test_returns_exit_code_2(self, repo: Path, capsys: pytest.CaptureFixture[str]) -> None:
         rc, payload = _run_main(repo, capsys)
