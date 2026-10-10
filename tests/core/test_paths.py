@@ -9,9 +9,8 @@ import pytest
 from dev10x.core.paths import skill_script
 from dev10x.subprocess_utils import get_plugin_root
 
-SCRIPT_LITERAL = re.compile(r"^skills/[^/]+/scripts/")
+SCRIPT_LITERAL = re.compile(r"^skills/[A-Za-z0-9_-]+/scripts/")
 RESOLVER = Path("core") / "paths.py"
-GUARDED_PACKAGES = ["github", "git"]
 
 
 def _src_root() -> Path:
@@ -34,11 +33,10 @@ def test_skill_script_builds_the_plugin_relative_path() -> None:
     )
 
 
-@pytest.mark.parametrize("package", GUARDED_PACKAGES)
-def test_package_resolves_scripts_through_the_resolver(package: str) -> None:
+def test_src_resolves_scripts_through_the_resolver() -> None:
     offenders = [
         f"{path.relative_to(_src_root())}:{lineno} {value}"
-        for path in sorted((_src_root() / package).rglob("*.py"))
+        for path in sorted(_src_root().rglob("*.py"))
         if path.relative_to(_src_root()) != RESOLVER
         for lineno, value in script_literals(source=path.read_text())
     ]
@@ -49,7 +47,16 @@ def test_package_resolves_scripts_through_the_resolver(package: str) -> None:
     )
 
 
-def test_detector_flags_a_script_literal() -> None:
-    source = 'run("skills/git/scripts/git-push-safe.sh")\nnote = "skills/ in prose"\n'
-
-    assert script_literals(source=source) == [(1, "skills/git/scripts/git-push-safe.sh")]
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        (
+            'run("skills/git/scripts/git-push-safe.sh")\n',
+            [(1, "skills/git/scripts/git-push-safe.sh")],
+        ),
+        ('note = "see skills/git/scripts/ in prose"\n', []),
+        ('GLOB = "skills/*/scripts/*.py"\n', []),
+    ],
+)
+def test_detector(source: str, expected: list[tuple[int, str]]) -> None:
+    assert script_literals(source=source) == expected

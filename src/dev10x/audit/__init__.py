@@ -21,6 +21,7 @@ from typing import Any
 from dev10x.audit.log_pruner import prune
 from dev10x.audit.log_reader import audit_dir, iter_records
 from dev10x.audit.summarizer import summarize
+from dev10x.core.paths import skill_script
 from dev10x.domain.claude_paths import ClaudeDir
 from dev10x.domain.common.result import Result, err, ok
 from dev10x.domain.file_locks import atomic_write_text
@@ -52,7 +53,7 @@ async def extract_session(
         args.append(output_path)
 
     result = await async_run_script(
-        "skills/skill-audit/scripts/extract-session.py",
+        skill_script(skill="skill-audit", rel="extract-session.py"),
         *args,
     )
 
@@ -72,7 +73,7 @@ async def analyze_actions(
         args.append(output_path)
 
     result = await async_run_script(
-        "skills/skill-audit/scripts/analyze-actions.py",
+        skill_script(skill="skill-audit", rel="analyze-actions.py"),
         *args,
     )
 

@@ -10,6 +10,7 @@ import json
 import subprocess
 from typing import Any
 
+from dev10x.core.paths import skill_script
 from dev10x.domain.common.result import Result, err, ok
 from dev10x.domain.transport_budget import clamp_tool_timeout, polls_within_budget
 from dev10x.subprocess_utils import async_run, get_plugin_root
@@ -31,7 +32,7 @@ async def ci_check_status(
     wait_out_pending: bool = True,
     wait_for: list[str] | None = None,
 ) -> Result[dict[str, Any]]:
-    script = get_plugin_root() / "skills/gh-pr-monitor/scripts/ci-check-status.py"
+    script = get_plugin_root() / skill_script(skill="gh-pr-monitor", rel="ci-check-status.py")
     args: list[str] = [
         str(script),
         "--pr",

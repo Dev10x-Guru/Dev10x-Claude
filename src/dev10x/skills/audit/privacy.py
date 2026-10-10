@@ -36,6 +36,8 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
+from dev10x.core.paths import skill_script
+
 # ─────────────────────────────────────────────────────────────────────
 # Detection rules
 # ─────────────────────────────────────────────────────────────────────
@@ -141,13 +143,13 @@ _NET_IMPORT_EXEMPT_PATHS: tuple[str, ...] = (
     # Skill scripts are documented in PRIVACY_POLICY.md as user-invoked
     # outbound integrations. They are exempt from the no-outbound rule
     # because the policy explicitly covers them.
-    "skills/qa-self/scripts/upload-screenshots.py",
+    skill_script(skill="qa-self", rel="upload-screenshots.py"),
     # YouTube uploader: publishes a walkthrough recording the operator
     # explicitly approved, as unlisted, using a token borrowed from the
     # local gog CLI. gog cannot carry a media body, so the resumable
     # videos.insert is done here with `requests`. Covered by the YouTube
     # Data API row in PRIVACY_POLICY.md (GH-1119).
-    "skills/yt-upload/scripts/upload-video.py",
+    skill_script(skill="yt-upload", rel="upload-video.py"),
     # `dev10x github-app setup` wizard module: explicitly verifies App
     # credentials against api.github.com before writing config. Covered
     # by the GitHub row in PRIVACY_POLICY.md.
