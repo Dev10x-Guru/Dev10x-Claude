@@ -8,6 +8,8 @@ namespaces:
   dev10x: core
   dev10x.audit: skillmgmt
   dev10x.cli: core
+  dev10x.coding: coding
+  dev10x.comm: comm
   dev10x.commands: core
   dev10x.config: core
   dev10x.core: core
@@ -18,6 +20,7 @@ namespaces:
   dev10x.git: coding
   dev10x.github: coding
   dev10x.hooks: core
+  dev10x.infra: infra
   dev10x.mcp: core
   dev10x.mcp.audit_tools: skillmgmt
   dev10x.mcp.git_tools: coding
@@ -30,13 +33,16 @@ namespaces:
   dev10x.permission: core
   dev10x.plan: tasks
   dev10x.platform: core
+  dev10x.qa: qa
   dev10x.release: coding
   dev10x.repo_scan: core
   dev10x.runner: coding
   dev10x.scope: scoping
+  dev10x.scoping: scoping
   dev10x.session: core
   dev10x.session.task_index: tasks
   dev10x.skill_index: skillmgmt
+  dev10x.skillmgmt: skillmgmt
   dev10x.skills: core
   dev10x.skills.audit: skillmgmt
   dev10x.skills.bus: comm
@@ -52,5 +58,6 @@ namespaces:
   dev10x.spec: scoping
   dev10x.subprocess_timeouts: core
   dev10x.subprocess_utils: core
+  dev10x.tasks: tasks
   dev10x.utilities: comm
   dev10x.validators: core
