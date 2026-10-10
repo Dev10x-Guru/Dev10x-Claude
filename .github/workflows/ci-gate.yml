@@ -175,7 +175,7 @@ jobs:
         run: uv run coverage report --include='src/dev10x/validators/*' --fail-under=90
 
       - name: Enforce config floor
-        run: uv run coverage report --include='src/dev10x/config/*' --fail-under=90
+        run: uv run coverage report --include='src/dev10x/core/config/*' --fail-under=90
 
       - name: Enforce spec floor
         run: uv run coverage report --include='src/dev10x/spec/*' --fail-under=90
