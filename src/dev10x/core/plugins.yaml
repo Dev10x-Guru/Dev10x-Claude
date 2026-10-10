@@ -1,0 +1,110 @@
+# Target plugin for every directory under skills/ (ADR-0034, GH-1524).
+#
+# Keys are the Python namespaces Stage A moves code into
+# (dev10x.<key>); `core` keeps the plugin name `dev10x`. Every skill
+# directory appears exactly once — tests/core/test_plugin_map.py
+# fails on a missing, duplicated, or unknown entry.
+plugins:
+  qa:
+    - playwright
+    - qa-publish
+    - qa-self
+    - review-pack
+    - tts
+    - yt-upload
+  infra:
+    - aws-vault
+    - k8s
+  db:
+    - db
+    - db-psql
+  comm:
+    - bus
+    - gchat
+    - gog
+    - slack
+    - slack-setup
+  skillmgmt:
+    - audit-file
+    - context-audit
+    - memory-maintenance
+    - skill-audit
+    - skill-audit-queue
+    - skill-create
+    - skill-index
+  tasks:
+    - park
+    - park-discover
+    - park-remind
+    - park-todo
+    - plan-sync
+    - session-tasks
+    - session-wrap-up
+  scoping:
+    - adr
+    - adr-evaluate
+    - ddd
+    - estimate
+    - jira
+    - jtbd
+    - linear
+    - project-audit
+    - project-scope
+    - scope
+    - spec-sync
+    - spec-update
+    - ticket-create
+    - ticket-jtbd
+    - ticket-scope
+  core:
+    - afk
+    - ask
+    - diag-friction
+    - friction-setup
+    - onboarding
+    - permission-investigator
+    - playbook
+    - playbook-maintenance
+    - plugin-doctor
+    - plugin-maintenance
+    - session-config-seed
+    - upgrade-cleanup
+  coding:
+    - fanout
+    - foreman
+    - gchat-review-request
+    - gh-context
+    - gh-pr-bookmark
+    - gh-pr-create
+    - gh-pr-doctor
+    - gh-pr-fixup
+    - gh-pr-merge
+    - gh-pr-monitor
+    - gh-pr-request-review
+    - gh-pr-respond
+    - gh-pr-review
+    - gh-pr-triage
+    - gh-review-setup
+    - git
+    - git-alias-setup
+    - git-branch-prune
+    - git-commit
+    - git-commit-split
+    - git-fixup
+    - git-groom
+    - git-promote
+    - git-worktree
+    - ide-normalize
+    - investigate
+    - py-test
+    - py-test-flaky
+    - py-uv
+    - qa-scope
+    - release-notes
+    - request-review
+    - review
+    - review-fix
+    - slack-review-request
+    - ticket-branch
+    - verify-acc-dod
+    - work-on
