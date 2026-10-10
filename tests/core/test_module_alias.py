@@ -109,6 +109,8 @@ class TestMovedPackages:
             ("dev10x.domain.events.hook_input", "dev10x.core.domain.events.hook_input"),
             ("dev10x.subprocess_utils", "dev10x.core.subprocess_utils"),
             ("dev10x.subprocess_timeouts", "dev10x.core.subprocess_timeouts"),
+            ("dev10x.config", "dev10x.core.config"),
+            ("dev10x.config.friction_presets", "dev10x.core.config.friction_presets"),
         ],
     )
     def test_old_path_is_the_moved_module(self, old: str, new: str) -> None:
