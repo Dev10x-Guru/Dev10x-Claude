@@ -52,7 +52,10 @@ from dev10x.skills.permission.enumerate_mcp import (
 
 REPO_ROOT = Path(permission_pkg.__file__).resolve().parents[4]
 PROJECTS_YAML = REPO_ROOT / "skills" / "upgrade-cleanup" / "projects.yaml"
-MCP_DIR = REPO_ROOT / "src" / "dev10x" / "mcp"
+MCP_DIRS = (
+    REPO_ROOT / "src" / "dev10x" / "mcp",
+    REPO_ROOT / "src" / "dev10x" / "core" / "mcp",
+)
 
 #: A decorator line that registers an MCP tool: the direct FastMCP form
 #: (``@server.tool()``) or a module-level wrapper around it, which this
@@ -100,17 +103,19 @@ def test_exclusion_list_names_only_registered_tools() -> None:
 
 def _registration_decorator_count() -> int:
     return sum(
-        len(_REGISTRATION_DECORATOR.findall(module.read_text())) for module in MCP_DIR.glob("*.py")
+        len(_REGISTRATION_DECORATOR.findall(module.read_text()))
+        for mcp_dir in MCP_DIRS
+        for module in mcp_dir.glob("*.py")
     )
 
 
 def test_discovery_sees_every_registration() -> None:
     declared = _registration_decorator_count()
     discovered = len(_registered_tools())
-    assert declared > 0, f"no MCP registration decorators found under {MCP_DIR}"
+    assert declared > 0, f"no MCP registration decorators found under {MCP_DIRS}"
     assert discovered >= declared, (
         f"discovery found {discovered} MCP tools but {declared} registration "
-        f"decorators exist under {MCP_DIR}. discover_mcp_tools() is scanning a "
+        f"decorators exist under {MCP_DIRS}. discover_mcp_tools() is scanning a "
         "subset — widen _SERVER_GLOBS or _is_server_tool_decorator in "
         "enumerate_mcp.py. A narrowed discovery makes the catalog guard below "
         "pass green while blind to the tools it cannot see (GH-1215)."

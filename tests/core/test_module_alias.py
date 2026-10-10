@@ -184,6 +184,13 @@ class TestMovedPackages:
             ("dev10x.session.service", "dev10x.core.session.service"),
             ("dev10x.session.preset_pin", "dev10x.core.session.preset_pin"),
             ("dev10x.session.tracker_pin", "dev10x.core.session.tracker_pin"),
+            ("dev10x.mcp._app", "dev10x.core.mcp._app"),
+            ("dev10x.mcp.transport", "dev10x.core.mcp.transport"),
+            ("dev10x.mcp.daemon", "dev10x.core.mcp.daemon"),
+            ("dev10x.mcp.wiring", "dev10x.core.mcp.wiring"),
+            ("dev10x.mcp.strict_args", "dev10x.core.mcp.strict_args"),
+            ("dev10x.mcp.gate_tools", "dev10x.core.mcp.gate_tools"),
+            ("dev10x.mcp.gate_query", "dev10x.core.mcp.gate_query"),
         ],
     )
     def test_old_path_is_the_moved_module(self, old: str, new: str) -> None:
