@@ -19,6 +19,7 @@ _YAML_PATH = (
     Path(__file__).resolve().parent.parent.parent
     / "src"
     / "dev10x"
+    / "core"
     / "validators"
     / "command-skill-map.yaml"
 )

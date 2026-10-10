@@ -47,7 +47,7 @@ SAFE_PREFIXES = re.compile(
 _PLUGIN_ROOT = Path(
     os.environ.get(
         "CLAUDE_PLUGIN_ROOT",
-        str(Path(__file__).resolve().parents[3]),
+        str(Path(__file__).resolve().parents[4]),
     )
 )
 DB_SH_PATH = _PLUGIN_ROOT / "skills" / "db-psql" / "scripts" / "db.sh"

@@ -120,6 +120,9 @@ class TestMovedPackages:
             ("dev10x.github.app_api", "dev10x.core.github.app_api"),
             ("dev10x.spec", "dev10x.core.spec"),
             ("dev10x.spec.drift_detector", "dev10x.core.spec.drift_detector"),
+            ("dev10x.validators", "dev10x.core.validators"),
+            ("dev10x.validators.registry", "dev10x.core.validators.registry"),
+            ("dev10x.validators.skill_redirect", "dev10x.core.validators.skill_redirect"),
         ],
     )
     def test_old_path_is_the_moved_module(self, old: str, new: str) -> None:

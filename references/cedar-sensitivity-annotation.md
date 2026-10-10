@@ -126,7 +126,7 @@ This is more conservative than `permit` but less absolute than a silent
   `src/dev10x/domain/sensitivity.py` — `SensitivityLabel`, `SensitivityMatch`,
   `SensitivityPattern`, `SensitivityClassifier`.
 - **GH-406**: This document + DX014 validator wiring (Increment 2).
-  `src/dev10x/validators/sensitivity_target.py`.
+  `src/dev10x/core/validators/sensitivity_target.py`.
 - **GH-271**: Evidence corpus.
   Fixtures #267–#273 drove the default wordlist entries for all four labels.
 - **GH-310**: Sequence/unattended gate.

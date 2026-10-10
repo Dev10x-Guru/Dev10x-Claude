@@ -213,7 +213,7 @@ whether the gate *fires* is `resolve_gate(gate="completion_signoff")`.
 ## The other `friction_level`
 
 `config.friction_level` in
-`src/dev10x/validators/command-skill-map.yaml`, consumed by
+`src/dev10x/core/validators/command-skill-map.yaml`, consumed by
 `skill_redirect.py`, is the **ADR-0002 command-redirect axis**: how
 hard the PreToolUse Bash hook pushes an agent from a raw CLI command
 toward its skill wrapper. It constrains the *agent's tool choice*, not

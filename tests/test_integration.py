@@ -52,7 +52,7 @@ class TestCliIntegration:
 
 class TestConfigCaching:
     def test_first_load_creates_cache(self, tmp_path: Path) -> None:
-        yaml_path = REPO_ROOT / "src" / "dev10x" / "validators" / "command-skill-map.yaml"
+        yaml_path = REPO_ROOT / "src" / "dev10x" / "core" / "validators" / "command-skill-map.yaml"
         if not yaml_path.exists():
             pytest.skip("command-skill-map.yaml not found")
 
@@ -64,7 +64,7 @@ class TestConfigCaching:
         assert yaml_copy.with_suffix(".msgpack").exists()
 
     def test_second_load_uses_cache(self, tmp_path: Path) -> None:
-        yaml_path = REPO_ROOT / "src" / "dev10x" / "validators" / "command-skill-map.yaml"
+        yaml_path = REPO_ROOT / "src" / "dev10x" / "core" / "validators" / "command-skill-map.yaml"
         if not yaml_path.exists():
             pytest.skip("command-skill-map.yaml not found")
 
@@ -118,7 +118,7 @@ class TestHookDispatch:
 
 class TestEditValidatorRules:
     def test_loads_production_rules(self) -> None:
-        yaml_path = REPO_ROOT / "src" / "dev10x" / "validators" / "command-skill-map.yaml"
+        yaml_path = REPO_ROOT / "src" / "dev10x" / "core" / "validators" / "command-skill-map.yaml"
         if not yaml_path.exists():
             pytest.skip("command-skill-map.yaml not found")
 

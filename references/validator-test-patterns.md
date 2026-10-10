@@ -1,6 +1,6 @@
 # Validator Test Patterns
 
-Patterns for writing comprehensive tests for `src/dev10x/validators/*.py`.
+Patterns for writing comprehensive tests for `src/dev10x/core/validators/*.py`.
 
 ## Structure
 

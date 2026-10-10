@@ -185,7 +185,7 @@ _DETECTION_EXEMPT_PATHS: tuple[str, ...] = (
     # intercept; they do not invoke them. The hook-validator and
     # session-audit architectures guarantee no outbound calls
     # from these modules.
-    "src/dev10x/validators/",
+    "src/dev10x/core/validators/",
     "src/dev10x/skills/audit/",
     "skills/skill-audit/",
     # The diag-friction skill (formerly skill-reinforcement) exists
