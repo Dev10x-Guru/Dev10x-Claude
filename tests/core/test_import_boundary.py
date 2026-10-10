@@ -9,6 +9,7 @@ the edge is genuinely intended, add the reported line to the baseline.
 from __future__ import annotations
 
 import ast
+import importlib
 from pathlib import Path
 
 import pytest
@@ -87,6 +88,26 @@ class TestRepositoryBoundary:
 
     def test_namespaces_are_plugin_map_keys(self, namespaces: NamespaceMap) -> None:
         assert set(namespaces.prefixes.values()) <= set(load_plugin_map().plugins)
+
+
+PLUGIN_KEYS = sorted(load_plugin_map().plugins)
+
+
+class TestTargetPackages:
+    def test_there_are_nine_target_namespaces(self) -> None:
+        assert len(PLUGIN_KEYS) == 9
+
+    @pytest.mark.parametrize("key", PLUGIN_KEYS)
+    def test_target_package_imports(self, key: str) -> None:
+        assert importlib.import_module(f"dev10x.{key}").__name__ == f"dev10x.{key}"
+
+    @pytest.mark.parametrize("key", PLUGIN_KEYS)
+    def test_boundary_maps_target_package_to_itself(
+        self,
+        namespaces: NamespaceMap,
+        key: str,
+    ) -> None:
+        assert namespaces.namespace_of(module=f"dev10x.{key}") == key
 
 
 class TestNamespaceMap:
