@@ -8,7 +8,7 @@ import click
 
 from dev10x.domain.claude_paths import ClaudeDir
 from dev10x.domain.common.result import ErrorResult
-from dev10x.permission.service import PermissionContext, load_permission_context
+from dev10x.core.permission.service import PermissionContext, load_permission_context
 
 
 @click.group()

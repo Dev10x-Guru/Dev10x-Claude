@@ -179,6 +179,8 @@ class TestMovedPackages:
             ("dev10x.hooks.session", "dev10x.core.hooks.session"),
             ("dev10x.hooks.edit_validator", "dev10x.core.hooks.edit_validator"),
             ("dev10x.hooks.stop_verdict", "dev10x.core.hooks.stop_verdict"),
+            ("dev10x.permission", "dev10x.core.permission"),
+            ("dev10x.permission.service", "dev10x.core.permission.service"),
         ],
     )
     def test_old_path_is_the_moved_module(self, old: str, new: str) -> None:
