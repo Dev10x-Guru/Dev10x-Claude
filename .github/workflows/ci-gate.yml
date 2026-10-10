@@ -119,7 +119,7 @@ jobs:
             --cov=src/dev10x/git \
             --cov=src/dev10x/github \
             --cov=src/dev10x/monitor \
-            --cov=src/dev10x/permission \
+            --cov=src/dev10x/core/permission \
             --cov=src/dev10x/plan \
             --cov=src/dev10x/release \
             --cov=src/dev10x/skill_index \
