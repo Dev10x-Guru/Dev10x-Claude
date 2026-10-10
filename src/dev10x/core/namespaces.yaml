@@ -1,0 +1,56 @@
+# Target namespace for every src/dev10x module (ADR-0034, GH-1525).
+#
+# Keys are module prefixes; the longest matching prefix wins. Every
+# top-level dev10x.<name> module or package needs an entry, so a new
+# package cannot default into a namespace by accident. Values are the
+# plugin keys from plugins.yaml.
+namespaces:
+  dev10x: core
+  dev10x.audit: skillmgmt
+  dev10x.cli: core
+  dev10x.commands: core
+  dev10x.config: core
+  dev10x.core: core
+  dev10x.db: db
+  dev10x.dependency_pins: core
+  dev10x.dependency_sweep: core
+  dev10x.domain: core
+  dev10x.git: coding
+  dev10x.github: coding
+  dev10x.hooks: core
+  dev10x.mcp: core
+  dev10x.mcp.audit_tools: skillmgmt
+  dev10x.mcp.git_tools: coding
+  dev10x.mcp.github_tools: coding
+  dev10x.mcp.monitor_tools: coding
+  dev10x.mcp.plan_tools: tasks
+  dev10x.mcp.release_tools: coding
+  dev10x.mcp.task_index_tools: tasks
+  dev10x.monitor: coding
+  dev10x.permission: core
+  dev10x.plan: tasks
+  dev10x.platform: core
+  dev10x.release: coding
+  dev10x.repo_scan: core
+  dev10x.runner: coding
+  dev10x.scope: scoping
+  dev10x.session: core
+  dev10x.session.task_index: tasks
+  dev10x.skill_index: skillmgmt
+  dev10x.skills: core
+  dev10x.skills.audit: skillmgmt
+  dev10x.skills.bus: comm
+  dev10x.skills.database: db
+  dev10x.skills.evidence: qa
+  dev10x.skills.foreman: coding
+  dev10x.skills.git_fixup: coding
+  dev10x.skills.merge: coding
+  dev10x.skills.monitor: coding
+  dev10x.skills.notifications: comm
+  dev10x.skills.orchestration: coding
+  dev10x.skills.release: coding
+  dev10x.spec: scoping
+  dev10x.subprocess_timeouts: core
+  dev10x.subprocess_utils: core
+  dev10x.utilities: comm
+  dev10x.validators: core
