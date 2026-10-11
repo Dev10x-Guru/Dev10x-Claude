@@ -28,7 +28,11 @@ import yaml
 import dev10x.skills.permission as permission_pkg
 from dev10x.domain.common.baseline_catalog import load_baseline_dict
 from dev10x.domain.common.command_spellings import expand_spellings
-from dev10x.skills.permission.catalog_paths import CATALOG_RELPATH
+from dev10x.skills.permission.catalog_paths import (
+    CATALOG_RELPATH,
+    catalog_files,
+    load_catalog_document,
+)
 from dev10x.skills.permission.path_rule_anchors import (
     PATH_TOOLS,
     Anchor,
@@ -44,6 +48,7 @@ PERMISSION_DIR = Path(permission_pkg.__file__).resolve().parent
 REPO_ROOT = PERMISSION_DIR.parents[4]
 BASELINE_YAML = PERMISSION_DIR / "baseline-permissions.yaml"
 PROJECTS_YAML = REPO_ROOT / CATALOG_RELPATH
+CATALOG_SOURCES = (*catalog_files(catalog_path=PROJECTS_YAML), BASELINE_YAML)
 
 #: A path rule as a YAML list item, quoted or bare. Anchored to the item
 #: so prose inside a comment — `Edit(path) covers all file-editing
@@ -96,7 +101,7 @@ REPLACEMENT_RULES: tuple[str, ...] = ("Read(//tmp/Dev10x/**)", "Edit(//tmp/Dev10
 
 
 def _catalog_rules() -> list[str]:
-    config = expand_spellings(yaml.safe_load(PROJECTS_YAML.read_text(encoding="utf-8")))
+    config = expand_spellings(load_catalog_document(catalog_path=PROJECTS_YAML))
     return list(config.get("base_permissions") or [])
 
 
@@ -228,7 +233,7 @@ class TestAnchorRatchet:
     a project-relative `Read(/src/**)` — stay outside the scope.
     """
 
-    @pytest.mark.parametrize("source", [PROJECTS_YAML, BASELINE_YAML])
+    @pytest.mark.parametrize("source", CATALOG_SOURCES)
     def test_no_temp_rule_anchors_at_the_settings_source(self, source: Path) -> None:
         misanchored = [
             rule.pattern
@@ -253,7 +258,7 @@ class TestRetiredTempNamespace:
     granted access to a directory nothing writes.
     """
 
-    @pytest.mark.parametrize("source", [PROJECTS_YAML, BASELINE_YAML])
+    @pytest.mark.parametrize("source", CATALOG_SOURCES)
     def test_no_catalog_declares_a_tmp_claude_path_rule(self, source: Path) -> None:
         revived = [
             rule.pattern
@@ -276,14 +281,18 @@ class TestRetiredTempNamespace:
 
 
 class TestEnumerationCannotNarrow:
-    @pytest.mark.parametrize("source", [PROJECTS_YAML, BASELINE_YAML])
-    def test_two_independent_measurements_agree(self, source: Path) -> None:
-        in_text = set(_rules_in_text(source=source))
-        in_yaml = set(_rules_in_parsed_yaml(source=source))
-        assert in_yaml, f"no path rules found in {source}"
+    @pytest.mark.parametrize(
+        "sources",
+        [tuple(catalog_files(catalog_path=PROJECTS_YAML)), (BASELINE_YAML,)],
+        ids=["projects", "baseline"],
+    )
+    def test_two_independent_measurements_agree(self, sources: tuple[Path, ...]) -> None:
+        in_text = {rule for source in sources for rule in _rules_in_text(source=source)}
+        in_yaml = {rule for source in sources for rule in _rules_in_parsed_yaml(source=source)}
+        assert in_yaml, f"no path rules found in {sources}"
         assert in_yaml == in_text, (
             f"the text scan and the parsed-document walk disagree about which "
-            f"path rules {source.name} declares. Whichever is narrower makes "
+            f"path rules {sources[0].name} declares. Whichever is narrower makes "
             "the anchor ratchet and the compaction proof pass green while "
             "blind to the rules it cannot see (GH-1215).\n"
             f"  only in the parsed document: {sorted(in_yaml - in_text)}\n"

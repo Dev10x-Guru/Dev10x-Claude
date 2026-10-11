@@ -25,7 +25,8 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-import yaml
+
+from dev10x.skills.permission.catalog_paths import load_catalog_document
 
 PAGER_DENIES = (
     "Bash(git -P:*)",
@@ -34,7 +35,7 @@ PAGER_DENIES = (
 
 
 def _catalog(path: Path) -> dict:
-    return yaml.safe_load(path.read_text())
+    return load_catalog_document(catalog_path=path)
 
 
 def test_uv_run_directory_form_is_left_to_prefix_friction(projects_yaml: Path) -> None:

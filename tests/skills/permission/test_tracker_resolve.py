@@ -12,6 +12,7 @@ from dev10x.domain.common.tracker_choice import (
     apply_tracker_selection,
     tracker_inventory,
 )
+from dev10x.skills.permission.catalog_paths import load_catalog_document
 from dev10x.skills.permission.tracker_resolve import resolve_tracker, tracker_source
 
 
@@ -67,7 +68,7 @@ class TestResolveTracker:
 class TestShippedCatalog:
     @pytest.fixture
     def catalog(self, projects_yaml: Path) -> dict:
-        return yaml.safe_load(projects_yaml.read_text())
+        return load_catalog_document(catalog_path=projects_yaml)
 
     def test_every_tracker_has_a_block(self, catalog: dict) -> None:
         inventory = tracker_inventory(config=catalog)

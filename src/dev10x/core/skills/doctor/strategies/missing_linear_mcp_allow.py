@@ -7,7 +7,7 @@ MCP allow rules shipped by `dev10x:plugin-maintenance` /
 `dev10x:upgrade-cleanup`.
 
 When Linear is in use, the baseline pre-approves the read+write
-subset (Group A + B in `skills/upgrade-cleanup/projects.yaml`) so
+subset (Group A + B in `skills/upgrade-cleanup/projects.d/scoping.yaml`) so
 each project does not have to re-approve the same tools. A finding
 fires when a project shows Linear usage but is missing 5+ baseline
 rules — that threshold avoids noise on projects that touch Linear
@@ -98,7 +98,7 @@ def detect(context: Context) -> list[Finding]:
                 proposed_fix=(
                     "run `dev10x:upgrade-cleanup` (or `dev10x permission "
                     "ensure-base`) to install the Linear MCP baseline shipped "
-                    "in `skills/upgrade-cleanup/projects.yaml`"
+                    "in `skills/upgrade-cleanup/projects.d/scoping.yaml`"
                 ),
                 data=LinearBaselineRemediation(missing_tools=tuple(missing)),
             )

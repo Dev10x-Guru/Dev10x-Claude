@@ -42,9 +42,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-import yaml
-
 import dev10x.skills.permission as permission_pkg
+from dev10x.skills.permission.catalog_paths import load_catalog_document
 from dev10x.skills.permission.enumerate_mcp import (
     WRITE_TOOLS_NOT_SEEDED,
     discover_mcp_tools,
@@ -66,7 +65,7 @@ _REGISTRATION_DECORATOR = re.compile(r"^@(?:\w+\.tool\(|\w+_tool\s*$)", re.MULTI
 
 
 def _catalogued_rules() -> set[str]:
-    config = yaml.safe_load(PROJECTS_YAML.read_text())
+    config = load_catalog_document(catalog_path=PROJECTS_YAML)
     rules: set[str] = set(config.get("base_permissions") or [])
     for tracker_rules in (config.get("tracker_permissions") or {}).values():
         rules.update(tracker_rules or [])

@@ -18,18 +18,20 @@ these tests rather than a user's machine.
 from __future__ import annotations
 
 import pytest
-import yaml
 
 from dev10x.skills.doctor.strategies.shell_equivalent_mcp_tools import (
     _looks_shell_equivalent,
 )
-from dev10x.skills.permission.catalog_paths import shipped_projects_catalog
+from dev10x.skills.permission.catalog_paths import (
+    load_catalog_document,
+    shipped_projects_catalog,
+)
 
 _TOOL_PREFIX_SEPARATOR = "__"
 
 
 def _catalog() -> dict:
-    return yaml.safe_load(shipped_projects_catalog().read_text())
+    return load_catalog_document(catalog_path=shipped_projects_catalog())
 
 
 def _tool_name(rule: str) -> str:

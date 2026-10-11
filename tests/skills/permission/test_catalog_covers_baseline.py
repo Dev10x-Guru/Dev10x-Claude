@@ -33,8 +33,6 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-import yaml
-
 import dev10x.skills.permission as permission_pkg
 from dev10x.domain.common.baseline_catalog import load_baseline_dict
 from dev10x.domain.common.command_spellings import expand_spellings
@@ -51,7 +49,7 @@ from dev10x.skills.permission.baseline_coverage import (
     triaged_backlog,
     unseeded_baseline_rules,
 )
-from dev10x.skills.permission.catalog_paths import CATALOG_RELPATH
+from dev10x.skills.permission.catalog_paths import CATALOG_RELPATH, load_catalog_document
 
 PERMISSION_DIR = Path(permission_pkg.__file__).resolve().parent
 REPO_ROOT = PERMISSION_DIR.parents[4]
@@ -72,7 +70,7 @@ def _projects() -> dict:
     # Through the spelling expander, not raw YAML: since GH-1317 the flat
     # lists are what the catalog *renders*, and comparing against the
     # source shape would report every spelling-declared rule as unseeded.
-    return expand_spellings(yaml.safe_load(PROJECTS_YAML.read_text(encoding="utf-8")))
+    return expand_spellings(load_catalog_document(catalog_path=PROJECTS_YAML))
 
 
 def test_every_baseline_rule_is_seeded_or_explicitly_excluded() -> None:

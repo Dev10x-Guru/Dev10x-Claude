@@ -7,10 +7,10 @@ import json
 from pathlib import Path
 
 import pytest
-import yaml
 
 from dev10x.skills.permission import catalog_rules, enumerate_mcp
 from dev10x.skills.permission import catalog_write as mod
+from dev10x.skills.permission.catalog_paths import load_catalog_document
 
 
 @pytest.fixture(autouse=True)
@@ -56,7 +56,7 @@ class TestSanctionedPreCommitCoverage:
         self,
         projects_yaml: Path,
     ) -> None:
-        config = yaml.safe_load(projects_yaml.read_text(encoding="utf-8"))
+        config = load_catalog_document(catalog_path=projects_yaml)
         assert "Bash(pre-commit run:*)" in config["base_permissions"]
 
 
