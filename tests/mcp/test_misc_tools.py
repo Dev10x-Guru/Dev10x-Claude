@@ -1,7 +1,9 @@
-"""Tests for misc_tools MCP adapter (GH-580).
+"""Tests for the former misc_tools MCP adapters (GH-580, split by GH-1548).
 
 Covers argument forwarding (especially cwd), ok/err → dict translation,
-and error paths for each adapter function in src/dev10x/mcp/misc_tools.py.
+and error paths for the adapters now in core/mcp/utility_tools.py,
+coding/mcp/runner_tools.py, comm/mcp/slack_tools.py and
+teach/mcp/skill_index_tools.py.
 """
 
 from __future__ import annotations
