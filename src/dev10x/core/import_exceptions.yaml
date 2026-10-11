@@ -1,0 +1,46 @@
+# Declared cross-namespace imports (ADR-0034 Stage A1, GH-1547).
+#
+# A namespace imports only itself and dev10x.core. Every other edge found
+# by tests/core/test_import_boundary.py must fall under one entry here:
+# `source` and `target` are module prefixes (a module matches its own name
+# and everything below it). `until` names the milestone that removes the
+# entry. An entry that covers no current edge fails the test, so delete it
+# as soon as the edge is gone. Do not add an entry to silence a new edge;
+# route the import through dev10x.core instead.
+exceptions:
+  - source: dev10x.commands
+    target: dev10x
+    reason: >-
+      CLI composition root: wires every namespace's click commands into
+      the single `dev10x` entry point.
+    until: PLG-M6
+  - source: dev10x.mcp.server_cli
+    target: dev10x
+    reason: >-
+      MCP composition root: imports every namespace's tool modules until
+      each namespace exports register(server).
+    until: PLG-M3
+  - source: dev10x.mcp.misc_tools
+    target: dev10x
+    reason: >-
+      Mixed-owner tool module (runner, skill index, Slack) awaiting the
+      split by owner.
+    until: PLG-M3
+  - source: dev10x.coding.skills.monitor.pr_notify
+    target: dev10x.comm.skills.notifications.slack_notify
+    reason: >-
+      pr_notify posts through comm's Slack notifier; Stage A2 decouples it.
+    until: PLG-M3
+  - source: dev10x.core.mcp.gate_query
+    target: dev10x.coding.github
+    reason: >-
+      The supervisor-review floor reads the review:cleared PR label through
+      coding's GitHub wrappers (lazy import, only on the parked gate).
+    until: PLG-M3
+  - source: dev10x.core.hooks.audit_emit
+    target: dev10x.teach.audit.log_reader
+    reason: >-
+      The default AuditWriter is teach's log reader, resolved lazily behind
+      the _get_writer seam; it must move to core or be injected before teach
+      is extracted (B5).
+    until: PLG-M6

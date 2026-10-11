@@ -1,9 +1,9 @@
-"""Cross-namespace import edges for the staged plugin split (ADR-0034, GH-1525).
+"""Cross-namespace import boundary for the staged plugin split (ADR-0034).
 
 Each ``src/dev10x`` module belongs to one target namespace. A namespace
-may import itself and ``core`` freely; every other edge is reported so
-Stage A1 can remove it, and the boundary test fails on an edge that is
-not in its recorded baseline.
+may import itself and ``core`` freely. Every other edge must be covered
+by a declared exception in ``import_exceptions.yaml`` (GH-1547), and an
+exception that no longer covers any edge is stale.
 """
 
 from __future__ import annotations
@@ -15,6 +15,7 @@ from pathlib import Path
 import yaml
 
 NAMESPACES_PATH = Path(__file__).with_name("namespaces.yaml")
+EXCEPTIONS_PATH = Path(__file__).with_name("import_exceptions.yaml")
 CORE = "core"
 
 
@@ -40,9 +41,65 @@ class ImportEdge:
         return f"{self.source} -> {self.target}"
 
 
+def _within(*, module: str, prefix: str) -> bool:
+    return module == prefix or module.startswith(f"{prefix}.")
+
+
+@dataclass(frozen=True)
+class BoundaryException:
+    source: str
+    target: str
+    reason: str
+    until: str
+
+    def covers(self, *, edge: ImportEdge) -> bool:
+        return _within(module=edge.source, prefix=self.source) and _within(
+            module=edge.target,
+            prefix=self.target,
+        )
+
+    def render(self) -> str:
+        return f"{self.source} -> {self.target} (until {self.until})"
+
+
 def load_namespace_map(*, path: Path = NAMESPACES_PATH) -> NamespaceMap:
     data = yaml.safe_load(path.read_text()) or {}
     return NamespaceMap(prefixes=dict(data.get("namespaces") or {}))
+
+
+def load_exceptions(*, path: Path = EXCEPTIONS_PATH) -> list[BoundaryException]:
+    data = yaml.safe_load(path.read_text()) or {}
+    return [
+        BoundaryException(
+            source=entry["source"],
+            target=entry["target"],
+            reason=entry["reason"],
+            until=entry["until"],
+        )
+        for entry in data.get("exceptions") or []
+    ]
+
+
+def undeclared_edges(
+    *,
+    edges: list[ImportEdge],
+    exceptions: list[BoundaryException],
+) -> list[ImportEdge]:
+    return [
+        edge for edge in edges if not any(exception.covers(edge=edge) for exception in exceptions)
+    ]
+
+
+def stale_exceptions(
+    *,
+    edges: list[ImportEdge],
+    exceptions: list[BoundaryException],
+) -> list[BoundaryException]:
+    return [
+        exception
+        for exception in exceptions
+        if not any(exception.covers(edge=edge) for edge in edges)
+    ]
 
 
 def module_name(*, path: Path, package_root: Path) -> str:
@@ -137,14 +194,19 @@ def unmapped_top_level(*, package_root: Path, namespaces: NamespaceMap) -> list[
 
 __all__ = [
     "CORE",
+    "EXCEPTIONS_PATH",
     "NAMESPACES_PATH",
+    "BoundaryException",
     "ImportEdge",
     "NamespaceMap",
     "cross_namespace_edges",
     "imported_modules",
+    "load_exceptions",
     "load_namespace_map",
     "module_name",
     "owning_module",
     "scan_package",
+    "stale_exceptions",
+    "undeclared_edges",
     "unmapped_top_level",
 ]

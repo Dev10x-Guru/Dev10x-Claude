@@ -1,9 +1,8 @@
-"""Report-only import-boundary test (ADR-0034 Stage A0, GH-1525).
+"""Enforcing import-boundary test (ADR-0034 Stage A1, GH-1547).
 
-``tests/fixtures/import_boundary_allowlist.txt`` is today's baseline of
-cross-namespace edges. Stage A1 shrinks it; nothing should grow it. A
-new edge fails here — import through ``dev10x.core`` instead, or, when
-the edge is genuinely intended, add the reported line to the baseline.
+A namespace imports only itself and ``dev10x.core``. Any other edge must
+be covered by a declared exception in ``dev10x/core/import_exceptions.yaml``;
+a new edge fails here — import through ``dev10x.core`` instead.
 """
 
 from __future__ import annotations
@@ -15,32 +14,28 @@ from pathlib import Path
 import pytest
 
 from dev10x.core.import_boundary import (
+    BoundaryException,
     ImportEdge,
     NamespaceMap,
     cross_namespace_edges,
     imported_modules,
+    load_exceptions,
     load_namespace_map,
     module_name,
     owning_module,
     scan_package,
+    stale_exceptions,
+    undeclared_edges,
     unmapped_top_level,
 )
 from dev10x.core.plugin_map import load_plugin_map
 from dev10x.subprocess_utils import get_plugin_root
 
-ALLOWLIST_PATH = Path(__file__).parents[1] / "fixtures" / "import_boundary_allowlist.txt"
+MILESTONE_PREFIX = "PLG-M"
 
 
 def _package_root() -> Path:
     return get_plugin_root() / "src" / "dev10x"
-
-
-def read_allowlist(*, path: Path) -> set[str]:
-    return {
-        line.strip()
-        for line in path.read_text().splitlines()
-        if line.strip() and not line.startswith("#")
-    }
 
 
 @pytest.fixture(scope="module")
@@ -49,10 +44,13 @@ def namespaces() -> NamespaceMap:
 
 
 @pytest.fixture(scope="module")
-def current_edges(namespaces: NamespaceMap) -> set[str]:
-    return {
-        edge.render() for edge in scan_package(package_root=_package_root(), namespaces=namespaces)
-    }
+def exceptions() -> list[BoundaryException]:
+    return load_exceptions()
+
+
+@pytest.fixture(scope="module")
+def current_edges(namespaces: NamespaceMap) -> list[ImportEdge]:
+    return scan_package(package_root=_package_root(), namespaces=namespaces)
 
 
 @pytest.fixture
@@ -68,20 +66,68 @@ def toy_namespaces() -> NamespaceMap:
 
 
 class TestRepositoryBoundary:
-    def test_no_edge_outside_the_baseline(self, current_edges: set[str]) -> None:
-        new_edges = sorted(current_edges - read_allowlist(path=ALLOWLIST_PATH))
+    def test_every_cross_namespace_edge_is_declared(
+        self,
+        current_edges: list[ImportEdge],
+        exceptions: list[BoundaryException],
+    ) -> None:
+        undeclared = [
+            edge.render() for edge in undeclared_edges(edges=current_edges, exceptions=exceptions)
+        ]
 
-        assert new_edges == [], (
-            "New cross-namespace import(s) (GH-1525). Route through dev10x.core, "
-            f"or add the line(s) to {ALLOWLIST_PATH.name}:\n" + "\n".join(new_edges)
+        assert undeclared == [], (
+            "Undeclared cross-namespace import(s) (GH-1547). A namespace imports only "
+            "itself and dev10x.core; route these through dev10x.core:\n" + "\n".join(undeclared)
         )
 
-    def test_baseline_lists_no_edge_that_is_gone(self, current_edges: set[str]) -> None:
-        stale = sorted(read_allowlist(path=ALLOWLIST_PATH) - current_edges)
+    def test_no_declared_exception_is_stale(
+        self,
+        current_edges: list[ImportEdge],
+        exceptions: list[BoundaryException],
+    ) -> None:
+        stale = [
+            exception.render()
+            for exception in stale_exceptions(edges=current_edges, exceptions=exceptions)
+        ]
 
         assert stale == [], (
-            f"Remove the resolved edge(s) from {ALLOWLIST_PATH.name}:\n" + "\n".join(stale)
+            "Remove the exception(s) that no longer cover an edge from "
+            "import_exceptions.yaml:\n" + "\n".join(stale)
         )
+
+    def test_every_exception_states_reason_and_removal_milestone(
+        self,
+        exceptions: list[BoundaryException],
+    ) -> None:
+        unjustified = [
+            exception.render()
+            for exception in exceptions
+            if not (exception.reason.strip() and exception.until.startswith(MILESTONE_PREFIX))
+        ]
+
+        assert unjustified == []
+
+    @pytest.mark.parametrize(
+        "edge",
+        [
+            ImportEdge(
+                source="dev10x.comm.skills.bus.maildir",
+                target="dev10x.coding.github.pulls",
+            ),
+            ImportEdge(source="dev10x.core.hooks.session", target="dev10x.teach.audit"),
+            ImportEdge(
+                source="dev10x.coding.skills.monitor.pr_notify",
+                target="dev10x.comm.skills.notifications.gchat_notify",
+            ),
+        ],
+        ids=["satellite-to-satellite", "core-to-satellite", "beside-a-declared-edge"],
+    )
+    def test_a_new_cross_namespace_import_fails(
+        self,
+        exceptions: list[BoundaryException],
+        edge: ImportEdge,
+    ) -> None:
+        assert undeclared_edges(edges=[edge], exceptions=exceptions) == [edge]
 
     def test_every_top_level_module_has_a_namespace(self, namespaces: NamespaceMap) -> None:
         assert unmapped_top_level(package_root=_package_root(), namespaces=namespaces) == []
@@ -230,8 +276,119 @@ class TestPackageScan:
 
         assert module_name(path=path, package_root=package) == "dev10x.github"
 
-    def test_allowlist_skips_comments_and_blanks(self, tmp_path: Path) -> None:
-        path = tmp_path / "allow.txt"
-        path.write_text("# header\n\na -> b\n")
 
-        assert read_allowlist(path=path) == {"a -> b"}
+COMPOSITION_ROOT = BoundaryException(
+    source="dev10x.commands",
+    target="dev10x",
+    reason="CLI root",
+    until="PLG-M6",
+)
+SINGLE_EDGE = BoundaryException(
+    source="dev10x.coding.skills.monitor.pr_notify",
+    target="dev10x.comm.skills.notifications.slack_notify",
+    reason="Slack post",
+    until="PLG-M3",
+)
+
+
+class TestBoundaryException:
+    @pytest.mark.parametrize(
+        ("exception", "edge", "expected"),
+        [
+            (COMPOSITION_ROOT, ImportEdge(source="dev10x.commands", target="dev10x.qa"), True),
+            (
+                COMPOSITION_ROOT,
+                ImportEdge(source="dev10x.commands.hook", target="dev10x.teach.audit"),
+                True,
+            ),
+            (
+                COMPOSITION_ROOT,
+                ImportEdge(source="dev10x.commandsx", target="dev10x.teach.audit"),
+                False,
+            ),
+            (
+                SINGLE_EDGE,
+                ImportEdge(
+                    source="dev10x.coding.skills.monitor.pr_notify",
+                    target="dev10x.comm.skills.notifications.slack_notify",
+                ),
+                True,
+            ),
+            (
+                SINGLE_EDGE,
+                ImportEdge(
+                    source="dev10x.coding.skills.monitor.pr_notify",
+                    target="dev10x.comm.skills.notifications",
+                ),
+                False,
+            ),
+            (
+                SINGLE_EDGE,
+                ImportEdge(
+                    source="dev10x.coding.skills.monitor",
+                    target="dev10x.comm.skills.notifications.slack_notify",
+                ),
+                False,
+            ),
+        ],
+        ids=[
+            "prefix-itself",
+            "below-prefix",
+            "sibling-name",
+            "exact-edge",
+            "target-parent",
+            "source-parent",
+        ],
+    )
+    def test_covers_only_edges_below_both_prefixes(
+        self,
+        exception: BoundaryException,
+        edge: ImportEdge,
+        expected: bool,
+    ) -> None:
+        assert exception.covers(edge=edge) is expected
+
+    def test_renders_with_its_removal_milestone(self) -> None:
+        assert SINGLE_EDGE.render() == (
+            "dev10x.coding.skills.monitor.pr_notify -> "
+            "dev10x.comm.skills.notifications.slack_notify (until PLG-M3)"
+        )
+
+
+class TestExceptionChecks:
+    @pytest.fixture
+    def edges(self) -> list[ImportEdge]:
+        return [
+            ImportEdge(source="dev10x.commands.skill", target="dev10x.comm.skills.bus"),
+            ImportEdge(source="dev10x.qa.evidence", target="dev10x.coding.github"),
+        ]
+
+    def test_undeclared_edges_lists_only_uncovered(self, edges: list[ImportEdge]) -> None:
+        assert undeclared_edges(edges=edges, exceptions=[COMPOSITION_ROOT, SINGLE_EDGE]) == [
+            ImportEdge(source="dev10x.qa.evidence", target="dev10x.coding.github")
+        ]
+
+    def test_stale_exceptions_lists_only_unused(self, edges: list[ImportEdge]) -> None:
+        assert stale_exceptions(edges=edges, exceptions=[COMPOSITION_ROOT, SINGLE_EDGE]) == [
+            SINGLE_EDGE
+        ]
+
+
+class TestLoadExceptions:
+    def test_reads_every_field(self, tmp_path: Path) -> None:
+        path = tmp_path / "exceptions.yaml"
+        path.write_text(
+            "exceptions:\n"
+            "  - source: dev10x.commands\n"
+            "    target: dev10x\n"
+            "    reason: CLI root\n"
+            "    until: PLG-M6\n"
+        )
+
+        assert load_exceptions(path=path) == [COMPOSITION_ROOT]
+
+    def test_empty_file_declares_nothing(self, tmp_path: Path) -> None:
+        path = tmp_path / "exceptions.yaml"
+        path.write_text("")
+
+        assert load_exceptions(path=path) == []
