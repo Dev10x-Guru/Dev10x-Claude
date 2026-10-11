@@ -61,6 +61,7 @@ plugins:
     - ask
     - diag-friction
     - friction-setup
+    - gh-context
     - onboarding
     - permission-investigator
     - playbook
@@ -73,7 +74,6 @@ plugins:
     - fanout
     - foreman
     - gchat-review-request
-    - gh-context
     - gh-pr-bookmark
     - gh-pr-create
     - gh-pr-doctor
