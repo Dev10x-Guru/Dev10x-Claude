@@ -109,8 +109,8 @@ class TestNetImports:
     @pytest.mark.parametrize(
         "module",
         [
-            "src/dev10x/skills/notifications/gchat_notify.py",
-            "src/dev10x/skills/notifications/slack_notify.py",
+            "src/dev10x/comm/skills/notifications/gchat_notify.py",
+            "src/dev10x/comm/skills/notifications/slack_notify.py",
         ],
     )
     def test_documented_notification_transports_are_exempt(

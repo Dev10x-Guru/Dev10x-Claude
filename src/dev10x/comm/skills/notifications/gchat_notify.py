@@ -26,12 +26,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from dev10x import subprocess_utils
+from dev10x.comm.skills.notifications import gchat_cards
 from dev10x.domain.common.result import ErrorResult, Result, err, ok
 from dev10x.domain.common.singleton_holder import SingletonHolder
 from dev10x.domain.dead_letter import record_undelivered
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.domain.retry import RetryPolicy, is_retryable_status
-from dev10x.skills.notifications import gchat_cards
 
 log = logging.getLogger(__name__)
 
