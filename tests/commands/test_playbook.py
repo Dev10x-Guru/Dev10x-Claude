@@ -358,3 +358,44 @@ class TestPlaybookDiffCliSkillFilter:
         )
         assert result.exit_code == 0
         assert "No user override found for skill" in result.output
+
+
+class TestPlaybookDiffCliSharedDefault:
+    """GH-1555: a split shared default is diffed as its merged whole."""
+
+    @pytest.fixture
+    def split_root(self, tmp_path: Path) -> Path:
+        root = tmp_path / "split"
+        core = root / "skills" / "playbook" / "references"
+        core.mkdir(parents=True)
+        (core / "playbook.yaml").write_text("version: '2.0.0'\noverrides: []\n")
+        fragment = root / "skills" / "work-on" / "references" / "playbook.d"
+        fragment.mkdir(parents=True)
+        (fragment / "coding.yaml").write_text(
+            "defaults:\n  feature:\n    steps:\n"
+            "    - {subject: New upstream step, type: detailed}\n"
+            "    - {subject: Shared step, type: detailed, prompt: do it}\n"
+        )
+        return root
+
+    def _invoke(self, *, root: Path, project_root: Path, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.chdir(project_root)
+        return CliRunner().invoke(playbook, ["diff", "--plugin-root", str(root)])
+
+    def test_fragment_steps_reach_the_diff(
+        self, split_root: Path, project_root: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        result = self._invoke(root=split_root, project_root=project_root, monkeypatch=monkeypatch)
+
+        assert "New upstream step" in result.output
+
+    def test_malformed_fragment_fails_loudly(
+        self, split_root: Path, project_root: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        bad = split_root / "skills" / "work-on" / "references" / "playbook.d" / "coding.yaml"
+        bad.write_text("- not a mapping\n")
+
+        result = self._invoke(root=split_root, project_root=project_root, monkeypatch=monkeypatch)
+
+        assert result.exit_code == 1
+        assert "a fragment must be a YAML mapping" in result.output
