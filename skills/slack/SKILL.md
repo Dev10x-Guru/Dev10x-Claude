@@ -157,10 +157,11 @@ the top-level keys.
 ## Usage
 
 **Friction-free CLI:** prefer `uvx dev10x skill notify slack-send`
-for the common send paths. The underlying `slack-notify.py` script
-remains available for advanced flags (file upload, message
-update, reactions, reminder DMs) until they are exposed on the
-CLI surface.
+for the common send paths, including reminder DMs to yourself
+(`--remind` in place of `--channel`). The underlying
+`slack-notify.py` script remains available for advanced flags
+(file upload, message update, reactions) until they are exposed on
+the CLI surface.
 
 ### Send a message
 
