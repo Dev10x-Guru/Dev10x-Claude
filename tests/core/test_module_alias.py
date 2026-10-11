@@ -239,6 +239,7 @@ class TestMovedPackages:
             ("dev10x.mcp.audit_tools", "dev10x.skillmgmt.mcp.audit_tools"),
             ("dev10x.scope", "dev10x.scoping.scope"),
             ("dev10x.scope.norms_renderer", "dev10x.scoping.scope.norms_renderer"),
+            ("dev10x.git", "dev10x.coding.git"),
         ],
     )
     def test_old_path_is_the_moved_module(self, old: str, new: str) -> None:
