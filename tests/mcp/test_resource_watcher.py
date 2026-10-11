@@ -224,6 +224,17 @@ class TestScanChangesListChanged:
         matching = [c for c in changes if c.uri == "dev10x://skills/new-skill/playbook"]
         assert matching[0].list_changed is True
 
+    def test_detects_new_shared_default_fragment(self, tmp_path: Path) -> None:
+        watcher = _make_watcher(tmp_path)
+        watcher._snapshot = watcher._take_snapshot(watched=watcher._watched_files())
+        fragment_dir = tmp_path / "skills" / "work-on" / "references" / "playbook.d"
+        fragment_dir.mkdir(parents=True)
+        (fragment_dir / "coding.yaml").write_text("defaults: {}\n")
+
+        changes = watcher.scan_changes()
+
+        assert "dev10x://skills/playbook/playbook" in {c.uri for c in changes}
+
     def test_detects_removed_rule_as_list_changed(self, tmp_path: Path) -> None:
         watcher = _make_watcher(tmp_path)
         watched = watcher._watched_files()
@@ -478,6 +489,14 @@ class TestSnapshotUri:
         result = watcher._snapshot_uri(path=playbook)
 
         assert result == "dev10x://skills/my-skill/playbook"
+
+    def test_returns_shared_playbook_uri_for_a_fragment(self, tmp_path: Path) -> None:
+        watcher = _make_watcher(tmp_path)
+        fragment = tmp_path / "skills" / "work-on" / "references" / "playbook.d" / "coding.yaml"
+
+        result = watcher._snapshot_uri(path=fragment)
+
+        assert result == "dev10x://skills/playbook/playbook"
 
     def test_returns_none_for_unrecognized_path_inside_root(self, tmp_path: Path) -> None:
         watcher = _make_watcher(tmp_path)

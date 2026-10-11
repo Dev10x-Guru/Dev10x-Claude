@@ -14,6 +14,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+import yaml
 
 knowledge_resources = pytest.importorskip(
     "dev10x.mcp.knowledge_resources",
@@ -89,6 +90,46 @@ class TestSkillPlaybook:
             result = knowledge_resources.skill_playbook(skill_name="no-playbook-skill")
 
         assert "Not found" in result
+
+
+class TestSharedDefaultPlaybook:
+    """GH-1555: the playbook resource serves the core file plus its fragments."""
+
+    @pytest.fixture
+    def text(self, tmp_path: Path) -> str:
+        core = tmp_path / "skills" / "playbook" / "references"
+        core.mkdir(parents=True)
+        (core / "playbook.yaml").write_text("version: '1'\noverrides: []\n", encoding="utf-8")
+        fragment = tmp_path / "skills" / "work-on" / "references" / "playbook.d"
+        fragment.mkdir(parents=True)
+        (fragment / "coding.yaml").write_text(
+            "# plays\ndefaults:\n  feature: {steps: []}\n", encoding="utf-8"
+        )
+        with patch("dev10x.mcp.knowledge_resources.get_plugin_root", return_value=tmp_path):
+            return knowledge_resources.skill_playbook(skill_name="playbook")
+
+    def test_parses_to_the_merged_document(self, text: str) -> None:
+        assert yaml.safe_load(text) == {
+            "version": "1",
+            "overrides": [],
+            "defaults": {"feature": {"steps": []}},
+        }
+
+    def test_keeps_fragment_comments(self, text: str) -> None:
+        assert "# plays" in text
+
+    def test_names_each_fragment_source(self, text: str) -> None:
+        assert "# --- skills/work-on/references/playbook.d/coding.yaml ---" in text
+
+    def test_repository_resource_matches_the_resolved_default(self) -> None:
+        from dev10x.skills.playbook import load_plugin_default
+        from dev10x.subprocess_utils import get_plugin_root
+
+        text = knowledge_resources.skill_playbook(skill_name="playbook")
+
+        assert yaml.safe_load(text) == load_plugin_default(
+            skill_key="playbook", plugin_roots=[get_plugin_root()]
+        )
 
 
 # ── rules_index ────────────────────────────────────────────────────

@@ -16,20 +16,19 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import yaml
+from dev10x.skills.playbook import load_plugin_default
 
 _ROOT = Path(__file__).resolve().parents[3]
-_DEFAULT_PLAYBOOK = _ROOT / "skills" / "playbook" / "references" / "playbook.yaml"
 
 
-def _subjects(playbook: Path, fragment: str) -> list[str]:
-    doc = yaml.safe_load(playbook.read_text())
-    steps = doc["fragments"][fragment]
+def _subjects(*, fragment: str) -> list[str]:
+    doc = load_plugin_default(skill_key="work-on", plugin_roots=[_ROOT])
+    steps = doc["fragments"][fragment]  # type: ignore[index]
     return [step.get("subject", "") for step in steps]
 
 
 def test_commit_precedes_code_review() -> None:
-    subjects = _subjects(_DEFAULT_PLAYBOOK, "shipping-pipeline")
+    subjects = _subjects(fragment="shipping-pipeline")
     commit_idx = next(i for i, s in enumerate(subjects) if s.lower().startswith("commit"))
     review_idx = subjects.index("Code review")
     assert commit_idx < review_idx, (

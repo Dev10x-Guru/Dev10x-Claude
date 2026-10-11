@@ -693,10 +693,12 @@ that can be overridden per project.
    `projects[].match` globs, use first hit's `overrides`/`fragments`);
    fall back to `~/.claude/memory/Dev10x/playbooks/work-on.yaml` for
    backwards compatibility when the XDG path is absent.
-3. `${CLAUDE_PLUGIN_ROOT}/skills/playbook/references/playbook.yaml`
+3. `${CLAUDE_PLUGIN_ROOT}/skills/work-on/references/playbook.d/coding.yaml`
+   — the plugin default plays (GH-1555)
 
 **Playbook schema:** See the `dev10x:playbook` skill's
-`references/playbook.yaml` for the full schema with all 5 plays.
+`references/playbook.yaml` for the full schema; the plays themselves
+live in the work-on fragment named in tier 3.
 Users can customize plays interactively via
 `/dev10x:playbook edit work-on <play>`.
 
@@ -733,7 +735,7 @@ cat ~/.config/Dev10x/playbooks/work-on.yaml
 # ✅ REQUIRED — use Read with absolute paths, one call per tier
 Read(file_path="/abs/path/.claude/Dev10x/playbooks/work-on.yaml")
 Read(file_path="/home/<user>/.config/Dev10x/playbooks/work-on.yaml")
-Read(file_path="${CLAUDE_PLUGIN_ROOT}/skills/playbook/references/playbook.yaml")
+Read(file_path="${CLAUDE_PLUGIN_ROOT}/skills/work-on/references/playbook.d/coding.yaml")
 ```
 
 The `ls; ls` pattern triggers `PREFIX_POISONED_CHAIN` friction
@@ -752,7 +754,7 @@ resolution algorithm needs.
       via `git remote get-url origin`, walk `projects[].match` globs;
       use first matching entry's config.
       Top-level `fragments` are shared across all matched projects.
-   c. Fall back to `${CLAUDE_PLUGIN_ROOT}/skills/playbook/references/playbook.yaml`
+   c. Fall back to `${CLAUDE_PLUGIN_ROOT}/skills/work-on/references/playbook.d/coding.yaml`
 3. **VERIFY: Confirm the playbook loaded successfully.** Check that
    the read returned YAML with play steps present (either under
    `defaults.<work_type>.steps`, `overrides[].steps`, or

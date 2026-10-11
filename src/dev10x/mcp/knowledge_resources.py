@@ -31,6 +31,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from dev10x.core.skills.playbook.discovery import (
+    SHARED_DEFAULT_RELATIVE,
+    shared_fragment_directories,
+)
 from dev10x.mcp._app import server
 from dev10x.subprocess_utils import get_plugin_root
 
@@ -67,8 +71,23 @@ def skill_playbook(skill_name: str) -> str:
     """Return the playbook.yaml for *skill_name*, or an error string."""
     if invalid := _reject_traversal(name=skill_name):
         return invalid
-    path = get_plugin_root() / "skills" / skill_name / "references" / "playbook.yaml"
-    return _read_file(path)
+    root = get_plugin_root()
+    path = root / "skills" / skill_name / "references" / "playbook.yaml"
+    if path != root / SHARED_DEFAULT_RELATIVE or not path.exists():
+        return _read_file(path)
+    return _shared_default_text(root=root, path=path)
+
+
+def _shared_default_text(*, root: Path, path: Path) -> str:
+    # GH-1555: the shared default is a core file plus per-plugin fragments
+    # with disjoint top-level keys, so appending them keeps every comment
+    # and still parses to the merged document.
+    parts = [path.read_text(encoding="utf-8")]
+    for directory in shared_fragment_directories(plugin_roots=[root]):
+        for fragment in sorted(directory.glob("*.yaml")):
+            relative = fragment.relative_to(root)
+            parts.append(f"\n# --- {relative} ---\n{fragment.read_text(encoding='utf-8')}")
+    return "".join(parts)
 
 
 # ── rules ─────────────────────────────────────────────────────────

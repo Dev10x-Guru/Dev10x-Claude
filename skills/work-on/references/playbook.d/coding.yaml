@@ -1,0 +1,625 @@
+# work-on plays — the coding plugin's fragment of the shared default
+# playbook (GH-1555, ADR-0034 Stage A3). Merged after the core mechanism
+# file, ${CLAUDE_PLUGIN_ROOT}/skills/playbook/references/playbook.yaml,
+# which documents the schema, carries the version, and holds the
+# `overrides` slot. Edit plays here; edit the schema there.
+#
+# Play names match Phase 1 classification (for work-on):
+#   feature, bugfix, pr-continuation, local-only, investigation,
+#   structured-spec
+
+fragments:
+  shipping-pipeline:
+    - subject: Commit implementation changes
+      type: detailed
+      prompt: >
+        Commit outstanding implementation work now so dev10x:review
+        has a non-empty diff to inspect — the review skills compute
+        their diff from commits against base (develop-diff), not the
+        working tree, so an uncommitted-only branch reviews nothing
+        (GH-858 F3). Atomic commits, gitmoji + ticket ID.
+        Auto-advance — do not pause after committing. No-op when the
+        Implement epic already committed.
+      skills: [dev10x:git-commit]
+    - subject: Code review
+      type: detailed
+      prompt: >
+        Self-review the current branch to catch issues before
+        creating the PR. Run with --unattended. Auto-fix all
+        findings. Auto-advance without supervisor gate.
+      skills: [dev10x:review, dev10x:review-fix]
+      modes:
+        supervised:
+          prompt: >
+            Present findings for approval before auto-fixing.
+    - subject: Simplify post-review changes
+      type: detailed
+      condition: review-fix-produced-changes
+      optional: true
+      prompt: >
+        Run the simplify skill on files changed by review-fix
+        to catch unnecessary complexity introduced during the
+        fix phase. Clarity improvements only — do not change
+        functionality. Skip if review-fix made no changes or
+        if the simplify skill is not available.
+      skills: [simplify]  # external user-level skill (like test)
+    - subject: Commit outstanding changes
+      type: detailed
+      prompt: >
+        Stage and commit any uncommitted work from the review
+        fixes. Use atomic commits with gitmoji + ticket ID.
+        Auto-advance — do not pause after committing.
+      skills: [dev10x:git-commit]
+    - subject: Create draft PR
+      type: detailed
+      prompt: >
+        Create a draft PR immediately. The PR body and commit
+        history can be refined later. Auto-advance — do not
+        block on PR preview approval.
+      skills: [dev10x:gh-pr-create]
+    - subject: Monitor CI
+      type: detailed
+      prompt: >
+        Watch CI checks on the draft PR. Fix any failures
+        with fixup commits and push. NOTE (GH-779): if the repo's
+        CI skips draft PRs (no checks ever register on a draft),
+        mark the PR ready BEFORE this step via the `pr_ready` MCP
+        wrapper — otherwise the monitor polls a PR that never
+        produces a verdict.
+      skills: [dev10x:gh-pr-monitor]
+    - subject: Apply fixups to review comments
+      type: epic
+      prompt: >
+        Address each review comment with a fixup commit. Validate
+        before replying. Do not auto-resolve threads.
+      skills: [dev10x:gh-pr-respond]
+    - subject: Groom commit history
+      type: detailed
+      prompt: >
+        Squash fixups, reorder for logical flow, ensure each
+        commit message follows gitmoji + JTBD conventions.
+      skills: [dev10x:git-groom]
+    - subject: Update PR description
+      type: detailed
+      prompt: >
+        Update the draft PR title and body with the final Job
+        Story, linked commit list, and checklist. Mark as ready
+        for review if all checks pass.
+      skills: [dev10x:gh-pr-create]
+    - subject: Request review
+      type: detailed
+      prompt: >
+        Assign reviewers and post Slack notification per project
+        config. Auto-assign from CODEOWNERS — no AskUserQuestion
+        for reviewer selection.
+      skills: [dev10x:gh-pr-request-review]
+      modes:
+        solo-maintainer:
+          subject: Mark PR ready for review
+          prompt: >
+            Mark ready via the `pr_ready` MCP wrapper (GH-779) — not
+            raw `gh pr ready`. No reviewers, no Slack.
+    - subject: Merge PR
+      type: detailed
+      prompt: >
+        Merge the PR after all checks pass. Use the merge
+        strategy from project settings (rebase preferred to
+        preserve groomed commit history).
+      skills: [dev10x:gh-pr-merge]
+      modes:
+        solo-maintainer:
+          prompt: >
+            Solo maintainer — no reviewers to wait for. Merge
+            immediately after marking ready and CI passes.
+      condition: solo-maintainer
+    - subject: Verify acceptance criteria
+      type: detailed
+      prompt: >
+        Always delegate to dev10x:verify-acc-dod skill
+        regardless of mode. The skill owns its own gates.
+      skills: [dev10x:verify-acc-dod]
+
+  # Bundled multi-issue implementation (GH-196).
+  # Replaces the single "Implement changes" epic when work-on
+  # is run with ≥ 2 ticket inputs and Strategy B (bundled PR)
+  # is selected. One commit per batch; batches are computed in
+  # Phase 3 via overlap signals (see work-on instructions § Batch
+  # Detection). The bundle-aware variant of the Implement epic
+  # expands at Phase 4 time into one sub-step per batch — this
+  # fragment exists so project overrides can substitute it for
+  # the default "Implement changes" epic without duplicating the
+  # surrounding shipping pipeline.
+  bundle-implementation:
+    - subject: Implement bundle batches
+      type: epic
+      prompt: >
+        Iterate the batches resolved in Phase 3 (read
+        `batches` from plan-sync context). For each batch,
+        execute the per-batch loop in order:
+        (a) Design approach for this batch using the
+        gathered context for every batch member.
+        (b) Implement the changes that close every batch
+        member.
+        (c) Delegate exactly one commit via
+        Skill(dev10x:git-commit) — body must enumerate
+        every batch member and emit one `Fixes:` line per
+        ticket so each issue auto-closes on merge.
+        Do NOT delegate a commit between batch members of
+        the same batch. Do NOT skip a batch because its
+        changes "feel" trivial — singleton batches still
+        get their own commit so the PR history maps cleanly
+        to the bundled tickets. After all batches commit,
+        the surrounding shipping pipeline runs once for the
+        whole PR.
+
+  shipping-pipeline-continuation:
+    - subject: Code review
+      type: detailed
+      prompt: >
+        Self-review changes to catch issues before pushing.
+        Fix any findings before proceeding.
+      skills: [dev10x:review, dev10x:review-fix]
+    - subject: Commit outstanding changes
+      type: detailed
+      prompt: >
+        Stage and commit any uncommitted fixup work.
+        Auto-advance — do not pause after committing.
+      skills: [dev10x:git-commit]
+    - subject: Monitor CI
+      type: detailed
+      prompt: >
+        Push changes and monitor CI. Fix any failures
+        introduced by the fixups.
+      skills: [dev10x:gh-pr-monitor]
+    - subject: Groom commit history
+      type: detailed
+      prompt: >
+        Squash fixups into their parent commits. Choose the best
+        grooming option and auto-advance. No strategy gate —
+        select fixup autosquash if fixup commits exist, mass
+        rewrite otherwise.
+      skills: [dev10x:git-groom]
+    - subject: Update PR description
+      type: detailed
+      prompt: >
+        Update the PR with final linked commits and checklist.
+      skills: [dev10x:gh-pr-create]
+    - subject: Request re-review
+      type: detailed
+      prompt: >
+        Notify reviewers that feedback has been addressed
+        and request re-review.
+      skills: [dev10x:gh-pr-request-review]
+      modes:
+        solo-maintainer:
+          subject: Mark PR ready for review
+          prompt: >
+            Mark ready via the `pr_ready` MCP wrapper (GH-779) if
+            still draft — not raw `gh pr ready`. No reviewer
+            assignment, no Slack.
+    - subject: Merge PR
+      type: detailed
+      prompt: >
+        Merge the PR after all checks pass. Use the merge
+        strategy from project settings (rebase preferred to
+        preserve groomed commit history).
+      skills: [dev10x:gh-pr-merge]
+      modes:
+        solo-maintainer:
+          prompt: >
+            Solo maintainer — no reviewers to wait for. Merge
+            immediately after marking ready and CI passes.
+      condition: solo-maintainer
+    - subject: Verify acceptance criteria
+      type: detailed
+      prompt: >
+        Always delegate to dev10x:verify-acc-dod skill
+        regardless of mode. The skill owns its own gates.
+      skills: [dev10x:verify-acc-dod]
+
+# Mode definitions — structural modes that adapt step behavior.
+# Activated via active_modes in session.yaml or project playbook.
+# See references/execution-modes.md for the full spec.
+#
+# Modes (structural — who's involved, what steps exist):
+#   solo-maintainer — no reviewer, no Slack, self-merge
+#   supervised   — extra approval gates at design/PR/merge
+#   cautious     — extra verification, confirm destructive ops
+#   pair-review  — human review at implementation checkpoints
+#
+# Per-step modes are declared inline (see above). Gate pacing is
+# no longer a per-step concern — a step states its behaviour once.
+# Project-level mode activation:
+#   active_modes: [solo-maintainer]
+#   mode_extensions:
+#     solo-maintainer:
+#       steps:
+#         "Step subject": {prompt: ..., skills: [...]}
+
+defaults:
+  feature:
+    prompt: >
+      Use when a ticket describes new functionality or enhancement.
+      If the ticket is small (single file, < 50 lines), collapse
+      Design and Implement into one epic. If the ticket spans
+      multiple bounded contexts, expand Implement into one epic
+      per context.
+    steps:
+      - subject: Set up workspace
+        type: detailed
+        prompt: >
+          Create a feature branch from develop. Skip if a matching
+          branch already exists. In a worktree with a generic
+          branch, create a work-specific branch.
+        skills: [dev10x:ticket-branch]
+      - subject: Draft Job Story
+        type: detailed
+        prompt: >
+          Pass gathered context to avoid redundant API calls.
+          Accept what the skill produces, use it in the session,
+          and improve if needed. Auto-advance without approval,
+          then write the story back to the ticket as a comment.
+        skills: [dev10x:jtbd]
+        modes:
+          solo-maintainer:
+            prompt: >
+              Draft JTBD as a documentation artifact. It does not
+              need approval, but serves as an indicator of how
+              well the agent understood the task.
+          supervised:
+            prompt: >
+              Present JTBD draft for approval. Do not write to
+              ticket without explicit user sign-off.
+      - subject: Design implementation approach
+        type: epic
+        prompt: >
+          Understand the codebase areas affected by this change.
+          For small changes (single file, < 50 lines), collapse
+          into a single "read and propose" step. For large changes,
+          produce an approach summary before implementing. Choose
+          the best option and auto-advance — make design decisions
+          autonomously without asking for approach approval.
+        modes:
+          supervised:
+            prompt: >
+              Present approach options via AskUserQuestion
+              before implementing.
+          cautious:
+            prompt: >
+              Verify approach against existing patterns in the
+              codebase. Present findings before proceeding.
+        steps:
+          - subject: Read relevant code
+            type: detailed
+            prompt: >
+              Identify the files and modules that will be modified.
+              Read them to understand current structure, patterns,
+              and test coverage.
+          - subject: Identify affected components
+            type: detailed
+            prompt: >
+              Map which bounded contexts, services, or layers are
+              touched. Note any cross-cutting concerns (migrations,
+              serializers, permissions).
+          - subject: Propose approach
+            type: detailed
+            prompt: >
+              Summarize the implementation strategy. If multiple
+              valid approaches exist, present trade-offs and ask
+              for supervisor input.
+      - subject: Plan the commit sequence
+        type: detailed
+        prompt: >
+          Produce an explicit ordered per-commit plan before writing
+          code: for each commit, note the gitmoji, ticket ID, files
+          it owns, and which earlier commit(s) it depends on.
+          Refactor commits precede feature commits.
+      - subject: Implement changes
+        type: epic
+        prompt: >
+          Execute the approved approach and the commit-sequence plan.
+          Create atomic commits per logical change, refactor commits
+          before feature commits. Follow project coding conventions
+          and patterns from existing code.
+      - subject: Verify
+        type: epic
+        prompt: >
+          Run the full test suite and linter. Fix any failures
+          before proceeding. Ensure 100% coverage on new code.
+        steps:
+          - subject: Run tests
+            type: detailed
+            prompt: Run via Skill(dev10x:py-test) with coverage. Fix failures.
+            skills: [test]
+          - subject: Run lint
+            type: detailed
+            prompt: Run ruff check and black. Fix violations.
+      - fragment: shipping-pipeline
+
+  bugfix:
+    prompt: >
+      Use when a ticket or Sentry issue describes broken behavior.
+      Always include a reproduction step and a regression test.
+      If the root cause is obvious from the Sentry stack trace,
+      collapse Investigate into a single step.
+    steps:
+      - subject: Set up workspace
+        type: detailed
+        prompt: >
+          Create a feature branch from develop. Skip if a matching
+          branch already exists.
+        skills: [dev10x:ticket-branch]
+      - subject: Reproduce the issue
+        type: detailed
+        prompt: >
+          Write a failing test or local reproduction that triggers
+          the bug. Use Sentry stack traces and error context to
+          guide reproduction. If the bug is environment-specific,
+          document the conditions.
+      - subject: Investigate root cause
+        type: epic
+        prompt: >
+          Trace the execution path that leads to the failure.
+          Identify the specific code that produces the wrong
+          behavior. If root cause is already clear from Sentry,
+          skip sub-steps and go straight to the fix.
+        steps:
+          - subject: Analyze error traces
+            type: detailed
+            prompt: >
+              Review Sentry stack traces, log output, and error
+              messages. Map the error to specific code locations.
+          - subject: Identify failing code path
+            type: detailed
+            prompt: >
+              Read the code path from entry point to failure.
+              Identify the exact condition or data that triggers
+              the bug.
+      - subject: Implement fix
+        type: epic
+        prompt: >
+          Fix the root cause. Prefer minimal, targeted changes
+          over broad refactoring. Ensure the fix addresses the
+          underlying cause, not just the symptom.
+      - subject: Verify fix
+        type: epic
+        prompt: >
+          Run the full test suite. The reproduction test from
+          earlier must now pass. Add a regression test if one
+          does not already exist.
+        steps:
+          - subject: Run existing tests
+            type: detailed
+            prompt: Run via Skill(dev10x:py-test) with coverage. Ensure no regressions.
+            skills: [test]
+          - subject: Add regression test
+            type: detailed
+            prompt: >
+              Write a test that specifically covers the bug
+              scenario. It should fail without the fix and pass
+              with it.
+      - fragment: shipping-pipeline
+
+  pr-continuation:
+    prompt: >
+      Use when the input is an existing PR with review comments.
+      No workspace setup needed — the branch already exists.
+      Focus on addressing feedback and getting to merge.
+    steps:
+      - subject: Fetch PR and review context
+        type: detailed
+        prompt: >
+          Read the PR diff, review comments, and any linked
+          tickets. Understand what reviewers are asking for
+          and prioritize blocking comments.
+      - subject: Address review comments
+        type: epic
+        prompt: >
+          Work through each review comment. Validate the
+          feedback against the codebase before implementing.
+          Create one fixup commit per comment thread.
+      - subject: Apply fixups to unaddressed comments
+        type: epic
+        prompt: >
+          Batch-process remaining unaddressed comments using
+          the gh-pr-respond skill.
+        skills: [dev10x:gh-pr-respond]
+      - fragment: shipping-pipeline-continuation
+
+  local-only:
+    prompt: >
+      Use when there is no ticket and no PR — just free-text
+      work description. The decision to create a PR is deferred
+      until after implementation. Steps with condition
+      "if-pr-decided" only execute if the user chooses to
+      create a PR.
+    steps:
+      - subject: Set up workspace
+        type: detailed
+        condition: if-branch-needed
+        skills: [dev10x:ticket-branch]
+        prompt: >
+          Create a feature branch if not already on one.
+          Skip if current branch is already a feature branch.
+          Use dev10x:ticket-branch skill — never raw git
+          checkout -b.
+      - subject: Summarize the work from gathered context
+        type: detailed
+        prompt: >
+          Synthesize all gathered context (notes, Slack threads,
+          etc.) into a clear work summary. Identify scope and
+          expected deliverables.
+      - subject: Implement changes
+        type: epic
+        prompt: >
+          Execute the work described in the summary. Create
+          atomic commits as you go.
+      - subject: Verify
+        type: epic
+        prompt: Run tests and lint to confirm changes are clean.
+        steps:
+          - subject: Run tests
+            type: detailed
+            prompt: Run via Skill(dev10x:py-test) with coverage. Fix failures.
+            skills: [test]
+          - subject: Run lint
+            type: detailed
+            prompt: Run ruff check and black. Fix violations.
+      - subject: "Decide: create ticket, create PR, or done"
+        type: detailed
+        prompt: >
+          Present the user with a decision gate. Options:
+          create a ticket and PR, create just a PR, or mark
+          the work as done locally.
+      - fragment: shipping-pipeline
+        condition: if-pr-decided
+      # The shipping-pipeline fragment already ends with its own
+      # "Verify acceptance criteria" step, which serves as the
+      # terminal gate on the PR path. This play-level verify runs
+      # ONLY on the no-PR path (fragment skipped) so exactly one
+      # Verify-AC task is ever instantiated (GH-781). Without the
+      # if-no-pr condition, choosing "create PR" produced two
+      # adjacent Verify-AC tasks.
+      - subject: Verify acceptance criteria
+        type: detailed
+        condition: if-no-pr
+        prompt: >
+          Terminal gate for the local (no-PR) outcome only — the
+          if-pr-decided path is already terminated by the shipping
+          fragment's own Verify-AC step. Verify locally that all
+          expected deliverables are done.
+
+  investigation:
+    prompt: >
+      Use when the goal is understanding, not fixing. Typical
+      inputs are Sentry issues or Slack questions where the
+      answer is not yet known. No branch or PR is created
+      unless the investigation reveals a fix worth shipping.
+    steps:
+      - subject: Summarize findings from gathered context
+        type: detailed
+        prompt: >
+          Compile what is already known from Sentry, Slack,
+          and ticket context. Identify knowledge gaps that
+          need codebase investigation.
+      - subject: Investigate in codebase
+        type: epic
+        prompt: >
+          Trace the relevant code paths to understand the
+          behavior. Check logs, error patterns, and related
+          test coverage.
+        steps:
+          - subject: Trace relevant code paths
+            type: detailed
+            prompt: >
+              Read the code from entry point to the area of
+              interest. Map the execution flow and identify
+              key decision points.
+          - subject: Check logs and error patterns
+            type: detailed
+            prompt: >
+              Query logs or Sentry for patterns. Check if the
+              behavior is intermittent or consistent. Note any
+              environmental factors.
+      - subject: Document findings and next steps
+        type: detailed
+        prompt: >
+          Write a clear summary of what was found, the root
+          cause (if identified), and recommended next steps.
+          Post as a ticket comment or Slack reply.
+      - subject: "Decide: create ticket, fix now, or done"
+        type: detailed
+        prompt: >
+          Present the user with options based on findings.
+          If a fix is warranted, offer to switch to a bugfix
+          plan. If more investigation is needed, suggest
+          creating a follow-up ticket.
+
+  structured-spec:
+    prompt: >
+      Use when a ticket is a good fit for SPDD-style scoping —
+      multi-component design, cross-layer changes, or API
+      additions. The Phase 1 suitability gate routes good-fit
+      tickets here; poor-fit tickets (single-file tweaks,
+      config-only changes, exploratory spikes) fall back to
+      the `feature` play. See `references/skill-pipelines.md`
+      "Structured Spec Pipeline" for the rationale.
+
+      The pipeline materializes ADR 0005's six-step SPDD loop
+      on top of existing skills:
+      scope-with-reasons → adr (if architectural) →
+      spec-update gate → implement → py-test (API) →
+      py-test (unit) → spec-sync gate before merge.
+    steps:
+      - subject: Set up workspace
+        type: detailed
+        prompt: >
+          Create a feature branch from develop. Skip if a matching
+          branch already exists.
+        skills: [dev10x:ticket-branch]
+      - subject: Scope ticket with REASONS sections
+        type: detailed
+        prompt: >
+          Invoke dev10x:ticket-scope. The skill renders Entities,
+          Norms, and Safeguards sections inline using the
+          autopopulator (`dev10x.scope.render_norms` /
+          `render_safeguards`). The saved spec at
+          docs/specs/<TICKET-ID>.md becomes the source of truth
+          for the rest of the pipeline.
+        skills: [dev10x:ticket-scope]
+      - subject: Record ADR (if architectural decision involved)
+        type: detailed
+        prompt: >
+          When the spec introduces or changes an architectural
+          boundary, an ADR is required. Skip otherwise.
+        skills: [dev10x:adr]
+        condition: if-architectural
+      - subject: Spec-update gate (Golden Rule)
+        type: detailed
+        prompt: >
+          Before implementing, check whether requirements shifted
+          since the spec was saved. If yes, run dev10x:spec-update
+          (spec-first edit) and re-enter this step. If no, proceed
+          to Implement.
+        skills: [dev10x:spec-update]
+        condition: if-requirements-shifted
+      - subject: Plan the commit sequence
+        type: detailed
+        prompt: >
+          Produce an explicit ordered per-commit plan before writing
+          code: for each commit, note the gitmoji, ticket ID, files
+          it owns, and which earlier commit(s) it depends on.
+          Refactor commits precede feature commits. Fold this plan
+          into the saved spec at docs/specs/<TICKET-ID>.md (e.g. a
+          checklist under Implementation Steps) so it survives the
+          spec-sync gate.
+      - subject: Implement changes
+        type: epic
+        prompt: >
+          Generate code from the spec and the commit-sequence plan.
+          The spec — not a custom plan — IS the prompt. Each
+          Implementation Step in the spec becomes a concrete edit,
+          refactor commits before feature commits.
+      - subject: Verify — API tests
+        type: detailed
+        prompt: >
+          Run integration / API tests covering the spec's
+          Acceptance Criteria. Failures indicate the spec is
+          either wrong or under-implemented; do not silently
+          weaken assertions.
+        skills: [test]
+      - subject: Verify — unit tests
+        type: detailed
+        prompt: >
+          Run unit tests covering Implementation Steps. Aim for
+          100% coverage of new code, per project convention.
+        skills: [test]
+      - subject: Spec-sync gate before merge
+        type: detailed
+        prompt: >
+          Run dev10x:spec-sync in check-only mode. Behavioural
+          drift blocks the pipeline (route back to spec-update).
+          Structural drift triggers a regenerate-and-commit pass
+          so the spec matches the final code shape.
+        skills: [dev10x:spec-sync]
+      - fragment: shipping-pipeline
