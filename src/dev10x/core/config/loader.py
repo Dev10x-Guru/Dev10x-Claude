@@ -8,6 +8,7 @@ from typing import Any
 import msgpack
 import yaml
 
+from dev10x.core.config.fragments import discover_fragments, load_merged, plugin_order
 from dev10x.domain.config_loader import ConfigLoader
 from dev10x.domain.documents.config_document import Config
 from dev10x.domain.file_locks import atomic_write_bytes
@@ -18,6 +19,8 @@ from dev10x.domain.rules.validation_rule import (
 )
 
 DEFAULT_TTL_SECONDS = 1800
+FRAGMENTS_SUFFIX = ".d"
+SOURCES_KEY = "sources"
 
 
 def load_config(
@@ -36,11 +39,26 @@ def load_config(
         return cached
 
     config = _parse_yaml(yaml_path=yaml_path)
-    _write_cache(cache_path=cache_path, config=config)
+    _write_cache(
+        cache_path=cache_path,
+        config=config,
+        sources=source_files(yaml_path=yaml_path),
+    )
     return config
 
 
 assert isinstance(load_config, ConfigLoader)
+
+
+def fragment_dir(*, yaml_path: Path) -> Path:
+    return yaml_path.with_suffix(FRAGMENTS_SUFFIX)
+
+
+def source_files(*, yaml_path: Path) -> list[Path]:
+    directory = fragment_dir(yaml_path=yaml_path)
+    if not directory.is_dir():
+        return [yaml_path]
+    return [yaml_path, *sorted(directory.glob("*.yaml"))]
 
 
 def _read_cache(
@@ -54,9 +72,9 @@ def _read_cache(
 
     try:
         cache_mtime = cache_path.stat().st_mtime
-        yaml_mtime = yaml_path.stat().st_mtime
+        sources = source_files(yaml_path=yaml_path)
 
-        if yaml_mtime > cache_mtime:
+        if any(source.stat().st_mtime > cache_mtime for source in sources):
             return None
 
         age = time.time() - cache_mtime
@@ -64,21 +82,40 @@ def _read_cache(
             return None
 
         raw = msgpack.unpackb(cache_path.read_bytes(), raw=False)
+        recorded = raw.get(SOURCES_KEY, [str(yaml_path)])
+        if recorded != [str(source) for source in sources]:
+            return None
         return _dict_to_config(raw=raw)
     except (msgpack.UnpackException, KeyError, TypeError, OSError):
         return None
 
 
-def _write_cache(*, cache_path: Path, config: Config) -> None:
+def _write_cache(
+    *,
+    cache_path: Path,
+    config: Config,
+    sources: list[Path] | None = None,
+) -> None:
     try:
         data = asdict(config)
+        if sources is not None:
+            data[SOURCES_KEY] = [str(source) for source in sources]
         atomic_write_bytes(cache_path, msgpack.packb(data, use_bin_type=True))
     except (msgpack.PackException, OSError):
         pass
 
 
-def _parse_yaml(*, yaml_path: Path) -> Config:
+def _load_document(*, yaml_path: Path) -> dict[str, Any]:
     data: dict[str, Any] = yaml.safe_load(yaml_path.read_text()) or {}
+    directory = fragment_dir(yaml_path=yaml_path)
+    if not directory.is_dir():
+        return data
+    fragments = discover_fragments(directories=[directory], plugins=plugin_order())
+    return load_merged(fragments=fragments, base=(str(yaml_path), data))
+
+
+def _parse_yaml(*, yaml_path: Path) -> Config:
+    data = _load_document(yaml_path=yaml_path)
     cfg_data = data.get("config", {})
 
     rules = [MatchingRule.from_yaml_entry(entry=entry) for entry in data.get("rules", [])]

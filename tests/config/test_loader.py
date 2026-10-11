@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import time
 from dataclasses import replace
 from pathlib import Path
@@ -16,6 +17,7 @@ from dev10x.config.loader import (
     _read_cache,
     _write_cache,
     load_config,
+    source_files,
 )
 
 
@@ -223,6 +225,95 @@ class TestLoadConfig:
 
         assert first.plugin_repo == second.plugin_repo
         assert len(first.rules) == len(second.rules)
+
+
+def _rule_fragment(*, name: str) -> str:
+    return yaml.dump({"rules": [{"name": name, "patterns": [f"^{name}"]}]})
+
+
+@pytest.fixture()
+def fragment_dir(yaml_file: Path) -> Path:
+    directory = yaml_file.with_suffix(".d")
+    directory.mkdir()
+    (directory / "qa.yaml").write_text(_rule_fragment(name="qa-rule"))
+    return directory
+
+
+class TestFragments:
+    """GH-1552: the command map loads plugin fragments, and the cache knows."""
+
+    def test_fragment_rules_follow_the_base_rules(
+        self, yaml_file: Path, fragment_dir: Path
+    ) -> None:
+        (fragment_dir / "coding.yaml").write_text(_rule_fragment(name="coding-rule"))
+
+        result = load_config(yaml_path=yaml_file)
+
+        assert [rule.name for rule in result.rules] == ["block-push", "qa-rule", "coding-rule"]
+
+    def test_source_files_list_the_map_then_its_fragments(
+        self, yaml_file: Path, fragment_dir: Path
+    ) -> None:
+        assert source_files(yaml_path=yaml_file) == [yaml_file, fragment_dir / "qa.yaml"]
+
+    def test_a_map_without_fragments_has_one_source(self, yaml_file: Path) -> None:
+        assert source_files(yaml_path=yaml_file) == [yaml_file]
+
+    def test_an_added_fragment_invalidates_the_cache(
+        self, yaml_file: Path, fragment_dir: Path
+    ) -> None:
+        load_config(yaml_path=yaml_file)
+        added = fragment_dir / "coding.yaml"
+        added.write_text(_rule_fragment(name="coding-rule"))
+        os.utime(added, (0, 0))
+
+        result = load_config(yaml_path=yaml_file)
+
+        assert "coding-rule" in [rule.name for rule in result.rules]
+
+    def test_a_removed_fragment_invalidates_the_cache(
+        self, yaml_file: Path, fragment_dir: Path
+    ) -> None:
+        load_config(yaml_path=yaml_file)
+        (fragment_dir / "qa.yaml").unlink()
+
+        result = load_config(yaml_path=yaml_file)
+
+        assert [rule.name for rule in result.rules] == ["block-push"]
+
+    def test_an_edited_fragment_invalidates_the_cache(
+        self, yaml_file: Path, fragment_dir: Path
+    ) -> None:
+        load_config(yaml_path=yaml_file)
+        edited = fragment_dir / "qa.yaml"
+        edited.write_text(_rule_fragment(name="qa-renamed"))
+        future = time.time() + 10
+        os.utime(edited, (future, future))
+
+        result = load_config(yaml_path=yaml_file)
+
+        assert "qa-renamed" in [rule.name for rule in result.rules]
+
+    def test_unchanged_fragments_are_served_from_the_cache(
+        self, yaml_file: Path, fragment_dir: Path
+    ) -> None:
+        load_config(yaml_path=yaml_file)
+        stale = fragment_dir / "qa.yaml"
+        stale.write_text(_rule_fragment(name="never-read"))
+        os.utime(stale, (0, 0))
+
+        result = load_config(yaml_path=yaml_file)
+
+        assert "qa-rule" in [rule.name for rule in result.rules]
+
+    def test_a_cache_without_a_source_list_still_serves_a_plain_map(
+        self, yaml_file: Path, cache_path: Path
+    ) -> None:
+        _write_cache(cache_path=cache_path, config=_parse_yaml(yaml_path=yaml_file))
+
+        result = _read_cache(cache_path=cache_path, yaml_path=yaml_file, ttl_seconds=3600)
+
+        assert result is not None
 
 
 class TestDictToConfig:
