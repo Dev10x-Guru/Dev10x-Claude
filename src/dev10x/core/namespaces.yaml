@@ -6,7 +6,7 @@
 # plugin keys from plugins.yaml.
 namespaces:
   dev10x: core
-  dev10x.audit: skillmgmt
+  dev10x.audit: teach
   dev10x.cli: core
   dev10x.coding: coding
   dev10x.coding.github._gateway: core
@@ -30,7 +30,7 @@ namespaces:
   dev10x.hooks.task_plan_sync: tasks
   dev10x.infra: infra
   dev10x.mcp: core
-  dev10x.mcp.audit_tools: skillmgmt
+  dev10x.mcp.audit_tools: teach
   dev10x.mcp.git_tools: coding
   dev10x.mcp.github_tools: coding
   dev10x.mcp.monitor_tools: coding
@@ -50,10 +50,9 @@ namespaces:
   dev10x.scoping: scoping
   dev10x.session: core
   dev10x.session.task_index: tasks
-  dev10x.skill_index: skillmgmt
-  dev10x.skillmgmt: skillmgmt
+  dev10x.skill_index: teach
   dev10x.skills: core
-  dev10x.skills.audit: skillmgmt
+  dev10x.skills.audit: teach
   dev10x.skills.bus: comm
   dev10x.skills.common: coding
   dev10x.skills.database: db
@@ -69,6 +68,7 @@ namespaces:
   dev10x.subprocess_timeouts: core
   dev10x.subprocess_utils: core
   dev10x.tasks: tasks
+  dev10x.teach: teach
   dev10x.utilities: core
   dev10x.utilities.slack: comm
   dev10x.validators: core

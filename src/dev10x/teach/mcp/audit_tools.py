@@ -20,7 +20,7 @@ async def audit_extract_session(
     Returns:
         Dictionary with keys: success (bool), output (str)
     """
-    from dev10x.skillmgmt import audit
+    from dev10x.teach import audit
 
     return await audit.extract_session(
         jsonl_path=jsonl_path,
@@ -42,7 +42,7 @@ async def audit_analyze_actions(
     Returns:
         Dictionary with keys: success (bool), output (str)
     """
-    from dev10x.skillmgmt import audit
+    from dev10x.teach import audit
 
     return await audit.analyze_actions(
         transcript_path=transcript_path,
@@ -66,7 +66,7 @@ async def audit_analyze_permissions(
     Returns:
         Dictionary with keys: success (bool), output (str)
     """
-    from dev10x.skillmgmt import audit
+    from dev10x.teach import audit
 
     return await audit.analyze_permissions(
         transcript_path=transcript_path,
@@ -108,7 +108,7 @@ async def audit_hook_log_path() -> Result[dict]:
         Dictionary with keys: audit_dir, today_log, today_log_exists,
         audit_dir_exists, available_logs, audit_disabled
     """
-    from dev10x.skillmgmt import audit
+    from dev10x.teach import audit
 
     return await audit.hook_log_path()
 
@@ -131,7 +131,7 @@ async def audit_hook_recent(
     Returns:
         Dictionary with keys: log_path, exists, count, records
     """
-    from dev10x.skillmgmt import audit
+    from dev10x.teach import audit
 
     return await audit.hook_recent(
         limit=limit,
