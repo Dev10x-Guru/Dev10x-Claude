@@ -266,7 +266,8 @@ class TestMovedPackages:
                 "dev10x.coding.skills.orchestration.subagent_protocol",
             ),
             ("dev10x.skills.foreman.watch", "dev10x.coding.skills.foreman.watch"),
-            ("dev10x.skills.common.jtbd", "dev10x.coding.skills.common.jtbd"),
+            ("dev10x.skills.common.jtbd", "dev10x.core.skills.common.jtbd"),
+            ("dev10x.coding.skills.common.jtbd", "dev10x.core.skills.common.jtbd"),
         ],
     )
     def test_old_path_is_the_moved_module(self, old: str, new: str) -> None:

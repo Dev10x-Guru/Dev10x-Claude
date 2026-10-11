@@ -2,8 +2,6 @@
 # (GH-1525). One "source -> target" per line. Stage A1 removes lines;
 # tests/core/test_import_boundary.py fails on any edge not listed here.
 dev10x.coding.skills.monitor.pr_notify -> dev10x.comm.skills.notifications.slack_notify
-dev10x.comm.skills.notifications.gchat_review_request -> dev10x.coding.skills.common.jtbd
-dev10x.comm.skills.notifications.slack_review_request -> dev10x.coding.skills.common.jtbd
 dev10x.commands.foreman -> dev10x.coding.skills.foreman.watch
 dev10x.commands.github -> dev10x.coding.github.learn_loop
 dev10x.commands.github -> dev10x.coding.github.rule_authoring

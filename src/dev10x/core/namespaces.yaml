@@ -54,7 +54,7 @@ namespaces:
   dev10x.skills: core
   dev10x.skills.audit: teach
   dev10x.skills.bus: comm
-  dev10x.skills.common: coding
+  dev10x.skills.common: core
   dev10x.skills.database: db
   dev10x.skills.evidence: qa
   dev10x.skills.foreman: coding
