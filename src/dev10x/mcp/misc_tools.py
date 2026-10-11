@@ -269,7 +269,7 @@ async def run_tests(
         A non-zero ``returncode`` is *not* an MCP-level error —
         callers read ``returncode`` and ``failed_tests`` to decide.
     """
-    from dev10x import runner
+    from dev10x.coding import runner
     from dev10x.subprocess_utils import use_cwd
 
     extra_desc = " ".join(args) if args else "full suite"
@@ -348,7 +348,7 @@ async def run_node_tests(
     """
     import os
 
-    from dev10x import runner as test_runner
+    from dev10x.coding import runner as test_runner
     from dev10x.subprocess_utils import effective_cwd, use_cwd
 
     if ctx is not None:

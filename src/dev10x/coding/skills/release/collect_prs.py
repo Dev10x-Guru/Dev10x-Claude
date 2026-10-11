@@ -32,13 +32,13 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from dev10x.domain.common.ticket_id import TICKET_ID_PATTERN
-from dev10x.skills.common.jtbd import extract_jtbd_structured
-from dev10x.skills.release.classifier import (
+from dev10x.coding.skills.common.jtbd import extract_jtbd_structured
+from dev10x.coding.skills.release.classifier import (
     SKIP_CATEGORIES,
     classify_group,
     classify_subject,
 )
+from dev10x.domain.common.ticket_id import TICKET_ID_PATTERN
 
 DEFAULT_TICKET_PATTERN = TICKET_ID_PATTERN
 

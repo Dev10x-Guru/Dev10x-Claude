@@ -53,7 +53,7 @@ def probe(
     stale local ref (GH-964). The burn line reports how many minutes
     of block budget the current rate leaves (GH-979).
     """
-    from dev10x.skills.foreman import watch as watch_skill
+    from dev10x.coding.skills.foreman import watch as watch_skill
 
     for line in watch_skill.probe_lines(
         scratchpad=scratchpad,
@@ -130,7 +130,7 @@ def watch(
     and QUOTA MILESTONE are suppressed and milestones roll up into one
     line on release).
     """
-    from dev10x.skills.foreman import watch as watch_skill
+    from dev10x.coding.skills.foreman import watch as watch_skill
 
     state = watch_skill.initial_watch_state(
         stall_min=stall_min,

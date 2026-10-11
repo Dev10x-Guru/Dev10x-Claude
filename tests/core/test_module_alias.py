@@ -247,6 +247,26 @@ class TestMovedPackages:
             ("dev10x.github.app_auth", "dev10x.core.github.app_auth"),
             ("dev10x.coding.github._gateway", "dev10x.core.github._gateway"),
             ("dev10x.monitor", "dev10x.coding.monitor"),
+            ("dev10x.runner", "dev10x.coding.runner"),
+            ("dev10x.release", "dev10x.coding.release"),
+            ("dev10x.skills.merge", "dev10x.coding.skills.merge"),
+            ("dev10x.skills.merge.fixes_scope", "dev10x.coding.skills.merge.fixes_scope"),
+            ("dev10x.skills.monitor.pr_notify", "dev10x.coding.skills.monitor.pr_notify"),
+            (
+                "dev10x.skills.monitor.ci_check_status",
+                "dev10x.coding.skills.monitor.ci_check_status",
+            ),
+            (
+                "dev10x.skills.git_fixup.find_fixup_target",
+                "dev10x.coding.skills.git_fixup.find_fixup_target",
+            ),
+            ("dev10x.skills.release.collect_prs", "dev10x.coding.skills.release.collect_prs"),
+            (
+                "dev10x.skills.orchestration.subagent_protocol",
+                "dev10x.coding.skills.orchestration.subagent_protocol",
+            ),
+            ("dev10x.skills.foreman.watch", "dev10x.coding.skills.foreman.watch"),
+            ("dev10x.skills.common.jtbd", "dev10x.coding.skills.common.jtbd"),
         ],
     )
     def test_old_path_is_the_moved_module(self, old: str, new: str) -> None:
