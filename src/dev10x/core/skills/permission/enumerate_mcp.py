@@ -69,7 +69,10 @@ _SERVER_GLOBS: dict[str, tuple[tuple[str, str], ...]] = {
         ("src/dev10x/mcp", "*_tools.py"),
         ("src/dev10x", "*/mcp/*_tools.py"),
     ),
-    "dev10x_db": (("src/dev10x/mcp", "server_db.py"),),
+    "dev10x_db": (
+        ("src/dev10x/mcp", "server_db.py"),
+        ("src/dev10x/db/mcp", "server_db.py"),
+    ),
 }
 
 

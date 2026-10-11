@@ -228,6 +228,8 @@ class TestMovedPackages:
                 "dev10x.skills.notifications.gchat_notify",
                 "dev10x.comm.skills.notifications.gchat_notify",
             ),
+            ("dev10x.mcp.server_db", "dev10x.db.mcp.server_db"),
+            ("dev10x.skills.database", "dev10x.db.skills.database"),
         ],
     )
     def test_old_path_is_the_moved_module(self, old: str, new: str) -> None:

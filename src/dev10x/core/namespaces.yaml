@@ -33,6 +33,7 @@ namespaces:
   dev10x.mcp.monitor_tools: coding
   dev10x.mcp.plan_tools: tasks
   dev10x.mcp.release_tools: coding
+  dev10x.mcp.server_db: db
   dev10x.mcp.task_index_tools: tasks
   dev10x.monitor: coding
   dev10x.permission: core
