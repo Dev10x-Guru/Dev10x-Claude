@@ -2,10 +2,13 @@
 
 import argparse
 import importlib.util
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest  # type: ignore[import-not-found]
+
+from dev10x.domain.common.result import Result, err, ok
 
 # Load the shim script so the module object is available for patching.
 _repo_root = Path(__file__).resolve().parent.parent.parent.parent
@@ -648,3 +651,80 @@ class TestSendSubcommandArgDefaults:
 
         args = parser.parse_args(["status", "--pr", "5", "--repo", "owner/repo", "--json"])
         assert args.json is True
+
+
+class RecordingSlackSender:
+    def __init__(self, *, result: Result[str]) -> None:
+        self.result = result
+        self.calls: list[dict[str, str]] = []
+
+    def __call__(self, *, channel: str, message: str) -> Result[str]:
+        self.calls.append({"channel": channel, "message": message})
+        return self.result
+
+
+def _send_args(**overrides: object) -> argparse.Namespace:
+    values: dict[str, object] = {
+        "pr": 7,
+        "repo": "o/r",
+        "channel": "C1",
+        "message": "ready for review",
+        "message_file": None,
+        "reviewer": None,
+        "skip_slack": False,
+        "skip_reviewers": True,
+        "skip_checklist": True,
+    }
+    values.update(overrides)
+    return argparse.Namespace(**values)
+
+
+class TestCmdSendInjectedSender:
+    """GH-1550: the Slack post goes through the sender the shim injects."""
+
+    def test_posts_through_the_injected_sender(self, capsys: pytest.CaptureFixture[str]) -> None:
+        sender = RecordingSlackSender(result=ok("171.2"))
+
+        _pr_notify_module.cmd_send(_send_args(), send_slack=sender)
+
+        assert sender.calls == [{"channel": "C1", "message": "ready for review"}]
+        assert "Slack thread_ts: 171.2" in capsys.readouterr().out
+
+    def test_sender_error_exits_non_zero(self) -> None:
+        sender = RecordingSlackSender(result=err("no token"))
+
+        with pytest.raises(SystemExit) as exc_info:
+            _pr_notify_module.cmd_send(_send_args(), send_slack=sender)
+
+        assert exc_info.value.code == 1
+
+    def test_no_channel_never_calls_the_sender(self) -> None:
+        sender = RecordingSlackSender(result=ok("1"))
+
+        _pr_notify_module.cmd_send(_send_args(channel=None), send_slack=sender)
+
+        assert sender.calls == []
+
+
+class TestMainWiresTheSender:
+    def test_send_subcommand_uses_the_injected_sender(self) -> None:
+        sender = RecordingSlackSender(result=ok("9.9"))
+        argv = [
+            "pr-notify.py",
+            "send",
+            "--pr",
+            "7",
+            "--repo",
+            "o/r",
+            "--channel",
+            "C1",
+            "--message",
+            "hi",
+            "--skip-reviewers",
+            "--skip-checklist",
+        ]
+
+        with patch.object(sys, "argv", argv):
+            _pr_notify_module.main(send_slack=sender)
+
+        assert sender.calls == [{"channel": "C1", "message": "hi"}]

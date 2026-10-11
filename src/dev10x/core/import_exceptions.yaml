@@ -26,11 +26,6 @@ exceptions:
       Mixed-owner tool module (runner, skill index, Slack) awaiting the
       split by owner.
     until: PLG-M3
-  - source: dev10x.coding.skills.monitor.pr_notify
-    target: dev10x.comm.skills.notifications.slack_notify
-    reason: >-
-      pr_notify posts through comm's Slack notifier; Stage A2 decouples it.
-    until: PLG-M3
   - source: dev10x.core.mcp.gate_query
     target: dev10x.coding.github
     reason: >-

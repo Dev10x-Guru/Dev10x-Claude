@@ -32,16 +32,21 @@ import argparse
 import json
 import subprocess
 import sys
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime
+from functools import partial
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
-from dev10x.comm.skills.notifications import slack_notify
 from dev10x.core.skills.common.jtbd import extract_jtbd, md_to_slack_bold
 from dev10x.domain.common.repository_ref import RepositoryRef
-from dev10x.domain.common.result import ErrorResult
+from dev10x.domain.common.result import ErrorResult, Result
+
+
+class SlackSender(Protocol):
+    def __call__(self, *, channel: str, message: str) -> Result[str]: ...
 
 
 def gh_json(args: list[str]) -> Any:
@@ -436,7 +441,7 @@ def cmd_prepare(args: argparse.Namespace) -> None:
     print(json.dumps(output, indent=2))
 
 
-def cmd_send(args: argparse.Namespace) -> None:
+def cmd_send(args: argparse.Namespace, *, send_slack: SlackSender) -> None:
     slack_ts: str | None = None
 
     if not args.skip_slack:
@@ -448,10 +453,8 @@ def cmd_send(args: argparse.Namespace) -> None:
         if args.message_file:
             message = Path(args.message_file).read_text()
 
-        # Post via importable slack_notify module (GH-442). Works in both
-        # plugin-checkout and uvx-installed contexts.
         if args.channel:
-            result = slack_notify.notify_slack(channel=args.channel, message=message)
+            result = send_slack(channel=args.channel, message=message)
             if isinstance(result, ErrorResult):
                 print(f"❌ Slack notification failed: {result.error}", file=sys.stderr)
                 sys.exit(1)
@@ -489,7 +492,7 @@ def cmd_send(args: argparse.Namespace) -> None:
         print(f"   Slack thread_ts: {slack_ts}")
 
 
-def main() -> None:
+def main(*, send_slack: SlackSender) -> None:
     parser = argparse.ArgumentParser(description="PR Phase 3 notification helper")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -544,13 +547,9 @@ def main() -> None:
         args.repo = str(RepositoryRef.parse(args.repo))
     except ValueError as exc:
         parser.error(str(exc))
-    commands = {
+    commands: dict[str, Callable[[argparse.Namespace], None]] = {
         "prepare": cmd_prepare,
-        "send": cmd_send,
+        "send": partial(cmd_send, send_slack=send_slack),
         "status": cmd_status,
     }
     commands[args.command](args)
-
-
-if __name__ == "__main__":
-    main()
