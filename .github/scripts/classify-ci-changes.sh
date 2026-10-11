@@ -2,11 +2,19 @@
 # Classify a pull request's changed files into the CI legs that must run
 # (GH-1298).
 #
-# The path lists mirror what `pytest-hooks.yml`, `pytest-servers.yml` and
-# `pytest-coverage-floors.yml` carried as workflow-level `paths:` filters
-# before they were folded into `ci-gate.yml`. Moving the filter from the
-# event to the job is what lets a filtered-out leg report `skipped`
-# instead of not reporting at all.
+# The path lists started as the workflow-level `paths:` filters that
+# `pytest-hooks.yml`, `pytest-servers.yml` and `pytest-coverage-floors.yml`
+# carried before they were folded into `ci-gate.yml`. Moving the filter
+# from the event to the job is what lets a filtered-out leg report
+# `skipped` instead of not reporting at all.
+#
+# The hook and server legs no longer enumerate `src/` packages (GH-1595).
+# Every `hooks/scripts/*.py` entry point and every `servers/*.py` server
+# imports `dev10x`, and that import closure reaches nearly the whole
+# package. A hand-kept glob fell behind the ADR-0034 Stage A moves and
+# silently skipped both suites on PRs that changed code they import, so
+# any change under `src/dev10x/` now selects both.
+# `tests/test_classify_ci_changes.py` pins this against the real closure.
 set -euo pipefail
 
 emit() {
@@ -43,18 +51,17 @@ matches() {
 # A change to the gate's own wiring re-runs every leg it decides.
 self='^\.github/workflows/ci-gate\.yml$|^\.github/scripts/(classify-ci-changes|ci-gate-verdict)\.sh$'
 
-if matches "^hooks/|^tests/hooks/|^pyproject\.toml\$|${self}"; then
+# Any package module: the hook and server import closures cover it.
+src='^src/dev10x/'
+
+if matches "^hooks/|^tests/hooks/|${src}|^pyproject\.toml\$|${self}"; then
     emit hooks true
 else
     emit hooks false
 fi
 
 servers='^servers/'
-servers+='|^src/dev10x/(mcp|audit|db|git|github|monitor|permission|plan|release|skill_index|utilities)/'
-servers+='|^src/dev10x/core/(utilities|github|permission|mcp)/'
-servers+='|^src/dev10x/(tasks|teach|coding)/'
-servers+='|^src/dev10x/comm/mcp/'
-servers+='|^src/dev10x/(core/)?subprocess_utils\.py$'
+servers+="|${src}"
 servers+='|^tests/(mcp|audit|db|git|github|monitor|permission|plan|release|skill_index|utilities)/'
 servers+='|^tests/test_subprocess_utils\.py$'
 servers+='|^pyproject\.toml$'
