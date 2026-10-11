@@ -202,8 +202,9 @@ turn are the most precious resources on site:
   is unreachable from a subagent. Re-read live state first (CI
   verdict, `isDraft`, mergeability, ancestry) — a worker's report is a
   memory, not a fact — then merge, close the chunk's issues, and
-  **append the new base-branch tip SHA to `merged-shas`** so the
-  watcher mutes the echo. Refuse the request if anything is pending,
+  **append `<new base tip SHA>  # PR #<n>` to `merged-shas`** so the
+  watcher mutes the echo and drops any replay of that MERGE REQUEST
+  (GH-1582). Refuse the request if anything is pending,
   draft, conflicting, or carries `fixup!` commits, and send it back to
   the foreman with the failing check named.
   **If the watchdog's OWN MCP surface has died, it cannot recover it —
@@ -242,7 +243,9 @@ turn are the most precious resources on site:
   contract (always leaves a tracker issue), move the chunk to the
   queue end, and log it as a numbered `DECISIONS.md` entry.
 - **Escalations go to disk FIRST, then to a message** (GH-962 F2) —
-  and the disk write includes a `MERGE REQUEST` / `ESCALATION` line in
+  and the disk write includes a `MERGE REQUEST` / `ESCALATION` line,
+  appended with `dev10x foreman escalate --scratchpad <run-dir> "<line>"`
+  (never Edit, which inserts mid-file, GH-1582), to
   `escalations-<role>.md`, which is the line the watcher turns into an
   event and therefore the one that actually wakes you (GH-1060) — and
   the overseer's own wait discipline (heartbeat → ONE bounded blocking

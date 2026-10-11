@@ -216,6 +216,61 @@ def test_retire_refuses_an_unknown_chunk(scratchpad: Path) -> None:
     assert not (scratchpad / "retired").exists()
 
 
+def test_escalate_appends_the_line_last(scratchpad: Path) -> None:
+    path = scratchpad / "escalations-foreman.md"
+    path.write_text("- MERGE REQUEST B1: PR #1\n", encoding="utf-8")
+    result = CliRunner().invoke(
+        foreman,
+        ["escalate", "--scratchpad", str(scratchpad), "MERGE REQUEST B2: PR #2"],
+    )
+    assert result.exit_code == 0
+    assert result.output == "escalated: escalations-foreman.md\n"
+    assert path.read_text(encoding="utf-8").splitlines()[-1] == "- MERGE REQUEST B2: PR #2"
+
+
+def test_escalate_refuses_a_line_the_watcher_ignores(scratchpad: Path) -> None:
+    result = CliRunner().invoke(
+        foreman,
+        ["escalate", "--scratchpad", str(scratchpad), "--role", "crew", "just a note"],
+    )
+    assert result.exit_code == 1
+    assert "must open with one of" in result.output
+    assert not (scratchpad / "escalations-crew.md").exists()
+
+
+def test_watch_delivers_a_mid_file_insert_and_drops_a_merged_request(
+    scratchpad: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import dev10x.commands.foreman as commands
+
+    # GH-1582: the PLG night-run file order — each new request inserted
+    # above the older ones — with B2 (#1575) already merged.
+    path = scratchpad / "escalations-foreman.md"
+    path.write_text(
+        "- PROBE-DONE\n- MERGE REQUEST B1: PR #1573\n- MERGE REQUEST B2: PR #1575\n",
+        encoding="utf-8",
+    )
+    (scratchpad / "merged-shas").write_text("abc1234  # PR #1575\n", encoding="utf-8")
+
+    def insert_then_sleep(seconds: float) -> None:
+        path.write_text(
+            "- PROBE-DONE\n"
+            "- MERGE REQUEST B1: PR #1573\n"
+            "- MERGE REQUEST B4: PR #1576\n"
+            "- MERGE REQUEST B3: PR #1575\n"
+            "- MERGE REQUEST B2: PR #1575\n",
+            encoding="utf-8",
+        )
+
+    monkeypatch.setattr(commands.time, "sleep", insert_then_sleep)
+    result = CliRunner().invoke(
+        foreman,
+        ["watch", "--scratchpad", str(scratchpad), "--max-rounds", "2", "--interval-s", "0"],
+    )
+    assert result.exit_code == 0
+    assert result.output.splitlines()[1:] == ["MERGE REQUEST B4: PR #1576"]
+
+
 def test_probe_flags_a_retired_heartbeat(scratchpad: Path) -> None:
     (scratchpad / "retired").write_text("m1\n", encoding="utf-8")
     result = CliRunner().invoke(foreman, ["probe", "--scratchpad", str(scratchpad)])
