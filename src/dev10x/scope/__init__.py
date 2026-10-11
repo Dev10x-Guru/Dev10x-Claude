@@ -1,23 +1,17 @@
-"""Scope-document autopopulator (GH-170).
+"""Re-export of ``dev10x.scoping.scope`` at its pre-ADR-0034 path (GH-1545).
 
-Renders Norms and Safeguards sections inline into ticket-scope
-documents by walking ``.claude/rules/INDEX.md`` and path-matching
-discovered rule files against the scope's affected files.
-
-Per ADR 0005: render at generation time, not at scope-save time —
-re-render whenever the spec is fed into a generation prompt so
-stale rule text never lies.
+Every ``dev10x.scope.<name>`` resolves to the same module object as
+``dev10x.scoping.scope.<name>``, so the ticket-scope API and every patch
+target keep working; see ``dev10x.core.module_alias``.
 """
 
-from __future__ import annotations
+from typing import TYPE_CHECKING
 
-from dev10x.scope.index_parser import RuleEntry, parse_index
-from dev10x.scope.norms_renderer import render_norms
-from dev10x.scope.safeguards_renderer import render_safeguards
+from dev10x.core.module_alias import alias_package
 
-__all__ = [
-    "RuleEntry",
-    "parse_index",
-    "render_norms",
-    "render_safeguards",
-]
+if TYPE_CHECKING:
+    from dev10x.scoping.scope import RuleEntry, parse_index, render_norms, render_safeguards
+
+alias_package(old=__name__, new="dev10x.scoping.scope")
+
+__all__ = ["RuleEntry", "parse_index", "render_norms", "render_safeguards"]

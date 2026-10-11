@@ -20,8 +20,8 @@ import json
 import re
 from pathlib import Path
 
-from dev10x.scope._matcher import select_matching
-from dev10x.scope.index_parser import parse_index
+from dev10x.scoping.scope._matcher import select_matching
+from dev10x.scoping.scope.index_parser import parse_index
 
 _HEADER = "<!-- Auto-populated by dev10x.scope.safeguards_renderer at scope-render time. -->"
 _EMPTY = "No safeguards matched. Manual additions only."

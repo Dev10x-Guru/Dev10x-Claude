@@ -7,7 +7,7 @@ selects which entries match any affected file.
 
 from __future__ import annotations
 
-from dev10x.scope.index_parser import RuleEntry
+from dev10x.scoping.scope.index_parser import RuleEntry
 
 
 def select_matching(
