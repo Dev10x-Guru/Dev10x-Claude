@@ -174,6 +174,7 @@ routing in the manifest:
 | CI verdict at the merge gate | `ci_check_status(wait=false)` | `gh pr checks` |
 | draft / mergeability / ancestry | `pr_get` | `gh pr view --json …` |
 | run-dir state during stall triage | `dev10x foreman probe` | `ls -lt`, `stat`, `git log` |
+| quiet a finished worker's STALL | nothing (a `DONE:` line retires it), else `dev10x foreman retire` | `mv` / `cp` / `rm` on run-dir files — globally `ask`, froze a night (GH-1577) |
 
 Where no wrapper exists, dry-run the raw shape here like any other.
 The rule is the same one item 3 makes for workers — the watchdog's

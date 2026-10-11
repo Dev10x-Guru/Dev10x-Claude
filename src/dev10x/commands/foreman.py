@@ -65,6 +65,32 @@ def probe(
         click.echo(line)
 
 
+@foreman.command(name="retire")
+@click.option(
+    "--scratchpad",
+    type=click.Path(path_type=Path, file_okay=False),
+    required=True,
+    help="Directory holding the run's status-*.md heartbeat files.",
+)
+@click.argument("chunk")
+def retire(*, scratchpad: Path, chunk: str) -> None:
+    """Stop STALL alerts for a finished chunk without touching its files.
+
+    Appends the chunk's heartbeat file name to ``retired`` in the run
+    directory. This is the watchdog's pre-approved shape for quieting a
+    worker that finished without a ``DONE`` line — never ``mv``, ``cp``
+    or ``rm`` on run-dir files, which prompt and freeze the night
+    (GH-1577).
+    """
+    from dev10x.coding.skills.foreman import watch as watch_skill
+    from dev10x.domain.common.result import ErrorResult
+
+    result = watch_skill.retire_chunk(scratchpad=scratchpad, chunk=chunk)
+    if isinstance(result, ErrorResult):
+        raise click.ClickException(result.error)
+    click.echo(f"retired: {result.value}")
+
+
 @foreman.command(name="watch")
 @click.option(
     "--scratchpad",
@@ -129,6 +155,10 @@ def watch(
     BASE MOVED echoes are dropped) and ``parked`` (while present, STALL
     and QUOTA MILESTONE are suppressed and milestones roll up into one
     line on release).
+
+    A finished worker never raises STALL (GH-1577): its heartbeat is
+    retired when the last line is a ``DONE`` report, or when
+    ``dev10x foreman retire`` listed the chunk in ``retired``.
     """
     from dev10x.coding.skills.foreman import watch as watch_skill
 
@@ -168,6 +198,7 @@ def watch(
             parked=watch_skill.queue_parked(scratchpad=scratchpad),
             merged_shas=watch_skill.own_merge_shas(scratchpad=scratchpad),
             escalation_lines=escalations,
+            retired=watch_skill.retired_heartbeats(scratchpad=scratchpad),
         )
         for event in events:
             click.echo(event)

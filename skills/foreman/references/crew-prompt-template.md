@@ -382,7 +382,9 @@ Every ~15 minutes AND at each phase transition, append one line to
 by running `date -u` — never compose, estimate, or carry one forward
 from earlier in the session. Invented times corrupt the morning audit
 trail (field case: a worker logged `20:49:00Z` when real UTC was
-`17:57`).
+`17:57`). Your LAST line, once the chunk is handed off, is
+`- <UTC timestamp> DONE: <PR, CI verdict, what remains>` — the
+watcher stops stall-alarming on a file that ends with `DONE:`.
 
 You own {{run_dir}}/status-{{chunk_id}}.md EXCLUSIVELY. Nobody else
 writes to it, and you write to no other agent's status file — a

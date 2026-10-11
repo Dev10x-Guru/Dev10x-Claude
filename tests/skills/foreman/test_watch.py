@@ -3,11 +3,12 @@ from __future__ import annotations
 import logging
 import os
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
-
 from dev10x.domain.common.result import err, ok
+
 from dev10x.skills.foreman import (
     WatchState,
     active_quota_block,
@@ -17,11 +18,14 @@ from dev10x.skills.foreman import (
     heartbeat_ages,
     heartbeat_lines,
     historical_token_ceiling,
+    is_done_line,
     is_own_merge,
     minutes_to_quota_exhaustion,
     new_escalation_lines,
     own_merge_shas,
     queue_parked,
+    retire_chunk,
+    retired_heartbeats,
 )
 from dev10x.skills.foreman import watch as watch_module
 
@@ -276,6 +280,175 @@ class TestHeartbeatReaders:
         _touch(tmp_path / "status-m1.md", age_min=2, content="")
         lines = heartbeat_lines(scratchpad=tmp_path, now=time.time())
         assert lines[0].endswith("last=(empty)")
+
+    def test_lines_flag_retired_files(self, tmp_path: Path) -> None:
+        _touch(tmp_path / "status-B1.md", age_min=40, content=B1_FINAL_LINE)
+        lines = heartbeat_lines(scratchpad=tmp_path, now=time.time())
+        assert lines[0].startswith("heartbeat: status-B1.md retired age=")
+
+
+#: Final heartbeat lines from the 2026-10-10/11 night run (GH-1577).
+#: B1 carries no "Pen down", so `DONE:` is the marker, not the prose.
+B1_FINAL_LINE = (
+    "- 2026-10-10T23:01:23Z DONE: #1574 CI verdict green (11 pass, hook-tests "
+    "skipped); 0 unresolved threads, 0 top-level findings; ls-remote confirms "
+    "7baef27f on origin. Handing off; no merge/close"
+)
+B2_FINAL_LINE = (
+    "- 2026-10-10T23:29:54Z DONE: PR #1575 CI green 10/10, 0 unresolved threads, "
+    "0 top-level findings, isDraft=false; ls-remote confirms 5780dd87 on origin. "
+    "Pen down (no merge, no issue closure)."
+)
+
+
+class TestRetiredHeartbeats:
+    @pytest.mark.parametrize("line", [B1_FINAL_LINE, B2_FINAL_LINE, "DONE: shipped", "* DONE"])
+    def test_done_line_is_retired(self, line: str) -> None:
+        assert is_done_line(line=line) is True
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "- 2026-10-10T22:40:00Z implement: 3 of 5 files done",
+            "- 2026-10-10T22:40:00Z NOT DONE: blocked on review",
+            "- 2026-10-10T22:40:00Z DONENESS check",
+            "- not-a-timestamp DONE: claimed",
+            "",
+        ],
+    )
+    def test_progress_line_is_not_retired(self, line: str) -> None:
+        assert is_done_line(line=line) is False
+
+    def test_done_last_line_retires_the_file(self, tmp_path: Path) -> None:
+        _touch(tmp_path / "status-B1.md", age_min=40, content=f"- t setup: x\n{B1_FINAL_LINE}\n")
+        _touch(tmp_path / "status-B3.md", age_min=40, content="- t implement: x\n")
+        assert retired_heartbeats(scratchpad=tmp_path) == {"status-B1.md"}
+
+    def test_a_line_after_done_reactivates_the_file(self, tmp_path: Path) -> None:
+        _touch(
+            tmp_path / "status-B1.md",
+            age_min=1,
+            content=f"{B1_FINAL_LINE}\n- 2026-10-11T00:10:00Z rebase: base moved\n",
+        )
+        assert retired_heartbeats(scratchpad=tmp_path) == set()
+
+    def test_retired_file_entries_retire_by_chunk_or_file_name(self, tmp_path: Path) -> None:
+        for chunk in ("B1", "B2", "B3"):
+            _touch(tmp_path / f"status-{chunk}.md", age_min=40)
+        (tmp_path / "retired").write_text(
+            "# chunks the watchdog retired\nB1\nstatus-B2.md\n\n", encoding="utf-8"
+        )
+        assert retired_heartbeats(scratchpad=tmp_path) == {"status-B1.md", "status-B2.md"}
+
+    @pytest.mark.parametrize("chunk", ["B1", "status-B1.md"])
+    def test_retire_chunk_appends_the_file_name(self, tmp_path: Path, chunk: str) -> None:
+        _touch(tmp_path / "status-B1.md", age_min=40)
+        result = retire_chunk(scratchpad=tmp_path, chunk=chunk)
+        assert result == ok("status-B1.md")
+        assert (tmp_path / "retired").read_text(encoding="utf-8") == "status-B1.md\n"
+        assert retired_heartbeats(scratchpad=tmp_path) == {"status-B1.md"}
+
+    def test_retire_chunk_rejects_an_unknown_chunk(self, tmp_path: Path) -> None:
+        _touch(tmp_path / "status-B1.md", age_min=40)
+        result = retire_chunk(scratchpad=tmp_path, chunk="B9")
+        assert result == err(f"no heartbeat file status-B9.md in {tmp_path}")
+        assert not (tmp_path / "retired").exists()
+
+    @pytest.mark.parametrize(
+        "read",
+        [
+            lambda pad: heartbeat_ages(scratchpad=pad, now=NOW),
+            lambda pad: heartbeat_lines(scratchpad=pad, now=NOW),
+            lambda pad: retired_heartbeats(scratchpad=pad),
+        ],
+        ids=["ages", "lines", "retired"],
+    )
+    def test_readers_skip_a_file_renamed_between_glob_and_read(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        read: Callable[[Path], object],
+    ) -> None:
+        # GH-1577: the watchdog renamed status files mid-watch; a file
+        # that vanishes after the glob must not crash the watcher.
+        vanished = tmp_path / "status-B1.md"
+        _touch(vanished, age_min=40, content=B1_FINAL_LINE)
+        _touch(tmp_path / "status-B3.md", age_min=2)
+        real_glob = Path.glob
+
+        def glob_then_rename(self: Path, pattern: str):  # noqa: ANN202
+            found = list(real_glob(self, pattern))
+            vanished.rename(tmp_path / "done-B1.md")
+            return iter(found)
+
+        monkeypatch.setattr(Path, "glob", glob_then_rename)
+        result = read(tmp_path)
+        assert "status-B1.md" not in repr(result)
+
+    def test_retire_chunk_leaves_the_heartbeat_untouched(self, tmp_path: Path) -> None:
+        heartbeat = tmp_path / "status-B1.md"
+        _touch(heartbeat, age_min=40)
+        before = heartbeat.stat().st_mtime
+        retire_chunk(scratchpad=tmp_path, chunk="B1")
+        assert heartbeat.stat().st_mtime == before
+
+
+class TestRetiredStallMuting:
+    def test_retired_file_never_stalls(self, state: WatchState, quiet_block: dict) -> None:
+        events = state.observe(
+            now=NOW + 60,
+            sha="aaa111",
+            block=quiet_block,
+            heartbeat_ages={"status-B1.md": 373, "status-B3.md": 26},
+            retired=frozenset({"status-B1.md"}),
+        )
+        assert events == ["STALL status-B3.md: silent 26 min"]
+
+    def test_all_files_retired_is_not_a_missing_heartbeat(
+        self, state: WatchState, quiet_block: dict
+    ) -> None:
+        events = state.observe(
+            now=NOW + 26 * 60,
+            sha="aaa111",
+            block=quiet_block,
+            heartbeat_ages={"status-B1.md": 373},
+            retired=frozenset({"status-B1.md"}),
+        )
+        assert events == []
+
+    def test_a_file_that_leaves_the_run_dir_stops_alarming(
+        self, state: WatchState, quiet_block: dict
+    ) -> None:
+        state.observe(
+            now=NOW + 60,
+            sha="aaa111",
+            block=quiet_block,
+            heartbeat_ages={"status-B1.md": 33, "status-B3.md": 1},
+        )
+        later = state.observe(
+            now=NOW + 60 + 26 * 60,
+            sha="aaa111",
+            block=quiet_block,
+            heartbeat_ages={"status-B3.md": 2},
+        )
+        assert later == []
+        assert "status-B1.md" not in state.stall_alerts
+
+    def test_reactivated_file_alarms_again(self, state: WatchState, quiet_block: dict) -> None:
+        state.observe(
+            now=NOW + 60,
+            sha="aaa111",
+            block=quiet_block,
+            heartbeat_ages={"status-B1.md": 30},
+            retired=frozenset({"status-B1.md"}),
+        )
+        events = state.observe(
+            now=NOW + 120,
+            sha="aaa111",
+            block=quiet_block,
+            heartbeat_ages={"status-B1.md": 30},
+        )
+        assert events == ["STALL status-B1.md: silent 30 min"]
 
 
 class TestEscalationReaders:

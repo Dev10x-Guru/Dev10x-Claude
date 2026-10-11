@@ -286,6 +286,10 @@ groups:
       - Bash(uvx dev10x platform:*)
       - Bash(uvx dev10x init:*)
       - Bash(uvx dev10x github-app:*)
+      # GH-1577
+      - Bash(uvx dev10x foreman probe:*)
+      - Bash(uvx dev10x foreman retire:*)
+      - Bash(uvx dev10x foreman watch:*)
 
   # ─── TIER 2 ─────────────────────────────────────────────────────────
 

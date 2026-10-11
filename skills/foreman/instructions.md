@@ -130,10 +130,10 @@ each into this directory.
    off `escalations-*.md`, so a request reaches you within a poll
    interval instead of whenever its message lands — GH-1060),
    `BASE MOVED:`, `QUOTA MILESTONE:`, `QUOTA RESET:`,
-   and the forward-looking `QUOTA LOW:` (GH-979). Three watchdog-owned
-   run-directory files keep that feed decision-only (GH-946):
-   `merged-shas`, `parked`, `current-generation`. Full event semantics
-   and the file table:
+   and the forward-looking `QUOTA LOW:` (GH-979). Four watchdog-owned
+   run-directory files keep that feed decision-only (GH-946, GH-1577):
+   `merged-shas`, `parked`, `retired`, `current-generation`. Full
+   event semantics and the file table:
    [`references/architecture.md`](references/architecture.md).
 2. **Arm the external wake timer (GH-1109).** The watcher above runs
    inside this session, so a platform quota pause takes it down with
@@ -231,6 +231,13 @@ turn are the most precious resources on site:
   session; without it the run sleeps until a human nudges it.
 - Never write into a crew worker's `status-<chunk>.md` — it refreshes
   the mtime the stall detector reads as liveness.
+- **Never `mv`, `cp` or `rm` a run-dir file.** The crew's fatal-shapes
+  ban binds the watchdog too: the supervisor's global `ask` on those
+  verbs outranks any local allow, and one `mv` froze a night for six
+  hours with a green MERGE REQUEST queued behind it (GH-1577). A
+  finished worker does not STALL — the watcher retires a heartbeat
+  whose last line is `DONE:`. For one that ended without it, run
+  `dev10x foreman retire --scratchpad <run-dir> <chunk>`.
 - A decision only the supervisor can make → cut the scope per the crew
   contract (always leaves a tracker issue), move the chunk to the
   queue end, and log it as a numbered `DECISIONS.md` entry.
@@ -311,6 +318,7 @@ apply with no `dev10x foreman watch` armed (never a crew worker):
   asleep; there is no *when*.
 - A watchdog gate or stall-triage command whose shape was never
   pre-flighted — the crew's probe proves nothing about yours.
+- Renaming, copying or deleting a run-dir file to quiet the watcher.
 - Arming the night without a dry-run `resolve_gate(gate="merge")`
   showing `auto-advance`.
 - Handing a worker a way to see a check went red without a proven
