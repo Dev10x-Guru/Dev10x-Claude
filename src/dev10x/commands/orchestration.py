@@ -11,7 +11,7 @@ from pathlib import Path
 
 import click
 
-from dev10x.skills.orchestration.subagent_protocol import SubagentStatus
+from dev10x.coding.skills.orchestration.subagent_protocol import SubagentStatus
 
 
 @click.group()
@@ -34,7 +34,7 @@ def stranded_work_command(*, worktree: Path, status: str) -> None:
     Exits 1 when a resume is required, so a caller can branch on the exit
     code; the verdict JSON goes to stdout either way.
     """
-    from dev10x.skills.orchestration.stranded_work import inspect_worktree, resume_prompt
+    from dev10x.coding.skills.orchestration.stranded_work import inspect_worktree, resume_prompt
 
     verdict = inspect_worktree(worktree=worktree, status=SubagentStatus(status))
     payload = verdict.to_dict()

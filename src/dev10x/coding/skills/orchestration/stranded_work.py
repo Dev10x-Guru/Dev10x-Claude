@@ -24,7 +24,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 
-from dev10x.skills.orchestration.subagent_protocol import SubagentStatus
+from dev10x.coding.skills.orchestration.subagent_protocol import SubagentStatus
 
 _PORCELAIN_STATUS_WIDTH = 3
 _RENAME_ARROW = " -> "

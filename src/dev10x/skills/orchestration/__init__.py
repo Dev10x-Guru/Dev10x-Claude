@@ -1,33 +1,15 @@
-"""Importable, testable helpers for work-on / fanout orchestration."""
+"""Re-export of ``dev10x.coding.skills.orchestration`` at its pre-ADR-0034 path (GH-1546).
 
-from __future__ import annotations
+Every ``dev10x.skills.orchestration.<name>`` resolves to the same module
+object as ``dev10x.coding.skills.orchestration.<name>``; see
+``dev10x.core.module_alias``.
+"""
 
-from dev10x.skills.orchestration.batch_detection import (
-    BATCH_THRESHOLD,
-    MAX_BATCH_SIZE,
-    OverlapSignal,
-    group_into_batches,
-    tickets_share_batch,
-)
-from dev10x.skills.orchestration.subagent_protocol import (
-    BACKGROUND_DELIVERY_TEMPLATE,
-    STATUS_PROMPT_TEMPLATE,
-    ParsedStatus,
-    SubagentStatus,
-    parse_subagent_status,
-    requires_main_session_fallback,
-)
+from typing import TYPE_CHECKING
 
-__all__ = [
-    "BACKGROUND_DELIVERY_TEMPLATE",
-    "BATCH_THRESHOLD",
-    "MAX_BATCH_SIZE",
-    "OverlapSignal",
-    "ParsedStatus",
-    "STATUS_PROMPT_TEMPLATE",
-    "SubagentStatus",
-    "group_into_batches",
-    "parse_subagent_status",
-    "requires_main_session_fallback",
-    "tickets_share_batch",
-]
+from dev10x.core.module_alias import alias_package
+
+if TYPE_CHECKING:
+    from dev10x.coding.skills.orchestration import *  # noqa: F403
+
+alias_package(old=__name__, new="dev10x.coding.skills.orchestration")

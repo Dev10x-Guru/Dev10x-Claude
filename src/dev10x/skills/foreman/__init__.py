@@ -1,35 +1,15 @@
-from dev10x.skills.foreman.watch import (
-    WatchState,
-    active_quota_block,
-    base_branch_sha,
-    block_identity,
-    escalation_offsets,
-    heartbeat_ages,
-    heartbeat_lines,
-    historical_token_ceiling,
-    initial_watch_state,
-    is_own_merge,
-    minutes_to_quota_exhaustion,
-    new_escalation_lines,
-    own_merge_shas,
-    probe_lines,
-    queue_parked,
-)
+"""Re-export of ``dev10x.coding.skills.foreman`` at its pre-ADR-0034 path (GH-1546).
 
-__all__ = [
-    "WatchState",
-    "active_quota_block",
-    "base_branch_sha",
-    "block_identity",
-    "escalation_offsets",
-    "heartbeat_ages",
-    "heartbeat_lines",
-    "historical_token_ceiling",
-    "initial_watch_state",
-    "is_own_merge",
-    "minutes_to_quota_exhaustion",
-    "new_escalation_lines",
-    "own_merge_shas",
-    "probe_lines",
-    "queue_parked",
-]
+Every ``dev10x.skills.foreman.<name>`` resolves to the same module object as
+``dev10x.coding.skills.foreman.<name>``, so the `dev10x foreman watch` CLI
+and every patch target keep working; see ``dev10x.core.module_alias``.
+"""
+
+from typing import TYPE_CHECKING
+
+from dev10x.core.module_alias import alias_package
+
+if TYPE_CHECKING:
+    from dev10x.coding.skills.foreman import *  # noqa: F403
+
+alias_package(old=__name__, new="dev10x.coding.skills.foreman")
