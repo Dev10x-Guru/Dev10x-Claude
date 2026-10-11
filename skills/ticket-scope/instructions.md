@@ -285,11 +285,11 @@ inject them inline. **Render at generation time, not at
 scope-save time** — re-render whenever the spec is fed back
 into a generation prompt so stale rule text never lies.
 
-Use the `dev10x.scope` Python API:
+Use the `dev10x.scoping.scope` Python API:
 
 ```python
 from pathlib import Path
-from dev10x.scope import render_norms, render_safeguards
+from dev10x.scoping.scope import render_norms, render_safeguards
 
 affected = [
     "src/payments/square/orders.py",

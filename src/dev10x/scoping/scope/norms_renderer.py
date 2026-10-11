@@ -14,8 +14,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from dev10x.scope._matcher import select_matching
-from dev10x.scope.index_parser import parse_index
+from dev10x.scoping.scope._matcher import select_matching
+from dev10x.scoping.scope.index_parser import parse_index
 
 _HEADER = (
     "<!-- Auto-populated by dev10x.scope.norms_renderer at scope-render time. -->"
