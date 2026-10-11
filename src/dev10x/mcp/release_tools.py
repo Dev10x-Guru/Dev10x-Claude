@@ -1,36 +1,15 @@
-"""Release MCP tool registrations (split from github_tools.py, GH-585)."""
+"""Re-export of ``dev10x.coding.mcp.release_tools`` at its pre-ADR-0034 path (GH-1549).
 
-from __future__ import annotations
+The old name is the same module object as the new one, so every patch
+target keeps working; see ``dev10x.core.module_alias``. The tools
+register in the coding module.
+"""
 
-from dev10x.domain.common.result import to_wire
-from dev10x.mcp._app import server
+from typing import TYPE_CHECKING
 
+from dev10x.core.module_alias import alias_module
 
-@server.tool()
-async def collect_prs(
-    repo_path: str,
-    from_tag: str | None = None,
-    to_tag: str | None = None,
-    ticket_pattern: str | None = None,
-) -> dict:
-    """Collect PRs between git tags for release notes.
+if TYPE_CHECKING:
+    from dev10x.coding.mcp.release_tools import *  # noqa: F403
 
-    Args:
-        repo_path: Path to the git repository
-        from_tag: Start tag (optional)
-        to_tag: End tag (optional)
-        ticket_pattern: Regex override for ticket pattern
-
-    Returns:
-        Dictionary with keys: success (bool), output (str)
-    """
-    from dev10x import release as rel
-
-    return to_wire(
-        await rel.collect_prs(
-            repo_path=repo_path,
-            from_tag=from_tag,
-            to_tag=to_tag,
-            ticket_pattern=ticket_pattern,
-        )
-    )
+alias_module(old=__name__, new="dev10x.coding.mcp.release_tools")

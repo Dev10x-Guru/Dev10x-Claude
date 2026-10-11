@@ -170,7 +170,7 @@ def _is_server_tool_decorator(node: ast.expr) -> bool:
     - ``@server.tool()`` — the direct FastMCP decorator.
     - ``@github_tool`` — a module-level wrapper that binds cwd and calls
       ``to_wire()`` before handing the function to ``server.tool()``
-      (`mcp/github_tools.py`). 48 of ~50 GitHub handlers use it.
+      (`coding/mcp/github_tools.py`). 48 of ~50 GitHub handlers use it.
 
     Matching only the first shape hid every wrapped handler — ``pr_get``,
     ``pr_labels``, ``merge_pr``, ``update_pr``, every ``milestone_*`` and
