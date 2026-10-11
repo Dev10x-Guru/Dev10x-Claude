@@ -120,12 +120,12 @@ reaches the tracker). Each file has exactly one writer.
 |---|---|---|
 | `manifest.md` | watchdog | Queue order, per-chunk model + scope, gate policy, base branch, verified command shapes. Authoritative for what was queued |
 | `DECISIONS.md` | watchdog | Numbered supervisor-grade decisions (D1, D2, …). Authoritative for why anything changed; the escalation channel |
-| `escalations-<role>.md` | that role | Append-only. The watcher tails it and re-emits any line starting `MERGE REQUEST` or `ESCALATION` as an event, so a time-critical request reaches the watchdog within one poll interval instead of whenever its message is delivered (GH-1060) |
+| `escalations-<role>.md` | that role, via `dev10x foreman escalate` | Append-only. The watcher tails it and re-emits any line starting `MERGE REQUEST` or `ESCALATION` as an event, so a time-critical request reaches the watchdog within one poll interval instead of whenever its message is delivered (GH-1060). Lines are tracked by content, so an Edit that inserts mid-file cannot replay an older request — but use the verb, which always writes last (GH-1582) |
 | `decisions-<chunk>.md` | that chunk's worker | Per-chunk rationale, scope cuts |
 | `status-<chunk>.md` | that chunk's worker | Heartbeat log; mtime is the stall detector's truth |
 | `status-foreman.md` | foreman | Foreman heartbeat log |
 | `roster.md` | foreman | At-a-glance table of every delegated chunk — `Chunk \| Issue(s) \| State \| PR \| Worker \| Last update`. A **derived rendering** of the manifest + decision logs + live tracker state, rewritten at existing transition write points so the queue is readable without opening every status file (GH-976). Never the sole record of anything — see [`roster.md`](roster.md) |
-| `merged-shas` | watchdog | Base tips this run merged; mutes the watcher's self-echo |
+| `merged-shas` | watchdog | Base tips this run merged, one per line as `<sha>  # PR #<n>`; mutes the watcher's self-echo and drops a replayed MERGE REQUEST for that PR (GH-1582) |
 | `parked` | watchdog | Present while the queue is deliberately held; mutes stall/quota noise |
 | `retired` | watchdog, via `dev10x foreman retire` only | Chunks that finished without a `DONE:` line; mutes their STALL. Never retire by renaming a status file (GH-1577) |
 | `current-generation` | watchdog | `G<n> <agent-name> <UTC ts>` — the foremen's authority token |

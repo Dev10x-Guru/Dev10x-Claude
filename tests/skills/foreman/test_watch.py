@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 import time
+from collections import Counter
 from collections.abc import Callable
 from pathlib import Path
 
@@ -12,13 +13,16 @@ from dev10x.domain.common.result import err, ok
 from dev10x.skills.foreman import (
     WatchState,
     active_quota_block,
+    append_escalation,
     base_branch_sha,
     block_identity,
-    escalation_offsets,
+    escalation_baseline,
+    handled_merge_prs,
     heartbeat_ages,
     heartbeat_lines,
     historical_token_ceiling,
     is_done_line,
+    is_handled_merge_request,
     is_own_merge,
     minutes_to_quota_exhaustion,
     new_escalation_lines,
@@ -452,23 +456,67 @@ class TestRetiredStallMuting:
 
 
 class TestEscalationReaders:
-    def test_offsets_report_current_byte_size_per_file(self, tmp_path: Path) -> None:
-        (tmp_path / "escalations-crew.md").write_text("- first line\n", encoding="utf-8")
-        offsets = escalation_offsets(scratchpad=tmp_path)
-        assert offsets == {"escalations-crew.md": len("- first line\n")}
+    def test_baseline_counts_complete_lines_per_file(self, tmp_path: Path) -> None:
+        (tmp_path / "escalations-crew.md").write_text(
+            "- first line\n\n- first line\n- partial", encoding="utf-8"
+        )
+        baseline = escalation_baseline(scratchpad=tmp_path)
+        assert baseline == {"escalations-crew.md": Counter({"- first line": 2})}
 
-    def test_offsets_empty_without_files(self, tmp_path: Path) -> None:
-        assert escalation_offsets(scratchpad=tmp_path) == {}
+    def test_baseline_empty_without_files(self, tmp_path: Path) -> None:
+        assert escalation_baseline(scratchpad=tmp_path) == {}
 
     def test_new_lines_returns_appended_content_once(self, tmp_path: Path) -> None:
         path = tmp_path / "escalations-crew.md"
         path.write_text("- first line\n", encoding="utf-8")
-        offsets = escalation_offsets(scratchpad=tmp_path)
+        cursor = escalation_baseline(scratchpad=tmp_path)
         path.write_text("- first line\n- second line\n", encoding="utf-8")
-        lines, updated = new_escalation_lines(scratchpad=tmp_path, offsets=offsets)
+        lines, updated = new_escalation_lines(scratchpad=tmp_path, cursor=cursor)
         assert lines == ["- second line"]
-        repeat, _ = new_escalation_lines(scratchpad=tmp_path, offsets=updated)
+        repeat, _ = new_escalation_lines(scratchpad=tmp_path, cursor=updated)
         assert repeat == []
+
+    def test_mid_file_insert_emits_only_the_inserted_line(self, tmp_path: Path) -> None:
+        # GH-1582: the overseer Edit-inserted each request right after the
+        # first one, so the file read PROBE-DONE, B1, B4, B3, B2. A byte
+        # cursor missed the B4 insert and replayed the shifted B2.
+        path = tmp_path / "escalations-foreman.md"
+        path.write_text(
+            "- PROBE-DONE\n"
+            "- MERGE REQUEST B1: PR #1573\n"
+            "- MERGE REQUEST B3: PR #1574\n"
+            "- MERGE REQUEST B2: PR #1575\n",
+            encoding="utf-8",
+        )
+        cursor = escalation_baseline(scratchpad=tmp_path)
+        path.write_text(
+            "- PROBE-DONE\n"
+            "- MERGE REQUEST B1: PR #1573\n"
+            "- MERGE REQUEST B4: PR #1576\n"
+            "- MERGE REQUEST B3: PR #1574\n"
+            "- MERGE REQUEST B2: PR #1575\n",
+            encoding="utf-8",
+        )
+        lines, updated = new_escalation_lines(scratchpad=tmp_path, cursor=cursor)
+        assert lines == ["- MERGE REQUEST B4: PR #1576"]
+        repeat, _ = new_escalation_lines(scratchpad=tmp_path, cursor=updated)
+        assert repeat == []
+
+    def test_a_deliberately_repeated_line_is_delivered_again(self, tmp_path: Path) -> None:
+        path = tmp_path / "escalations-foreman.md"
+        path.write_text("- MERGE REQUEST B2: PR #9\n", encoding="utf-8")
+        cursor = escalation_baseline(scratchpad=tmp_path)
+        path.write_text("- MERGE REQUEST B2: PR #9\n- MERGE REQUEST B2: PR #9\n", encoding="utf-8")
+        lines, _ = new_escalation_lines(scratchpad=tmp_path, cursor=cursor)
+        assert lines == ["- MERGE REQUEST B2: PR #9"]
+
+    def test_file_vanishing_after_the_glob_keeps_its_cursor(self, tmp_path: Path) -> None:
+        # A dangling symlink is listed by the glob but cannot be read —
+        # the same window as a file removed between glob and read.
+        (tmp_path / "escalations-gone.md").symlink_to(tmp_path / "missing.md")
+        cursor = escalation_baseline(scratchpad=tmp_path)
+        lines, updated = new_escalation_lines(scratchpad=tmp_path, cursor=cursor)
+        assert (cursor, lines, updated) == ({}, [], {})
 
     def test_partial_trailing_line_is_withheld_until_complete(self, tmp_path: Path) -> None:
         # A poll landing between an append's write and its newline must not
@@ -477,33 +525,139 @@ class TestEscalationReaders:
         # to guarantee.
         path = tmp_path / "escalations-foreman.md"
         path.write_text("- first line\n", encoding="utf-8")
-        offsets = escalation_offsets(scratchpad=tmp_path)
+        cursor = escalation_baseline(scratchpad=tmp_path)
         path.write_text("- first line\n- MERGE REQUEST chunk-7", encoding="utf-8")
-        lines, updated = new_escalation_lines(scratchpad=tmp_path, offsets=offsets)
+        lines, updated = new_escalation_lines(scratchpad=tmp_path, cursor=cursor)
         assert lines == []
         path.write_text("- first line\n- MERGE REQUEST chunk-7: PR #12\n", encoding="utf-8")
-        completed, _ = new_escalation_lines(scratchpad=tmp_path, offsets=updated)
+        completed, _ = new_escalation_lines(scratchpad=tmp_path, cursor=updated)
         assert completed == ["- MERGE REQUEST chunk-7: PR #12"]
 
     def test_complete_lines_emit_even_when_a_partial_trails(self, tmp_path: Path) -> None:
         path = tmp_path / "escalations-foreman.md"
         path.write_text("- first line\n", encoding="utf-8")
-        offsets = escalation_offsets(scratchpad=tmp_path)
+        cursor = escalation_baseline(scratchpad=tmp_path)
         path.write_text("- first line\n- ESCALATION one\n- partial", encoding="utf-8")
-        lines, updated = new_escalation_lines(scratchpad=tmp_path, offsets=offsets)
+        lines, updated = new_escalation_lines(scratchpad=tmp_path, cursor=cursor)
         assert lines == ["- ESCALATION one"]
         path.write_text("- first line\n- ESCALATION one\n- partial done\n", encoding="utf-8")
-        rest, _ = new_escalation_lines(scratchpad=tmp_path, offsets=updated)
+        rest, _ = new_escalation_lines(scratchpad=tmp_path, cursor=updated)
         assert rest == ["- partial done"]
 
-    def test_shrunken_file_is_rebaselined_not_replayed(self, tmp_path: Path) -> None:
+    def test_rewritten_file_replays_nothing_it_already_delivered(self, tmp_path: Path) -> None:
         path = tmp_path / "escalations-crew.md"
         path.write_text("- first line\n- second line\n", encoding="utf-8")
-        offsets = escalation_offsets(scratchpad=tmp_path)
-        path.write_text("- new content\n", encoding="utf-8")
-        lines, updated = new_escalation_lines(scratchpad=tmp_path, offsets=offsets)
-        assert lines == []
-        assert updated["escalations-crew.md"] == len("- new content\n")
+        cursor = escalation_baseline(scratchpad=tmp_path)
+        path.write_text("- second line\n", encoding="utf-8")
+        shrunk, updated = new_escalation_lines(scratchpad=tmp_path, cursor=cursor)
+        path.write_text("- second line\n- first line\n- new content\n", encoding="utf-8")
+        restored, _ = new_escalation_lines(scratchpad=tmp_path, cursor=updated)
+        assert (shrunk, restored) == ([], ["- new content"])
+
+
+class TestAppendEscalation:
+    def test_appends_the_line_last_with_a_bullet(self, tmp_path: Path) -> None:
+        path = tmp_path / "escalations-foreman.md"
+        path.write_text("- MERGE REQUEST B1: PR #1\n", encoding="utf-8")
+        result = append_escalation(
+            scratchpad=tmp_path, role="foreman", line="MERGE REQUEST B2: PR #2"
+        )
+        assert result.value == "escalations-foreman.md"
+        assert path.read_text(encoding="utf-8").splitlines() == [
+            "- MERGE REQUEST B1: PR #1",
+            "- MERGE REQUEST B2: PR #2",
+        ]
+
+    def test_keeps_an_existing_bullet(self, tmp_path: Path) -> None:
+        append_escalation(scratchpad=tmp_path, role="crew", line="* ESCALATION: blocked")
+        assert (tmp_path / "escalations-crew.md").read_text(encoding="utf-8") == (
+            "* ESCALATION: blocked\n"
+        )
+
+    def test_never_glues_onto_a_line_missing_its_newline(self, tmp_path: Path) -> None:
+        path = tmp_path / "escalations-foreman.md"
+        path.write_text("- PROBE-DONE", encoding="utf-8")
+        append_escalation(scratchpad=tmp_path, role="foreman", line="ESCALATION: x")
+        assert path.read_text(encoding="utf-8") == "- PROBE-DONE\n- ESCALATION: x\n"
+
+    def test_appended_line_is_delivered_by_the_reader(self, tmp_path: Path) -> None:
+        (tmp_path / "escalations-foreman.md").write_text("- PROBE-DONE\n", encoding="utf-8")
+        cursor = escalation_baseline(scratchpad=tmp_path)
+        append_escalation(scratchpad=tmp_path, role="foreman", line="MERGE REQUEST B4: PR #4")
+        lines, _ = new_escalation_lines(scratchpad=tmp_path, cursor=cursor)
+        assert lines == ["- MERGE REQUEST B4: PR #4"]
+
+    @pytest.mark.parametrize(
+        ("line", "message"),
+        [
+            ("status note, nothing urgent", "must open with one of"),
+            ("MERGE REQUEST B1\nMERGE REQUEST B2", "one line"),
+        ],
+        ids=["no-prefix", "multi-line"],
+    )
+    def test_rejects_a_line_the_watcher_would_not_deliver(
+        self, tmp_path: Path, line: str, message: str
+    ) -> None:
+        result = append_escalation(scratchpad=tmp_path, role="foreman", line=line)
+        assert message in result.error
+        assert list(tmp_path.iterdir()) == []
+
+    @pytest.mark.parametrize("role", ["../outside", "a/b", "crew.md", ""])
+    def test_rejects_a_role_that_is_not_a_plain_token(self, tmp_path: Path, role: str) -> None:
+        run_dir = tmp_path / "run"
+        run_dir.mkdir()
+        result = append_escalation(scratchpad=run_dir, role=role, line="ESCALATION: x")
+        assert "must be letters, digits" in result.error
+        assert sorted(path.name for path in tmp_path.rglob("*")) == ["run"]
+
+    def test_rejects_a_missing_run_directory(self, tmp_path: Path) -> None:
+        result = append_escalation(
+            scratchpad=tmp_path / "gone", role="foreman", line="ESCALATION: x"
+        )
+        assert "no run directory" in result.error
+
+
+class TestHandledMergeRequests:
+    def test_handled_prs_are_read_from_merged_shas_comments(self, tmp_path: Path) -> None:
+        (tmp_path / "merged-shas").write_text(
+            "# chunk 1\nabc1234def  # PR #1575\ndef5678abc  # pr#1580 B4\n", encoding="utf-8"
+        )
+        assert handled_merge_prs(scratchpad=tmp_path) == {1575, 1580}
+
+    def test_handled_prs_empty_without_file(self, tmp_path: Path) -> None:
+        assert handled_merge_prs(scratchpad=tmp_path) == set()
+
+    @pytest.mark.parametrize(
+        ("entry", "expected"),
+        [
+            ("MERGE REQUEST B2: PR #1575 CI green", True),
+            ("MERGE REQUEST B2: head abc1234def ready", True),
+            ("MERGE REQUEST B5: PR #1590 head fff9999 ready", False),
+            ("ESCALATION: PR #1575 needs a human", False),
+        ],
+        ids=["merged-pr", "merged-head", "fresh", "not-a-merge-request"],
+    )
+    def test_is_handled_merge_request(self, entry: str, expected: bool) -> None:
+        assert (
+            is_handled_merge_request(entry=entry, merged_shas={"abc1234def"}, handled_prs={1575})
+            is expected
+        )
+
+    def test_observe_drops_a_replayed_merge_request(
+        self, state: WatchState, quiet_block: dict
+    ) -> None:
+        events = state.observe(
+            now=NOW + 60,
+            sha="aaa111",
+            block=quiet_block,
+            heartbeat_ages={"status-a.md": 1},
+            escalation_lines=[
+                "- MERGE REQUEST B2: PR #1575 CI green",
+                "- MERGE REQUEST B4: PR #1576 CI green",
+            ],
+            handled_prs=frozenset({1575}),
+        )
+        assert events == ["MERGE REQUEST B4: PR #1576 CI green"]
 
 
 class TestBlockIdentity:

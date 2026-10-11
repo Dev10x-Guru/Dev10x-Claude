@@ -16,6 +16,7 @@ from __future__ import annotations
 import logging
 import re
 import time
+from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -39,6 +40,11 @@ DONE_LINE = re.compile(r"^[-*\s]*(?:\d{4}-\d{2}-\d{2}T\S+\s+)?DONE\b")
 SHA_PREFIX_MIN = 7
 DEFAULT_CHUNK_MIN = 45
 ESCALATION_PREFIXES = ("MERGE REQUEST", "ESCALATION")
+PR_REFERENCE = re.compile(r"\bPR\s*#(\d+)", re.IGNORECASE)
+SHA_TOKEN = re.compile(r"\b[0-9a-f]{7,40}\b")
+# The role lands in a file name: anything else could escape the run
+# directory or produce a file the escalations glob never reads.
+ROLE_NAME = re.compile(r"[A-Za-z0-9_-]+")
 
 
 def queue_parked(*, scratchpad: Path) -> bool:
@@ -269,23 +275,47 @@ def heartbeat_ages(*, scratchpad: Path, now: float) -> dict[str, int]:
     }
 
 
-def escalation_offsets(*, scratchpad: Path) -> dict[str, int]:
-    """Current byte length of every escalation file, keyed by file name.
+EscalationCursor = dict[str, Counter[str]]
 
-    Taken once at arm time so the watcher reports what is appended from
+
+def _complete_lines(*, path: Path) -> Counter[str] | None:
+    """Occurrences of each complete, non-blank line, or ``None`` if the file vanished.
+
+    Only text through the last newline counts. A poll that lands
+    between an append's write and its newline would otherwise record
+    half an escalation as seen, so the finished line never appears —
+    silently losing the one message this reader exists to deliver.
+    """
+    try:
+        raw = path.read_bytes()
+    except FileNotFoundError:
+        return None
+    complete = raw[: raw.rfind(b"\n") + 1].decode("utf-8", errors="replace")
+    return Counter(line.strip() for line in complete.splitlines() if line.strip())
+
+
+def escalation_baseline(*, scratchpad: Path) -> EscalationCursor:
+    """Lines already in every escalation file, keyed by file name.
+
+    Taken once at arm time so the watcher reports what is written from
     then on, rather than replaying a backlog written before it started.
     """
-    return {path.name: path.stat().st_size for path in scratchpad.glob(ESCALATIONS_GLOB)}
+    cursor: EscalationCursor = {}
+    for path in scratchpad.glob(ESCALATIONS_GLOB):
+        counts = _complete_lines(path=path)
+        if counts is not None:
+            cursor[path.name] = counts
+    return cursor
 
 
 def new_escalation_lines(
     *,
     scratchpad: Path,
-    offsets: dict[str, int],
-) -> tuple[list[str], dict[str, int]]:
-    """Lines appended to any escalation file since ``offsets`` was taken.
+    cursor: EscalationCursor,
+) -> tuple[list[str], EscalationCursor]:
+    """Lines written to any escalation file since ``cursor`` was taken.
 
-    Returns the new lines and the updated offsets — the caller holds the
+    Returns the new lines and the updated cursor — the caller holds the
     cursor so ``WatchState.observe`` stays pure.
 
     Reading the file is what makes the disk-first escalation discipline
@@ -295,33 +325,88 @@ def new_escalation_lines(
     disk. The file was already the authoritative channel; it simply had
     no reader, so each escalation cost ~26 minutes of dead time before
     someone thought to look.
+
+    The cursor counts lines by content, never by byte offset (GH-1582).
+    An overseer that inserts a line mid-file with Edit shifts every byte
+    after it: an offset cursor then misses the inserted line and
+    re-emits whichever older line slid past the old offset — that is
+    how an already-merged ``MERGE REQUEST B2`` came back. Counting
+    occurrences rather than keeping a set still delivers a line the
+    overseer deliberately writes a second time.
     """
     lines: list[str] = []
-    updated = dict(offsets)
+    updated = dict(cursor)
     for path in sorted(scratchpad.glob(ESCALATIONS_GLOB)):
-        size = path.stat().st_size
-        seen = offsets.get(path.name, 0)
-        # A shrunken file was rewritten, not appended to. Re-baseline
-        # instead of replaying it as fresh escalations.
-        if size <= seen:
-            updated[path.name] = size
+        current = _complete_lines(path=path)
+        if current is None:
             continue
-        with path.open("rb") as handle:
-            handle.seek(seen)
-            raw = handle.read()
-        # Consume only through the last COMPLETE line. A poll that lands
-        # between an append's write and its newline would otherwise emit
-        # half an escalation and advance the cursor past it, so the
-        # finished line never appears — silently losing the one message
-        # this whole reader exists to deliver. Leaving the cursor short
-        # re-reads the partial line next poll, when it is whole.
-        cut = raw.rfind(b"\n") + 1
-        if cut == 0:
-            continue
-        updated[path.name] = seen + cut
-        chunk = raw[:cut].decode("utf-8", errors="replace")
-        lines.extend(line.strip() for line in chunk.splitlines() if line.strip())
+        seen = cursor.get(path.name, Counter())
+        for line, count in current.items():
+            lines.extend([line] * (count - seen[line]))
+        # Keep the high-water count, so a rewrite that drops a line and
+        # later restores it does not replay it as new.
+        updated[path.name] = seen | current
     return lines, updated
+
+
+def append_escalation(*, scratchpad: Path, role: str, line: str) -> Result[str]:
+    """Append ``line`` as the last line of ``escalations-<role>.md`` (GH-1582).
+
+    The sanctioned append primitive: Edit can only insert next to text
+    it matches, which put each new request above older ones, and Write
+    needs the whole file restated. The line must open with ``MERGE
+    REQUEST`` or ``ESCALATION`` — anything else the watcher ignores, so
+    accepting it would report delivery of a message nobody reads.
+    """
+    entry = line.strip()
+    if "\n" in entry:
+        return err("an escalation is one line; pass each line separately")
+    if not entry.lstrip("-*#> ").upper().startswith(ESCALATION_PREFIXES):
+        return err(f"an escalation line must open with one of {', '.join(ESCALATION_PREFIXES)}")
+    if not ROLE_NAME.fullmatch(role):
+        return err(f"role {role!r} must be letters, digits, '-' or '_'")
+    if not scratchpad.is_dir():
+        return err(f"no run directory {scratchpad}")
+    path = scratchpad / f"escalations-{role}.md"
+    if not entry.startswith(("-", "*")):
+        entry = f"- {entry}"
+    # A hand-written file may lack its final newline; appending straight
+    # onto it would merge two requests into one unreadable line.
+    existing = path.read_bytes() if path.exists() else b""
+    if existing and not existing.endswith(b"\n"):
+        entry = f"\n{entry}"
+    atomic_append_line(path, entry)
+    return ok(path.name)
+
+
+def handled_merge_prs(*, scratchpad: Path) -> set[int]:
+    """PR numbers named in ``merged-shas`` — e.g. ``<tip-sha>  # PR #1575``.
+
+    The merge gate already records each landing there; naming the PR on
+    the same line lets the watcher drop a replayed MERGE REQUEST for it
+    without a network call (GH-1582).
+    """
+    try:
+        text = (scratchpad / MERGED_SHAS_FILE).read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return set()
+    return {int(number) for number in PR_REFERENCE.findall(text)}
+
+
+def is_handled_merge_request(
+    *,
+    entry: str,
+    merged_shas: set[str] | frozenset[str],
+    handled_prs: set[int] | frozenset[int],
+) -> bool:
+    """Whether a MERGE REQUEST names a PR or head SHA the run already merged."""
+    if not entry.upper().startswith("MERGE REQUEST"):
+        return False
+    if any(int(number) in handled_prs for number in PR_REFERENCE.findall(entry)):
+        return True
+    return any(
+        is_own_merge(sha=token, merged_shas=merged_shas) for token in SHA_TOKEN.findall(entry)
+    )
 
 
 def heartbeat_lines(*, scratchpad: Path, now: float) -> list[str]:
@@ -399,10 +484,17 @@ class WatchState:
         merged_shas: set[str] | frozenset[str] = frozenset(),
         escalation_lines: Sequence[str] = (),
         retired: set[str] | frozenset[str] = frozenset(),
+        handled_prs: set[int] | frozenset[int] = frozenset(),
     ) -> list[str]:
         events: list[str] = []
         events.extend(self._park_events(now=now, block=block, parked=parked))
-        events.extend(self._escalation_events(escalation_lines=escalation_lines))
+        events.extend(
+            self._escalation_events(
+                escalation_lines=escalation_lines,
+                merged_shas=merged_shas,
+                handled_prs=handled_prs,
+            )
+        )
         events.extend(
             self._stall_events(
                 now=now, heartbeat_ages=heartbeat_ages, parked=parked, retired=retired
@@ -429,18 +521,34 @@ class WatchState:
         self.was_parked = parked
         return events
 
-    def _escalation_events(self, *, escalation_lines: Sequence[str]) -> list[str]:
-        """Surface MERGE REQUEST / ESCALATION lines appended to disk (GH-1060).
+    def _escalation_events(
+        self,
+        *,
+        escalation_lines: Sequence[str],
+        merged_shas: set[str] | frozenset[str],
+        handled_prs: set[int] | frozenset[int],
+    ) -> list[str]:
+        """Surface MERGE REQUEST / ESCALATION lines written to disk (GH-1060).
 
         Emitted verbatim (minus list/heading punctuation) so the
         watchdog acts on the overseer's own wording within one poll
         interval instead of waiting on a message that may batch.
+
+        A MERGE REQUEST for a PR the run already merged is dropped
+        however it reached the reader (GH-1582): re-running the merge
+        gate on a merged PR, or re-queueing it, is worse than silence.
         """
         events: list[str] = []
         for line in escalation_lines:
             entry = line.lstrip("-*#> ").strip()
-            if entry.upper().startswith(ESCALATION_PREFIXES):
-                events.append(entry)
+            if not entry.upper().startswith(ESCALATION_PREFIXES):
+                continue
+            if is_handled_merge_request(
+                entry=entry, merged_shas=merged_shas, handled_prs=handled_prs
+            ):
+                log.info("dropped already-merged escalation: %s", entry)
+                continue
+            events.append(entry)
         return events
 
     def _stall_events(

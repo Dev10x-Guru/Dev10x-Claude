@@ -97,6 +97,7 @@ command_spellings:
   - prefixes:
       ["", "uvx ", "uv run ", "uv run --project $CLAUDE_PLUGIN_ROOT "]
     commands:
+      - dev10x foreman escalate  # GH-1582
       - dev10x foreman probe
       - dev10x foreman retire  # GH-1577
       - dev10x foreman watch
