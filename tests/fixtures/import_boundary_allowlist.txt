@@ -27,5 +27,4 @@ dev10x.mcp.server_cli -> dev10x.mcp.monitor_tools
 dev10x.mcp.server_cli -> dev10x.mcp.release_tools
 dev10x.mcp.server_cli -> dev10x.tasks.mcp.plan_tools
 dev10x.mcp.server_cli -> dev10x.tasks.mcp.task_index_tools
-dev10x.mcp.server_db -> dev10x.db
 dev10x.skills.monitor.pr_notify -> dev10x.comm.skills.notifications.slack_notify

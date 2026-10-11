@@ -1,39 +1,15 @@
-"""MCP server registration for the Dev10x DB server.
+"""Re-export of ``dev10x.db.mcp.server_db`` at its pre-ADR-0034 path (GH-1543).
 
-All @server.tool() registrations live here so servers/db_server.py
-becomes a thin 3-line uv shim. Tool handlers use lazy imports to
-defer domain module loading until each tool is called.
+The old name is the same module object as the new one, so the ``server``
+object, ``main`` and every patch target keep working; see
+``dev10x.core.module_alias``. The tool registers in the db module.
 """
 
-from __future__ import annotations
+from typing import TYPE_CHECKING
 
-from mcp.server.fastmcp import FastMCP
+from dev10x.core.module_alias import alias_module
 
-from dev10x.domain.common.result import to_wire
+if TYPE_CHECKING:
+    from dev10x.db.mcp.server_db import *  # noqa: F403
 
-server = FastMCP(name="Dev10x-db")
-
-
-@server.tool()
-async def query(
-    database: str,
-    sql: str,
-) -> dict:
-    """Execute a read-only SQL query against a database.
-
-    Args:
-        database: Database alias (pp, pos, ps, bp, backend, bs)
-        sql: SELECT statement (write operations are blocked)
-
-    Returns:
-        Dictionary with keys: columns (list), rows (list of tuples), row_count (int)
-    """
-    from dev10x import db as db_tools
-
-    return to_wire(db_tools.query(database=database, sql=sql))
-
-
-def main() -> None:
-    from dev10x.mcp.transport import select_transport
-
-    server.run(transport=select_transport())
+alias_module(old=__name__, new="dev10x.db.mcp.server_db")
