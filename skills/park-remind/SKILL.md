@@ -14,7 +14,7 @@ allowed-tools:
   - Read
   - Write
   - Edit
-  - Bash(${CLAUDE_PLUGIN_ROOT}/skills/slack/slack-notify.py:*)
+  - Bash(uvx dev10x skill notify slack-send:*)
   - Bash(/tmp/Dev10x/bin/mktmp.sh:*)
   - Bash(git branch:*)
   - Bash(git rev-parse:*)
@@ -49,7 +49,10 @@ a pointer entry to the project task index so
 ## Prerequisites
 
 - Slack token available (env `SLACK_TOKEN` or system keyring)
-- `slack-notify.py` accessible at `${CLAUDE_PLUGIN_ROOT}/skills/slack/slack-notify.py`
+- `self_user_id` set in `~/.config/Dev10x/slack-config.yaml` (or the
+  `SLACK_SELF_USER_ID` env var)
+- The `dev10x` CLI reachable via `uvx` (the reminder goes through
+  `dev10x skill notify slack-send --remind`, GH-1554)
 
 ## Workflow
 
@@ -84,8 +87,8 @@ separate line after the item text.
 
 ### 3. Send DM
 
-For multi-line messages, write the formatted text to a unique temp file
-using the Write tool first, then pass it via command substitution:
+Write the formatted text to a unique temp file with the Write tool
+first:
 
 ```
 mcp__plugin_dev10x_cli__mktmp(namespace="slack", prefix="remind-msg", ext=".txt")
@@ -93,13 +96,12 @@ mcp__plugin_dev10x_cli__mktmp(namespace="slack", prefix="remind-msg", ext=".txt"
 
 Write content to the returned path using Write tool, then:
 ```bash
-${CLAUDE_PLUGIN_ROOT}/skills/slack/slack-notify.py \
-  --remind "$(cat <unique-path>)"
+uvx dev10x skill notify slack-send --remind --message-file <unique-path>
 ```
 
-Do NOT use heredoc (`cat <<'EOF'`) to build the message inline —
-the bash security hook blocks it. Always use Write tool → temp file
-→ `$(cat ...)` for multi-line content.
+Do NOT use heredoc (`cat <<'EOF'`) or `$(cat ...)` to build the
+message inline — the bash security hook blocks both. Always use
+Write tool → temp file → `--message-file`.
 
 ### 4. Append to the task index
 
@@ -114,8 +116,8 @@ mcp__plugin_dev10x_cli__task_index_append(entry={
     "created_at": "<YYYY-MM-DD>",
     "metadata": {
         "branch": "<current-branch>",
-        "slack_ts": "<timestamp returned by slack-notify>",
-        "slack_permalink": "<permalink returned by slack-notify>",
+        "slack_ts": "<timestamp returned by slack-send>",
+        "slack_permalink": "<permalink, when known>",
     },
 })
 ```

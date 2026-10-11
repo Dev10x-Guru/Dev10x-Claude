@@ -13,9 +13,7 @@ from dev10x.core.skill_path_edges import (
 from dev10x.subprocess_utils import get_plugin_root
 
 # Each entry is a known edge with the issue that removes it.
-KNOWN_EDGES = {
-    SkillPathEdge(skill="park-remind", target="slack"): "GH-1554",
-}
+KNOWN_EDGES: dict[SkillPathEdge, str] = {}
 
 
 @pytest.fixture

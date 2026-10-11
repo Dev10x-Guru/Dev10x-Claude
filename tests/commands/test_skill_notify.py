@@ -43,6 +43,7 @@ class TestNotifyGroupRegistration:
         assert "--message-file" in result.output
         assert "--thread-ts" in result.output
         assert "--workspace" in result.output
+        assert "--remind" in result.output
 
 
 class TestSlackReviewPrepare:
@@ -205,6 +206,90 @@ class TestSlackSend:
 
         assert result.exit_code == 0, result.output
         assert "Slack message sent" in result.output
+
+
+class TestSlackSendRemind:
+    """GH-1554: park-remind self-DMs through the CLI, not slack-notify.py."""
+
+    @pytest.fixture
+    def captured(self, monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
+        from dev10x.comm.skills.notifications import slack_notify
+
+        captured: dict[str, object] = {}
+
+        def fake_reminder(*, message: str) -> Result[str]:
+            captured["message"] = message
+            return ok("9.9")
+
+        monkeypatch.setattr(slack_notify, "send_reminder", fake_reminder)
+        monkeypatch.setattr(
+            slack_notify, "set_workspace", lambda name: captured.update(workspace=name)
+        )
+        return captured
+
+    @pytest.fixture
+    def remind_result(
+        self,
+        runner: CliRunner,
+        captured: dict[str, object],
+        tmp_path: Path,
+    ) -> object:
+        msg_file = tmp_path / "remind.txt"
+        msg_file.write_text("follow up on PR #1")
+        return runner.invoke(
+            cli,
+            [
+                "skill",
+                "notify",
+                "slack-send",
+                "--remind",
+                "--message-file",
+                str(msg_file),
+                "--workspace",
+                "aperture",
+            ],
+        )
+
+    def test_exits_zero(self, remind_result: object) -> None:
+        assert remind_result.exit_code == 0, remind_result.output  # type: ignore[attr-defined]
+
+    def test_reports_the_timestamp(self, remind_result: object) -> None:
+        assert "ts=9.9" in remind_result.output  # type: ignore[attr-defined]
+
+    def test_sends_the_file_body_to_self(
+        self, remind_result: object, captured: dict[str, object]
+    ) -> None:
+        assert captured == {"workspace": "aperture", "message": "follow up on PR #1"}
+
+    @pytest.mark.parametrize(
+        "target",
+        [
+            ["--remind", "--channel", "C1"],
+            [],
+        ],
+    )
+    def test_requires_exactly_one_target(self, runner: CliRunner, target: list[str]) -> None:
+        result = runner.invoke(cli, ["skill", "notify", "slack-send", *target, "--message", "x"])
+
+        assert "Provide exactly one of --channel or --remind" in result.output
+
+    def test_exits_nonzero_when_reminder_fails(
+        self,
+        runner: CliRunner,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from dev10x.comm.skills.notifications import slack_notify
+
+        monkeypatch.setattr(
+            slack_notify, "send_reminder", lambda **kw: err("self_user_id not configured")
+        )
+
+        result = runner.invoke(
+            cli, ["skill", "notify", "slack-send", "--remind", "--message", "x"]
+        )
+
+        assert result.exit_code == 1
+        assert "self_user_id not configured" in result.output
 
 
 class TestGchatSend:

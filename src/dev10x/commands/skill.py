@@ -48,7 +48,13 @@ def slack_review_prepare(*, pr: int, repo: str) -> None:
 
 
 @notify.command(name="slack-send")
-@click.option("--channel", required=True, help="Slack channel ID (e.g., C042DJ8AJKB)")
+@click.option("--channel", default=None, help="Slack channel ID (e.g., C042DJ8AJKB)")
+@click.option(
+    "--remind",
+    is_flag=True,
+    default=False,
+    help="DM the message to yourself instead of a channel (needs self_user_id)",
+)
 @click.option("--message", default=None, help="Message text (or use --message-file)")
 @click.option(
     "--message-file",
@@ -60,7 +66,8 @@ def slack_review_prepare(*, pr: int, repo: str) -> None:
 @click.option("--workspace", default=None, help="Select non-default Slack workspace")
 def slack_send(
     *,
-    channel: str,
+    channel: str | None,
+    remind: bool,
     message: str | None,
     message_file: Path | None,
     thread_ts: str | None,
@@ -75,6 +82,8 @@ def slack_send(
     """
     if not message and not message_file:
         raise click.UsageError("Provide --message or --message-file.")
+    if remind == (channel is not None):
+        raise click.UsageError("Provide exactly one of --channel or --remind.")
 
     from dev10x.comm.skills.notifications import slack_notify
 
@@ -84,12 +93,16 @@ def slack_send(
     else:
         msg = message  # type: ignore[assignment]  # validated above
 
-    result = slack_notify.notify_slack(
-        channel=channel,
-        message=msg,
-        workspace=workspace,
-        thread_ts=thread_ts,
-    )
+    if remind:
+        slack_notify.set_workspace(workspace)
+        result = slack_notify.send_reminder(message=msg)
+    else:
+        result = slack_notify.notify_slack(
+            channel=channel,  # type: ignore[arg-type]  # validated above
+            message=msg,
+            workspace=workspace,
+            thread_ts=thread_ts,
+        )
     if isinstance(result, ErrorResult):
         click.echo(f"❌ {result.error}", err=True)
         sys.exit(1)
