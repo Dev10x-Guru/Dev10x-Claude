@@ -69,7 +69,7 @@ def plan() -> None:
 @plan.command(name="sync")
 def plan_sync() -> None:
     """Sync task state from stdin (PostToolUse hook mode)."""
-    from dev10x.hooks.task_plan_sync import cmd_hook
+    from dev10x.tasks.hooks.task_plan_sync import cmd_hook
 
     cmd_hook()
 
@@ -77,7 +77,7 @@ def plan_sync() -> None:
 @plan.command(name="summary")
 def plan_summary() -> None:
     """Read plan YAML, output JSON summary."""
-    from dev10x.hooks.task_plan_sync import cmd_json_summary
+    from dev10x.tasks.hooks.task_plan_sync import cmd_json_summary
 
     cmd_json_summary()
 
@@ -86,7 +86,7 @@ def plan_summary() -> None:
 @click.argument("pairs", nargs=-1, required=True)
 def plan_set_context(pairs: tuple[str, ...]) -> None:
     """Store plan-level context metadata (K=V pairs, dot-paths supported)."""
-    from dev10x.hooks.task_plan_sync import cmd_set_context
+    from dev10x.tasks.hooks.task_plan_sync import cmd_set_context
 
     cmd_set_context(args=list(pairs))
 
@@ -94,7 +94,7 @@ def plan_set_context(pairs: tuple[str, ...]) -> None:
 @plan.command(name="archive")
 def plan_archive() -> None:
     """Archive completed plan to .claude/session/archive/."""
-    from dev10x.hooks.task_plan_sync import cmd_archive
+    from dev10x.tasks.hooks.task_plan_sync import cmd_archive
 
     cmd_archive()
 

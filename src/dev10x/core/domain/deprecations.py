@@ -123,8 +123,8 @@ REGISTER: tuple[Deprecation, ...] = (
         replacement="~/.config/Dev10x/task-index/<repo-stem>.yaml",
         issue="GH-1009",
         locations=(
-            "src/dev10x/session/task_index.py",
-            "src/dev10x/mcp/task_index_tools.py",
+            "src/dev10x/tasks/session/task_index.py",
+            "src/dev10x/tasks/mcp/task_index_tools.py",
             "src/dev10x/core/domain/dev10x_paths.py",
         ),
     ),

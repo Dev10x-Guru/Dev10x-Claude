@@ -87,6 +87,7 @@ jobs:
             -o 'addopts=' \
             --cov=src/dev10x/core/hooks \
             --cov=src/dev10x/hooks \
+            --cov=src/dev10x/tasks/hooks \
             --cov-config=.coveragerc-hooks \
             --cov-report=term-missing --cov-fail-under=70
 
@@ -122,6 +123,7 @@ jobs:
             --cov=src/dev10x/monitor \
             --cov=src/dev10x/core/permission \
             --cov=src/dev10x/plan \
+            --cov=src/dev10x/tasks \
             --cov=src/dev10x/release \
             --cov=src/dev10x/skill_index \
             --cov=src/dev10x/core/utilities \
@@ -169,7 +171,7 @@ jobs:
         run: uv run coverage report --include='src/dev10x/commands/*' --fail-under=60
 
       - name: Enforce mcp floor
-        run: uv run coverage report --include='src/dev10x/mcp/*,src/dev10x/core/mcp/*' --fail-under=95
+        run: uv run coverage report --include='src/dev10x/mcp/*,src/dev10x/*/mcp/*' --fail-under=95
 
       - name: Enforce domain floor
         run: uv run coverage report --include='src/dev10x/core/domain/*' --fail-under=95
@@ -187,7 +189,7 @@ jobs:
         run: uv run coverage report --include='src/dev10x/audit/*' --fail-under=87
 
       - name: Enforce hooks floor
-        run: uv run coverage report --include='src/dev10x/core/hooks/*,src/dev10x/hooks/*' --fail-under=80
+        run: uv run coverage report --include='src/dev10x/core/hooks/*,src/dev10x/hooks/*,src/dev10x/tasks/hooks/*' --fail-under=80
 
       - name: Enforce skills floor
         run: uv run coverage report --include='src/dev10x/skills/*,src/dev10x/core/skills/*' --fail-under=78

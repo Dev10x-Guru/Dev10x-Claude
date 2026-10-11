@@ -6,7 +6,7 @@
 """PostToolUse hook: thin shim delegating to dev10x.hooks.task_plan_sync.
 
 Kept for backward compatibility with plugin.json hook config.
-All logic lives in src/dev10x/hooks/task_plan_sync.py.
+All logic lives in src/dev10x/tasks/hooks/task_plan_sync.py.
 """
 
 import sys

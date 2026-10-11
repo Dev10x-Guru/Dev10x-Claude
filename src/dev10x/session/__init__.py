@@ -2,8 +2,9 @@
 
 Each moved ``dev10x.session.<name>`` is the same module object as
 ``dev10x.core.session.<name>``, so every import and patch target keeps
-working. ``task_index`` belongs to the tasks namespace and still lives
-here; see ``dev10x.core.module_alias.alias_submodules``.
+working. ``task_index`` belongs to the tasks namespace; its file here
+aliases ``dev10x.tasks.session.task_index`` (GH-1541). See
+``dev10x.core.module_alias.alias_submodules``.
 """
 
 from __future__ import annotations

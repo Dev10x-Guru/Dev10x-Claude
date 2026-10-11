@@ -1,131 +1,15 @@
-"""Task plan synchronizer — CLI entry points for plan operations.
+"""Re-export of ``dev10x.tasks.hooks.task_plan_sync`` at its pre-ADR-0034 path (GH-1541).
 
-Triggered on TaskCreate and TaskUpdate (via `cmd_hook`) or invoked
-directly from `dev10x hook plan ...` commands. The mutation logic
-lives in `dev10x.plan.service`; this module is the thin CLI adapter
-that handles stdin parsing, locking, and stdout/exit-code shaping.
-
-Plan file location:
-    <git-toplevel>/.claude/session/plan.yaml
+The old name is the same module object as the new one, so the
+``hooks/scripts/task-plan-sync.py`` entry point and every patch target keep
+working; see ``dev10x.core.module_alias``.
 """
 
-from __future__ import annotations
+from typing import TYPE_CHECKING
 
-import json
-import sys
-from collections.abc import Callable
-from typing import Any
+from dev10x.core.module_alias import alias_module
 
-from dev10x.domain.documents.plan import Plan, get_plan_path, get_toplevel
-from dev10x.domain.file_locks import file_lock
-from dev10x.plan.service import (
-    PlanServiceError,
-    archive_plan,
-    plan_summary,
-    set_plan_context,
-)
+if TYPE_CHECKING:
+    from dev10x.tasks.hooks.task_plan_sync import *  # noqa: F403
 
-
-def cmd_set_context(*, args: list[str]) -> None:
-    try:
-        updated = set_plan_context(args=args)
-    except PlanServiceError as exc:
-        print(str(exc), file=sys.stderr)
-        sys.exit(1)
-    print(f"Updated plan context: {updated}")
-
-
-def cmd_archive() -> None:
-    try:
-        result = archive_plan()
-    except PlanServiceError as exc:
-        print(str(exc), file=sys.stderr)
-        sys.exit(1)
-    if not result["archived"]:
-        print("No plan file to archive")
-        sys.exit(0)
-    print(f"Archived plan to {result['archive_name']}")
-
-
-def cmd_json_summary() -> None:
-    try:
-        summary = plan_summary()
-    except PlanServiceError:
-        json.dump({}, sys.stdout)
-        sys.exit(0)
-
-    if not summary:
-        json.dump({}, sys.stdout)
-        sys.exit(0)
-
-    json.dump(summary, sys.stdout, indent=2)
-
-
-def _apply_task_create(*, plan: Plan, tool_input: dict[str, Any], tool_result: Any) -> bool:
-    return plan.handle_task_create(tool_input=tool_input, tool_result=tool_result)
-
-
-def _apply_task_update(*, plan: Plan, tool_input: dict[str, Any], tool_result: Any) -> bool:
-    plan.handle_task_update(tool_input=tool_input)
-    return True
-
-
-TOOL_HANDLERS: dict[str, Callable[..., bool]] = {
-    "TaskCreate": _apply_task_create,
-    "TaskUpdate": _apply_task_update,
-}
-
-
-def _tool_outcome(*, payload: dict[str, Any]) -> Any:
-    """What the tool reported back, across both PostToolUse shapes.
-
-    Claude Code delivered the result as rendered text under
-    ``tool_result`` and now delivers it structured under
-    ``tool_response`` (GH-1309) — the newer payload carries no
-    ``tool_result`` field at all. Both are handed on unchanged so the
-    handlers decide what to read; deciding here would need this seam to
-    know which tool ran.
-    """
-    result = payload.get("tool_result", "")
-    if isinstance(result, dict):
-        result = result.get("content", str(result))
-    return result or payload.get("tool_response", "")
-
-
-def cmd_hook() -> None:
-    payload_str = sys.stdin.read()
-    if not payload_str.strip():
-        sys.exit(0)
-
-    try:
-        payload: dict[str, Any] = json.loads(payload_str)
-    except json.JSONDecodeError:
-        sys.exit(0)
-
-    tool_input = payload.get("tool_input", {})
-    tool_result = _tool_outcome(payload=payload)
-
-    handler = TOOL_HANDLERS.get(payload.get("tool_name", ""))
-    if handler is None:
-        sys.exit(0)
-
-    toplevel = get_toplevel()
-    if not toplevel:
-        sys.exit(0)
-
-    plan_path = get_plan_path(toplevel=toplevel)
-    # Lock spans the full load→mutate→save cycle: without it, two
-    # concurrent TaskCreate hooks both read the same baseline plan
-    # and the second save clobbers the first task entry.
-    with file_lock(plan_path):
-        plan = Plan.load(path=plan_path)
-        is_new_plan = plan.is_new
-        plan.ensure_metadata()
-
-        changed = handler(plan=plan, tool_input=tool_input, tool_result=tool_result)
-
-        if is_new_plan and not changed:
-            sys.exit(0)
-
-        plan.check_all_completed()
-        plan.save(path=plan_path)
+alias_module(old=__name__, new="dev10x.tasks.hooks.task_plan_sync")
