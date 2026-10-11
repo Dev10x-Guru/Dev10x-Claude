@@ -119,6 +119,53 @@ class TestMergeFamilies:
         assert yaml.safe_load(output.read_text()) == expected
 
 
+SHIPPED_SKILL_DIR = REPO_ROOT / "skills" / "skill-index"
+
+#: display_map as the one-file families.yaml declared it before the split.
+PRE_SPLIT_DISPLAY_MAP = {
+    "commit": "dev10x:git-commit",
+    "commit:split": "dev10x:git-commit-split",
+    "commit:fixup": "dev10x:git-fixup",
+    "commit:to-new-ticket": "dev10x:git-promote",
+    "branch:groom": "dev10x:git-groom",
+    "pr:create": "dev10x:gh-pr-create",
+    "pr:respond": "dev10x:gh-pr-respond",
+    "pr:monitor": "dev10x:gh-pr-monitor",
+    "pr:request-review": "dev10x:gh-pr-request-review",
+    "pr:triage": "dev10x:gh-pr-triage",
+    "pr:comment-fixup": "dev10x:gh-pr-fixup",
+    "ticket:work-on": "dev10x:work-on",
+    "logs": "logs:start",
+    "dev10x:investigate": "investigate",
+    "triage-sentry": "triage-sentry",
+    "app-db": "tt:db",
+    "release-notes": "dev10x:release-notes",
+}
+
+
+class TestShippedFamilies:
+    @pytest.fixture
+    def merged(self, tmp_path: Path) -> dict:
+        sources = _shell(
+            script='families_sources "$1" "$2"',
+            args=[str(SHIPPED_SKILL_DIR), str(PLUGIN_MAP_PATH)],
+        ).stdout.split()
+        output = tmp_path / "merged.yaml"
+        _shell(script='merge_families "$@"', args=[str(output), *sources])
+        return yaml.safe_load(output.read_text())
+
+    def test_display_map_matches_the_pre_split_file(self, merged: dict) -> None:
+        assert merged["display_map"] == PRE_SPLIT_DISPLAY_MAP
+
+    def test_families_stay_whole_in_core(self, merged: dict) -> None:
+        core = yaml.safe_load((SHIPPED_SKILL_DIR / "families.yaml").read_text())
+        assert merged["families"] == core["families"]
+
+    def test_no_display_name_maps_twice(self, merged: dict) -> None:
+        values = list(merged["display_map"].values())
+        assert len(values) == len(set(values))
+
+
 class TestPluginSkillDirs:
     def test_lists_the_dev10x_skills_then_stage_b_plugin_roots(self, tmp_path: Path) -> None:
         skills = tmp_path / "skills"

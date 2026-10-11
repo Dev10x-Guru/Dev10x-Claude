@@ -1,0 +1,19 @@
+# Skill-index fragment for the coding plugin (ADR-0034 Stage A3,
+# GH-1552). Merged into ../families.yaml by scripts/lib-families.sh.
+# Display-names for coding skills only; family grouping stays in core.
+
+display_map:
+  commit: dev10x:git-commit
+  commit:split: dev10x:git-commit-split
+  commit:fixup: dev10x:git-fixup
+  commit:to-new-ticket: dev10x:git-promote
+  branch:groom: dev10x:git-groom
+  pr:create: dev10x:gh-pr-create
+  pr:respond: dev10x:gh-pr-respond
+  pr:monitor: dev10x:gh-pr-monitor
+  pr:request-review: dev10x:gh-pr-request-review
+  pr:triage: dev10x:gh-pr-triage
+  pr:comment-fixup: dev10x:gh-pr-fixup
+  ticket:work-on: dev10x:work-on
+  dev10x:investigate: investigate
+  release-notes: dev10x:release-notes
