@@ -5,7 +5,7 @@ and each plugin namespace's `mcp/` package (ADR-0034):
   - github_tools.py  — GitHub/PR/issue/milestone/review/CI/release handlers
   - git_tools.py     — git push, rebase, worktree handlers
   - tasks/mcp/plan_tools.py — plan-sync handlers
-  - audit_tools.py   — session audit and hook-log handlers
+  - skillmgmt/mcp/audit_tools.py — session audit and hook-log handlers
   - misc_tools.py    — mktmp, slack, permission, skill-index, upgrade handlers
   - roots_tools.py   — client-roots awareness (GH-344)
   - sampling_tools.py — server-initiated sampling (GH-343)
@@ -35,7 +35,6 @@ from typing import Literal, cast
 # Importing roots_tools registers the list_client_roots tool (GH-344).
 # Importing sampling_tools registers the request_sampling tool (GH-343).
 from dev10x.mcp import (  # noqa: E402, F401
-    audit_tools,
     gate_tools,
     git_tools,
     github_tools,
@@ -51,7 +50,6 @@ from dev10x.mcp import (  # noqa: E402, F401
 from dev10x.mcp._app import (
     server,  # noqa: F401  (re-exported for callers importing server from server_cli)
 )
-from dev10x.mcp.audit_tools import *  # noqa: E402, F401, F403
 from dev10x.mcp.gate_tools import *  # noqa: E402, F401, F403
 from dev10x.mcp.git_tools import *  # noqa: E402, F401, F403
 from dev10x.mcp.github_tools import *  # noqa: E402, F401, F403
@@ -62,6 +60,8 @@ from dev10x.mcp.roots_tools import *  # noqa: E402, F401, F403
 from dev10x.mcp.sampling_tools import *  # noqa: E402, F401, F403
 from dev10x.mcp.strict_args import enforce_strict_arguments  # noqa: E402
 from dev10x.mcp.usage_tools import *  # noqa: E402, F401, F403
+from dev10x.skillmgmt.mcp import audit_tools  # noqa: E402, F401
+from dev10x.skillmgmt.mcp.audit_tools import *  # noqa: E402, F401, F403
 from dev10x.tasks.mcp import plan_tools, task_index_tools  # noqa: E402, F401
 from dev10x.tasks.mcp.plan_tools import *  # noqa: E402, F401, F403
 from dev10x.tasks.mcp.task_index_tools import *  # noqa: E402, F401, F403

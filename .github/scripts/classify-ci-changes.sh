@@ -52,7 +52,7 @@ fi
 servers='^servers/'
 servers+='|^src/dev10x/(mcp|audit|db|git|github|monitor|permission|plan|release|skill_index|utilities)/'
 servers+='|^src/dev10x/core/(utilities|github|permission|mcp)/'
-servers+='|^src/dev10x/tasks/'
+servers+='|^src/dev10x/(tasks|skillmgmt)/'
 servers+='|^src/dev10x/(core/)?subprocess_utils\.py$'
 servers+='|^tests/(mcp|audit|db|git|github|monitor|permission|plan|release|skill_index|utilities)/'
 servers+='|^tests/test_subprocess_utils\.py$'

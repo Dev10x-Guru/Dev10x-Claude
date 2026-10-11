@@ -14,7 +14,7 @@ import os
 import time
 from pathlib import Path
 
-from dev10x.audit.log_reader import AUDIT_RETAIN_ENV, DEFAULT_RETAIN_DAYS, audit_dir
+from dev10x.skillmgmt.audit.log_reader import AUDIT_RETAIN_ENV, DEFAULT_RETAIN_DAYS, audit_dir
 
 
 def prune(*, retain_days: int | None = None, base_dir: Path | None = None) -> int:

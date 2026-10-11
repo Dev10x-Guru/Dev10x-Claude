@@ -203,7 +203,7 @@ guidance. Other skills MUST delegate to `Skill(dev10x:ticket-branch)`
 rather than embedding `git checkout -b` directly (see Skill Routing
 Enforcement in `skills/work-on/instructions.md`). The cli-friction
 scanner exempts this skill via the `GIT_IMPLEMENTERS` allowlist in
-`src/dev10x/skills/audit/cli_friction.py`.
+`src/dev10x/skillmgmt/skills/audit/cli_friction.py`.
 
 ```bash
 git checkout -b username/TICKET-ID/slug

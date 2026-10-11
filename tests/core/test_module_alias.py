@@ -230,6 +230,13 @@ class TestMovedPackages:
             ),
             ("dev10x.mcp.server_db", "dev10x.db.mcp.server_db"),
             ("dev10x.skills.database", "dev10x.db.skills.database"),
+            ("dev10x.audit", "dev10x.skillmgmt.audit"),
+            ("dev10x.audit.log_reader", "dev10x.skillmgmt.audit.log_reader"),
+            ("dev10x.skill_index", "dev10x.skillmgmt.skill_index"),
+            ("dev10x.skill_index.catalog", "dev10x.skillmgmt.skill_index.catalog"),
+            ("dev10x.skills.audit", "dev10x.skillmgmt.skills.audit"),
+            ("dev10x.skills.audit.privacy", "dev10x.skillmgmt.skills.audit.privacy"),
+            ("dev10x.mcp.audit_tools", "dev10x.skillmgmt.mcp.audit_tools"),
         ],
     )
     def test_old_path_is_the_moved_module(self, old: str, new: str) -> None:

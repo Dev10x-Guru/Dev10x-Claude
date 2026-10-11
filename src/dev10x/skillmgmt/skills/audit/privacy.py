@@ -138,7 +138,7 @@ _SKIPPED_DIRS: frozenset[str] = frozenset(
 # exercise them.
 _NET_IMPORT_EXEMPT_PATHS: tuple[str, ...] = (
     "PRIVACY_POLICY.md",
-    "src/dev10x/skills/audit/privacy.py",
+    "src/dev10x/skillmgmt/skills/audit/privacy.py",
     "tests/",
     # Skill scripts are documented in PRIVACY_POLICY.md as user-invoked
     # outbound integrations. They are exempt from the no-outbound rule
@@ -186,7 +186,7 @@ _DETECTION_EXEMPT_PATHS: tuple[str, ...] = (
     # session-audit architectures guarantee no outbound calls
     # from these modules.
     "src/dev10x/core/validators/",
-    "src/dev10x/skills/audit/",
+    "src/dev10x/skillmgmt/skills/audit/",
     "skills/skill-audit/",
     # The diag-friction skill (formerly skill-reinforcement) exists
     # to redirect agents away from raw CLI commands; naming those

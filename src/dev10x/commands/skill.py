@@ -381,7 +381,7 @@ def count_instructions(
     Accepts individual SKILL.md files or directories (scanned recursively).
     Exit code 1 if any file exceeds --over (default 150).
     """
-    from dev10x.skills.audit import instruction_budget as mod
+    from dev10x.skillmgmt.skills.audit import instruction_budget as mod
 
     w = warn if warn is not None else mod.DEFAULT_WARN
     o = over if over is not None else mod.DEFAULT_OVER

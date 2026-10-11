@@ -316,7 +316,7 @@ def report(*, days: int, top: int, predicted: bool) -> None:
 
     from datetime import UTC, datetime, timedelta
 
-    from dev10x.audit.log_reader import iter_records
+    from dev10x.skillmgmt.audit.log_reader import iter_records
     from dev10x.skills.permission.friction_report import build_report, format_report
 
     since = datetime.now(UTC) - timedelta(days=days) if days > 0 else None

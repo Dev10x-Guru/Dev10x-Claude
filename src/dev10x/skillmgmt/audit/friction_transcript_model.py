@@ -19,11 +19,11 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TextIO
 
-from dev10x.audit.transcript_grammar import TOOL_INPUT_BLOCK_RE, TOOL_RE, TURN_RE
 from dev10x.domain.common.allow_rule import AllowRule, AllowRuleLoader
 from dev10x.domain.common.bash_tokens import GIT_C_PREFIX_RE
 from dev10x.domain.common.mktmp_path import MktmpPath
 from dev10x.domain.common.tool_signature import ToolSignature
+from dev10x.skillmgmt.audit.transcript_grammar import TOOL_INPUT_BLOCK_RE, TOOL_RE, TURN_RE
 from dev10x.subprocess_utils import effective_cwd
 
 PERMISSION_TOOLS = {"Bash", "Read", "Write", "Edit"}
