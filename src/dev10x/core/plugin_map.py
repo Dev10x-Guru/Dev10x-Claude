@@ -4,17 +4,39 @@ from __future__ import annotations
 
 from collections import Counter
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 import yaml
 
 PLUGIN_MAP_PATH = Path(__file__).with_name("plugins.yaml")
+CORE_PLUGIN_NAME = "dev10x"
+SATELLITE_NAME_PREFIX = f"{CORE_PLUGIN_NAME}-"
+
+
+def expected_plugin_name(*, key: str) -> str:
+    return CORE_PLUGIN_NAME if key == "core" else f"{SATELLITE_NAME_PREFIX}{key}"
 
 
 @dataclass(frozen=True)
 class PluginMap:
     plugins: dict[str, tuple[str, ...]]
+    plugin_names: dict[str, str] = field(default_factory=dict)
+
+    def plugin_name(self, *, key: str) -> str | None:
+        return self.plugin_names.get(key)
+
+    def known_plugin_names(self) -> tuple[str, ...]:
+        return tuple(self.plugin_names.values())
+
+    def unnamed_plugins(self) -> list[str]:
+        return sorted(set(self.plugins) - set(self.plugin_names))
+
+    def names_off_scheme(self) -> list[str]:
+        return sorted(
+            key for key, name in self.plugin_names.items() if name != expected_plugin_name(key=key)
+        )
 
     @property
     def assignments(self) -> list[tuple[str, str]]:
@@ -42,10 +64,11 @@ class PluginMap:
         return {plugin: len(skills) for plugin, skills in self.plugins.items()}
 
 
-def parse_plugin_map(*, data: dict[str, dict[str, list[str]]]) -> PluginMap:
+def parse_plugin_map(*, data: dict[str, Any]) -> PluginMap:
     plugins = data.get("plugins") or {}
     return PluginMap(
         plugins={plugin: tuple(skills or ()) for plugin, skills in plugins.items()},
+        plugin_names=dict(data.get("plugin_names") or {}),
     )
 
 
@@ -62,8 +85,11 @@ def skill_directories(*, skills_root: Path) -> list[str]:
 
 
 __all__ = [
+    "CORE_PLUGIN_NAME",
     "PLUGIN_MAP_PATH",
+    "SATELLITE_NAME_PREFIX",
     "PluginMap",
+    "expected_plugin_name",
     "load_plugin_map",
     "parse_plugin_map",
     "skill_directories",

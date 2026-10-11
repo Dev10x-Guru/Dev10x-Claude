@@ -6,6 +6,7 @@ import pytest
 
 from dev10x.core.plugin_map import (
     PluginMap,
+    expected_plugin_name,
     load_plugin_map,
     parse_plugin_map,
     skill_directories,
@@ -67,6 +68,52 @@ class TestRepositoryPluginMap:
         skill_dirs: list[str],
     ) -> None:
         assert sum(plugin_map.counts().values()) == len(skill_dirs)
+
+    def test_every_plugin_has_a_name(self, plugin_map: PluginMap) -> None:
+        assert plugin_map.unnamed_plugins() == []
+
+    def test_names_follow_the_dev10x_area_scheme(self, plugin_map: PluginMap) -> None:
+        assert plugin_map.names_off_scheme() == []
+
+    def test_names_are_keyed_by_plugin_only(self, plugin_map: PluginMap) -> None:
+        assert set(plugin_map.plugin_names) == set(plugin_map.plugins)
+
+
+class TestPluginNames:
+    @pytest.fixture
+    def named_map(self) -> PluginMap:
+        return parse_plugin_map(
+            data={
+                "plugin_names": {"core": "dev10x", "qa": "qa-plugin"},
+                "plugins": {"core": ["afk"], "qa": ["tts"], "comm": ["gog"]},
+            }
+        )
+
+    @pytest.mark.parametrize(
+        ("key", "expected"),
+        [("core", "dev10x"), ("qa", "dev10x-qa"), ("teach", "dev10x-teach")],
+    )
+    def test_expected_plugin_name(self, key: str, expected: str) -> None:
+        assert expected_plugin_name(key=key) == expected
+
+    @pytest.mark.parametrize(
+        ("key", "expected"),
+        [("core", "dev10x"), ("qa", "qa-plugin"), ("comm", None)],
+    )
+    def test_plugin_name(self, named_map: PluginMap, key: str, expected: str | None) -> None:
+        assert named_map.plugin_name(key=key) == expected
+
+    def test_known_plugin_names(self, named_map: PluginMap) -> None:
+        assert named_map.known_plugin_names() == ("dev10x", "qa-plugin")
+
+    def test_flags_an_unnamed_plugin(self, named_map: PluginMap) -> None:
+        assert named_map.unnamed_plugins() == ["comm"]
+
+    def test_flags_a_name_off_scheme(self, named_map: PluginMap) -> None:
+        assert named_map.names_off_scheme() == ["qa"]
+
+    def test_missing_names_parse_to_empty(self) -> None:
+        assert parse_plugin_map(data={"plugins": {"qa": ["tts"]}}).plugin_names == {}
 
 
 class TestPluginMapDetectors:
