@@ -217,6 +217,17 @@ class TestMovedPackages:
             ("dev10x.hooks.task_plan_sync", "dev10x.tasks.hooks.task_plan_sync"),
             ("dev10x.mcp.plan_tools", "dev10x.tasks.mcp.plan_tools"),
             ("dev10x.mcp.task_index_tools", "dev10x.tasks.mcp.task_index_tools"),
+            ("dev10x.skills.bus", "dev10x.comm.skills.bus"),
+            ("dev10x.skills.bus.maildir", "dev10x.comm.skills.bus.maildir"),
+            ("dev10x.skills.notifications", "dev10x.comm.skills.notifications"),
+            (
+                "dev10x.skills.notifications.slack_notify",
+                "dev10x.comm.skills.notifications.slack_notify",
+            ),
+            (
+                "dev10x.skills.notifications.gchat_notify",
+                "dev10x.comm.skills.notifications.gchat_notify",
+            ),
         ],
     )
     def test_old_path_is_the_moved_module(self, old: str, new: str) -> None:

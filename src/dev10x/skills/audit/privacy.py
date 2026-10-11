@@ -158,13 +158,13 @@ _NET_IMPORT_EXEMPT_PATHS: tuple[str, ...] = (
     # posts user-approved review-request messages to a configured Chat
     # space. User-invoked outbound integration covered by the Google
     # Chat row in PRIVACY_POLICY.md.
-    "src/dev10x/skills/notifications/gchat_notify.py",
+    "src/dev10x/comm/skills/notifications/gchat_notify.py",
     # Slack transport: same shape as the Google Chat one. The outbound
     # call to slack.com was always there via `slack_sdk`; GH-917 only
     # adds a stdlib equivalent for environments where that optional
     # package is missing. No new destination, no new data — covered by
     # the Slack row in PRIVACY_POLICY.md.
-    "src/dev10x/skills/notifications/slack_notify.py",
+    "src/dev10x/comm/skills/notifications/slack_notify.py",
     # PyPI version sweep: `dev10x deps sweep` reads pypi.org/pypi/
     # <name>/json for each pinned distribution when the user (or the
     # scheduled workflow) runs it. Anonymous, read-only, sends only

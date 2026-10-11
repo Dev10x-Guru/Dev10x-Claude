@@ -6,7 +6,7 @@ import time
 from collections.abc import Callable, Iterator
 from pathlib import Path
 
-from dev10x.skills.bus.maildir import (
+from dev10x.comm.skills.bus.maildir import (
     BUS_ROOT,
     INVALID_MESSAGE_EXIT,
     InvalidMessageError,

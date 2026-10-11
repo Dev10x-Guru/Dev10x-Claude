@@ -30,14 +30,14 @@ def notify() -> None:
 def slack_review_prepare(*, pr: int, repo: str) -> None:
     """Resolve slack-review-request project config and emit the JSON envelope.
 
-    Wraps `dev10x.skills.notifications.slack_review_request` so callers
+    Wraps `dev10x.comm.skills.notifications.slack_review_request` so callers
     can invoke `uvx dev10x skill notify slack-review-prepare ...` instead
     of the version-pinned `skills/slack-review-request/scripts/...`
     script path. Output is identical to the underlying `prepare` call.
     """
     import argparse
 
-    from dev10x.skills.notifications import slack_review_request
+    from dev10x.comm.skills.notifications import slack_review_request
 
     args = argparse.Namespace(pr=pr, repo=repo)
     try:
@@ -68,7 +68,7 @@ def slack_send(
 ) -> None:
     """Send a Slack message via the importable slack_notify module (GH-442).
 
-    Delegates to `dev10x.skills.notifications.slack_notify` so the command
+    Delegates to `dev10x.comm.skills.notifications.slack_notify` so the command
     works when dev10x is installed via ``uvx`` — where ``skills/`` data files
     are not shipped as part of the wheel and cannot be reached by filesystem
     traversal from the installed package location.
@@ -76,7 +76,7 @@ def slack_send(
     if not message and not message_file:
         raise click.UsageError("Provide --message or --message-file.")
 
-    from dev10x.skills.notifications import slack_notify
+    from dev10x.comm.skills.notifications import slack_notify
 
     msg: str
     if message_file is not None:
@@ -162,7 +162,7 @@ def gchat_send(
         card_file=card_file,
     )
 
-    from dev10x.skills.notifications import gchat_notify
+    from dev10x.comm.skills.notifications import gchat_notify
 
     result = gchat_notify.notify_gchat(
         space=space, message=msg, cards=cards, fallback_text=fallback_text, thread=thread
@@ -189,7 +189,7 @@ def _resolve_gchat_body(
     if card_subtitle and not card_title:
         raise click.UsageError("--card-subtitle requires --card-title.")
 
-    from dev10x.skills.notifications import gchat_cards
+    from dev10x.comm.skills.notifications import gchat_cards
 
     msg: str | None = None
     if message_file is not None:
@@ -288,7 +288,7 @@ def gchat_update(
         card_file=card_file,
     )
 
-    from dev10x.skills.notifications import gchat_notify
+    from dev10x.comm.skills.notifications import gchat_notify
 
     result = gchat_notify.update_gchat_message(
         message_name=message_name, message=msg, cards=cards, fallback_text=fallback_text
@@ -311,7 +311,7 @@ def gchat_delete(*, message_name: str) -> None:
     Under app auth the bot can delete only its own messages — a message
     posted by a person returns a 403.
     """
-    from dev10x.skills.notifications import gchat_notify
+    from dev10x.comm.skills.notifications import gchat_notify
 
     result = gchat_notify.delete_gchat_message(message_name=message_name)
     if isinstance(result, ErrorResult):
@@ -331,7 +331,7 @@ def gchat_review_prepare(*, pr: int, repo: str) -> None:
     """
     import argparse
 
-    from dev10x.skills.notifications import gchat_review_request
+    from dev10x.comm.skills.notifications import gchat_review_request
 
     args = argparse.Namespace(pr=pr, repo=repo)
     try:

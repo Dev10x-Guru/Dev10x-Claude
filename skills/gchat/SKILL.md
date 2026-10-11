@@ -218,7 +218,7 @@ still get a panel, pass `--message` for the mention line and
 `--card-file` for the panel (in-process: `message=` plus `cards=`).
 
 For a panel beyond one body of text, build the JSON with
-`dev10x.skills.notifications.gchat_cards` (`text_paragraph`, `divider`,
+`dev10x.comm.skills.notifications.gchat_cards` (`text_paragraph`, `divider`,
 `link_button`, `button_list`, `section`, `card`). `--card-file` accepts a
 `cardsV2` array, a single `{cardId, card}`, or a bare card object.
 

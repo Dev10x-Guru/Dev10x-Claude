@@ -192,7 +192,7 @@ jobs:
         run: uv run coverage report --include='src/dev10x/core/hooks/*,src/dev10x/hooks/*,src/dev10x/tasks/hooks/*' --fail-under=80
 
       - name: Enforce skills floor
-        run: uv run coverage report --include='src/dev10x/skills/*,src/dev10x/core/skills/*' --fail-under=78
+        run: uv run coverage report --include='src/dev10x/skills/*,src/dev10x/*/skills/*' --fail-under=78
 
   ci-gate:
     # `always()` is load-bearing: without it this job is skipped whenever

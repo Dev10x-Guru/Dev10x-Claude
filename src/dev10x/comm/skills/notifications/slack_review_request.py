@@ -24,10 +24,10 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from dev10x.comm.skills.notifications._gh import GhCommandError, gh_json
 from dev10x.domain.common.repository_ref import RepositoryRef
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.skills.common.jtbd import extract_jtbd, md_to_slack_bold
-from dev10x.skills.notifications._gh import GhCommandError, gh_json
 
 
 def load_yaml(path: Path) -> dict:
@@ -190,7 +190,7 @@ def cmd_send(args: argparse.Namespace) -> None:
         print("❌ --message or --message-file required", file=sys.stderr)
         sys.exit(1)
 
-    slack_notify = Path(__file__).parents[4] / "skills" / "slack" / "slack-notify.py"
+    slack_notify = Path(__file__).parents[5] / "skills" / "slack" / "slack-notify.py"
     if not slack_notify.exists():
         print(f"❌ slack-notify.py not found at {slack_notify}", file=sys.stderr)
         sys.exit(1)
