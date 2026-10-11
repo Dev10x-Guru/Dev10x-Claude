@@ -44,11 +44,11 @@ import yaml
 
 from dev10x.domain.common.allow_rule import AllowRule
 from dev10x.domain.common.baseline_catalog import load_baseline_dict
-from dev10x.domain.common.command_spellings import expand_spellings
 from dev10x.domain.common.policy import Policy, PolicyAssessment, PolicyCatalog, PolicySource
 from dev10x.domain.git_context import GitContext
 from dev10x.skills.permission.backup import backed_up_write
 from dev10x.skills.permission.catalog_paths import shipped_projects_catalog
+from dev10x.skills.permission.config import parse_config
 from dev10x.skills.permission_investigator.policy_report import render_policy_report
 
 log = logging.getLogger(__name__)
@@ -373,7 +373,7 @@ def load_catalogued_rules(
         return CatalogRules(rules=rules, unread=tuple(unread))
 
     try:
-        config = expand_spellings(yaml.safe_load(projects_path.read_text())) or {}
+        config = parse_config(projects_path) or {}
     except (OSError, yaml.YAMLError) as exc:
         unread.append(f"{projects_path}: {exc}")
         return CatalogRules(rules=rules, unread=tuple(unread))

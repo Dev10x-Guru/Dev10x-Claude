@@ -12,10 +12,9 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-import yaml
-
 from dev10x.domain.common.command_spellings import expand_spellings
 from dev10x.domain.common.result import Result, err, ok
+from dev10x.skills.permission.catalog_paths import load_catalog_document
 
 log = logging.getLogger(__name__)
 
@@ -35,5 +34,4 @@ def resolve_config(
 
 
 def parse_config(config_path: Path) -> dict:
-    with open(config_path) as f:
-        return expand_spellings(yaml.safe_load(f))
+    return expand_spellings(load_catalog_document(catalog_path=config_path))
