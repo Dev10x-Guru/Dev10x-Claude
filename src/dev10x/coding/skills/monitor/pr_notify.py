@@ -38,8 +38,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from dev10x.coding.skills.common.jtbd import extract_jtbd, md_to_slack_bold
 from dev10x.comm.skills.notifications import slack_notify
+from dev10x.core.skills.common.jtbd import extract_jtbd, md_to_slack_bold
 from dev10x.domain.common.repository_ref import RepositoryRef
 from dev10x.domain.common.result import ErrorResult
 
