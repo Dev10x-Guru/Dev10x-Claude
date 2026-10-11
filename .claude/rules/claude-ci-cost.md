@@ -1,0 +1,81 @@
+---
+paths:
+  - ".github/workflows/claude*.yml"
+  - ".github/claude/**"
+  - ".github/claude-ci-settings.json"
+  - ".github/scripts/claude-pr-context/**"
+---
+
+# Claude CI Workflows — Cost and Prompt Caching (GH-1585)
+
+How `claude-code-review.yml` and `claude-pr-hygiene.yml` keep API spend
+low. Ported from tt-pos TD-6210. Each rule names the mechanism it relies
+on, so a change that breaks one is easy to spot in review.
+
+## How the bill is made
+
+A Claude Code run sends the same growing request on every turn: tool
+schemas, then the system prompt, then the conversation. The API caches
+that prefix up to the first byte that differs. A cache write costs 1.25×
+the input price for a 5-minute entry (2× for 1 hour), and a read about
+0.1×. Three things drive the bill:
+
+- **Turns.** Each turn resends the whole context. A denied tool call is
+  a turn spent for nothing.
+- **Prefix stability.** A prefix that differs between runs is written
+  again by every run; an identical one is read.
+- **Model.** Cache writes and reads scale with the model's input price.
+
+Setup steps (checkout, CLI install) cost seconds and nothing on the
+bill, so `actions/cache`-style dependency caching is not worth adding to
+these jobs.
+
+## Rules
+
+1. **Shared prefix.** Every Claude step starts `claude_args` with the
+   same four flags, in this order:
+   `--settings .github/claude-ci-settings.json`
+   `--append-system-prompt-file .github/claude/ci-system-prompt.md`
+   `--exclude-dynamic-system-prompt-sections`
+   `--disallowed-tools "ScheduleWakeup,Monitor"`.
+   Rules every CI agent needs (headless session, Bash shapes, evidence,
+   untrusted content) go in `ci-system-prompt.md`, not in a workflow
+   prompt. `--exclude-dynamic-system-prompt-sections` moves cwd, env and
+   git status out of the system prompt.
+2. **Static first, per-run values last.** A `prompt:` holds the
+   instructions first and ends with a `RUN CONTEXT:` block for the
+   repository and PR number. Instructions refer to `<REPO>` and `<PR>`.
+   Never put `${{ }}` above the instructions.
+3. **Prefetch, don't instruct.** PR data comes from
+   `.github/scripts/claude-pr-context/gather-pr-context.sh`, run before
+   the Claude step, into `.claude-ci/pr-context/` (`INDEX.md` lists the
+   files). Stage it from the base or default branch into `RUNNER_TEMP`,
+   never from the PR checkout: it runs with the job token. When neither
+   branch has it, skip the review with a notice.
+4. **Deterministic writes.** When the output is one comment, the model
+   Writes it to a file and a shell step posts it. The hygiene check keeps
+   one comment per PR, found by author and the `<!-- dev10x-pr-hygiene -->`
+   marker, and edits it in place.
+5. **Smallest tool set.** `--tools` drops the schemas of built-in tools
+   a job never uses. Never allow an `mcp__github__*` tool: any one of
+   them starts the GitHub MCP server and registers all of its tools.
+   Exception: the code review passes no `--tools`, because it needs
+   Bash and the subagent tool, whose name differs across CLI
+   versions. A list that misses that tool silently disables subagent
+   dispatch.
+6. **5-minute cache.** `claude-ci-settings.json` sets
+   `FORCE_PROMPT_CACHING_5M=1`. A one-shot CI run rarely re-reads a
+   1-hour entry, and that write costs 2× input. It also sets
+   `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1`, so Task subagents return in
+   the same turn instead of outliving the headless session.
+7. **Measure.** Each Claude job has a "Report Claude usage" step: a
+   per-model table in the job summary and a `::notice` line with cost,
+   turns, cache read, cache write and uncached input. Healthy runs read
+   far more than they write. Compare runs before and after any prompt,
+   flag or model change.
+
+## Verifying a change
+
+Changes to `claude*.yml` are validated against the default branch, and
+the action skips on the PR that edits them. Verify on the next PR after
+merge, from the usage step's notice.

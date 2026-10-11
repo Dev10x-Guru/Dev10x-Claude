@@ -18,6 +18,7 @@ on:
       - ".claude/rules/**/*.md"
       - "references/**/*.md"
       - ".claude/agents/**/*.md"
+      - ".github/claude/**"
       - "!.github/workflows/claude*.yml"
 
 jobs:
@@ -76,29 +77,74 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Run Claude Code Review
+      # GH-1585: the context script runs with this job's token, so it is
+      # taken from the base branch (or the default branch), never from the
+      # PR checkout. Until it exists on one of them the review is skipped
+      # with a notice rather than running the PR's own copy.
+      - name: Stage scripts from the trusted ref
         if: steps.dedup.outputs.skip != 'true' && steps.pr-state.outputs.skip != 'true'
+        id: stage
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          dir=.github/scripts/claude-pr-context
+          ref=""
+          for branch in "$BASE_REF" "$DEFAULT_BRANCH"; do
+            git fetch --no-tags --depth=1 origin "$branch"
+            if git cat-file -e "FETCH_HEAD:$dir" 2>/dev/null; then
+              ref=$(git rev-parse FETCH_HEAD)
+              break
+            fi
+          done
+          if [[ -z "$ref" ]]; then
+            echo "::notice::Neither $BASE_REF nor $DEFAULT_BRANCH has $dir yet — skipping rather than running this PR's own copy."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          mkdir -p "$RUNNER_TEMP/scripts"
+          git archive "$ref" "$dir" | tar -x -C "$RUNNER_TEMP/scripts" --strip-components=3
+
+      # GH-1585: one fetch of metadata, commits, per-file patches, comments,
+      # reviews and threads, so the reviewer reads files instead of paying
+      # a full-context turn for every `gh` call.
+      - name: Gather PR context
+        if: steps.dedup.outputs.skip != 'true' && steps.pr-state.outputs.skip != 'true' && steps.stage.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: '"$RUNNER_TEMP/scripts/gather-pr-context.sh"'
+
+      - name: Run Claude Code Review
+        if: steps.dedup.outputs.skip != 'true' && steps.pr-state.outputs.skip != 'true' && steps.stage.outputs.skip != 'true'
         id: claude-review
-        uses: anthropics/claude-code-action@f87768c6d25f92ae6efa7175e223ef77d4cbf97f # v1.0.166
+        uses: anthropics/claude-code-action@cfc3eb22bfed5c26ef66e3223c982af27e4524de # v1.0.231
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # GH-1585: static instructions first, per-run values last in
+          # RUN CONTEXT. The API caches the prompt up to the first byte
+          # that differs, so a PR number on line 1 made every run write
+          # the whole prompt again instead of reading it.
           prompt: |
-            REPO: ${{ github.repository }}
-            PR NUMBER: ${{ github.event.pull_request.number }}
-
             You are performing an automated code review using a multi-agent
             architecture. Be brief but thorough.
 
+            PR CONTEXT — a step before you fetched this PR into
+            `.claude-ci/pr-context/`: metadata, commits, the changed-file
+            list, one patch per file, comments, reviews and review threads.
+            Use these files instead of `gh` for anything they cover.
+
             STEP 1 — LOAD CORE RULES:
             Read these files first:
+            - .claude-ci/pr-context/INDEX.md (this PR: summary, files, patches)
             - references/review-guidelines.md (workflow, threads, summaries)
             - references/review-checks-common.md (false positive prevention)
             - CLAUDE.md (project conventions)
 
             STEP 2 — CLASSIFY PR TYPE:
-            Check PR title and description for:
+            Check the PR title and description in `pr.json` for:
             - POC/test code (🧪, "POC", "demo", "prototype") → relaxed standards
             - Revert PR ("Revert" in title) → REQUEST_CHANGES, require explanation
             - Stacked PR ("Stacked on #N", "Depends on #N") → note in summary,
@@ -108,12 +154,17 @@ jobs:
             Do NOT provide feedback on those items.
 
             STEP 3 — DOMAIN-ROUTED REVIEW (delegate to haiku subagents):
-            Run `gh pr diff ${{ github.event.pull_request.number }} --stat` to
-            classify changed files. For EACH affected domain, dispatch ONE
-            subagent via the Task tool using the registered agent name below
-            (the .claude/agents/ specs carry `model: haiku` frontmatter, so the
-            per-rule review work runs on the cheap tier while you — the
-            orchestrator — only route, deduplicate, verify, and post):
+            Classify the changed files listed in
+            `.claude-ci/pr-context/files.txt`. Never fetch the whole diff
+            with `gh pr diff`. To see what changed in one file, Read
+            `.claude-ci/pr-context/patches/<path>.patch`, and Read the file
+            at HEAD for context. When INDEX.md shows no patch for a file,
+            review that file from HEAD with Read instead. For EACH affected
+            domain, dispatch ONE subagent via the Task tool using the
+            registered agent name below (the .claude/agents/ specs carry
+            `model: haiku` frontmatter, so the per-rule review work runs on
+            the cheap tier while you — the orchestrator — only route,
+            deduplicate, verify, and post):
 
             - Skills (skills/**) → reviewer-skill AND reviewer-skill-behavior
             - Infrastructure (Makefile, **/*.sh, bin/**, hooks/**,
@@ -126,7 +177,9 @@ jobs:
               → reviewer-generic
 
             Dispatch all matched subagents in ONE message so they run in
-            parallel. Each subagent prompt MUST include:
+            parallel. They run in the foreground and each Task call returns
+            the subagent's full report in that same message — never end
+            your turn to wait for results. Each subagent prompt MUST include:
             1. The list of changed files for its domain and the PR number
                (the agent reads actual files at HEAD; it must not rely on
                diff snippets alone)
@@ -137,6 +190,9 @@ jobs:
                confidence — the orchestrator verifies and ranks findings.
                For each finding include file:line, severity (CRITICAL /
                WARNING / INFO), confidence, and a one-sentence rationale."
+            4. "Each changed file's diff is at
+               .claude-ci/pr-context/patches/<path>.patch; a file with no
+               patch there is too large or binary, so Read it at HEAD."
 
             Only dispatch agents for domains with changed files. When a
             domain has more than ~15 changed files, split it across two
@@ -164,34 +220,46 @@ jobs:
             STEP 5 — PRODUCE REVIEW OUTPUT:
             Follow the review workflow from review-guidelines.md:
             - Check existing review comments to avoid duplicates
+              (`.claude-ci/pr-context/review-comments.json` and
+              `review-threads.json`)
             - Before writing a summary, search previous summaries
-              (`gh pr view {PR_NUMBER} --json comments`) to determine the
-              correct round number (highest existing round + 1)
+              (`.claude-ci/pr-context/reviews.json` and
+              `issue-comments.json`) to determine the correct round number
+              (highest existing round + 1)
             - Use inline comments for specific issues
-            - Create ONE summary comment per review cycle
+            - Create ONE summary per review cycle: Write it with the Write
+              tool to `review-summary-body.md` in the current directory,
+              then run `gh pr review <PR> --comment --body-file review-summary-body.md`
             - Positive validation when PR has no issues
             - After author pushes fixes: acknowledge, focus on new issues only
 
             Be constructive and helpful in your feedback.
 
             STEP 6 — HIDE OBSOLETE REVIEW SUMMARIES:
-            Before posting the new summary, follow review-guidelines.md step 6
-            to minimize previous Claude review summaries where ALL associated
-            review threads are resolved. Use `gh api graphql` to query
-            `reviewThreads` (check `isResolved`, group by review) and
-            `minimizeComment` mutation to hide fully-resolved summaries.
-            Leave reviews with any unresolved threads visible.
+            Before posting the new summary, minimize previous Claude review
+            summaries where ALL associated review threads are resolved.
+            `.claude-ci/pr-context/review-threads.json` gives each thread's
+            `is_resolved` and the `review_id` of its comments, and
+            `reviews.json` gives each review's `node_id`. Hide a
+            fully-resolved summary with the `minimizeComment` mutation via
+            `gh api graphql`. Leave reviews with any unresolved threads
+            visible.
 
             STEP 7 — CONVERT TO DRAFT IF ISSUES FOUND:
             After completing the review, check the real inline-comment count
             from the GitHub API — do NOT rely on your own recollection of
-            whether you called create_inline_comment:
-              `gh pr view ${{ github.event.pull_request.number }} --json reviewComments --jq '.reviewComments | length'`
+            whether you called create_inline_comment, and do NOT use the
+            pre-fetched files, which predate this run:
+              `gh pr view <PR> --json reviewComments --jq '.reviewComments | length'`
             If the returned count is greater than 0, convert the PR to draft:
-              `gh pr ready --undo ${{ github.event.pull_request.number }}`
+              `gh pr ready --undo <PR>`
             This lets the author fix all issues without triggering re-reviews
             on each fixup push. The author marks "Ready for review" when done.
             If the count is 0 (no inline comments), do NOT convert to draft.
+
+            RUN CONTEXT:
+            - REPO: ${{ github.repository }}
+            - PR: ${{ github.event.pull_request.number }}
 
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # Cost shape: the sonnet orchestrator handles routing, dedup,
@@ -199,4 +267,31 @@ jobs:
           # per-domain rule review runs on haiku subagents dispatched from
           # .claude/agents/ frontmatter (the cheap tier). Task is required
           # for subagent dispatch.
-          claude_args: '--model sonnet --allowed-tools "Task,Read,Grep,Glob,mcp__github_inline_comment__create_inline_comment,mcp__github__get_pull_request_review_comments,Bash(gh issue view:*),Bash(gh search:*),Bash(gh issue list:*),Bash(gh pr review:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh pr ready:*),Bash(gh api:*)"'
+          #
+          # GH-1585: the first four flags are identical, in the same order,
+          # in every Claude review workflow, so the system prompt is
+          # byte-stable and served from the prompt cache. No mcp__github__*
+          # tool is allowed: any one starts the GitHub MCP server and puts
+          # all of its tool schemas into the prefix. Unlike the hygiene
+          # check, this step passes no --tools: it needs Bash and the
+          # subagent tool, whose name differs across CLI versions, and a
+          # list that misses it silently disables STEP 3. See
+          # .claude/rules/claude-ci-cost.md.
+          claude_args: '--settings .github/claude-ci-settings.json --append-system-prompt-file .github/claude/ci-system-prompt.md --exclude-dynamic-system-prompt-sections --disallowed-tools "ScheduleWakeup,Monitor" --model sonnet --allowed-tools "Task,Read,Write,Grep,Glob,mcp__github_inline_comment__create_inline_comment,Bash(gh issue view:*),Bash(gh search:*),Bash(gh issue list:*),Bash(gh pr review:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh pr ready:*),Bash(gh api:*)"'
+
+      # GH-1585: cost, turns and cache use of this run in the job summary
+      # and as a notice, so a prompt or model change can be compared before
+      # and after. A healthy run reads far more cache than it writes.
+      - name: Report Claude usage
+        if: ${{ always() && steps.claude-review.outputs.execution_file != '' }}
+        env:
+          EXECUTION_FILE: ${{ steps.claude-review.outputs.execution_file }}
+        run: |
+          jq -r '[.[] | select(.type == "result")] | last
+            | "### Claude usage\n\n| Model | Input | Cache write | Cache read | Output | Cost (USD) |\n|---|---:|---:|---:|---:|---:|\n"
+              + ((.modelUsage // {}) | to_entries | map("| \(.key) | \(.value.inputTokens // 0) | \(.value.cacheCreationInputTokens // 0) | \(.value.cacheReadInputTokens // 0) | \(.value.outputTokens // 0) | \(.value.costUSD // 0 | . * 10000 | round / 10000) |") | join("\n"))
+              + "\n\n**Total:** $\(.total_cost_usd // 0 | . * 100 | round / 100) · \(.num_turns // 0) turns · \((.permission_denials // []) | length) permission denials\n"' \
+            "$EXECUTION_FILE" >> "$GITHUB_STEP_SUMMARY" || echo "::warning::Could not read usage from $EXECUTION_FILE"
+          jq -r '[.[] | select(.type == "result")] | last | [(.modelUsage // {})[]] as $m
+            | "::notice title=Claude usage::$\(.total_cost_usd // 0) · \(.num_turns // 0) turns · cache read \($m | map(.cacheReadInputTokens // 0) | add // 0) · cache write \($m | map(.cacheCreationInputTokens // 0) | add // 0) · uncached input \($m | map(.inputTokens // 0) | add // 0)"' \
+            "$EXECUTION_FILE" || true
