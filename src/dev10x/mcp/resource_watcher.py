@@ -28,6 +28,7 @@ The watcher tracks four roots that correspond to the five resource handlers
 in ``knowledge_resources.py``:
 
 * ``skills/*/references/playbook.yaml``  →  ``dev10x://skills/{name}/playbook``
+* ``skills/*/references/playbook.d/*.yaml`` → ``dev10x://skills/playbook/playbook``
 * ``.claude/rules/*.md``                 →  ``dev10x://rules/{name}``
 * ``references/*.md``                    →  ``dev10x://references/{name}``
 * ``SKILLS.md``                          →  ``dev10x://skills/index``
@@ -58,6 +59,8 @@ if TYPE_CHECKING:  # pragma: no cover
     from mcp.server.session import ServerSession
 
 log = logging.getLogger(__name__)
+
+SHARED_PLAYBOOK_URI = "dev10x://skills/playbook/playbook"
 
 
 def _poll_interval() -> float:
@@ -197,6 +200,9 @@ class KnowledgeResourceWatcher:
             for playbook in skills_dir.glob("*/references/playbook.yaml"):
                 skill_name = playbook.parent.parent.name
                 mapping[playbook] = f"dev10x://skills/{skill_name}/playbook"
+            # GH-1555: shared-default fragments are served by the playbook resource.
+            for fragment in skills_dir.glob("*/references/playbook.d/*.yaml"):
+                mapping[fragment] = SHARED_PLAYBOOK_URI
 
         return mapping
 
@@ -292,6 +298,13 @@ class KnowledgeResourceWatcher:
             and parts[3] == "playbook.yaml"
         ):
             return f"dev10x://skills/{parts[1]}/playbook"
+        if (
+            len(parts) == 5
+            and parts[0] == "skills"
+            and parts[2] == "references"
+            and parts[3] == "playbook.d"
+        ):
+            return SHARED_PLAYBOOK_URI
         return None
 
     # ── notification dispatch ─────────────────────────────────────

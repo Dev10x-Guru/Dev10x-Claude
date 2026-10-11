@@ -139,6 +139,13 @@ guarantee.
 | 2 | `~/.config/Dev10x/playbooks/<key>.yaml` | Playbook + `projects` mapping |
 | 3 | `${CLAUDE_PLUGIN_ROOT}/skills/<key>/references/playbook.yaml` | Default playbook |
 
+A key with no dedicated tier-3 file (`work-on`) uses the shared
+default: the core mechanism file
+`skills/playbook/references/playbook.yaml` merged with each plugin's
+`skills/*/references/playbook.d/<plugin>.yaml` fragment, core first and
+then in `plugins.yaml` order (GH-1555, ADR-0034 Stage A3). The work-on
+plays are in `skills/work-on/references/playbook.d/coding.yaml`.
+
 **Global playbook format** (Tier 2):
 
 ```yaml

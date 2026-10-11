@@ -58,7 +58,12 @@ Scan for all playbook-powered skills and their user overrides.
    - `~/.config/Dev10x/playbooks/*.yaml` (global)
    - `~/.claude/memory/Dev10x/playbooks/*.yaml` (global legacy, backwards compat)
 3. Match override files to default playbooks by filename
-   (e.g., `work-on.yaml` matches `skills/work-on/references/playbook.yaml`)
+   (e.g., `gh-pr-respond.yaml` matches
+   `skills/gh-pr-respond/references/playbook.yaml`). A key with no
+   dedicated default — `work-on` — uses the shared default: the core
+   `skills/playbook/references/playbook.yaml` merged with every
+   `skills/*/references/playbook.d/<plugin>.yaml` fragment (GH-1555).
+   `dev10x playbook diff` resolves that merge for you.
 4. Report skills with overrides vs. skills without
 
 **Output:** A list of `(skill, default_path, override_path)` tuples

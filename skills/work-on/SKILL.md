@@ -33,6 +33,7 @@ allowed-tools:
   - Read(~/.config/Dev10x/playbooks/work-on.yaml)
   - Read(~/.claude/memory/Dev10x/playbooks/work-on.yaml)
   - Read(${CLAUDE_PLUGIN_ROOT}/skills/playbook/references/playbook.yaml)
+  - Read(${CLAUDE_PLUGIN_ROOT}/skills/work-on/references/playbook.d/coding.yaml)
   - Edit(.claude/Dev10x/**)
   - Skill(skill="dev10x:verify-acc-dod")
   - Skill(skill="dev10x:friction-setup")
