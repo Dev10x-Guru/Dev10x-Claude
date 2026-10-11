@@ -85,8 +85,8 @@ hooks. That way no MCP tool is ever renamed.
 | skill management (7) | skill-create, skill-audit, skill-audit-queue, audit-file, skill-index, context-audit, memory-maintenance |
 | task management (7) | session-tasks, session-wrap-up, plan-sync, park, park-discover, park-todo, park-remind |
 | tickets + scoping (15) | ticket-create, ticket-jtbd, jira, linear, scope, ticket-scope, project-scope, estimate, jtbd, ddd, spec-sync, spec-update, adr, adr-evaluate, project-audit |
-| core, keeps the name `dev10x` (12) | afk, ask, friction-setup, session-config-seed, upgrade-cleanup, plugin-maintenance, plugin-doctor, onboarding, permission-investigator, diag-friction, playbook, playbook-maintenance |
-| coding (38) | git and git-\* (10, including ticket-branch), gh-context and gh-pr-\* / gh-review-setup (12), review, review-fix, request-review, slack-review-request, gchat-review-request, work-on, fanout, foreman, verify-acc-dod, py-test, py-test-flaky, py-uv, investigate, qa-scope, release-notes, ide-normalize |
+| core, keeps the name `dev10x` (13) | afk, ask, friction-setup, session-config-seed, upgrade-cleanup, plugin-maintenance, plugin-doctor, onboarding, permission-investigator, diag-friction, playbook, playbook-maintenance, gh-context (moved from coding in Stage A3, GH-1553) |
+| coding (37) | git and git-\* (10, including ticket-branch), gh-pr-\* / gh-review-setup (11), review, review-fix, request-review, slack-review-request, gchat-review-request, work-on, fanout, foreman, verify-acc-dod, py-test, py-test-flaky, py-uv, investigate, qa-scope, release-notes, ide-normalize |
 
 ### Stage A: restructure in place
 
