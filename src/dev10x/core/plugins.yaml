@@ -4,6 +4,21 @@
 # (dev10x.<key>); `core` keeps the plugin name `dev10x`. Every skill
 # directory appears exactly once — tests/core/test_plugin_map.py
 # fails on a missing, duplicated, or unknown entry.
+#
+# `plugin_names` is the manifest name each key ships under (GH-1580):
+# `dev10x` for core, `dev10x-<key>` for every satellite. Extraction
+# moves a skill's invocation name to `<plugin name>:<skill>`, and
+# `dev10x skill rename` reads its target prefixes from here.
+plugin_names:
+  qa: dev10x-qa
+  infra: dev10x-infra
+  db: dev10x-db
+  comm: dev10x-comm
+  teach: dev10x-teach
+  tasks: dev10x-tasks
+  scoping: dev10x-scoping
+  core: dev10x
+  coding: dev10x-coding
 plugins:
   qa:
     - playwright

@@ -76,17 +76,38 @@ hooks. That way no MCP tool is ever renamed.
 
 ### Target plugins
 
-| Plugin | Skills |
-|---|---|
-| QA (6) | playwright, qa-self, qa-publish, review-pack, tts, yt-upload |
-| infrastructure (2) | k8s, aws-vault |
-| databases (2) | db, db-psql |
-| communication (5) | bus, slack, slack-setup, gchat, gog |
-| skill management (7) | skill-create, skill-audit, skill-audit-queue, audit-file, skill-index, context-audit, memory-maintenance |
-| task management (7) | session-tasks, session-wrap-up, plan-sync, park, park-discover, park-todo, park-remind |
-| tickets + scoping (15) | ticket-create, ticket-jtbd, jira, linear, scope, ticket-scope, project-scope, estimate, jtbd, ddd, spec-sync, spec-update, adr, adr-evaluate, project-audit |
-| core, keeps the name `dev10x` (13) | afk, ask, friction-setup, session-config-seed, upgrade-cleanup, plugin-maintenance, plugin-doctor, onboarding, permission-investigator, diag-friction, playbook, playbook-maintenance, gh-context (moved from coding in Stage A3, GH-1553) |
-| coding (37) | git and git-\* (10, including ticket-branch), gh-pr-\* / gh-review-setup (11), review, review-fix, request-review, slack-review-request, gchat-review-request, work-on, fanout, foreman, verify-acc-dod, py-test, py-test-flaky, py-uv, investigate, qa-scope, release-notes, ide-normalize |
+| Plugin | Plugin name | Skills |
+|---|---|---|
+| QA (6) | `dev10x-qa` | playwright, qa-self, qa-publish, review-pack, tts, yt-upload |
+| infrastructure (2) | `dev10x-infra` | k8s, aws-vault |
+| databases (2) | `dev10x-db` | db, db-psql |
+| communication (5) | `dev10x-comm` | bus, slack, slack-setup, gchat, gog |
+| skill management (7) | `dev10x-teach` | skill-create, skill-audit, skill-audit-queue, audit-file, skill-index, context-audit, memory-maintenance |
+| task management (7) | `dev10x-tasks` | session-tasks, session-wrap-up, plan-sync, park, park-discover, park-todo, park-remind |
+| tickets + scoping (15) | `dev10x-scoping` | ticket-create, ticket-jtbd, jira, linear, scope, ticket-scope, project-scope, estimate, jtbd, ddd, spec-sync, spec-update, adr, adr-evaluate, project-audit |
+| core (13) | `dev10x` | afk, ask, friction-setup, session-config-seed, upgrade-cleanup, plugin-maintenance, plugin-doctor, onboarding, permission-investigator, diag-friction, playbook, playbook-maintenance, gh-context (moved from coding in Stage A3, GH-1553) |
+| coding (37) | `dev10x-coding` | git and git-\* (10, including ticket-branch), gh-pr-\* / gh-review-setup (11), review, review-fix, request-review, slack-review-request, gchat-review-request, work-on, fanout, foreman, verify-acc-dod, py-test, py-test-flaky, py-uv, investigate, qa-scope, release-notes, ide-normalize |
+
+### Plugin names and the invocation rule
+
+The supervisor fixed the naming scheme on 2026-10-11 (GH-1580, recorded
+on [GH-1522](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1522#issuecomment-6106516414)):
+
+- Core keeps the manifest name `dev10x`. Each satellite is named
+  `dev10x-<area>`, where `<area>` is its Python namespace key
+  (`dev10x.<area>`).
+- Claude Code always namespaces a plugin skill under the manifest
+  `name`. Neither frontmatter `name` nor `displayName` changes that,
+  and a plugin name cannot contain `:`. A satellite skill therefore can
+  never be invoked as `dev10x:<skill>`.
+- **Invocation rule:** extracting a skill moves its invocation name
+  from `dev10x:<skill>` to `dev10x-<area>:<skill>`. The skill's own
+  name does not change.
+- MCP tool names do not change. Both servers stay in core, so every
+  `mcp__plugin_dev10x_<server>__<tool>` name survives every extraction.
+- `src/dev10x/core/plugins.yaml` records the namespace-key → plugin-name
+  mapping under `plugin_names:`. `dev10x skill rename` and the Stage B
+  steps read the target prefix from that file, not from this prose.
 
 ### Stage A: restructure in place
 
@@ -169,10 +190,13 @@ Order, set by the supervisor:
    later one to restore behavior.
 2. **Core keeps its name forever.** That gives zero MCP tool renames
    and zero permission-rule rewrites for tools.
-3. **Satellites depend on core.** The dependency is declared in docs,
-   and `plugin-doctor` checks it, because Claude Code has no native
-   plugin dependencies [Verify against the current marketplace docs
-   before B1].
+3. **Satellites depend on core.** Each satellite manifest declares
+   `"dependencies": ["dev10x"]`. The Claude Code manifest reference
+   documents the field (`"name"`, `"name@marketplace"`, or
+   `{name, marketplace, version}`), and a plugin that an enabled plugin
+   depends on starts enabled. A `plugin-doctor` check stays only as a
+   belt-and-braces guard. The exact declaration form is decided in
+   GH-1561 before B1.
 4. **One PyPI package, `dev10x`.** All plugins import from it, which
    avoids duplicating the safety-hook chain.
 
@@ -249,7 +273,7 @@ Stage A removes the risk that made ADR-0020 reject the split.
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
 | A missed `dev10x:<skill>` reference after a move | Medium | Medium | The reference inventory test from Stage A, plus the rename tool's dry-run diff in each move PR |
-| A satellite is installed without core | Medium | High | A `plugin-doctor` check, install docs, and possibly a meta-plugin (decide before B1) |
+| A satellite is installed without core | Medium | High | The manifest `dependencies: ["dev10x"]` declaration (Key rule 3), backed by a `plugin-doctor` check and install docs (GH-1561 decides the form before B1) |
 | B9: coding tools must register in a server shipped by core | Medium | High | Stage A namespace registration via `register(server)`. Before B9, verify the `dev10x` server can load `dev10x.coding` tools when the coding plugin is installed, or keep coding in `dev10x` |
 | User configs reference old names | High | Low | The upgrade-cleanup migration, plus a one-release alias (ADR-0028) |
 | Long-lived shims drift | Medium | Low | The boundary test enforces new paths, and the shims are removed in one PR after B9 |
@@ -306,3 +330,7 @@ B9 coding. Each step is one PR series that ends in a release.
 ### External Documentation
 
 - [Claude Code plugin marketplaces](https://code.claude.com/docs/en/plugin-marketplaces)
+- [Claude Code plugin manifest reference](https://code.claude.com/docs/en/plugins/manifest-reference):
+  the `name` namespace and the `dependencies` field
+- [Claude Code skills](https://code.claude.com/docs/en/skills): skill
+  invocation names are prefixed with the plugin name
