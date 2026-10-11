@@ -8,6 +8,7 @@ import pytest
 import yaml
 
 from dev10x.domain.common.ide_choice import Ide, apply_ide_selection, ide_inventory
+from dev10x.skills.permission.catalog_paths import load_catalog_document
 from dev10x.skills.permission.ide_resolve import ide_source, resolve_ide
 
 
@@ -60,7 +61,7 @@ class TestResolveIde:
 class TestShippedCatalog:
     @pytest.fixture
     def catalog(self, projects_yaml: Path) -> dict:
-        return yaml.safe_load(projects_yaml.read_text())
+        return load_catalog_document(catalog_path=projects_yaml)
 
     def test_pycharm_has_a_block(self, catalog: dict) -> None:
         assert ide_inventory(config=catalog)[Ide.PYCHARM]

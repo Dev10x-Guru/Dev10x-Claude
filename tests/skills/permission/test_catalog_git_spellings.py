@@ -13,11 +13,12 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-import yaml
+
+from dev10x.skills.permission.catalog_paths import load_catalog_document
 
 
 def _base_permissions(projects_yaml: Path) -> list[str]:
-    data = yaml.safe_load(projects_yaml.read_text()) or {}
+    data = load_catalog_document(catalog_path=projects_yaml) or {}
     return [str(rule) for rule in data.get("base_permissions", [])]
 
 

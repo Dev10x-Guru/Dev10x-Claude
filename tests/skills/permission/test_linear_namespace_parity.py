@@ -22,10 +22,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import yaml
-
 import dev10x.skills.permission as permission_pkg
-from dev10x.skills.permission.catalog_paths import CATALOG_RELPATH
+from dev10x.skills.permission.catalog_paths import CATALOG_RELPATH, load_catalog_document
 
 PERMISSION_DIR = Path(permission_pkg.__file__).resolve().parent
 REPO_ROOT = PERMISSION_DIR.parents[4]
@@ -42,7 +40,7 @@ _WRITE_PREFIXES = ("save_", "delete_")
 
 
 def _linear_block() -> list[str]:
-    config = yaml.safe_load(PROJECTS_YAML.read_text(encoding="utf-8"))
+    config = load_catalog_document(catalog_path=PROJECTS_YAML)
     return list((config.get("tracker_permissions") or {}).get("linear") or [])
 
 
@@ -64,7 +62,7 @@ def test_linear_namespace_read_ops_are_at_parity() -> None:
         "mcp__claude_ai_Linear__* catalogues these read ops but "
         "mcp__linear-server__* — the namespace Dev10x sessions actually "
         "call — does not; add the mcp__linear-server__ counterparts to "
-        "tracker_permissions.linear in skills/upgrade-cleanup/projects.yaml:\n"
+        "tracker_permissions.linear in skills/upgrade-cleanup/projects.d/scoping.yaml:\n"
         + "\n".join(f"  {op}" for op in sorted(missing_from_linear_server))
     )
 

@@ -22,7 +22,10 @@ from dev10x.domain.common.policy import (
 )
 from dev10x.domain.common.policy_resolution import resolve_effect
 from dev10x.domain.common.tracker_choice import Tracker, apply_tracker_selection
-from dev10x.skills.permission.catalog_paths import shipped_projects_catalog
+from dev10x.skills.permission.catalog_paths import (
+    load_catalog_document,
+    shipped_projects_catalog,
+)
 from dev10x.skills.permission.policy_catalog_migration import (
     CLAUDE_AI_MCP_GROUP,
     DEFAULT_TIER,
@@ -47,7 +50,7 @@ def _shipped_config() -> dict:
     tracker (`linear`), which reproduces the pre-GH-768 flat catalog and
     keeps the corpus cases that assert on Linear rules meaningful.
     """
-    raw = yaml.safe_load(_PROJECTS_YAML.read_text(encoding="utf-8"))
+    raw = load_catalog_document(catalog_path=_PROJECTS_YAML)
     return apply_tracker_selection(config=raw, tracker=Tracker.default())
 
 

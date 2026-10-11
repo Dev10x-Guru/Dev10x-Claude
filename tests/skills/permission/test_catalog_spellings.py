@@ -11,10 +11,9 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-import yaml
 from dev10x.domain.common.baseline_catalog import load_baseline_dict
 from dev10x.domain.common.command_spellings import SPELLINGS_KEY, expand_spellings
-from dev10x.skills.permission.catalog_paths import CATALOG_RELPATH
+from dev10x.skills.permission.catalog_paths import CATALOG_RELPATH, load_catalog_document
 
 import dev10x.skills.permission as permission_pkg
 
@@ -64,7 +63,7 @@ FOREMAN_PREFIXES = ("", "uvx ", "uv run ", "uv run --project $CLAUDE_PLUGIN_ROOT
 
 
 def _projects() -> dict:
-    return expand_spellings(yaml.safe_load(PROJECTS_YAML.read_text(encoding="utf-8")))
+    return expand_spellings(load_catalog_document(catalog_path=PROJECTS_YAML))
 
 
 def _base_permissions() -> list[str]:

@@ -9,6 +9,7 @@ import yaml
 from dev10x.domain.common.accepted_findings import DEFAULT_ACCEPTED_FINDINGS, find_acceptance
 from dev10x.domain.common.tracker_choice import Tracker
 from dev10x.skills.permission import update_paths
+from dev10x.skills.permission.catalog_paths import load_catalog_document
 from dev10x.skills.permission.update_paths import (
     _is_nonfunctional_mcp_wildcard,
     _load_global_allow_rules,
@@ -765,7 +766,7 @@ class TestPrivilegeEscalationDenies:
         projects_yaml = (
             Path(__file__).resolve().parents[3] / "skills" / "upgrade-cleanup" / "projects.yaml"
         )
-        config = yaml.safe_load(projects_yaml.read_text())
+        config = load_catalog_document(catalog_path=projects_yaml)
         return config.get("base_denies", [])
 
     @pytest.mark.parametrize("rule", PRIVILEGE_ESCALATION_DENIES)
@@ -800,7 +801,7 @@ def shipped_base_permissions() -> list[str]:
     projects_yaml = (
         Path(__file__).resolve().parents[3] / "skills" / "upgrade-cleanup" / "projects.yaml"
     )
-    config = yaml.safe_load(projects_yaml.read_text())
+    config = load_catalog_document(catalog_path=projects_yaml)
     return config.get("base_permissions", [])
 
 

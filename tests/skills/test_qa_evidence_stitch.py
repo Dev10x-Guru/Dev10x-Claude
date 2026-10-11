@@ -11,6 +11,7 @@ import pytest
 import yaml
 
 from dev10x.domain.common.baseline_catalog import load_baseline_dict
+from dev10x.skills.permission.catalog_paths import load_catalog_document
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 _SCRIPT = _REPO_ROOT / "skills" / "qa-self" / "scripts" / "convert-evidence.sh"
@@ -36,7 +37,7 @@ def _run(*args: str) -> subprocess.CompletedProcess[str]:
 
 def test_identify_is_a_default_catalog_rule():
     """verify-evidence.py already shells out to it — read-only."""
-    data = yaml.safe_load(_CATALOG.read_text()) or {}
+    data = load_catalog_document(catalog_path=_CATALOG) or {}
     assert "Bash(identify:*)" in data.get("base_permissions", [])
 
 

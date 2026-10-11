@@ -5,12 +5,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import yaml
-
 from dev10x.domain.common.policy import PolicyEffect
 from dev10x.domain.common.policy_migration import migrate_flat_config
 from dev10x.skills.permission import update_paths as mod
 from dev10x.skills.permission.catalog_gap import compute_gap
+from dev10x.skills.permission.catalog_paths import load_catalog_document
 from dev10x.skills.permission.policy_renderer import render_permissions
 
 
@@ -119,12 +118,12 @@ def test_compute_gap_without_base_asks_reports_empty_ask_gap(settings_file: Path
 
 
 def test_shipped_catalog_populates_the_ask_tier(projects_yaml: Path) -> None:
-    config = yaml.safe_load(projects_yaml.read_text(encoding="utf-8"))
+    config = load_catalog_document(catalog_path=projects_yaml)
     base_asks = config["base_asks"]
     assert base_asks
     assert all(rule.startswith("Bash(gh api ") for rule in base_asks)
 
 
 def test_shipped_catalog_guards_gh_api_delete(projects_yaml: Path) -> None:
-    config = yaml.safe_load(projects_yaml.read_text(encoding="utf-8"))
+    config = load_catalog_document(catalog_path=projects_yaml)
     assert "Bash(gh api -X DELETE:*)" in config["base_asks"]

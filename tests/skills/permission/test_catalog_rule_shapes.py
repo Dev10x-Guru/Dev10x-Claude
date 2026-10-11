@@ -11,11 +11,10 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-import yaml
 
 import dev10x.skills.permission as permission_pkg
 from dev10x.domain.common.allow_rule import AllowRule
-from dev10x.skills.permission.catalog_paths import CATALOG_RELPATH
+from dev10x.skills.permission.catalog_paths import CATALOG_RELPATH, load_catalog_document
 
 PERMISSION_DIR = Path(permission_pkg.__file__).resolve().parent
 REPO_ROOT = PERMISSION_DIR.parents[4]
@@ -38,7 +37,7 @@ def _bash_rules(*, source: Path) -> list[str]:
             for value in node:
                 walk(value)
 
-    walk(yaml.safe_load(source.read_text(encoding="utf-8")))
+    walk(load_catalog_document(catalog_path=source))
     return found
 
 
