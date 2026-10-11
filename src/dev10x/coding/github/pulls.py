@@ -12,6 +12,8 @@ import asyncio
 import json
 from typing import Any
 
+from dev10x.coding.github import milestones
+from dev10x.core.github import _gateway
 from dev10x.core.paths import skill_script
 from dev10x.domain.common.result import ErrorResult, Result, err, ok
 from dev10x.domain.pr_body import (
@@ -20,7 +22,6 @@ from dev10x.domain.pr_body import (
     job_story_error,
     normalize_pr_body,
 )
-from dev10x.github import _gateway, milestones
 from dev10x.subprocess_utils import parse_key_value_output
 
 # Branch names that are never a legitimate PR head — HEAD on one of these

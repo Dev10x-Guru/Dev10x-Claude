@@ -25,8 +25,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from dev10x.coding.github import pattern_validation
 from dev10x.domain.common.result import Result, SuccessResult, ok
-from dev10x.github import pattern_validation
 
 # Generated rule docs live under the review-checks reference tree so the
 # review agents (reviewer-generic and friends) pick them up via routing.

@@ -20,7 +20,9 @@ import pytest
 gh = pytest.importorskip("dev10x.github", reason="dev10x not installed")
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-PACKAGE_DIR = REPO_ROOT / "src" / "dev10x" / "github"
+PACKAGE_DIR = REPO_ROOT / "src" / "dev10x" / "coding" / "github"
+FACADE_MODULES = frozenset({"dev10x", "dev10x.github", "dev10x.coding", "dev10x.coding.github"})
+CAPABILITY_PREFIXES = ("dev10x.github.", "dev10x.coding.github.")
 TESTS_DIR = REPO_ROOT / "tests"
 
 CAPABILITY_MODULES = (
@@ -127,8 +129,8 @@ PRE_SPLIT_NAMES = (
 # (test path, name) pair here when an external consumer does that.
 EXTERNAL_FACADE_LOOKUPS: frozenset[tuple[str, str]] = frozenset()
 
-# GH-1536: the gateway lives in dev10x.core; dev10x/github/_gateway.py is
-# its alias shim, so the guards read the real source.
+# GH-1536: the gateway lives in dev10x.core; coding/github/_gateway.py is
+# its alias shim (GH-1546), so the guards read the real source.
 MOVED_MODULES = {"_gateway": REPO_ROOT / "src" / "dev10x" / "core" / "github" / "_gateway.py"}
 
 
@@ -292,7 +294,7 @@ class TestFacadeShape:
             )
             or (
                 isinstance(node, ast.ImportFrom)
-                and node.module in {"dev10x", "dev10x.github"}
+                and node.module in FACADE_MODULES
                 and any(not (PACKAGE_DIR / f"{a.name}.py").exists() for a in node.names)
             )
         ]
@@ -308,7 +310,8 @@ class TestFacadeShape:
             for node in ast.walk(tree)
             if isinstance(node, ast.ImportFrom)
             for alias in node.names
-            if alias.name in GATEWAY_REIMPORTS or (node.module or "").startswith("dev10x.github.")
+            if alias.name in GATEWAY_REIMPORTS
+            or (node.module or "").startswith(CAPABILITY_PREFIXES)
         ]
 
         assert bound_by_name == []

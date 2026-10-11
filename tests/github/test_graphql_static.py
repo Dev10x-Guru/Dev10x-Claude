@@ -19,7 +19,7 @@ from typing import Any
 
 import pytest
 
-_GITHUB_MODULE = Path(__file__).parents[2] / "src" / "dev10x" / "github" / "reviews.py"
+_GITHUB_MODULE = Path(__file__).parents[2] / "src" / "dev10x" / "coding" / "github" / "reviews.py"
 _SKILLS_GH_CONTEXT = Path(__file__).parents[2] / "skills" / "gh-context" / "scripts"
 
 # ---------------------------------------------------------------------------

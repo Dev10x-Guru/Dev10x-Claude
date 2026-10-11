@@ -9,8 +9,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from dev10x.core.github import _gateway
 from dev10x.domain.common.result import ErrorResult, Result, err, ok
-from dev10x.github import _gateway
 
 
 async def _resolve_milestone_number(

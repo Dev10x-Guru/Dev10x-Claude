@@ -1,8 +1,9 @@
 """Re-export of ``dev10x.core.github._gateway`` at its pre-ADR-0034 path (GH-1536).
 
-The old name is the same module object as the new one, so every
-``dev10x.github._gateway.<name>`` patch target keeps intercepting each
-caller; see ``dev10x.core.module_alias``.
+``dev10x.github`` is this package under its old name (GH-1546), so this
+file is what ``dev10x.github._gateway`` resolves to: the same module
+object as the core one, so every ``dev10x.github._gateway.<name>`` patch
+target keeps intercepting each caller; see ``dev10x.core.module_alias``.
 """
 
 from typing import TYPE_CHECKING

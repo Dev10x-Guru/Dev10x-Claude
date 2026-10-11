@@ -9,8 +9,9 @@ from __future__ import annotations
 
 from typing import Any
 
+from dev10x.coding.github import labels, pulls
+from dev10x.core.github import _gateway
 from dev10x.domain.common.result import ErrorResult, Result, SuccessResult, err, ok
-from dev10x.github import _gateway, labels, pulls
 
 
 async def _resolve_merge_bot(

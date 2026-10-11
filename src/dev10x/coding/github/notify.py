@@ -10,10 +10,10 @@ import json
 from pathlib import Path
 from typing import Any
 
+from dev10x.core.github import _gateway
 from dev10x.core.paths import skill_script
 from dev10x.domain.common.result import Result, err, ok
 from dev10x.domain.dead_letter import record_undelivered
-from dev10x.github import _gateway
 
 
 async def generate_commit_list(

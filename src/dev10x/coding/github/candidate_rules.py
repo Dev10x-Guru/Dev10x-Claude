@@ -19,8 +19,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from dev10x.coding.github import review_patterns
 from dev10x.domain.common.result import Result, SuccessResult, ok
-from dev10x.github import review_patterns
 
 # Max characters kept from an example comment in the memo. Examples are a
 # readability aid, not the full comment — long bodies are truncated.

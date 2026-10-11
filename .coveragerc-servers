@@ -1,6 +1,7 @@
 [run]
 omit =
     src/dev10x/github/__init__.py
+    src/dev10x/coding/github/__init__.py
     src/dev10x/mcp/server_cli.py
     src/dev10x/mcp/tests/*
 
