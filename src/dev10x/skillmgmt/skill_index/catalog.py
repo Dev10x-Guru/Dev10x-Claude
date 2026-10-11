@@ -13,7 +13,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
-from dev10x.skill_index.builder import SkillEntry, scan_skill_dirs
+from dev10x.skillmgmt.skill_index.builder import SkillEntry, scan_skill_dirs
 
 
 @dataclass(frozen=True)

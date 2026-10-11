@@ -194,6 +194,6 @@ output as CRITICAL. Common findings:
 - `--no-verify` anywhere → CLAUDE.md global rule, no exemption
 
 Skills that *implement* a wrapper are exempt automatically (see
-`SKILL_EXEMPTIONS` in `src/dev10x/skills/audit/cli_friction.py`). For a
+`SKILL_EXEMPTIONS` in `src/dev10x/skillmgmt/skills/audit/cli_friction.py`). For a
 one-off legitimate case, suggest the inline marker
 `# cli-friction: allow <rule-id> — reason`, not a skill-wide exemption.

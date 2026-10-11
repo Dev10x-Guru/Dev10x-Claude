@@ -4,7 +4,7 @@ This module owns the `@audit_hook` decorator wrapped around hook bodies
 and the wrap-phase record helpers called by `hooks/scripts/audit-wrap`.
 
 Per ADR-0008 (audit memo I6) it depends on the domain-owned
-`AuditWriter` Protocol rather than importing `dev10x.audit.log_reader`
+`AuditWriter` Protocol rather than importing `dev10x.skillmgmt.audit.log_reader`
 internals directly; the concrete `LogReaderAuditWriter` is resolved
 through the single `_get_writer()` seam, so all writes still flow
 through `log_reader.append_record` (the reader remains the single
@@ -96,7 +96,7 @@ def _get_writer() -> AuditWriter:
     adapter (audit memo I6). Swap via :func:`set_audit_writer` in tests."""
     writer = _writer_holder.get()
     if writer is None:
-        from dev10x.audit.log_reader import LogReaderAuditWriter
+        from dev10x.skillmgmt.audit.log_reader import LogReaderAuditWriter
 
         writer = LogReaderAuditWriter()
         _writer_holder.set(writer)

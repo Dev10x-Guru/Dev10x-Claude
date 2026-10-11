@@ -24,7 +24,9 @@ import sys
 from dataclasses import replace
 from pathlib import Path
 
-from dev10x.audit.friction_transcript_model import (
+from dev10x.domain.claude_paths import ClaudeDir
+from dev10x.domain.file_locks import atomic_write_text
+from dev10x.skillmgmt.audit.friction_transcript_model import (
     ALLOW_RULE_RE,
     CHAIN_RE,
     COMMENT_PREFIX_RE,
@@ -59,8 +61,6 @@ from dev10x.audit.friction_transcript_model import (
     propose_allow_rules,
     write_output,
 )
-from dev10x.domain.claude_paths import ClaudeDir
-from dev10x.domain.file_locks import atomic_write_text
 
 __all__ = [
     "ALLOW_RULE_RE",
