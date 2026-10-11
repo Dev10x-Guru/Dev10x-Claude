@@ -211,17 +211,16 @@ class TestMovedPackages:
                 "dev10x.skills.permission_investigator.matrix",
                 "dev10x.core.skills.permission_investigator.matrix",
             ),
+            ("dev10x.plan", "dev10x.tasks.plan"),
+            ("dev10x.plan.service", "dev10x.tasks.plan.service"),
+            ("dev10x.session.task_index", "dev10x.tasks.session.task_index"),
+            ("dev10x.hooks.task_plan_sync", "dev10x.tasks.hooks.task_plan_sync"),
+            ("dev10x.mcp.plan_tools", "dev10x.tasks.mcp.plan_tools"),
+            ("dev10x.mcp.task_index_tools", "dev10x.tasks.mcp.task_index_tools"),
         ],
     )
     def test_old_path_is_the_moved_module(self, old: str, new: str) -> None:
         assert importlib.import_module(old) is importlib.import_module(new)
-
-    @pytest.mark.parametrize(
-        "name",
-        ["dev10x.hooks.task_plan_sync", "dev10x.session.task_index"],
-    )
-    def test_module_kept_by_another_namespace_stays_put(self, name: str) -> None:
-        assert importlib.import_module(name).__name__ == name
 
 
 @pytest.mark.usefixtures("toy_tree")

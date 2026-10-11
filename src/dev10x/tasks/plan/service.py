@@ -9,8 +9,8 @@ separate from the aggregate deliberately (audit D8): folding this
 IO into domain methods would couple the aggregate to the filesystem
 layout and the lock primitive.
 
-Both the CLI hook (`dev10x.hooks.task_plan_sync`) and the MCP
-wrapper (`dev10x.plan`) delegate here, eliminating the previously
+Both the CLI hook (`dev10x.tasks.hooks.task_plan_sync`) and the MCP
+wrapper (`dev10x.tasks.plan`) delegate here, eliminating the previously
 duplicated `archive()` block and inline imports.
 """
 

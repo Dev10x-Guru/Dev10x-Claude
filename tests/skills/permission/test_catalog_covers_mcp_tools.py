@@ -54,7 +54,7 @@ REPO_ROOT = Path(permission_pkg.__file__).resolve().parents[5]
 PROJECTS_YAML = REPO_ROOT / "skills" / "upgrade-cleanup" / "projects.yaml"
 MCP_DIRS = (
     REPO_ROOT / "src" / "dev10x" / "mcp",
-    REPO_ROOT / "src" / "dev10x" / "core" / "mcp",
+    *sorted((REPO_ROOT / "src" / "dev10x").glob("*/mcp")),
 )
 
 #: A decorator line that registers an MCP tool: the direct FastMCP form

@@ -61,12 +61,13 @@ from dev10x.domain.plugin_root import resolve_plugin_root
 # convention with teeth: a new wrapper keeps the suffix, or widens both
 # matchers in the same commit.
 #
-# GH-1539: gate_tools.py moved to src/dev10x/core/mcp (ADR-0034); the
-# file left at the old path is an alias shim with no registrations.
+# GH-1539/GH-1541: tool modules move into their owning namespace's
+# `mcp/` package (ADR-0034) — `src/dev10x/<namespace>/mcp/*_tools.py`;
+# the file left at the old path is an alias shim with no registrations.
 _SERVER_GLOBS: dict[str, tuple[tuple[str, str], ...]] = {
     "dev10x_cli": (
         ("src/dev10x/mcp", "*_tools.py"),
-        ("src/dev10x/core/mcp", "*_tools.py"),
+        ("src/dev10x", "*/mcp/*_tools.py"),
     ),
     "dev10x_db": (("src/dev10x/mcp", "server_db.py"),),
 }

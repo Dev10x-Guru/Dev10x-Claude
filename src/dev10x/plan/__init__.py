@@ -1,43 +1,16 @@
-"""Plan sync MCP tool implementations.
+"""Re-export of ``dev10x.tasks.plan`` at its pre-ADR-0034 path (GH-1541).
 
-Wraps the `dev10x.plan.service` transaction layer as async MCP
-tools so skills can update plan context, retrieve summaries, and
-archive plans without Bash allow-rule friction.
+Every ``dev10x.plan.<name>`` resolves to the same module object as
+``dev10x.tasks.plan.<name>``; see ``dev10x.core.module_alias``.
 """
 
-from __future__ import annotations
+from typing import TYPE_CHECKING
 
-from typing import Any
+from dev10x.core.module_alias import alias_package
 
-from dev10x.domain.common.result import Result, err, ok
-from dev10x.plan.service import (
-    PlanServiceError,
-    archive_plan,
-    plan_summary,
-    set_plan_context,
-)
+if TYPE_CHECKING:
+    from dev10x.tasks.plan import archive, json_summary, set_context
 
+alias_package(old=__name__, new="dev10x.tasks.plan")
 
-async def set_context(*, args: list[str]) -> Result[dict[str, Any]]:
-    try:
-        updated = set_plan_context(args=args)
-    except PlanServiceError as exc:
-        return err(str(exc))
-    return ok({"success": True, "updated_keys": updated})
-
-
-async def json_summary() -> Result[dict[str, Any]]:
-    try:
-        return ok(plan_summary())
-    except PlanServiceError as exc:
-        return err(str(exc))
-
-
-async def archive() -> Result[dict[str, Any]]:
-    try:
-        result = archive_plan()
-    except PlanServiceError as exc:
-        return err(str(exc))
-    if not result["archived"]:
-        return ok({"success": True, "message": "No plan file to archive"})
-    return ok({"success": True, "archive_name": result["archive_name"]})
+__all__ = ["archive", "json_summary", "set_context"]
