@@ -5,25 +5,17 @@
 #
 # display_map translates display-names to internal invocation-name
 # keys from SKILL.md. Skills not in display_map match by exact key.
+#
+# This file is the core fragment (ADR-0034 Stage A3, GH-1552). Entries
+# that name one plugin's skills live in families.d/<plugin>.yaml and
+# are merged in by scripts/lib-families.sh. `families` stays whole here:
+# it is an ordered list spanning plugins, and appending per-plugin
+# fragments would reorder SKILLS.md (#1589).
 
 display_map:
-  commit: dev10x:git-commit
-  commit:split: dev10x:git-commit-split
-  commit:fixup: dev10x:git-fixup
-  commit:to-new-ticket: dev10x:git-promote
-  branch:groom: dev10x:git-groom
-  pr:create: dev10x:gh-pr-create
-  pr:respond: dev10x:gh-pr-respond
-  pr:monitor: dev10x:gh-pr-monitor
-  pr:request-review: dev10x:gh-pr-request-review
-  pr:triage: dev10x:gh-pr-triage
-  pr:comment-fixup: dev10x:gh-pr-fixup
-  ticket:work-on: dev10x:work-on
   logs: logs:start
-  dev10x:investigate: investigate
   triage-sentry: triage-sentry
   app-db: tt:db
-  release-notes: dev10x:release-notes
 
 families:
   - label: Pipeline
