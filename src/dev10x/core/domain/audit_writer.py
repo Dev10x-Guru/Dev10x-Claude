@@ -7,7 +7,7 @@ lives in a different package (``audit/``). The hooks layer
 outcomes, and append audit records, but it must not import the
 ``audit/`` adapter's internals directly (audit memo Finding I6 — the
 ``hooks → audit`` inversion). This Protocol declares the surface in the
-core; ``dev10x.skillmgmt.audit.log_reader`` provides the concrete implementation,
+core; ``dev10x.teach.audit.log_reader`` provides the concrete implementation,
 and the hooks layer depends on the Protocol and receives the concrete
 writer through a single injection seam. ``ConfigLoader`` in
 ``dev10x.domain.config_loader`` is the same pattern in the same layer.

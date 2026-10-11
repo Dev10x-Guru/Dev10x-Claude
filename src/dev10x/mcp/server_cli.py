@@ -5,7 +5,7 @@ and each plugin namespace's `mcp/` package (ADR-0034):
   - github_tools.py  — GitHub/PR/issue/milestone/review/CI/release handlers
   - git_tools.py     — git push, rebase, worktree handlers
   - tasks/mcp/plan_tools.py — plan-sync handlers
-  - skillmgmt/mcp/audit_tools.py — session audit and hook-log handlers
+  - teach/mcp/audit_tools.py — session audit and hook-log handlers
   - misc_tools.py    — mktmp, slack, permission, skill-index, upgrade handlers
   - roots_tools.py   — client-roots awareness (GH-344)
   - sampling_tools.py — server-initiated sampling (GH-343)
@@ -60,11 +60,11 @@ from dev10x.mcp.roots_tools import *  # noqa: E402, F401, F403
 from dev10x.mcp.sampling_tools import *  # noqa: E402, F401, F403
 from dev10x.mcp.strict_args import enforce_strict_arguments  # noqa: E402
 from dev10x.mcp.usage_tools import *  # noqa: E402, F401, F403
-from dev10x.skillmgmt.mcp import audit_tools  # noqa: E402, F401
-from dev10x.skillmgmt.mcp.audit_tools import *  # noqa: E402, F401, F403
 from dev10x.tasks.mcp import plan_tools, task_index_tools  # noqa: E402, F401
 from dev10x.tasks.mcp.plan_tools import *  # noqa: E402, F401, F403
 from dev10x.tasks.mcp.task_index_tools import *  # noqa: E402, F401, F403
+from dev10x.teach.mcp import audit_tools  # noqa: E402, F401
+from dev10x.teach.mcp.audit_tools import *  # noqa: E402, F401, F403
 
 # GH-1122: unknown kwargs are dropped twice over by FastMCP's generated
 # arg model, so a call naming a parameter this release does not have

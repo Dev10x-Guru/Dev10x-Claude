@@ -21,7 +21,8 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from dev10x.domain.claude_paths import ClaudeDir
-from dev10x.skillmgmt.audit.friction_transcript_model import (
+from dev10x.subprocess_utils import effective_cwd
+from dev10x.teach.audit.friction_transcript_model import (
     Finding,
     HygieneFinding,
     audit_script_hygiene,
@@ -34,10 +35,9 @@ from dev10x.skillmgmt.audit.friction_transcript_model import (
     propose_allow_rules,
     write_output,
 )
-from dev10x.skillmgmt.audit.friction_transcript_model import (
+from dev10x.teach.audit.friction_transcript_model import (
     analyze_permissions as _analyze_permissions,
 )
-from dev10x.subprocess_utils import effective_cwd
 
 
 @dataclass

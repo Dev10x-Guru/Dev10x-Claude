@@ -10,7 +10,7 @@ package "Stage A — one plugin, dev10x (no user-visible change)" {
     [dev10x.infra] as INFRA
     [dev10x.db] as DB
     [dev10x.comm] as COMM
-    [dev10x.skillmgmt] as SKILLMGMT
+    [dev10x.teach] as TEACH
     [dev10x.tasks] as TASKS
     [dev10x.scoping] as SCOPING
     [dev10x.coding] as CODING
@@ -24,7 +24,7 @@ QA --> CORE
 INFRA --> CORE
 DB --> CORE
 COMM --> CORE
-SKILLMGMT --> CORE
+TEACH --> CORE
 TASKS --> CORE
 SCOPING --> CORE
 CODING --> CORE

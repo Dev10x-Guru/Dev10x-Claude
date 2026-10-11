@@ -10,9 +10,9 @@ from typing import Any
 
 from dev10x.core.paths import skill_script
 from dev10x.domain.common.result import Result, err, ok
-from dev10x.skillmgmt.skill_index.builder import SkillEntry, scan_skill_dirs
-from dev10x.skillmgmt.skill_index.catalog import SkillCatalog
 from dev10x.subprocess_utils import async_run_script
+from dev10x.teach.skill_index.builder import SkillEntry, scan_skill_dirs
+from dev10x.teach.skill_index.catalog import SkillCatalog
 
 __all__ = ["SkillCatalog", "SkillEntry", "generate_all", "scan_skill_dirs"]
 

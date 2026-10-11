@@ -24,7 +24,7 @@ plugins:
     - gog
     - slack
     - slack-setup
-  skillmgmt:
+  teach:
     - audit-file
     - context-audit
     - memory-maintenance

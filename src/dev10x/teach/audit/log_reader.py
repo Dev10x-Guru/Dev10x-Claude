@@ -31,7 +31,7 @@ from pathlib import Path
 from typing import Any
 
 from dev10x.domain.hook_telemetry import HookOutcome
-from dev10x.skillmgmt.audit.summarizer import summarize  # noqa: F401  (re-export — audit finding D4)
+from dev10x.teach.audit.summarizer import summarize  # noqa: F401  (re-export — audit finding D4)
 
 SPAN_ID_ENV = "DEV10X_HOOK_SPAN_ID"
 AUDIT_ENABLE_ENV = "DEV10X_HOOK_AUDIT"

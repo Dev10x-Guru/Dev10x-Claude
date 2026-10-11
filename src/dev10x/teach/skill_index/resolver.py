@@ -19,8 +19,8 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from dev10x.skillmgmt.skill_index.builder import SkillEntry
-from dev10x.skillmgmt.skill_index.catalog import SkillCatalog
+from dev10x.teach.skill_index.builder import SkillEntry
+from dev10x.teach.skill_index.catalog import SkillCatalog
 
 
 def feature_name(invocation_name: str) -> str:

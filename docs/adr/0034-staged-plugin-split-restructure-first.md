@@ -106,7 +106,7 @@ Every step ships inside `dev10x` and keeps:
    - an inventory of `dev10x:<skill>` references;
    - a typed reader for the `plan.yaml` mirror contract, owned by core.
 2. **Python namespaces.** We move code into
-   `dev10x.core|qa|infra|db|comm|skillmgmt|tasks|scoping|coding`.
+   `dev10x.core|qa|infra|db|comm|teach|tasks|scoping|coding`.
    - Each step moves code and leaves a re-export shim at the old path.
      No logic changes.
    - The stage ends with the boundary test enforcing: a namespace
@@ -266,7 +266,7 @@ stages.
    the MCP snapshot test, the reference inventory test, and the
    `plan.yaml` contract reader.
 2. **A1 Namespaces:** move plus shim, one namespace or sub-area per PR,
-   in the order `core` → `tasks` → `comm` → `db` → `skillmgmt` →
+   in the order `core` → `tasks` → `comm` → `db` → `teach` →
    `scoping` → `coding` → `qa`/`infra`. Then switch the boundary test to
    enforcing.
 3. **A2 MCP internals:** split `misc_tools`, add `register(server)` per

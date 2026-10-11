@@ -205,7 +205,7 @@ async def generate_skill_index(
     Returns:
         Dictionary with keys: success (bool), output (str)
     """
-    from dev10x.skillmgmt import skill_index as idx
+    from dev10x.teach import skill_index as idx
 
     return to_wire(await idx.generate_all(force=force))
 

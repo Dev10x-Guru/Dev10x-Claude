@@ -22,10 +22,10 @@ from dev10x.core.paths import skill_script
 from dev10x.domain.claude_paths import ClaudeDir
 from dev10x.domain.common.result import Result, err, ok
 from dev10x.domain.file_locks import atomic_write_text
-from dev10x.skillmgmt.audit.log_pruner import prune
-from dev10x.skillmgmt.audit.log_reader import audit_dir, iter_records
-from dev10x.skillmgmt.audit.summarizer import summarize
 from dev10x.subprocess_utils import async_run_script
+from dev10x.teach.audit.log_pruner import prune
+from dev10x.teach.audit.log_reader import audit_dir, iter_records
+from dev10x.teach.audit.summarizer import summarize
 
 __all__ = [
     "iter_records",
@@ -96,7 +96,7 @@ async def analyze_permissions(
     callers consume structured data without a subprocess hop.
     """
 
-    from dev10x.skillmgmt.audit.analyze import build_audit_report
+    from dev10x.teach.audit.analyze import build_audit_report
 
     transcript_file = Path(transcript_path)
     if not transcript_file.exists():
