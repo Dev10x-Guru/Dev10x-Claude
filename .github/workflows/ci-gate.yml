@@ -123,6 +123,8 @@ jobs:
             --cov=src/dev10x/coding/github \
             --cov=src/dev10x/coding/monitor \
             --cov=src/dev10x/coding/release \
+            --cov=src/dev10x/coding/mcp \
+            --cov=src/dev10x/comm/mcp \
             --cov=src/dev10x/github \
             --cov=src/dev10x/monitor \
             --cov=src/dev10x/core/permission \

@@ -6,7 +6,10 @@ and each plugin namespace's `mcp/` package (ADR-0034):
   - git_tools.py     — git push, rebase, worktree handlers
   - tasks/mcp/plan_tools.py — plan-sync handlers
   - teach/mcp/audit_tools.py — session audit and hook-log handlers
-  - misc_tools.py    — mktmp, slack, permission, skill-index, upgrade handlers
+  - core/mcp/utility_tools.py — mktmp, preamble, permission, upgrade handlers
+  - coding/mcp/runner_tools.py — run_tests, run_node_tests
+  - comm/mcp/slack_tools.py — slack_thread_is_forward
+  - teach/mcp/skill_index_tools.py — generate_skill_index
   - roots_tools.py   — client-roots awareness (GH-344)
   - sampling_tools.py — server-initiated sampling (GH-343)
 
@@ -34,13 +37,18 @@ from typing import Literal, cast
 # registration (GH-340).
 # Importing roots_tools registers the list_client_roots tool (GH-344).
 # Importing sampling_tools registers the request_sampling tool (GH-343).
+from dev10x.coding.mcp import runner_tools  # noqa: E402, F401
+from dev10x.coding.mcp.runner_tools import *  # noqa: E402, F401, F403
+from dev10x.comm.mcp import slack_tools  # noqa: E402, F401
+from dev10x.comm.mcp.slack_tools import *  # noqa: E402, F401, F403
+from dev10x.core.mcp import utility_tools  # noqa: E402, F401
+from dev10x.core.mcp.utility_tools import *  # noqa: E402, F401, F403
 from dev10x.mcp import (  # noqa: E402, F401
     gate_tools,
     git_tools,
     github_tools,
     knowledge_prompts,
     knowledge_resources,
-    misc_tools,
     monitor_tools,
     release_tools,
     roots_tools,
@@ -53,7 +61,6 @@ from dev10x.mcp._app import (
 from dev10x.mcp.gate_tools import *  # noqa: E402, F401, F403
 from dev10x.mcp.git_tools import *  # noqa: E402, F401, F403
 from dev10x.mcp.github_tools import *  # noqa: E402, F401, F403
-from dev10x.mcp.misc_tools import *  # noqa: E402, F401, F403
 from dev10x.mcp.monitor_tools import *  # noqa: E402, F401, F403
 from dev10x.mcp.release_tools import *  # noqa: E402, F401, F403
 from dev10x.mcp.roots_tools import *  # noqa: E402, F401, F403
@@ -63,8 +70,9 @@ from dev10x.mcp.usage_tools import *  # noqa: E402, F401, F403
 from dev10x.tasks.mcp import plan_tools, task_index_tools  # noqa: E402, F401
 from dev10x.tasks.mcp.plan_tools import *  # noqa: E402, F401, F403
 from dev10x.tasks.mcp.task_index_tools import *  # noqa: E402, F401, F403
-from dev10x.teach.mcp import audit_tools  # noqa: E402, F401
+from dev10x.teach.mcp import audit_tools, skill_index_tools  # noqa: E402, F401
 from dev10x.teach.mcp.audit_tools import *  # noqa: E402, F401, F403
+from dev10x.teach.mcp.skill_index_tools import *  # noqa: E402, F401, F403
 
 # GH-1122: unknown kwargs are dropped twice over by FastMCP's generated
 # arg model, so a call naming a parameter this release does not have

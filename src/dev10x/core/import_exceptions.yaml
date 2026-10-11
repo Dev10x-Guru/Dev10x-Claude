@@ -20,12 +20,6 @@ exceptions:
       MCP composition root: imports every namespace's tool modules until
       each namespace exports register(server).
     until: PLG-M3
-  - source: dev10x.mcp.misc_tools
-    target: dev10x
-    reason: >-
-      Mixed-owner tool module (runner, skill index, Slack) awaiting the
-      split by owner.
-    until: PLG-M3
   - source: dev10x.core.mcp.gate_query
     target: dev10x.coding.github
     reason: >-
