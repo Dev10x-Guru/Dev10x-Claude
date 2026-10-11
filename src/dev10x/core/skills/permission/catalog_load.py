@@ -27,7 +27,7 @@ from dev10x.domain.common.plugin_version import PluginVersion
 from dev10x.domain.common.result import Result
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.skills.permission.catalog_merge import MergedCatalog, merge_catalogs
-from dev10x.skills.permission.catalog_paths import shipped_projects_catalog
+from dev10x.skills.permission.catalog_paths import catalog_text, shipped_projects_catalog
 from dev10x.skills.permission.catalog_result import _result
 from dev10x.skills.permission.config import parse_config, resolve_config
 
@@ -211,7 +211,7 @@ def init_userspace_config() -> dict[str, object]:
             errors.append(f"ERROR: Plugin default config not found: {PLUGIN_CONFIG}")
             return _result(exit_code=1, messages=messages, errors=errors)
 
-        content = PLUGIN_CONFIG.read_text()
+        content = catalog_text(catalog_path=PLUGIN_CONFIG)
         detected_cache = _detect_plugin_cache()
         content = content.replace(
             "~/.claude/plugins/cache/Dev10x-Guru/dev10x-claude",

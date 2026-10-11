@@ -15,6 +15,7 @@ from dev10x.skills.permission import (
     update_paths,
 )
 from dev10x.skills.permission.catalog_paths import shipped_projects_catalog
+from dev10x.skills.permission.config import parse_config
 
 
 class TestShippedProjectsCatalog:
@@ -50,6 +51,81 @@ class TestShippedProjectsCatalog:
         for module in modules:
             source = Path(module.__file__).read_text()
             assert "parents[4]" not in source, module.__name__
+
+
+@pytest.fixture
+def fragmented_catalog(tmp_path: Path) -> Path:
+    catalog = tmp_path / "projects.yaml"
+    catalog.write_text("roots: []\nbase_permissions:\n  - core-rule\n")
+    fragments = tmp_path / catalog_paths.FRAGMENTS_DIRNAME
+    fragments.mkdir()
+    (fragments / "scoping.yaml").write_text("tracker_permissions:\n  linear:\n    - lin\n")
+    (fragments / "coding.yaml").write_text("base_permissions:\n  - coding-rule\n")
+    return catalog
+
+
+@pytest.fixture
+def plain_catalog(tmp_path: Path) -> Path:
+    catalog = tmp_path / "projects.yaml"
+    catalog.write_text("# header\nbase_permissions:\n  - only\n")
+    return catalog
+
+
+class TestCatalogFragments:
+    def test_fragment_dir_sits_beside_the_catalog(self, plain_catalog: Path) -> None:
+        dirs = catalog_paths.catalog_fragment_dirs(catalog_path=plain_catalog)
+        assert dirs == (plain_catalog.parent / "projects.d",)
+
+    def test_files_list_the_catalog_then_fragments_in_plugin_order(
+        self, fragmented_catalog: Path
+    ) -> None:
+        fragments = fragmented_catalog.parent / "projects.d"
+        files = catalog_paths.catalog_files(catalog_path=fragmented_catalog)
+        assert files == [fragmented_catalog, fragments / "scoping.yaml", fragments / "coding.yaml"]
+
+    def test_merges_fragments_into_the_catalog(self, fragmented_catalog: Path) -> None:
+        document = catalog_paths.load_catalog_document(catalog_path=fragmented_catalog)
+        assert document == {
+            "roots": [],
+            "base_permissions": ["core-rule", "coding-rule"],
+            "tracker_permissions": {"linear": ["lin"]},
+        }
+
+    def test_a_catalog_without_fragments_loads_unchanged(self, plain_catalog: Path) -> None:
+        document = catalog_paths.load_catalog_document(catalog_path=plain_catalog)
+        assert document == {"base_permissions": ["only"]}
+
+    def test_explicit_fragment_dirs_override_the_default(
+        self, fragmented_catalog: Path, tmp_path: Path
+    ) -> None:
+        other = tmp_path / "plugins" / "qa"
+        other.mkdir(parents=True)
+        (other / "qa.yaml").write_text("base_permissions:\n  - qa-rule\n")
+        document = catalog_paths.load_catalog_document(
+            catalog_path=fragmented_catalog,
+            fragment_dirs=[fragmented_catalog.parent / "projects.d", other],
+        )
+        assert document["base_permissions"] == ["core-rule", "qa-rule", "coding-rule"]
+
+    def test_text_of_a_plain_catalog_is_the_file_verbatim(self, plain_catalog: Path) -> None:
+        text = catalog_paths.catalog_text(catalog_path=plain_catalog)
+        assert text == plain_catalog.read_text()
+
+    def test_text_joins_the_catalog_and_its_fragments(self, fragmented_catalog: Path) -> None:
+        fragments = fragmented_catalog.parent / "projects.d"
+        expected = "\n".join(
+            path.read_text()
+            for path in (fragmented_catalog, fragments / "scoping.yaml", fragments / "coding.yaml")
+        )
+        assert catalog_paths.catalog_text(catalog_path=fragmented_catalog) == expected
+
+
+class TestParseConfigReadsFragments:
+    def test_every_parse_config_caller_sees_the_merged_catalog(
+        self, fragmented_catalog: Path
+    ) -> None:
+        config = parse_config(fragmented_catalog)
+        assert config["tracker_permissions"] == {"linear": ["lin"]}
 
 
 class TestCallSitesAgree:

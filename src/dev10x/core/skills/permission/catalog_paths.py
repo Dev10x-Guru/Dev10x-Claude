@@ -23,11 +23,22 @@ cannot drift apart again.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
+import yaml
+
+from dev10x.core.config.fragments import (
+    ConfigFragment,
+    discover_fragments,
+    load_merged,
+    plugin_order,
+)
 from dev10x.domain.plugin_root import resolve_plugin_root
 
 CATALOG_RELPATH = Path("skills") / "upgrade-cleanup" / "projects.yaml"
+FRAGMENTS_DIRNAME = "projects.d"
 
 
 def shipped_projects_catalog(*, plugin_root: Path | None = None) -> Path | None:
@@ -47,4 +58,63 @@ def shipped_projects_catalog(*, plugin_root: Path | None = None) -> Path | None:
     return root / CATALOG_RELPATH
 
 
-__all__ = ["CATALOG_RELPATH", "shipped_projects_catalog"]
+def catalog_fragment_dirs(*, catalog_path: Path) -> tuple[Path, ...]:
+    return (catalog_path.parent / FRAGMENTS_DIRNAME,)
+
+
+def catalog_fragments(
+    *,
+    catalog_path: Path,
+    fragment_dirs: Sequence[Path] | None = None,
+) -> list[ConfigFragment]:
+    candidates = (
+        catalog_fragment_dirs(catalog_path=catalog_path)
+        if fragment_dirs is None
+        else fragment_dirs
+    )
+    directories = [directory for directory in candidates if directory.is_dir()]
+    if not directories:
+        return []
+    return discover_fragments(directories=directories, plugins=plugin_order())
+
+
+def catalog_files(
+    *,
+    catalog_path: Path,
+    fragment_dirs: Sequence[Path] | None = None,
+) -> list[Path]:
+    fragments = catalog_fragments(catalog_path=catalog_path, fragment_dirs=fragment_dirs)
+    return [catalog_path, *(fragment.path for fragment in fragments)]
+
+
+def load_catalog_document(
+    *,
+    catalog_path: Path,
+    fragment_dirs: Sequence[Path] | None = None,
+) -> Any:
+    base = yaml.safe_load(catalog_path.read_text())
+    fragments = catalog_fragments(catalog_path=catalog_path, fragment_dirs=fragment_dirs)
+    if not fragments:
+        return base
+    return load_merged(fragments=fragments, base=(str(catalog_path), base or {}))
+
+
+def catalog_text(
+    *,
+    catalog_path: Path,
+    fragment_dirs: Sequence[Path] | None = None,
+) -> str:
+    files = catalog_files(catalog_path=catalog_path, fragment_dirs=fragment_dirs)
+    return "\n".join(path.read_text() for path in files)
+
+
+__all__ = [
+    "CATALOG_RELPATH",
+    "FRAGMENTS_DIRNAME",
+    "catalog_files",
+    "catalog_fragment_dirs",
+    "catalog_fragments",
+    "catalog_text",
+    "load_catalog_document",
+    "shipped_projects_catalog",
+]
