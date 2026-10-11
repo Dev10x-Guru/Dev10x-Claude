@@ -17,8 +17,10 @@ if TYPE_CHECKING:
         UserPlaybook,
         compare_playbooks,
         find_user_playbooks,
+        load_plugin_default,
         plugin_default_path,
         render_markdown_report,
+        shared_fragment_directories,
     )
 
 alias_package(old=__name__, new="dev10x.core.skills.playbook")
@@ -31,6 +33,8 @@ __all__ = [
     "UserPlaybook",
     "compare_playbooks",
     "find_user_playbooks",
+    "load_plugin_default",
     "plugin_default_path",
     "render_markdown_report",
+    "shared_fragment_directories",
 ]

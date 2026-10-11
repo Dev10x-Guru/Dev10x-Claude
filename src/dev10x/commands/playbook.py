@@ -14,10 +14,12 @@ from pathlib import Path
 import click
 import yaml
 
+from dev10x.core.config.fragments import FragmentError
 from dev10x.domain.plugin_root import resolve_plugin_root
 from dev10x.skills.playbook import (
     compare_playbooks,
     find_user_playbooks,
+    load_plugin_default,
     plugin_default_path,
     render_markdown_report,
 )
@@ -34,6 +36,13 @@ def _load_yaml(path: Path) -> dict:
             f"Expected a mapping at the top of {path}, got {type(data).__name__}"
         )
     return data
+
+
+def _load_default(*, skill_key: str, plugin_roots: list[Path]) -> dict | None:
+    try:
+        return load_plugin_default(skill_key=skill_key, plugin_roots=plugin_roots)
+    except FragmentError as ex:
+        raise click.ClickException(str(ex)) from ex
 
 
 def _report_projects(
@@ -130,14 +139,14 @@ def playbook_diff(*, skill_key: str | None, plugin_root: str | None) -> None:
     skipped: list[str] = []
     for override in overrides:
         default_path = plugin_default_path(skill_key=override.skill_key, plugin_root=root)
-        if not default_path.is_file():
+        default_doc = _load_default(skill_key=override.skill_key, plugin_roots=[root])
+        if default_doc is None:
             skipped.append(override.skill_key)
             click.echo(
                 f"\n## Skipping `{override.skill_key}` ({override.scope})\n"
                 f"  No plugin default at {default_path}\n"
             )
             continue
-        default_doc = _load_yaml(default_path)
         user_doc = _load_yaml(override.path)
         diff = compare_playbooks(
             default_doc=default_doc,

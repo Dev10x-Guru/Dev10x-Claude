@@ -3,9 +3,17 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
+from dev10x.core.config.fragments import (
+    discover_fragments,
+    load_fragment,
+    load_merged,
+    plugin_order,
+)
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.subprocess_utils import effective_cwd
 
@@ -106,3 +114,37 @@ def plugin_default_path(*, skill_key: str, plugin_root: Path) -> Path:
     if shared.is_file():
         return shared
     return dedicated
+
+
+# GH-1555 (ADR-0034 Stage A3): the shared default keeps only the mechanism
+# (schema, version, overrides) in core; each plugin contributes its plays as
+# a `<plugin>.yaml` fragment under one of its skills' `playbook.d/`.
+SHARED_FRAGMENT_GLOB = "skills/*/references/playbook.d"
+
+
+def shared_fragment_directories(*, plugin_roots: Sequence[Path]) -> list[Path]:
+    return [
+        directory for root in plugin_roots for directory in sorted(root.glob(SHARED_FRAGMENT_GLOB))
+    ]
+
+
+def load_plugin_default(*, skill_key: str, plugin_roots: Sequence[Path]) -> dict[str, Any] | None:
+    """Return the resolved plugin default playbook for ``skill_key``.
+
+    A dedicated default wins. Otherwise the core mechanism file is merged
+    with every plugin's shared-default fragments, core first, then the
+    ``plugins.yaml`` order. ``None`` when no plugin root ships a default.
+    """
+    for root in plugin_roots:
+        path = plugin_default_path(skill_key=skill_key, plugin_root=root)
+        if path.is_file() and path != root / SHARED_DEFAULT_RELATIVE:
+            return load_fragment(path=path)
+    for root in plugin_roots:
+        base = root / SHARED_DEFAULT_RELATIVE
+        if base.is_file():
+            fragments = discover_fragments(
+                directories=shared_fragment_directories(plugin_roots=plugin_roots),
+                plugins=plugin_order(),
+            )
+            return load_merged(fragments=fragments, base=(str(base), load_fragment(path=base)))
+    return None

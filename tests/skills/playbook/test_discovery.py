@@ -10,7 +10,9 @@ from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.skills.playbook import discovery
 from dev10x.skills.playbook.discovery import (
     find_user_playbooks,
+    load_plugin_default,
     plugin_default_path,
+    shared_fragment_directories,
 )
 
 
@@ -164,3 +166,70 @@ class TestPluginDefaultPath:
         result = plugin_default_path(skill_key="playbook", plugin_root=tmp_path)
 
         assert result == shared_dir / "playbook.yaml"
+
+
+def _write(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text)
+
+
+@pytest.fixture
+def split_root(tmp_path: Path) -> Path:
+    """A plugin root whose shared default is split into core + fragments (GH-1555)."""
+    root = tmp_path / "plugin"
+    _write(root / "skills/playbook/references/playbook.yaml", "version: '1'\noverrides: []\n")
+    _write(
+        root / "skills/work-on/references/playbook.d/coding.yaml",
+        "defaults:\n  feature:\n    steps:\n    - subject: B\n    - subject: C\n",
+    )
+    _write(
+        root / "skills/park/references/playbook.d/tasks.yaml",
+        "defaults:\n  park:\n    steps:\n    - subject: P\n",
+    )
+    return root
+
+
+class TestLoadPluginDefault:
+    def test_merges_core_with_fragments_in_plugin_order(self, split_root: Path) -> None:
+        document = load_plugin_default(skill_key="work-on", plugin_roots=[split_root])
+
+        assert document == {
+            "version": "1",
+            "overrides": [],
+            "defaults": {
+                "park": {"steps": [{"subject": "P"}]},
+                "feature": {"steps": [{"subject": "B"}, {"subject": "C"}]},
+            },
+        }
+
+    def test_plugin_order_puts_tasks_before_coding(self, split_root: Path) -> None:
+        document = load_plugin_default(skill_key="work-on", plugin_roots=[split_root])
+
+        assert list(document["defaults"]) == ["park", "feature"]  # type: ignore[index]
+
+    def test_dedicated_default_skips_the_merge(self, split_root: Path) -> None:
+        _write(split_root / "skills/investigate/references/playbook.yaml", "defaults: {x: {}}\n")
+
+        document = load_plugin_default(skill_key="investigate", plugin_roots=[split_root])
+
+        assert document == {"defaults": {"x": {}}}
+
+    def test_returns_none_without_any_default(self, tmp_path: Path) -> None:
+        assert load_plugin_default(skill_key="work-on", plugin_roots=[tmp_path]) is None
+
+    def test_searches_every_plugin_root(self, split_root: Path, tmp_path: Path) -> None:
+        other = tmp_path / "other"
+        _write(
+            other / "skills/qa-self/references/playbook.d/qa.yaml",
+            "defaults:\n  qa:\n    steps: []\n",
+        )
+
+        document = load_plugin_default(skill_key="work-on", plugin_roots=[other, split_root])
+
+        assert list(document["defaults"]) == ["qa", "park", "feature"]  # type: ignore[index]
+
+    def test_fragment_directories_are_listed_per_root(self, split_root: Path) -> None:
+        assert shared_fragment_directories(plugin_roots=[split_root]) == [
+            split_root / "skills/park/references/playbook.d",
+            split_root / "skills/work-on/references/playbook.d",
+        ]
