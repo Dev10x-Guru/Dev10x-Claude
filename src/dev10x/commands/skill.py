@@ -10,7 +10,7 @@ from dev10x.domain.common.result import ErrorResult
 
 @click.group()
 def skill() -> None:
-    """Skill script commands (audit, notify, permission, release-notes)."""
+    """Skill script commands (audit, notify, permission, release-notes, rename)."""
 
 
 @skill.group()
@@ -352,6 +352,56 @@ def gchat_review_prepare(*, pr: int, repo: str) -> None:
     except gchat_review_request.GhCommandError as ex:
         click.echo(f"[ERROR] {ex}", err=True)
         sys.exit(1)
+
+
+@skill.command(name="rename")
+@click.argument("old")
+@click.argument("new")
+@click.option(
+    "--apply",
+    "apply_changes",
+    is_flag=True,
+    default=False,
+    help="Write the rewrite to disk. Without it, only the diff is printed.",
+)
+@click.option(
+    "--root",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=".",
+    show_default=True,
+    help="Repository checkout to rewrite.",
+)
+def rename(*, old: str, new: str, apply_changes: bool, root: Path) -> None:
+    """Rewrite one skill's invocation name across the repo (GH-1558).
+
+    OLD and NEW are `<plugin>:<skill>` names, e.g. `dev10x:tts` and
+    `dev10x-qa:tts`; a bare skill name means the `dev10x` core plugin.
+    Plugin names come from `src/dev10x/core/plugins.yaml`. Prints a
+    unified diff and changes nothing unless `--apply` is passed.
+    """
+    from dev10x.core.plugin_map import load_plugin_map
+    from dev10x.core.skill_rename import plan_rename_from_text
+
+    result = plan_rename_from_text(
+        root=root.resolve(),
+        old=old,
+        new=new,
+        plugin_map=load_plugin_map(),
+    )
+    if isinstance(result, ErrorResult):
+        click.echo(f"❌ {result.error}", err=True)
+        sys.exit(1)
+    plan = result.value
+    click.echo(plan.diff(), nl=False)
+    summary = (
+        f"{plan.replacements} reference(s) in {len(plan.rewrites)} file(s): "
+        f"{plan.old.text} -> {plan.new.text}"
+    )
+    if apply_changes:
+        plan.apply()
+        click.echo(f"Rewrote {summary}")
+        return
+    click.echo(f"Dry run, nothing written. Would rewrite {summary}. Pass --apply to write.")
 
 
 @skill.command(name="count-instructions")
