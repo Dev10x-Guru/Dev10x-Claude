@@ -115,7 +115,7 @@ def review_rules(
     and exits non-zero so the Action can degrade gracefully.
     """
     from dev10x.domain.common.result import SuccessResult
-    from dev10x.github import rule_authoring
+    from dev10x.coding.github import rule_authoring
 
     result = asyncio.run(
         rule_authoring.author_reference_rules(
@@ -205,7 +205,7 @@ def learn(
     import os
 
     from dev10x.domain.common.result import SuccessResult
-    from dev10x.github import learn_loop
+    from dev10x.coding.github import learn_loop
 
     result = asyncio.run(
         learn_loop.run_learning_loop(

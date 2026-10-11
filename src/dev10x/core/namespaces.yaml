@@ -9,6 +9,9 @@ namespaces:
   dev10x.audit: skillmgmt
   dev10x.cli: core
   dev10x.coding: coding
+  dev10x.coding.github._gateway: core
+  dev10x.coding.github.app_api: core
+  dev10x.coding.github.app_auth: core
   dev10x.comm: comm
   dev10x.commands: core
   dev10x.config: core

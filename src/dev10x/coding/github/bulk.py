@@ -12,9 +12,9 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from typing import Any
 
+from dev10x.coding.github import issues as issue_ops
+from dev10x.coding.github import milestones as milestone_ops
 from dev10x.domain.common.result import ErrorResult, Result, err, ok
-from dev10x.github import issues as issue_ops
-from dev10x.github import milestones as milestone_ops
 
 
 async def _bulk_execute(

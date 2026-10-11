@@ -30,8 +30,8 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from dev10x.coding.github import review_patterns
 from dev10x.domain.common.result import Result, SuccessResult, err, ok
-from dev10x.github import review_patterns
 from dev10x.subprocess_utils import async_run
 
 log = logging.getLogger(__name__)

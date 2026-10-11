@@ -2,8 +2,8 @@
 # (GH-1525). One "source -> target" per line. Stage A1 removes lines;
 # tests/core/test_import_boundary.py fails on any edge not listed here.
 dev10x.commands.foreman -> dev10x.skills.foreman.watch
-dev10x.commands.github -> dev10x.github.learn_loop
-dev10x.commands.github -> dev10x.github.rule_authoring
+dev10x.commands.github -> dev10x.coding.github.learn_loop
+dev10x.commands.github -> dev10x.coding.github.rule_authoring
 dev10x.commands.hook -> dev10x.skillmgmt.audit
 dev10x.commands.hook -> dev10x.tasks.hooks.task_plan_sync
 dev10x.commands.orchestration -> dev10x.skills.orchestration.stranded_work
@@ -16,7 +16,7 @@ dev10x.commands.skill -> dev10x.comm.skills.notifications.slack_notify
 dev10x.commands.skill -> dev10x.comm.skills.notifications.slack_review_request
 dev10x.commands.skill -> dev10x.skillmgmt.skills.audit.instruction_budget
 dev10x.core.hooks.audit_emit -> dev10x.skillmgmt.audit.log_reader
-dev10x.core.mcp.gate_query -> dev10x.github
+dev10x.core.mcp.gate_query -> dev10x.coding.github
 dev10x.mcp.misc_tools -> dev10x.core.utilities.slack
 dev10x.mcp.misc_tools -> dev10x.runner
 dev10x.mcp.misc_tools -> dev10x.skillmgmt.skill_index

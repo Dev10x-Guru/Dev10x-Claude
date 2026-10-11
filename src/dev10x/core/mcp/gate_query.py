@@ -139,7 +139,7 @@ async def _supervisor_cleared(*, gate: str, supervisor_review: str, solo_repo: b
         return False
 
     from dev10x.domain.common.result import ErrorResult
-    from dev10x.github import pr_detect, pr_labels
+    from dev10x.coding.github import pr_detect, pr_labels
 
     detected = await pr_detect(arg="")
     if isinstance(detected, ErrorResult):

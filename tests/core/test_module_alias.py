@@ -240,6 +240,13 @@ class TestMovedPackages:
             ("dev10x.scope", "dev10x.scoping.scope"),
             ("dev10x.scope.norms_renderer", "dev10x.scoping.scope.norms_renderer"),
             ("dev10x.git", "dev10x.coding.git"),
+            ("dev10x.github", "dev10x.coding.github"),
+            ("dev10x.github.pulls", "dev10x.coding.github.pulls"),
+            ("dev10x.github._gateway", "dev10x.core.github._gateway"),
+            ("dev10x.github.app_api", "dev10x.core.github.app_api"),
+            ("dev10x.github.app_auth", "dev10x.core.github.app_auth"),
+            ("dev10x.coding.github._gateway", "dev10x.core.github._gateway"),
+            ("dev10x.monitor", "dev10x.coding.monitor"),
         ],
     )
     def test_old_path_is_the_moved_module(self, old: str, new: str) -> None:
