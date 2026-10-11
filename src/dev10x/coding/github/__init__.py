@@ -21,7 +21,7 @@ intercepts every caller. ``tests/github/test_github_split.py`` fails a
 test that patches a re-export on this facade while package code looks the
 name up elsewhere.
 
-This module only re-exports: production callers (``mcp/github_tools.py``,
+This module only re-exports: production callers (``coding/mcp/github_tools.py``,
 ``core/mcp/gate_query.py``, ``comm/skills/notifications/_gh.py``) keep
 importing from ``dev10x.github``, which is this package under its
 pre-ADR-0034 name (GH-1546).

@@ -14,18 +14,15 @@ exceptions:
       CLI composition root: wires every namespace's click commands into
       the single `dev10x` entry point.
     until: PLG-M6
-  - source: dev10x.mcp.server_cli
-    target: dev10x
-    reason: >-
-      MCP composition root: imports every namespace's tool modules until
-      each namespace exports register(server).
-    until: PLG-M3
   - source: dev10x.core.mcp.gate_query
     target: dev10x.coding.github
     reason: >-
       The supervisor-review floor reads the review:cleared PR label through
       coding's GitHub wrappers (lazy import, only on the parked gate).
-    until: PLG-M3
+      Stage A2 kept it (GH-1549): a seam wired by coding's register()
+      would make the floor read depend on registration order, so it
+      moves to B9, when coding registers from its own plugin.
+    until: PLG-M6
   - source: dev10x.core.hooks.audit_emit
     target: dev10x.teach.audit.log_reader
     reason: >-

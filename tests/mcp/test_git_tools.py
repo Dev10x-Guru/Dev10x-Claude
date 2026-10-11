@@ -1,7 +1,7 @@
 """Tests for git_tools MCP adapter (GH-580).
 
 Covers argument forwarding (especially cwd), ok/err → dict translation,
-and error paths for each adapter function in src/dev10x/mcp/git_tools.py.
+and error paths for each adapter function in src/dev10x/coding/mcp/git_tools.py.
 """
 
 from __future__ import annotations

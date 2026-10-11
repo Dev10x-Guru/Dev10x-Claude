@@ -367,7 +367,7 @@ class TestProtectedBranchDefaultIsDocumentedAccurately:
         assert {"master", "development"} <= set(self._script_defaults())
 
     def test_mcp_docstring_lists_the_script_default_verbatim(self) -> None:
-        source = Path(__file__).parents[2] / "src" / "dev10x" / "mcp" / "git_tools.py"
+        source = Path(__file__).parents[2] / "src" / "dev10x" / "coding" / "mcp" / "git_tools.py"
         collapsed = " ".join(source.read_text().split())
         assert " ".join(self._script_defaults()) in collapsed
 
