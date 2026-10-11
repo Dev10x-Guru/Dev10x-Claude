@@ -717,6 +717,10 @@ Each step in the play has:
 - `skills` — list of skills to delegate to (optional)
 - `steps` — child steps for pre-templated epic expansion (optional)
 - `condition` — hint for conditional execution (optional)
+- `optional` — when `true`, drop the step from the plan if none of its
+  `skills` is installed in this session — e.g. the `structured-spec`
+  ADR / spec-update / spec-sync steps when the scoping skills are absent
+  (GH-1555). Never drop a step whose skill is available.
 
 ### Self-Check Before Plan Generation
 

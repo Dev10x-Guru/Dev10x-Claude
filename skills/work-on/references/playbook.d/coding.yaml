@@ -574,6 +574,7 @@ defaults:
           boundary, an ADR is required. Skip otherwise.
         skills: [dev10x:adr]
         condition: if-architectural
+        optional: true
       - subject: Spec-update gate (Golden Rule)
         type: detailed
         prompt: >
@@ -583,6 +584,7 @@ defaults:
           to Implement.
         skills: [dev10x:spec-update]
         condition: if-requirements-shifted
+        optional: true
       - subject: Plan the commit sequence
         type: detailed
         prompt: >
@@ -622,4 +624,5 @@ defaults:
           Structural drift triggers a regenerate-and-commit pass
           so the spec matches the final code shape.
         skills: [dev10x:spec-sync]
+        optional: true
       - fragment: shipping-pipeline
