@@ -28,6 +28,18 @@ PLUGIN_LOAD_GUARD = SCRIPTS / "plugin-load-guard.sh"
 # decouples assertions from the host's home layout (GH-570).
 _ISOLATED_HOME = tempfile.mkdtemp(prefix="dev10x-orchestrator-home-")
 
+# Default cwd for hooks run without an explicit repo. The Stop hook reads the
+# plan under its cwd, so defaulting to the real checkout made results depend on
+# the developer's live plan.yaml (GH-1583, GH-1587). An empty, plan-less git
+# repo keeps the default deterministic.
+_ISOLATED_CWD = Path(tempfile.mkdtemp(prefix="dev10x-orchestrator-cwd-"))
+subprocess.run(
+    ["git", "init", "-q", str(_ISOLATED_CWD)],
+    check=True,
+    timeout=30,
+    env={"HOME": _ISOLATED_HOME, "PATH": "/usr/bin:/bin:/usr/local/bin"},
+)
+
 
 def _run(script: Path, payload: dict, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
@@ -36,7 +48,7 @@ def _run(script: Path, payload: dict, cwd: Path | None = None) -> subprocess.Com
         capture_output=True,
         text=True,
         timeout=30,
-        cwd=str(cwd or SCRIPTS.parent.parent),
+        cwd=str(cwd or _ISOLATED_CWD),
         env={
             "DEV10X_HOOK_AUDIT": "0",
             "PATH": "/usr/bin:/bin:/usr/local/bin",
@@ -63,6 +75,28 @@ def _git(*args: str, cwd: Path) -> None:
         cwd=str(cwd),
         env={"HOME": _ISOLATED_HOME, "PATH": "/usr/bin:/bin:/usr/local/bin"},
     )
+
+
+def _repo_with_open_plan(*, tmp_path: Path) -> Path:
+    repo = tmp_path / "repo"
+    (repo / ".claude" / "session").mkdir(parents=True)
+    (repo / ".claude" / "session" / "plan.yaml").write_text(
+        "plan:\n  status: in_progress\ntasks:\n  - subject: Ship it\n    status: pending\n",
+        encoding="utf-8",
+    )
+    _git("init", "-q", str(repo), cwd=tmp_path)
+    _git("add", "-A", cwd=repo)
+    _git(
+        "-c",
+        "user.email=test@example.invalid",
+        "-c",
+        "user.name=test",
+        "commit",
+        "-qm",
+        "seed",
+        cwd=repo,
+    )
+    return repo
 
 
 def _repo_with_depleted_plan(*, tmp_path: Path, commit: bool = True) -> Path:
@@ -171,6 +205,26 @@ class TestSessionStopVerdict:
         envelope = json.loads(result.stdout)
         assert envelope["decision"] == "block"
         assert "dev10x:ask" in envelope["reason"]
+
+    def test_default_cwd_ignores_an_open_plan_elsewhere(self, tmp_path: Path) -> None:
+        """GH-1583/GH-1587: an open plan in another checkout must not leak in.
+
+        The open plan lives in a seeded repo that is never passed as cwd,
+        so a plain run must end quietly and only the explicit cwd blocks.
+        """
+        open_repo = _repo_with_open_plan(tmp_path=tmp_path)
+        payload = {
+            "session_id": f"isolation-{uuid.uuid4()}",
+            "transcript_path": self._transcript(tmp_path=tmp_path, closing="Committed."),
+        }
+
+        default_run = _run(SESSION_STOP, payload)
+        open_run = _run(
+            SESSION_STOP, {**payload, "session_id": f"isolation-{uuid.uuid4()}"}, cwd=open_repo
+        )
+
+        assert '"decision"' not in default_run.stdout
+        assert json.loads(open_run.stdout)["decision"] == "block"
 
     def test_a_block_suppresses_the_goodbye(self, tmp_path: Path) -> None:
         """A farewell while the turn is being continued would be a lie."""
