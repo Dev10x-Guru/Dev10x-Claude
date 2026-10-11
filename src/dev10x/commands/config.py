@@ -108,6 +108,33 @@ def migrate_schema(*, cwd: str | None, dry_run: bool) -> None:
         click.echo("\nRun `dev10x config migrate-schema` to apply.")
 
 
+@config.command(name="migrate-skill-names")
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Report which files name a renamed skill without writing.",
+)
+def migrate_skill_names(*, dry_run: bool) -> None:
+    """Rewrite renamed skill names in user configs (GH-1559, ADR-0034).
+
+    Covers `friction.yaml`, `dod-acceptance-criteria.yaml` and the
+    playbook overrides under the Dev10x config root. Idempotent — a run
+    with no old names left writes nothing.
+    """
+    from dev10x.core.skills.upgrade_cleanup.skill_names import migrate_user_configs
+    from dev10x.domain.common.result import SuccessResult
+
+    result = migrate_user_configs(config_home=Dev10xConfigDir.home(), dry_run=dry_run)
+    if not isinstance(result, SuccessResult):
+        raise click.ClickException(result.error)
+    if not result.value:
+        click.echo("Dev10x config: no renamed skill names to migrate.")
+        return
+    verb = "Would rewrite" if dry_run else "Rewrote"
+    for rewrite in result.value:
+        click.echo(f"{verb} {rewrite.replacements} skill name(s) in {rewrite.path}")
+
+
 def _report_projects_lists() -> None:
     """Report Tier-2 `projects:` lists that select nothing (GH-1375, ADR-0026).
 

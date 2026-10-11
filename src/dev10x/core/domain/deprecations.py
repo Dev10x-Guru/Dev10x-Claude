@@ -137,6 +137,15 @@ REGISTER: tuple[Deprecation, ...] = (
         issue="GH-1035",
         locations=("skills/verify-acc-dod/SKILL.md",),
     ),
+    Deprecation(
+        name="SKILL_NAME_ALIASES",
+        audience=Audience.CONFIG,
+        since="0.108.0",
+        removed_in="0.114.0",
+        replacement="dev10x-<area>:<skill>",
+        issue="GH-1559",
+        locations=("src/dev10x/core/skills/upgrade_cleanup/skill_names.py",),
+    ),
 )
 
 
