@@ -41,6 +41,9 @@ Review guidelines are centralized in:
 
 Workflows should reference these files rather than duplicating content.
 
+API cost and prompt caching for the Claude review workflows:
+`.claude/rules/claude-ci-cost.md` (GH-1585).
+
 ## Workflow Optimization
 
 - Keep prompts minimal — reference agent specs and rules on demand

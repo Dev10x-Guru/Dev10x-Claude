@@ -26,6 +26,9 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
+      # The comment is posted with the job token, and a PR's conversation
+      # comments are issue comments.
+      issues: write
       id-token: write
 
     steps:
@@ -56,23 +59,73 @@ jobs:
             echo "skip=true" >> "$GITHUB_OUTPUT"
           fi
 
+      # Shallow: commits come from the PR context below, so the checkout
+      # only has to supply the rule files the prompt reads.
       - name: Checkout repository
         if: steps.dedup.outputs.skip != 'true' && steps.pr-state.outputs.skip != 'true'
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
+
+      # GH-1585: same trusted-ref staging as claude-code-review.yml — the
+      # context script runs with this job's token.
+      - name: Stage scripts from the trusted ref
+        if: steps.dedup.outputs.skip != 'true' && steps.pr-state.outputs.skip != 'true'
+        id: stage
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          dir=.github/scripts/claude-pr-context
+          ref=""
+          for branch in "$BASE_REF" "$DEFAULT_BRANCH"; do
+            git fetch --no-tags --depth=1 origin "$branch"
+            if git cat-file -e "FETCH_HEAD:$dir" 2>/dev/null; then
+              ref=$(git rev-parse FETCH_HEAD)
+              break
+            fi
+          done
+          if [[ -z "$ref" ]]; then
+            echo "::notice::Neither $BASE_REF nor $DEFAULT_BRANCH has $dir yet — skipping rather than running this PR's own copy."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          mkdir -p "$RUNNER_TEMP/scripts"
+          git archive "$ref" "$dir" | tar -x -C "$RUNNER_TEMP/scripts" --strip-components=3
+
+      # GH-1585: everything the check needs is fetched here, so the model
+      # makes no API calls of its own. The previous hygiene comment is
+      # picked by author AND marker, so a marker forged in a human's
+      # comment is never chosen.
+      - name: Gather PR context
+        if: steps.dedup.outputs.skip != 'true' && steps.pr-state.outputs.skip != 'true' && steps.stage.outputs.skip != 'true'
+        id: pr-data
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          "$RUNNER_TEMP/scripts/gather-pr-context.sh"
+          ctx=.claude-ci/pr-context
+          jq '[.[] | select(.user == "github-actions[bot]"
+                and (.body | contains("<!-- dev10x-pr-hygiene -->")))] | last // {}' \
+            "$ctx/issue-comments.json" > "$ctx/prior-hygiene-comment.json"
+          echo "comment_id=$(jq -r '.id // empty' "$ctx/prior-hygiene-comment.json")" >> "$GITHUB_OUTPUT"
 
       - name: Run PR Hygiene Review
-        if: steps.dedup.outputs.skip != 'true' && steps.pr-state.outputs.skip != 'true'
-        uses: anthropics/claude-code-action@f87768c6d25f92ae6efa7175e223ef77d4cbf97f # v1.0.166
+        if: steps.dedup.outputs.skip != 'true' && steps.pr-state.outputs.skip != 'true' && steps.stage.outputs.skip != 'true'
+        id: hygiene-review
+        uses: anthropics/claude-code-action@cfc3eb22bfed5c26ef66e3223c982af27e4524de # v1.0.231
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # GH-1585: static instructions first, per-run values last in
+          # RUN CONTEXT, so every run reads the cached prompt prefix.
           prompt: |
-            You are reviewing PR #${{ github.event.pull_request.number }} in
-            ${{ github.repository }} for metadata hygiene — title, description,
-            and commit history quality. This is NOT a code review.
+            You are reviewing a PR for metadata hygiene — title, description,
+            and commit history quality. This is NOT a code review. You have
+            no `gh` access: a step before you fetched everything, and a step
+            after you posts what you write.
 
             REQUIRED FIRST STEP:
             Read these files:
@@ -82,10 +135,9 @@ jobs:
             3. references/git-jtbd.md — Job Story format, principles,
                anti-patterns, and examples for outcome-focused titles
 
-            GATHER PR DATA:
-            Run these commands to collect metadata:
-            - `gh pr view ${{ github.event.pull_request.number }} --json title,body,headRefName,commits`
-            - `git log --oneline origin/${{ github.event.pull_request.base.ref }}..HEAD`
+            PR DATA — Read these files in `.claude-ci/pr-context/`:
+            - `pr.json`: title, body, author, head branch (headRefName)
+            - `commits.json`: every commit's headline and body
 
             ANALYZE THREE AREAS:
 
@@ -141,10 +193,13 @@ jobs:
               patterns like `-knDH7`, `-7n0Qz`)
             - Only suggest ticket IDs that look intentional
 
-            OUTPUT RULES:
-            - If ALL checks pass: do nothing. Do not post a comment. Exit silently.
-            - If ANY issues found: post exactly ONE comment via
-              `gh pr comment ${{ github.event.pull_request.number }}` with:
+            WRITE THE COMMENT — your only output:
+            Write the comment body with the Write tool to
+            `.claude-ci/hygiene-comment.md`, on every run. Do not post it:
+            the step after you edits this workflow's existing hygiene
+            comment in place, creates one when there is none, and posts
+            nothing when all checks pass and no comment exists yet.
+            - When ANY issues are found:
               - No header — keep the comment compact and scannable
               - A flat list of issues, each on its own line as a bullet point
               - Each bullet prefixed with **REQUIRED** or **RECOMMENDED** label
@@ -152,6 +207,8 @@ jobs:
               - When flagging non-outcome-focused titles, append:
                 "📖 See `references/git-jtbd.md`"
               - Keep tone constructive — this is a helpful nudge, not a gate
+            - When ALL checks pass, the body is the single line
+              `✅ PR hygiene checks pass.`
 
             IMPORTANT:
             - Do NOT review code quality, architecture, or tests — that's handled
@@ -159,4 +216,51 @@ jobs:
             - Do NOT approve or request changes — only comment
             - Be concise — the goal is a quick, actionable checklist
 
-          claude_args: '--model haiku --allowed-tools "Read,Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh api:*),Bash(gh pr comment:*),Bash(git log:*)"'
+            RUN CONTEXT:
+            - REPO: ${{ github.repository }}
+            - PR: ${{ github.event.pull_request.number }}
+
+          # GH-1585: the first four flags are the shared, byte-stable CI
+          # prefix (see claude-code-review.yml). --tools leaves only the two
+          # tools this job uses, so the prefix carries no other tool schemas.
+          claude_args: '--settings .github/claude-ci-settings.json --append-system-prompt-file .github/claude/ci-system-prompt.md --exclude-dynamic-system-prompt-sections --disallowed-tools "ScheduleWakeup,Monitor" --model haiku --tools "Read,Write" --allowed-tools "Read,Write"'
+
+      # GH-1585: see claude-code-review.yml.
+      - name: Report Claude usage
+        if: ${{ always() && steps.hygiene-review.outputs.execution_file != '' }}
+        env:
+          EXECUTION_FILE: ${{ steps.hygiene-review.outputs.execution_file }}
+        run: |
+          jq -r '[.[] | select(.type == "result")] | last
+            | "### Claude usage\n\n| Model | Input | Cache write | Cache read | Output | Cost (USD) |\n|---|---:|---:|---:|---:|---:|\n"
+              + ((.modelUsage // {}) | to_entries | map("| \(.key) | \(.value.inputTokens // 0) | \(.value.cacheCreationInputTokens // 0) | \(.value.cacheReadInputTokens // 0) | \(.value.outputTokens // 0) | \(.value.costUSD // 0 | . * 10000 | round / 10000) |") | join("\n"))
+              + "\n\n**Total:** $\(.total_cost_usd // 0 | . * 100 | round / 100) · \(.num_turns // 0) turns · \((.permission_denials // []) | length) permission denials\n"' \
+            "$EXECUTION_FILE" >> "$GITHUB_STEP_SUMMARY" || echo "::warning::Could not read usage from $EXECUTION_FILE"
+          jq -r '[.[] | select(.type == "result")] | last | [(.modelUsage // {})[]] as $m
+            | "::notice title=Claude usage::$\(.total_cost_usd // 0) · \(.num_turns // 0) turns · cache read \($m | map(.cacheReadInputTokens // 0) | add // 0) · cache write \($m | map(.cacheCreationInputTokens // 0) | add // 0) · uncached input \($m | map(.inputTokens // 0) | add // 0)"' \
+            "$EXECUTION_FILE" || true
+
+      # GH-1585: posting is deterministic — one comment per PR, edited in
+      # place. The job token posts as github-actions[bot], and events it
+      # causes start no workflows, so the edit cannot re-trigger this check.
+      - name: Post hygiene comment
+        if: ${{ steps.hygiene-review.outputs.conclusion == 'success' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          COMMENT_ID: ${{ steps.pr-data.outputs.comment_id }}
+        run: |
+          body=.claude-ci/hygiene-comment.md
+          if [[ ! -s "$body" ]]; then
+            echo "::error title=Hygiene review wrote no comment::The model finished without writing $body."
+            exit 1
+          fi
+          printf '\n<!-- dev10x-pr-hygiene -->\n' >> "$body"
+          if [[ -n "$COMMENT_ID" ]]; then
+            gh api -X PATCH "repos/${GITHUB_REPOSITORY}/issues/comments/${COMMENT_ID}" -F body=@"$body" > /dev/null
+            echo "Updated hygiene comment $COMMENT_ID."
+          elif grep -q '^✅ PR hygiene checks pass\.' "$body"; then
+            echo "All hygiene checks pass and there is no earlier comment to clear; nothing to post."
+          else
+            gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body-file "$body"
+          fi
