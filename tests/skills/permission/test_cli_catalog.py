@@ -107,6 +107,17 @@ UNTRIAGED_CLI_BACKLOG: frozenset[str] = frozenset(
 )
 
 
+#: Commands triaged as deliberately uncovered: they rewrite tracked files
+#: in a checkout, so each run should prompt rather than ride a seeded
+#: allow-rule. Unlike the backlog above, an entry here is a decision, not
+#: debt.
+DELIBERATELY_UNCATALOGUED: frozenset[str] = frozenset(
+    {
+        "uvx dev10x skill rename",  # GH-1558: rewrites skill names repo-wide
+    }
+)
+
+
 def _write_catalog(path: Path, rules: list[str]) -> Path:
     path.write_text(yaml.safe_dump({"groups": {"dev10x-cli": {"rules": rules}}}))
     return path
@@ -187,7 +198,7 @@ class TestLiveCatalogHasNoDrift:
 
     def test_no_uncovered_commands(self) -> None:
         uncovered = set(find_uncovered_commands(cli_group=cli, catalog_path=CATALOG))
-        new_drift = uncovered - UNTRIAGED_CLI_BACKLOG
+        new_drift = uncovered - UNTRIAGED_CLI_BACKLOG - DELIBERATELY_UNCATALOGUED
         assert not new_drift, (
             "These dev10x subcommands lack a dev10x-cli allow-rule in "
             "baseline-permissions.yaml and are not in the pre-existing "
@@ -208,6 +219,10 @@ class TestLiveCatalogHasNoDrift:
             "drift — add the missing dev10x-cli allow-rule in "
             "baseline-permissions.yaml instead."
         )
+
+    def test_deliberately_uncatalogued_commands_stay_uncovered(self) -> None:
+        uncovered = set(find_uncovered_commands(cli_group=cli, catalog_path=CATALOG))
+        assert DELIBERATELY_UNCATALOGUED - uncovered == set()
 
     def test_backlog_carries_no_resolved_entries(self) -> None:
         uncovered = set(find_uncovered_commands(cli_group=cli, catalog_path=CATALOG))
