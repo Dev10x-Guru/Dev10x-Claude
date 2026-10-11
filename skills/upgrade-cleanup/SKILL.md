@@ -25,6 +25,7 @@ allowed-tools:
   - mcp__plugin_dev10x_cli__record_upgrade
   - Bash(dev10x config migrate:*)
   - Bash(dev10x config migrate-schema:*)
+  - Bash(dev10x config migrate-skill-names:*)
 ---
 
 # dev10x:upgrade-cleanup
@@ -75,6 +76,18 @@ Bash("dev10x config migrate-schema")
 Show the dry-run report first — it names each entry's resulting
 `supervisor_review`, dropped preset, and added overlays — then
 apply.
+
+Step 1c — rewrite skill names that a plugin extraction renamed
+(GH-1559, ADR-0034). When a skill moves from `dev10x:<skill>` to
+`dev10x-<area>:<skill>`, this rewrites the old name in
+`friction.yaml`, `dod-acceptance-criteria.yaml` and the playbook
+overrides. Idempotent; until the first extraction ships it reports
+nothing to migrate.
+
+```
+Bash("dev10x config migrate-skill-names --dry-run")
+Bash("dev10x config migrate-skill-names")
+```
 
 Step 2 — delegate to the maintenance skill in `full` mode:
 
