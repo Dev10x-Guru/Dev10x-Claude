@@ -12,11 +12,11 @@ from pathlib import Path
 
 import pytest
 import yaml
-
-import dev10x.skills.permission as permission_pkg
 from dev10x.domain.common.baseline_catalog import load_baseline_dict
 from dev10x.domain.common.command_spellings import SPELLINGS_KEY, expand_spellings
 from dev10x.skills.permission.catalog_paths import CATALOG_RELPATH
+
+import dev10x.skills.permission as permission_pkg
 
 PERMISSION_DIR = Path(permission_pkg.__file__).resolve().parent
 REPO_ROOT = PERMISSION_DIR.parents[4]
@@ -54,6 +54,7 @@ PRE_MIGRATION_UVX_RULES = (
 #: heartbeat and collected seventeen unsynced per-checkout catch-alls.
 FOREMAN_VERBS = (
     "dev10x foreman probe",
+    "dev10x foreman retire",
     "dev10x foreman watch",
     "dev10x watchdog probe",
     "dev10x watchdog sessions",

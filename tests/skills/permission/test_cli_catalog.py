@@ -47,15 +47,15 @@ from pathlib import Path
 
 import click
 import yaml
-
-import dev10x.cli as cli_module
-import dev10x.skills.permission as permission_pkg
-from dev10x.cli import cli
 from dev10x.skills.permission.cli_catalog import (
     catalog_rule_paths,
     enumerate_leaf_commands,
     find_uncovered_commands,
 )
+
+import dev10x.cli as cli_module
+import dev10x.skills.permission as permission_pkg
+from dev10x.cli import cli
 
 _LAZY_GROUP_KEY = re.compile(r'"([\w-]+)":\s*"dev10x\.')
 
@@ -82,8 +82,6 @@ UNTRIAGED_CLI_BACKLOG_STARTING_SIZE = 24
 UNTRIAGED_CLI_BACKLOG: frozenset[str] = frozenset(
     {
         "uvx dev10x deps sweep",
-        "uvx dev10x foreman probe",
-        "uvx dev10x foreman watch",
         "uvx dev10x github learn",
         "uvx dev10x github review-rules",
         "uvx dev10x orchestration stranded-work",

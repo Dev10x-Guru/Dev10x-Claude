@@ -14,13 +14,15 @@ fully-tested shell around it.
 from __future__ import annotations
 
 import logging
+import re
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from dev10x import subprocess_utils
-from dev10x.domain.common.result import ErrorResult
+from dev10x.domain.common.result import ErrorResult, Result, err, ok
+from dev10x.domain.file_locks import atomic_append_line
 from dev10x.domain.usage import blocks_report
 
 log = logging.getLogger(__name__)
@@ -29,6 +31,11 @@ HEARTBEAT_GLOB = "status-*.md"
 ESCALATIONS_GLOB = "escalations-*.md"
 PARKED_FLAG = "parked"
 MERGED_SHAS_FILE = "merged-shas"
+RETIRED_FILE = "retired"
+# `- <ISO timestamp> DONE: …` — the timestamp is optional, but when a
+# leading token is present it must be a timestamp, so "NOT DONE" and
+# "DONENESS" never read as a finished worker.
+DONE_LINE = re.compile(r"^[-*\s]*(?:\d{4}-\d{2}-\d{2}T\S+\s+)?DONE\b")
 SHA_PREFIX_MIN = 7
 DEFAULT_CHUNK_MIN = 45
 ESCALATION_PREFIXES = ("MERGE REQUEST", "ESCALATION")
@@ -53,15 +60,85 @@ def own_merge_shas(*, scratchpad: Path) -> set[str]:
     movement matching one of these is the run's own echo, not the
     external landing the watcher exists to report.
     """
-    path = scratchpad / MERGED_SHAS_FILE
-    if not path.exists():
-        return set()
-    shas: set[str] = set()
-    for line in path.read_text(encoding="utf-8").splitlines():
-        candidate = line.split("#")[0].strip()
-        if candidate:
-            shas.add(candidate)
-    return shas
+    return set(_listed_entries(path=scratchpad / MERGED_SHAS_FILE))
+
+
+def _listed_entries(*, path: Path) -> list[str]:
+    """One entry per line of a watchdog list file; ``#`` comments and blanks ignored."""
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except FileNotFoundError:
+        return []
+    return [entry for line in lines if (entry := line.split("#")[0].strip())]
+
+
+def heartbeat_file_name(*, chunk: str) -> str:
+    """``status-<chunk>.md`` for a bare chunk id; a file name passes through."""
+    if chunk.startswith("status-") and chunk.endswith(".md"):
+        return chunk
+    return f"status-{chunk}.md"
+
+
+def is_done_line(*, line: str) -> bool:
+    """Whether a heartbeat line is a worker's final ``DONE`` report (GH-1577)."""
+    return DONE_LINE.match(line) is not None
+
+
+def _last_line(*, path: Path) -> str:
+    """Last non-blank line, or ``""`` when the file vanished since the glob."""
+    try:
+        lines = path.read_text(encoding="utf-8").strip().splitlines()
+    except FileNotFoundError:
+        return ""
+    return lines[-1] if lines else ""
+
+
+def _age_min(*, path: Path, now: float) -> int | None:
+    """Minutes since ``path`` changed, or ``None`` when it vanished since the glob."""
+    try:
+        return int((now - path.stat().st_mtime) / 60)
+    except FileNotFoundError:
+        return None
+
+
+def _listed_retired(*, scratchpad: Path) -> set[str]:
+    return {
+        heartbeat_file_name(chunk=entry)
+        for entry in _listed_entries(path=scratchpad / RETIRED_FILE)
+    }
+
+
+def retired_heartbeats(*, scratchpad: Path) -> set[str]:
+    """Heartbeat files whose worker has finished, so silence is expected.
+
+    A finished worker never writes again, so its mtime only ages and the
+    stall detector would re-alarm on it every window for the rest of the
+    night (GH-1577). Two signals retire a file: its last line is a
+    ``DONE`` report, or the watchdog listed the chunk in ``retired``. A
+    line written after ``DONE`` makes the file live again — a worker
+    resumed for a rebase is a worker that can stall.
+    """
+    listed = _listed_retired(scratchpad=scratchpad)
+    return {
+        status.name
+        for status in scratchpad.glob(HEARTBEAT_GLOB)
+        if status.name in listed or is_done_line(line=_last_line(path=status))
+    }
+
+
+def retire_chunk(*, scratchpad: Path, chunk: str) -> Result[str]:
+    """Record ``chunk`` in ``retired`` so its silence stops raising STALL.
+
+    The sanctioned way to quiet a finished worker that never wrote a
+    ``DONE`` line. It appends to a watchdog-owned file and never touches
+    the heartbeat itself: renaming or deleting run-dir files is the
+    ``mv`` that froze a night run on a permission prompt (GH-1577).
+    """
+    name = heartbeat_file_name(chunk=chunk)
+    if not (scratchpad / name).exists():
+        return err(f"no heartbeat file {name} in {scratchpad}")
+    atomic_append_line(scratchpad / RETIRED_FILE, name)
+    return ok(name)
 
 
 def is_own_merge(*, sha: str, merged_shas: set[str] | frozenset[str]) -> bool:
@@ -186,8 +263,9 @@ def heartbeat_ages(*, scratchpad: Path, now: float) -> dict[str, int]:
     already attributed.
     """
     return {
-        status.name: int((now - status.stat().st_mtime) / 60)
+        status.name: age
         for status in scratchpad.glob(HEARTBEAT_GLOB)
+        if (age := _age_min(path=status, now=now)) is not None
     }
 
 
@@ -247,12 +325,16 @@ def new_escalation_lines(
 
 
 def heartbeat_lines(*, scratchpad: Path, now: float) -> list[str]:
+    listed = _listed_retired(scratchpad=scratchpad)
     lines: list[str] = []
     for status in sorted(scratchpad.glob(HEARTBEAT_GLOB)):
-        age_min = int((now - status.stat().st_mtime) / 60)
-        content = status.read_text(encoding="utf-8").strip().splitlines()
-        last = content[-1] if content else "(empty)"
-        lines.append(f"heartbeat: {status.name} age={age_min}min last={last}")
+        age_min = _age_min(path=status, now=now)
+        if age_min is None:
+            continue
+        last = _last_line(path=status)
+        retired = status.name in listed or is_done_line(line=last)
+        label = f"{status.name} retired" if retired else status.name
+        lines.append(f"heartbeat: {label} age={age_min}min last={last or '(empty)'}")
     return lines
 
 
@@ -316,11 +398,16 @@ class WatchState:
         parked: bool = False,
         merged_shas: set[str] | frozenset[str] = frozenset(),
         escalation_lines: Sequence[str] = (),
+        retired: set[str] | frozenset[str] = frozenset(),
     ) -> list[str]:
         events: list[str] = []
         events.extend(self._park_events(now=now, block=block, parked=parked))
         events.extend(self._escalation_events(escalation_lines=escalation_lines))
-        events.extend(self._stall_events(now=now, heartbeat_ages=heartbeat_ages, parked=parked))
+        events.extend(
+            self._stall_events(
+                now=now, heartbeat_ages=heartbeat_ages, parked=parked, retired=retired
+            )
+        )
         events.extend(self._base_events(sha=sha, merged_shas=merged_shas))
         events.extend(self._quota_events(block=block, parked=parked))
         events.extend(self._quota_low_events(block=block, parked=parked))
@@ -362,6 +449,7 @@ class WatchState:
         now: float,
         heartbeat_ages: dict[str, int] | None,
         parked: bool,
+        retired: set[str] | frozenset[str],
     ) -> list[str]:
         # A parked queue is idle by instruction — its expected-stale
         # heartbeats are not evidence of a stalled worker (GH-946).
@@ -380,10 +468,16 @@ class WatchState:
         # One event per silent file, each rate-limited on its own, so a
         # second worker going quiet is never swallowed by the first
         # worker's alert window (GH-1064).
+        # A file that left the run directory carries no rate-limit state
+        # forward — should the name return, it alarms on its own merits.
+        self.stall_alerts = {
+            name: at for name, at in self.stall_alerts.items() if name in heartbeat_ages
+        }
         events: list[str] = []
         for name in sorted(heartbeat_ages):
             age = heartbeat_ages[name]
-            if age < self.stall_min:
+            # A finished worker is silent by design (GH-1577).
+            if name in retired or age < self.stall_min:
                 self.stall_alerts.pop(name, None)
                 continue
             if now - self.stall_alerts.get(name, 0.0) < stall_window_s:

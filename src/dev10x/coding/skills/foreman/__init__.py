@@ -8,12 +8,15 @@ from dev10x.coding.skills.foreman.watch import (
     heartbeat_lines,
     historical_token_ceiling,
     initial_watch_state,
+    is_done_line,
     is_own_merge,
     minutes_to_quota_exhaustion,
     new_escalation_lines,
     own_merge_shas,
     probe_lines,
     queue_parked,
+    retire_chunk,
+    retired_heartbeats,
 )
 
 __all__ = [
@@ -26,10 +29,13 @@ __all__ = [
     "heartbeat_lines",
     "historical_token_ceiling",
     "initial_watch_state",
+    "is_done_line",
     "is_own_merge",
     "minutes_to_quota_exhaustion",
     "new_escalation_lines",
     "own_merge_shas",
     "probe_lines",
     "queue_parked",
+    "retire_chunk",
+    "retired_heartbeats",
 ]

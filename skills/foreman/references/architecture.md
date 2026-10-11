@@ -127,6 +127,7 @@ reaches the tracker). Each file has exactly one writer.
 | `roster.md` | foreman | At-a-glance table of every delegated chunk — `Chunk \| Issue(s) \| State \| PR \| Worker \| Last update`. A **derived rendering** of the manifest + decision logs + live tracker state, rewritten at existing transition write points so the queue is readable without opening every status file (GH-976). Never the sole record of anything — see [`roster.md`](roster.md) |
 | `merged-shas` | watchdog | Base tips this run merged; mutes the watcher's self-echo |
 | `parked` | watchdog | Present while the queue is deliberately held; mutes stall/quota noise |
+| `retired` | watchdog, via `dev10x foreman retire` only | Chunks that finished without a `DONE:` line; mutes their STALL. Never retire by renaming a status file (GH-1577) |
 | `current-generation` | watchdog | `G<n> <agent-name> <UTC ts>` — the foremen's authority token |
 
 ## Heartbeat protocol
@@ -151,6 +152,13 @@ reaches the tracker). Each file has exactly one writer.
   writer (typically the foreman's own status) from holding a run-wide
   maximum fresh and masking silent workers behind it, and it means a
   second worker going quiet mid-window still alarms immediately.
+- **A finished worker is retired, not stalled** (GH-1577). A file
+  whose last line is `- <ts> DONE: …` raises no `STALL`, and `probe`
+  labels it `retired`. A later line makes it live again — a worker
+  resumed for a rebase can stall like any other. In the field, the
+  missing rule cost six hours: the watcher re-alarmed on two merged
+  chunks every window, and the watchdog `mv`'d their files to quiet
+  it, which prompted.
 - A tripped `STALL` opens the stand-down handshake — it is not an
   authorization to take over. See `stall-protocol.md`.
 
