@@ -11,18 +11,24 @@ USER_CONFIG_DIR="${HOME}/.claude/skill-index"
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)/bin"
 # shellcheck source=../../../bin/require-tool.sh
 source "$BIN_DIR/require-tool.sh"
+# shellcheck source=lib-families.sh
+source "${SCRIPT_DIR}/scripts/lib-families.sh"
 require_tool yq
 require_tool jq
 LINE_WIDTH=55
 LINE_BUDGET=45
+PLUGIN_MAP="$(dirname "$BIN_DIR")/src/dev10x/core/plugins.yaml"
 
 # ── Resolve config files (user-space overrides plugin defaults) ──
-# families.yaml: user file replaces plugin default entirely
+# families.yaml: user file replaces plugin default (and its fragments)
+# entirely; otherwise the plugin default merges with families.d/.
 if [[ -f "${USER_CONFIG_DIR}/families.yaml" ]]; then
-    FAMILIES_FILE="${USER_CONFIG_DIR}/families.yaml"
+    FAMILIES_SOURCES=("${USER_CONFIG_DIR}/families.yaml")
 else
-    FAMILIES_FILE="${SCRIPT_DIR}/families.yaml"
+    families_list="$(families_sources "$SCRIPT_DIR" "$PLUGIN_MAP")"
+    mapfile -t FAMILIES_SOURCES <<< "$families_list"
 fi
+FAMILIES_FILE="${FAMILIES_SOURCES[0]}"
 
 # hidden.yaml: user file merges with plugin default (additive)
 HIDDEN_FILE="${SCRIPT_DIR}/hidden.yaml"
@@ -47,13 +53,16 @@ resolve_Dev10x_dir() {
 }
 
 DEV10X_DIR="$(resolve_Dev10x_dir)"
+dev10x_dirs_list="$(plugin_skill_dirs "$DEV10X_DIR")"
+DEV10X_DIRS=()
+[[ -n "$dev10x_dirs_list" ]] && mapfile -t DEV10X_DIRS <<< "$dev10x_dirs_list"
 
 OFFICIAL_BASE="${HOME}/.claude/plugins/cache/claude-plugins-official"
 
 # ── Cache check ─────────────────────────────────────────────────
 if [[ "${1:-}" != "--force" && -f "$SKILLS_MD" ]]; then
     stale=0
-    for src_dir in "$LOCAL_DIR" "$DEV10X_DIR"; do
+    for src_dir in "$LOCAL_DIR" "${DEV10X_DIRS[@]+"${DEV10X_DIRS[@]}"}"; do
         [[ -z "$src_dir" || ! -d "$src_dir" ]] && continue
         found=$(find "$src_dir" -maxdepth 2 -name 'SKILL.md' -newer "$SKILLS_MD" 2>/dev/null | head -1)
         [[ -n "$found" ]] && { stale=1; break; }
@@ -62,10 +71,16 @@ if [[ "${1:-}" != "--force" && -f "$SKILLS_MD" ]]; then
         found=$(find "$OFFICIAL_BASE" -name 'SKILL.md' -newer "$SKILLS_MD" 2>/dev/null | head -1)
         [[ -n "$found" ]] && stale=1
     fi
-    for cfg in "$FAMILIES_FILE" "$HIDDEN_FILE" "$USER_HIDDEN_FILE"; do
+    for cfg in "${FAMILIES_SOURCES[@]}" "$HIDDEN_FILE" "$USER_HIDDEN_FILE"; do
         [[ -f "$cfg" && "$cfg" -nt "$SKILLS_MD" ]] && { stale=1; break; }
     done
     [[ $stale -eq 0 ]] && exit 0
+fi
+
+if [[ ${#FAMILIES_SOURCES[@]} -gt 1 ]]; then
+    FAMILIES_FILE="$(mktemp)"
+    trap 'rm -f "$FAMILIES_FILE"' EXIT
+    merge_families "$FAMILIES_FILE" "${FAMILIES_SOURCES[@]}"
 fi
 
 # ── Parse SKILL.md frontmatter ──────────────────────────────────
@@ -109,13 +124,13 @@ if [[ -d "$LOCAL_DIR" ]]; then
     done
 fi
 
-# Scan Dev10x plugin skills (local overrides)
-if [[ -n "$DEV10X_DIR" && -d "$DEV10X_DIR" ]]; then
-    for sf in "$DEV10X_DIR"/*/SKILL.md; do
+# Scan every Dev10x plugin root's skills (local overrides)
+for plugin_dir in "${DEV10X_DIRS[@]+"${DEV10X_DIRS[@]}"}"; do
+    for sf in "$plugin_dir"/*/SKILL.md; do
         [[ -f "$sf" ]] || continue
         parse_skill "$sf"
     done
-fi
+done
 
 # ── Load hidden list (merged: plugin defaults + user additions) ─
 declare -A HIDDEN

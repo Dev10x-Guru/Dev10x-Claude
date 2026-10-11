@@ -9,15 +9,26 @@ USER_CONFIG_DIR="${HOME}/.claude/skill-index"
 BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)/bin"
 # shellcheck source=../../../bin/require-tool.sh
 source "$BIN_DIR/require-tool.sh"
+# shellcheck source=lib-families.sh
+source "${SCRIPT_DIR}/scripts/lib-families.sh"
 require_tool yq
 require_tool jq
+PLUGIN_MAP="$(dirname "$BIN_DIR")/src/dev10x/core/plugins.yaml"
 
 # ── Resolve config files (user-space overrides plugin defaults) ──
-# families.yaml: user file replaces plugin default entirely
+# families.yaml: user file replaces plugin default (and its fragments)
+# entirely; otherwise the plugin default merges with families.d/.
 if [[ -f "${USER_CONFIG_DIR}/families.yaml" ]]; then
-    FAMILIES_FILE="${USER_CONFIG_DIR}/families.yaml"
+    FAMILIES_SOURCES=("${USER_CONFIG_DIR}/families.yaml")
 else
-    FAMILIES_FILE="${SCRIPT_DIR}/families.yaml"
+    families_list="$(families_sources "$SCRIPT_DIR" "$PLUGIN_MAP")"
+    mapfile -t FAMILIES_SOURCES <<< "$families_list"
+fi
+FAMILIES_FILE="${FAMILIES_SOURCES[0]}"
+if [[ ${#FAMILIES_SOURCES[@]} -gt 1 ]]; then
+    FAMILIES_FILE="$(mktemp)"
+    trap 'rm -f "$FAMILIES_FILE"' EXIT
+    merge_families "$FAMILIES_FILE" "${FAMILIES_SOURCES[@]}"
 fi
 
 # hidden.yaml: user file merges with plugin default (additive)
@@ -43,6 +54,9 @@ resolve_Dev10x_dir() {
 }
 
 DEV10X_DIR="$(resolve_Dev10x_dir)"
+dev10x_dirs_list="$(plugin_skill_dirs "$DEV10X_DIR")"
+DEV10X_DIRS=()
+[[ -n "$dev10x_dirs_list" ]] && mapfile -t DEV10X_DIRS <<< "$dev10x_dirs_list"
 
 # ── Parse SKILL.md frontmatter ──────────────────────────────────
 declare -A SKILL_NAME
@@ -77,12 +91,12 @@ if [[ -d "$LOCAL_DIR" ]]; then
     done
 fi
 
-if [[ -n "$DEV10X_DIR" && -d "$DEV10X_DIR" ]]; then
-    for sf in "$DEV10X_DIR"/*/SKILL.md; do
+for plugin_dir in "${DEV10X_DIRS[@]+"${DEV10X_DIRS[@]}"}"; do
+    for sf in "$plugin_dir"/*/SKILL.md; do
         [[ -f "$sf" ]] || continue
         parse_skill "$sf"
     done
-fi
+done
 
 # ── Load hidden list (merged: plugin defaults + user additions) ─
 declare -A HIDDEN
