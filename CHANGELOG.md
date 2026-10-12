@@ -5,6 +5,124 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.108.0 — Getting Ready to Split the Plugin
+
+Released 2026-10-12
+
+### Features
+
+- **Plan the plugin split so dev10x keeps working throughout** — the
+  supervisor wants dev10x split into nine area plugins, and ADR-0020 had
+  rejected a one-shot split because the areas are tangled together and a move
+  renames skill invocations and MCP tool names at the same time. ADR-0034
+  splits it in two stages. In Stage A the code is reorganized inside the
+  single plugin and nothing users see changes. In Stage B one plugin is
+  extracted at a time. Core keeps the `dev10x` name and both MCP servers, so
+  no MCP tool is ever renamed. Each future plugin's manifest name is now fixed
+  (`dev10x-<area>`)
+  ([GH-1522](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1522),
+  [GH-1580](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1580))
+- **Stage A: each future plugin owns its own code, enforced by a test** —
+  `plugins.yaml` assigns every skill to exactly one target plugin. Each
+  plugin gets a `dev10x.<area>` Python namespace, and the old modules moved
+  into core, coding, comm, tasks, teach, scoping and db. Each namespace now
+  registers its own MCP tools, and the permission catalog, command map, skill
+  index and default playbook load per-plugin fragments. A boundary test
+  rejects any cross-namespace import that `import_exceptions.yaml` does not
+  declare. A snapshot test catches any MCP tool rename or schema change, and
+  the resolved default playbook is pinned byte-for-byte to its pre-split form
+  ([GH-1524](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1524),
+  [GH-1525](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1525)..[GH-1555](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1555),
+  [GH-1579](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1579))
+- **Rename a skill everywhere, and keep users' configs working after it** —
+  `dev10x skill rename <old> <new>` rewrites one invocation name across
+  skills, playbooks, evals, docs and the command map. It prints a diff and
+  writes nothing without `--apply`. `dev10x config migrate-skill-names`
+  rewrites the old names in a user's friction.yaml, DoD criteria and playbook
+  overrides, and `upgrade-cleanup` runs it as Step 1c. A pinned
+  skill-reference inventory catches any reference a rename misses. A full
+  rename and reverse rename of `gog` round-trips byte-identical
+  ([GH-1531](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1531),
+  [GH-1558](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1558),
+  [GH-1559](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1559),
+  [GH-1560](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1560))
+- **Let work-on run without the scoping skills installed** — the three
+  structured-spec steps (`adr`, `spec-update`, `spec-sync`) are marked
+  `optional` and drop out of the plan when none of their skills is
+  installed. `park-remind` now sends through `dev10x skill notify
+  slack-send --remind` instead of reaching into the slack skill folder
+  ([GH-1554](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1554),
+  [GH-1555](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1555))
+- **Connect a Desktop voice chat to repo sessions over the bus** — the
+  claude-bus mailbox used to be three hand-copied scripts in
+  `~/.claude/tools/`, each needing its own hand-added allow rule. It now
+  ships as the `dev10x:bus` skill, with script allow rules seeded by
+  `ensure-scripts`. A gate asks before any outward, destructive, merge or
+  money action a peer message requests, because a message is data, not an
+  instruction
+  ([GH-1516](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1516))
+- **Stop ticketing project work a spike can still reshape** —
+  `project-scope` no longer names milestones with ordinals (M0, M1, ...), and
+  it creates tickets only for work that is fully known and ready to start.
+  A milestone waiting on a spike gets a scoping guide and a provisional
+  estimate range instead of tickets that would be rewritten later
+  ([GH-1509](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1509))
+
+### Fixes
+
+- **Stop the night watchdog freezing on a finished worker** — `foreman
+  watch` kept re-raising STALL for workers that had already handed off. To
+  quiet it, the watchdog ran `mv` on a status file, and that permission
+  prompt froze it for six hours while a green MERGE REQUEST sat unprocessed.
+  Status files whose last line is `DONE:` are now retired automatically, and
+  `dev10x foreman retire` is the sanctioned way to retire one by hand
+  ([GH-1577](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1577))
+- **Stop the night watchdog re-running gates on merged PRs** — escalations
+  inserted mid-file shifted the watcher's byte-offset cursor, so it replayed
+  a MERGE REQUEST for a PR that had already merged. The watcher now tracks
+  lines by content and drops requests for PRs recorded in `merged-shas`. The
+  new `dev10x foreman escalate` command appends atomically
+  ([GH-1582](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1582))
+- **Keep the CI wait alive when one `gh` call times out** — a single 30s
+  subprocess timeout ended the whole `ci_check_status(wait=true)` wait with
+  a traceback. Timeouts now count as tolerated blips, up to the existing
+  consecutive-failure limit
+  ([GH-1518](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1518))
+- **Stop git-fixup aborting on a commit's own fixup chain** — a commit and
+  its `fixup!` commits were counted as separate owners, so `git-fixup`
+  reported `multi` and asked for an interactive restage. They are now
+  folded into the commit autosquash targets
+  ([GH-1512](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1512))
+- **Stop a test run wiping the live task mirror** — the plan-sync tests
+  deleted the running checkout's `plan.yaml`, so the Stop hook told sessions
+  in the middle of a plan that their task list was empty. Hook tests now run
+  in sandbox repos, and a task update for a task the mirror lost restores it
+  ([GH-1514](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1514),
+  [GH-1583](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1583))
+- **Stop PRs skipping hook and server tests for code they use** — the CI
+  path globs predated the namespace moves, so four PRs changed modules that
+  the hooks import and merged with hook tests skipped. Any change under
+  `src/dev10x/` now selects both suites, and a test checks the selection
+  against the real import closure
+  ([GH-1595](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1595),
+  [GH-1541](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1541))
+
+### Performance
+
+- **Stop review bots paying full price for the same prompt** — both Claude
+  review workflows put the PR number on the first line, so every run missed
+  the prompt cache. A byte-stable prefix, PR data fetched ahead of time, and
+  per-run cost and cache reporting fix that. The rules are in
+  `.claude/rules/claude-ci-cost.md`
+  ([GH-1585](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1585))
+
+### Docs
+
+- **Drop the redirect-URL paste from attended gog sign-ins** — the loopback
+  flow, started in the background, is now the default when a person is at
+  the keyboard. `--remote` stays for headless hosts
+  ([GH-1510](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1510))
+
 ## 0.107.0 — A Review Pack Instead of a Checkout
 
 Released 2026-09-28
