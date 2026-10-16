@@ -35,3 +35,6 @@ src/dev10x/core/validators/*.msgpack
 .claude/session/
 .claude/Dev10x/
 .claude-output/
+
+# Local coding-agent instructions
+AGENTS.md
