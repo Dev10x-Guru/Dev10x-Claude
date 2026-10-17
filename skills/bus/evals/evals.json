@@ -14,7 +14,7 @@
     {
       "id": "sanctioned-watcher",
       "name": "Sanctioned Watcher and Self-Test",
-      "description": "start arms Monitor on scripts/watch.py (never a hand-rolled loop) and reports the bus live only after its self-test NEW event arrives."
+      "description": "start runs scripts/watch.py --once under background Bash (never a hand-rolled loop), re-launches it quietly after each exit, and reports the bus live only after its self-test NEW event arrives."
     }
   ],
   "evals": [
@@ -102,16 +102,21 @@
       ]
     },
     {
-      "id": "start-arms-monitor-and-self-tests",
-      "name": "start arms Monitor and self-tests",
+      "id": "start-runs-background-watcher-and-self-tests",
+      "name": "start runs the background watcher and self-tests",
       "description": "/dev10x:bus start registers, watches and self-tests.",
       "input": "/dev10x:bus start",
       "assertions": [
         {
           "dimension": "sanctioned-watcher",
-          "check": "tool_called",
-          "tool": "Monitor",
-          "signal": "Monitor command is skills/bus/scripts/watch.py <name>; no while/sleep loop"
+          "check": "tool_parameters",
+          "tool": "Bash",
+          "signal": "Bash command is skills/bus/scripts/watch.py <name> --once with run_in_background: true; no while/sleep loop"
+        },
+        {
+          "dimension": "sanctioned-watcher",
+          "check": "behavioral",
+          "signal": "After the watcher exits, each NEW message is marked done.py before the watcher is started again, and no empty expiry or re-arm is reported to the user"
         },
         {
           "dimension": "sanctioned-watcher",
