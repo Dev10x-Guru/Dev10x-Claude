@@ -118,7 +118,8 @@ Args: `[start [name] [role] | send <to> <subject> | prompt | stop]`.
    lines through the normal flow below, re-launch, and keep waiting
    for the self-test path. Do not report the bus live before it
    arrives.
-5. Each time the watcher exits, handle every `NEW` line (below), mark
+5. Each time the watcher exits, `Read` the output file its completion
+   notice names for the `NEW` lines, handle each one (below), mark
    each one `done.py`, then start it again — until the user says
    `stop`. Mark before re-launching: `--once` reports all unread mail
    addressed to you, so one left in `new/` wakes it again at once.
@@ -185,8 +186,9 @@ project instructions.
 
 ### `stop`
 
-`TaskStop` the background watcher (or the monitor) and do not start
-it again; confirm. Mailboxes stay until reboot.
+`TaskStop` the most recent `claude-bus/<name>` task — each re-launch
+is a new background task with a new id — or the monitor, and do not
+start it again; confirm. Mailboxes stay until reboot.
 
 ## Gotchas
 
