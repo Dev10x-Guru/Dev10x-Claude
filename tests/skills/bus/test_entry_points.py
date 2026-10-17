@@ -219,14 +219,8 @@ class TestWatchOnceMain:
         monkeypatch: pytest.MonkeyPatch,
         run_main: RunMain,
     ) -> Run:
-        sleeps: list[float] = []
-
-        def arrive_on_second_poll(seconds: float) -> None:
-            sleeps.append(seconds)
-            if len(sleeps) == 2:
-                (inbox / "fresh").touch()
-
-        monkeypatch.setattr(watch.time, "sleep", arrive_on_second_poll)
+        polls = iter([lambda: None, (inbox / "fresh").touch])
+        monkeypatch.setattr(watch.time, "sleep", lambda seconds: next(polls)())
         return run_main(watch.main, ["a", "--once", "--root", str(root)])
 
     def test_arrival_exits_zero(self, arrival_run: Run) -> None:
@@ -287,6 +281,54 @@ class TestWatchOnceMain:
 
     def test_waits_past_own_outgoing_thread_mail(self, own_thread_run: Run, inbox: Path) -> None:
         assert own_thread_run.stdout == f"NEW {inbox / 'fresh'}\n"
+
+    @pytest.fixture
+    def read_by_peer_run(
+        self,
+        root: Path,
+        inbox: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        run_main: RunMain,
+    ) -> Run:
+        outgoing = maildir.send(
+            root=root,
+            envelope=maildir.Envelope(sender="a", recipient="b", subject="to b"),
+            body="x",
+            thread=True,
+        )
+        polls = iter([lambda: maildir.mark_read(message=outgoing.path), (inbox / "fresh").touch])
+        monkeypatch.setattr(watch.time, "sleep", lambda seconds: next(polls)())
+        return run_main(watch.main, ["a", "--once", "--root", str(root)])
+
+    def test_mail_read_elsewhere_does_not_end_the_wait(
+        self, read_by_peer_run: Run, inbox: Path
+    ) -> None:
+        assert read_by_peer_run.stdout == f"NEW {inbox / 'fresh'}\n"
+
+    @pytest.fixture
+    def snapshot_window_run(
+        self,
+        root: Path,
+        inbox: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        run_main: RunMain,
+    ) -> Run:
+        real_unread = watch.unread
+        after_first_check = iter([(inbox / "fresh").touch])
+
+        def unread_then_arrive(maildirs: list[Path]) -> set[Path]:
+            snapshot = real_unread(maildirs=maildirs)
+            next(after_first_check, lambda: None)()
+            return snapshot
+
+        monkeypatch.setattr(watch, "unread", unread_then_arrive)
+        monkeypatch.setattr(watch.time, "sleep", lambda seconds: None)
+        return run_main(watch.main, ["a", "--once", "--root", str(root), "--polls", "2"])
+
+    def test_reports_mail_landing_right_after_the_unread_check(
+        self, snapshot_window_run: Run, inbox: Path
+    ) -> None:
+        assert snapshot_window_run.stdout == f"NEW {inbox / 'fresh'}\n"
 
 
 class TestDoneMain:
