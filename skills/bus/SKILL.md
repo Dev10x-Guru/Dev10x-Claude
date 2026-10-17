@@ -7,7 +7,8 @@ description: >
   sessions, and Claude Desktop / claude.ai chats (text or voice) whose
   Cowork agent writes the files via Desktop Commander. Opens a mailbox
   under /tmp/claude-bus/<name>/, announces it in the registry, watches
-  it with Monitor, and replies to each sender's Reply-To mailbox.
+  it with a background watch.py --once, and replies to each sender's
+  Reply-To mailbox.
   TRIGGER when: the user says "connect to the bus", "start the bus",
   "listen for Desktop / Cowork / voice", "send <session> a message via
   the bus", or asks for the instructions a Desktop chat needs.
@@ -67,9 +68,15 @@ shell variable, no `&&`, no `cd`, no env prefix — or the allow rules
   <body-file|-> --from <me> [--reply-to X] [--in-reply-to <id>]
   [--voice] [--thread] [--header K=V]` — prints `SENT <path>` and
   `Message-ID: <id>`.
-- `${CLAUDE_PLUGIN_ROOT}/skills/bus/scripts/watch.py <name>` — prints
-  `NEW <path>` per arriving message. Runs until killed; only ever
-  under `Monitor`.
+- `${CLAUDE_PLUGIN_ROOT}/skills/bus/scripts/watch.py <name> --once` —
+  prints `NEW <path>` for every message already unread in `new/`
+  (threads included) and exits 0; with nothing unread it waits for the
+  next arrival, prints that batch and exits 0. The default watcher,
+  run under Bash `run_in_background`.
+- `${CLAUDE_PLUGIN_ROOT}/skills/bus/scripts/watch.py <name>` (no flag)
+  — prints `NEW <path>` per message arriving after it starts. Runs
+  until killed; only ever under `Monitor`. Mail already unread at
+  start is not reported.
 - `${CLAUDE_PLUGIN_ROOT}/skills/bus/scripts/done.py <path>…` or
   `… done.py <name>` (all of `new/`) — marks read. Never a raw `mv`.
 
@@ -95,16 +102,34 @@ Args: `[start [name] [role] | send <to> <subject> | prompt | stop]`.
    for) to the scratchpad, then `send.py registry hello <body>
    --from <name> --reply-to <name> --header Role=<role>` (add
    `--header Supersedes=<old>` after a restart).
-3. Arm `Monitor` with command
-   `${CLAUDE_PLUGIN_ROOT}/skills/bus/scripts/watch.py <name>`, description
-   `claude-bus/<name>`, `timeout_ms: 1800000`. A hand-rolled `while`
-   loop is hook-blocked (`watch-loop-handrolled`) — the script is the
-   only sanctioned watcher.
-4. **Self-test:** send yourself a message and wait for its `NEW` event,
-   then `done.py <path>`. Do not report the bus live before the
-   event arrives.
-5. On each `Monitor` expiry, re-arm it and `Glob` `<name>/new/*` for
-   anything that landed in the gap, until the user says `stop`.
+3. Start the watcher: Bash with command
+   `${CLAUDE_PLUGIN_ROOT}/skills/bus/scripts/watch.py <name> --once`,
+   description `claude-bus/<name>`, `run_in_background: true`. It has
+   no 30-minute cap and wakes the session only when it exits — that
+   is, when mail is there. A hand-rolled `while` loop is hook-blocked
+   (`watch-loop-handrolled`) — the script is the only sanctioned
+   watcher.
+4. **Self-test:** send yourself a message and wait for the watcher to
+   exit with its `NEW` line, then `done.py <path>` and start the
+   watcher again. Do not report the bus live before the line arrives.
+5. Each time the watcher exits, handle every `NEW` line (below), mark
+   each one `done.py`, then start it again — until the user says
+   `stop`. Mark before re-launching: `--once` reports all unread mail,
+   so a message left in `new/` wakes it again at once. No gap check is
+   needed — mail that landed while no watcher ran is still unread, and
+   the next `--once` reports it.
+6. **Re-arm quietly.** A watcher exit, restart or re-launch with no
+   mail to handle is not news: never tell the user the mailbox was
+   empty, expired or re-armed. Speak only about messages.
+
+**Alternative — `Monitor`:** arm `Monitor` with the no-flag
+`watch.py <name>`, `timeout_ms: 1800000`, and re-arm on each expiry.
+`Monitor` caps the wait at 30 minutes, and plain `watch.py` baselines
+`new/` at start, so after every re-arm run `watch.py <name> --once`
+in the background as well to pick up the gap. That gap is why
+`--once` became the default (GH-1613): a message landing between a
+`Monitor` expiry and the re-arm was silently swallowed by the
+start-up baseline.
 
 ### On every `NEW <path>` event
 
@@ -147,7 +172,8 @@ project instructions.
 
 ### `stop`
 
-`TaskStop` the monitor and confirm. Mailboxes stay until reboot.
+`TaskStop` the background watcher (or the monitor) and do not start
+it again; confirm. Mailboxes stay until reboot.
 
 ## Gotchas
 
@@ -155,7 +181,7 @@ project instructions.
   chat reaches it only through a Desktop Commander running on the same
   host as the Claude Code sessions. See `references/cowork-voice.md`
   § Limits.
-- **Monitor dies with the session.** After a restart run
+- **The watcher dies with the session.** After a restart run
   `dev10x:bus start` again, with `Supersedes=<old name>`.
 - **Labels lie.** Senders mis-tag voice/text; judge from content.
 - **Never start a Telegram poller** (`getUpdates`) for a peer — the

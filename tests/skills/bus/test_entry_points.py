@@ -7,9 +7,9 @@ from collections.abc import Callable
 from pathlib import Path
 
 import pytest
+from dev10x.skills.bus.maildir import INVALID_MESSAGE_EXIT
 
 from dev10x.skills.bus import done, send, watch
-from dev10x.skills.bus.maildir import INVALID_MESSAGE_EXIT
 from tests.skills.bus.conftest import Run
 
 RunMain = Callable[[Callable[..., int], list[str]], Run]
@@ -157,6 +157,99 @@ class TestWatchMain:
         )
 
         assert next(batches) == [thread_new / "m"]
+
+    @pytest.fixture
+    def sleeps(
+        self,
+        root: Path,
+        inbox: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        run_main: RunMain,
+    ) -> list[float]:
+        calls: list[float] = []
+        monkeypatch.setattr(watch.time, "sleep", calls.append)
+        run_main(watch.main, ["a", "--root", str(root), "--polls", "3"])
+        return calls
+
+    def test_keeps_polling_after_a_quiet_poll(self, sleeps: list[float]) -> None:
+        assert len(sleeps) == 3
+
+
+class TestWatchOnceMain:
+    @pytest.fixture
+    def inbox(self, root: Path) -> Path:
+        path = root / "a" / "new"
+        path.mkdir(parents=True)
+        return path
+
+    @pytest.fixture
+    def unread_run(
+        self,
+        root: Path,
+        inbox: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        run_main: RunMain,
+    ) -> Run:
+        (inbox / "old").touch()
+        thread_new = root / "threads" / "a--b" / "new"
+        thread_new.mkdir(parents=True)
+        (thread_new / "aside").touch()
+
+        def refuse_to_wait(seconds: float) -> None:
+            raise AssertionError("--once waited despite unread mail")
+
+        monkeypatch.setattr(watch.time, "sleep", refuse_to_wait)
+        return run_main(watch.main, ["a", "--once", "--root", str(root)])
+
+    def test_unread_mail_exits_zero(self, unread_run: Run) -> None:
+        assert unread_run.exit_code == 0
+
+    def test_reports_unread_mail_without_waiting(
+        self, unread_run: Run, root: Path, inbox: Path
+    ) -> None:
+        assert unread_run.stdout == (
+            f"NEW {inbox / 'old'}\nNEW {root / 'threads' / 'a--b' / 'new' / 'aside'}\n"
+        )
+
+    @pytest.fixture
+    def arrival_run(
+        self,
+        root: Path,
+        inbox: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        run_main: RunMain,
+    ) -> Run:
+        sleeps: list[float] = []
+
+        def arrive_on_second_poll(seconds: float) -> None:
+            sleeps.append(seconds)
+            if len(sleeps) == 2:
+                (inbox / "fresh").touch()
+
+        monkeypatch.setattr(watch.time, "sleep", arrive_on_second_poll)
+        return run_main(watch.main, ["a", "--once", "--root", str(root)])
+
+    def test_arrival_exits_zero(self, arrival_run: Run) -> None:
+        assert arrival_run.exit_code == 0
+
+    def test_waits_through_quiet_polls_for_the_arrival(
+        self, arrival_run: Run, inbox: Path
+    ) -> None:
+        assert arrival_run.stdout == f"NEW {inbox / 'fresh'}\n"
+
+    @pytest.fixture
+    def quiet_run(
+        self,
+        root: Path,
+        inbox: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        run_main: RunMain,
+    ) -> Run:
+        monkeypatch.setattr(watch.time, "sleep", lambda seconds: None)
+        return run_main(watch.main, ["a", "--once", "--root", str(root), "--polls", "2"])
+
+    def test_polls_bound_a_quiet_wait(self, quiet_run: Run) -> None:
+        assert (quiet_run.exit_code, quiet_run.stdout) == (0, "")
 
 
 class TestDoneMain:
