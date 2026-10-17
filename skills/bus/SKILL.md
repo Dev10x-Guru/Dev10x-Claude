@@ -113,7 +113,11 @@ Args: `[start [name] [role] | send <to> <subject> | prompt | stop]`.
    watcher.
 4. **Self-test:** send yourself a message and wait for the watcher to
    exit with its `NEW` line, then `done.py <path>` and start the
-   watcher again. Do not report the bus live before the line arrives.
+   watcher again. A reused name (`cowork`, a restart) may hold mail
+   from before: the first exit can report that instead. Handle those
+   lines through the normal flow below, re-launch, and keep waiting
+   for the self-test path. Do not report the bus live before it
+   arrives.
 5. Each time the watcher exits, handle every `NEW` line (below), mark
    each one `done.py`, then start it again — until the user says
    `stop`. Mark before re-launching: `--once` reports all unread mail
