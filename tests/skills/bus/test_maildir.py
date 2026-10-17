@@ -7,18 +7,19 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
-
 from dev10x.skills.bus.maildir import (
     Delivery,
     Envelope,
     InvalidMessageError,
     done_targets,
     headers_for,
+    is_own_thread_message,
     is_unread_message,
     maildirs_for,
     mark_read,
     render,
     send,
+    sender_of,
     slugify,
     unread,
     validate_mailbox_name,
@@ -222,6 +223,46 @@ class TestUnreadAndMarkRead:
 
     def test_mark_read_moves_to_cur_with_seen_flag(self, root: Path, message: Path) -> None:
         assert mark_read(message=message) == root / "a" / "cur" / "m1:2,S"
+
+
+class TestOwnThreadMessage:
+    @pytest.mark.parametrize(
+        ("sender", "recipient", "thread", "expected"),
+        [
+            ("a", "b", True, True),
+            ("b", "a", True, False),
+            ("a", "a", False, False),
+        ],
+        ids=["own-thread-send", "peer-thread-send", "self-test-to-own-mailbox"],
+    )
+    def test_flags_only_own_thread_sends(
+        self,
+        root: Path,
+        sender: str,
+        recipient: str,
+        thread: bool,
+        expected: bool,
+    ) -> None:
+        delivery = send(
+            root=root,
+            envelope=Envelope(sender=sender, recipient=recipient, subject="s"),
+            body="x",
+            thread=thread,
+        )
+
+        assert is_own_thread_message(message=delivery.path, name="a") is expected
+
+    def test_sender_of_reads_from_header(self, delivery: Delivery) -> None:
+        assert sender_of(message=delivery.path) == "dev10x-7"
+
+    def test_sender_of_vanished_message_is_unknown(self, root: Path) -> None:
+        assert sender_of(message=root / "a" / "new" / "gone") is None
+
+    def test_sender_of_headerless_message_is_unknown(self, tmp_path: Path) -> None:
+        message = tmp_path / "raw"
+        message.write_text("no frontmatter here\n", encoding="utf-8")
+
+        assert sender_of(message=message) is None
 
 
 class TestDoneTargets:

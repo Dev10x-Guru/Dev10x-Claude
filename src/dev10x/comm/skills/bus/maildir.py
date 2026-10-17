@@ -195,6 +195,24 @@ def unread(maildirs: list[Path]) -> set[Path]:
     }
 
 
+def sender_of(message: Path) -> str | None:
+    try:
+        text = message.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return None
+    frontmatter = text.split("\n---\n", maxsplit=1)[0]
+    for line in frontmatter.splitlines():
+        key, _, value = line.partition(": ")
+        if key == "From":
+            return value
+    return None
+
+
+def is_own_thread_message(message: Path, name: str) -> bool:
+    in_thread = message.parent.parent.parent.name == "threads"
+    return in_thread and sender_of(message=message) == name
+
+
 def mark_read(message: Path) -> Path:
     cur = message.parent.parent / "cur"
     cur.mkdir(parents=True, exist_ok=True)
