@@ -3,13 +3,14 @@ from __future__ import annotations
 import argparse
 import sys
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from pathlib import Path
 
 from dev10x.comm.skills.bus.maildir import (
     BUS_ROOT,
     INVALID_MESSAGE_EXIT,
     InvalidMessageError,
+    is_own_thread_message,
     maildirs_for,
     unread,
     validate_mailbox_name,
@@ -43,15 +44,19 @@ def next_batch(
     sleep: Callable[[float], None] | None = None,
 ) -> list[Path]:
     pending = unread(maildirs=maildirs_for(root=root, name=name))
-    if pending:
-        return sorted(pending)
+    batch = inbound(messages=pending, name=name)
     batches = arrivals(root=root, name=name, interval=interval, sleep=sleep, seen=pending)
-    batch: list[Path] = []
     poll = 0
     while not batch and (polls is None or poll < polls):
-        batch = next(batches)
+        batch = inbound(messages=next(batches), name=name)
         poll += 1
     return batch
+
+
+def inbound(messages: Iterable[Path], name: str) -> list[Path]:
+    return sorted(
+        message for message in messages if not is_own_thread_message(message=message, name=name)
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:

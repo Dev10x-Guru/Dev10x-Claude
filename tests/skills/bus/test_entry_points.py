@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 from dev10x.skills.bus.maildir import INVALID_MESSAGE_EXIT
 
-from dev10x.skills.bus import done, send, watch
+from dev10x.skills.bus import done, maildir, send, watch
 from tests.skills.bus.conftest import Run
 
 RunMain = Callable[[Callable[..., int], list[str]], Run]
@@ -250,6 +250,26 @@ class TestWatchOnceMain:
 
     def test_polls_bound_a_quiet_wait(self, quiet_run: Run) -> None:
         assert (quiet_run.exit_code, quiet_run.stdout) == (0, "")
+
+    @pytest.fixture
+    def own_thread_run(
+        self,
+        root: Path,
+        inbox: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        run_main: RunMain,
+    ) -> Run:
+        maildir.send(
+            root=root,
+            envelope=maildir.Envelope(sender="a", recipient="b", subject="to b"),
+            body="x",
+            thread=True,
+        )
+        monkeypatch.setattr(watch.time, "sleep", lambda seconds: (inbox / "fresh").touch())
+        return run_main(watch.main, ["a", "--once", "--root", str(root)])
+
+    def test_waits_past_own_outgoing_thread_mail(self, own_thread_run: Run, inbox: Path) -> None:
+        assert own_thread_run.stdout == f"NEW {inbox / 'fresh'}\n"
 
 
 class TestDoneMain:

@@ -71,8 +71,10 @@ shell variable, no `&&`, no `cd`, no env prefix — or the allow rules
 - `${CLAUDE_PLUGIN_ROOT}/skills/bus/scripts/watch.py <name> --once` —
   prints `NEW <path>` for every message already unread in `new/`
   (threads included) and exits 0; with nothing unread it waits for the
-  next arrival, prints that batch and exits 0. The default watcher,
-  run under Bash `run_in_background`.
+  next arrival, prints that batch and exits 0. It skips thread mail
+  whose `From:` is `<name>` — this session's own sends, which the peer
+  still has to read. The default watcher, run under Bash
+  `run_in_background`.
 - `${CLAUDE_PLUGIN_ROOT}/skills/bus/scripts/watch.py <name>` (no flag)
   — prints `NEW <path>` per message arriving after it starts. Runs
   until killed; only ever under `Monitor`. Mail already unread at
@@ -114,10 +116,12 @@ Args: `[start [name] [role] | send <to> <subject> | prompt | stop]`.
    watcher again. Do not report the bus live before the line arrives.
 5. Each time the watcher exits, handle every `NEW` line (below), mark
    each one `done.py`, then start it again — until the user says
-   `stop`. Mark before re-launching: `--once` reports all unread mail,
-   so a message left in `new/` wakes it again at once. No gap check is
-   needed — mail that landed while no watcher ran is still unread, and
-   the next `--once` reports it.
+   `stop`. Mark before re-launching: `--once` reports all unread mail
+   addressed to you, so one left in `new/` wakes it again at once.
+   Mark only what `--once` reported — never your own `--thread` sends,
+   or the peer never sees them. No gap check is needed: mail that
+   landed while no watcher ran is still unread, and the next `--once`
+   reports it.
 6. **Re-arm quietly.** A watcher exit, restart or re-launch with no
    mail to handle is not news: never tell the user the mailbox was
    empty, expired or re-armed. Speak only about messages.
