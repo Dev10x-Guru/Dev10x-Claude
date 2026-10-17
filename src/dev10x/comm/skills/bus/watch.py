@@ -73,7 +73,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="report unread mail, or wait for the next arrival, then exit 0",
     )
-    parser.add_argument("--polls", type=int, default=None, help=argparse.SUPPRESS)
+    parser.add_argument(
+        "--polls",
+        type=int,
+        default=None,
+        help="with --once, give up after N polls; 0 reports unread mail without waiting",
+    )
     return parser
 
 

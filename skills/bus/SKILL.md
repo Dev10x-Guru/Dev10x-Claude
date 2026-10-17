@@ -129,8 +129,13 @@ Args: `[start [name] [role] | send <to> <subject> | prompt | stop]`.
 **Alternative — `Monitor`:** arm `Monitor` with the no-flag
 `watch.py <name>`, `timeout_ms: 1800000`, and re-arm on each expiry.
 `Monitor` caps the wait at 30 minutes, and plain `watch.py` baselines
-`new/` at start, so after every re-arm run `watch.py <name> --once`
-in the background as well to pick up the gap. That gap is why
+`new/` at start. So after every arm, run
+`watch.py <name> --once --polls 0` as a plain foreground Bash call: it
+prints what was already unread and exits without waiting. Never start
+`--once` without `--polls 0` beside a `Monitor` — it would wait too,
+and report the next arrival a second time. Arm first, check second; a
+message landing between the two may show up in both, so skip a `NEW`
+path already handled. That gap is why
 `--once` became the default (GH-1613): a message landing between a
 `Monitor` expiry and the re-arm was silently swallowed by the
 start-up baseline.

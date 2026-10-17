@@ -252,6 +252,23 @@ class TestWatchOnceMain:
         assert (quiet_run.exit_code, quiet_run.stdout) == (0, "")
 
     @pytest.fixture
+    def check_only_run(
+        self,
+        root: Path,
+        inbox: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        run_main: RunMain,
+    ) -> Run:
+        def refuse_to_wait(seconds: float) -> None:
+            raise AssertionError("--polls 0 waited")
+
+        monkeypatch.setattr(watch.time, "sleep", refuse_to_wait)
+        return run_main(watch.main, ["a", "--once", "--root", str(root), "--polls", "0"])
+
+    def test_zero_polls_checks_without_waiting(self, check_only_run: Run) -> None:
+        assert (check_only_run.exit_code, check_only_run.stdout) == (0, "")
+
+    @pytest.fixture
     def own_thread_run(
         self,
         root: Path,
