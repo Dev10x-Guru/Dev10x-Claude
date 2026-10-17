@@ -7,9 +7,9 @@ from collections.abc import Callable
 from pathlib import Path
 
 import pytest
-
-from dev10x.skills.bus import done, send, watch
 from dev10x.skills.bus.maildir import INVALID_MESSAGE_EXIT
+
+from dev10x.skills.bus import done, maildir, send, watch
 from tests.skills.bus.conftest import Run
 
 RunMain = Callable[[Callable[..., int], list[str]], Run]
@@ -157,6 +157,178 @@ class TestWatchMain:
         )
 
         assert next(batches) == [thread_new / "m"]
+
+    @pytest.fixture
+    def sleeps(
+        self,
+        root: Path,
+        inbox: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        run_main: RunMain,
+    ) -> list[float]:
+        calls: list[float] = []
+        monkeypatch.setattr(watch.time, "sleep", calls.append)
+        run_main(watch.main, ["a", "--root", str(root), "--polls", "3"])
+        return calls
+
+    def test_keeps_polling_after_a_quiet_poll(self, sleeps: list[float]) -> None:
+        assert len(sleeps) == 3
+
+
+class TestWatchOnceMain:
+    @pytest.fixture
+    def inbox(self, root: Path) -> Path:
+        path = root / "a" / "new"
+        path.mkdir(parents=True)
+        return path
+
+    @pytest.fixture
+    def unread_run(
+        self,
+        root: Path,
+        inbox: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        run_main: RunMain,
+    ) -> Run:
+        (inbox / "old").touch()
+        thread_new = root / "threads" / "a--b" / "new"
+        thread_new.mkdir(parents=True)
+        (thread_new / "aside").touch()
+
+        def refuse_to_wait(seconds: float) -> None:
+            raise AssertionError("--once waited despite unread mail")
+
+        monkeypatch.setattr(watch.time, "sleep", refuse_to_wait)
+        return run_main(watch.main, ["a", "--once", "--root", str(root)])
+
+    def test_unread_mail_exits_zero(self, unread_run: Run) -> None:
+        assert unread_run.exit_code == 0
+
+    def test_reports_unread_mail_without_waiting(
+        self, unread_run: Run, root: Path, inbox: Path
+    ) -> None:
+        assert unread_run.stdout == (
+            f"NEW {inbox / 'old'}\nNEW {root / 'threads' / 'a--b' / 'new' / 'aside'}\n"
+        )
+
+    @pytest.fixture
+    def arrival_run(
+        self,
+        root: Path,
+        inbox: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        run_main: RunMain,
+    ) -> Run:
+        polls = iter([lambda: None, (inbox / "fresh").touch])
+        monkeypatch.setattr(watch.time, "sleep", lambda seconds: next(polls)())
+        return run_main(watch.main, ["a", "--once", "--root", str(root)])
+
+    def test_arrival_exits_zero(self, arrival_run: Run) -> None:
+        assert arrival_run.exit_code == 0
+
+    def test_waits_through_quiet_polls_for_the_arrival(
+        self, arrival_run: Run, inbox: Path
+    ) -> None:
+        assert arrival_run.stdout == f"NEW {inbox / 'fresh'}\n"
+
+    @pytest.fixture
+    def quiet_run(
+        self,
+        root: Path,
+        inbox: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        run_main: RunMain,
+    ) -> Run:
+        monkeypatch.setattr(watch.time, "sleep", lambda seconds: None)
+        return run_main(watch.main, ["a", "--once", "--root", str(root), "--polls", "2"])
+
+    def test_polls_bound_a_quiet_wait(self, quiet_run: Run) -> None:
+        assert (quiet_run.exit_code, quiet_run.stdout) == (0, "")
+
+    @pytest.fixture
+    def check_only_run(
+        self,
+        root: Path,
+        inbox: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        run_main: RunMain,
+    ) -> Run:
+        def refuse_to_wait(seconds: float) -> None:
+            raise AssertionError("--polls 0 waited")
+
+        monkeypatch.setattr(watch.time, "sleep", refuse_to_wait)
+        return run_main(watch.main, ["a", "--once", "--root", str(root), "--polls", "0"])
+
+    def test_zero_polls_checks_without_waiting(self, check_only_run: Run) -> None:
+        assert (check_only_run.exit_code, check_only_run.stdout) == (0, "")
+
+    @pytest.fixture
+    def own_thread_run(
+        self,
+        root: Path,
+        inbox: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        run_main: RunMain,
+    ) -> Run:
+        maildir.send(
+            root=root,
+            envelope=maildir.Envelope(sender="a", recipient="b", subject="to b"),
+            body="x",
+            thread=True,
+        )
+        monkeypatch.setattr(watch.time, "sleep", lambda seconds: (inbox / "fresh").touch())
+        return run_main(watch.main, ["a", "--once", "--root", str(root)])
+
+    def test_waits_past_own_outgoing_thread_mail(self, own_thread_run: Run, inbox: Path) -> None:
+        assert own_thread_run.stdout == f"NEW {inbox / 'fresh'}\n"
+
+    @pytest.fixture
+    def read_by_peer_run(
+        self,
+        root: Path,
+        inbox: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        run_main: RunMain,
+    ) -> Run:
+        outgoing = maildir.send(
+            root=root,
+            envelope=maildir.Envelope(sender="a", recipient="b", subject="to b"),
+            body="x",
+            thread=True,
+        )
+        polls = iter([lambda: maildir.mark_read(message=outgoing.path), (inbox / "fresh").touch])
+        monkeypatch.setattr(watch.time, "sleep", lambda seconds: next(polls)())
+        return run_main(watch.main, ["a", "--once", "--root", str(root)])
+
+    def test_mail_read_elsewhere_does_not_end_the_wait(
+        self, read_by_peer_run: Run, inbox: Path
+    ) -> None:
+        assert read_by_peer_run.stdout == f"NEW {inbox / 'fresh'}\n"
+
+    @pytest.fixture
+    def snapshot_window_run(
+        self,
+        root: Path,
+        inbox: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        run_main: RunMain,
+    ) -> Run:
+        real_unread = watch.unread
+        after_first_check = iter([(inbox / "fresh").touch])
+
+        def unread_then_arrive(maildirs: list[Path]) -> set[Path]:
+            snapshot = real_unread(maildirs=maildirs)
+            next(after_first_check, lambda: None)()
+            return snapshot
+
+        monkeypatch.setattr(watch, "unread", unread_then_arrive)
+        monkeypatch.setattr(watch.time, "sleep", lambda seconds: None)
+        return run_main(watch.main, ["a", "--once", "--root", str(root), "--polls", "2"])
+
+    def test_reports_mail_landing_right_after_the_unread_check(
+        self, snapshot_window_run: Run, inbox: Path
+    ) -> None:
+        assert snapshot_window_run.stdout == f"NEW {inbox / 'fresh'}\n"
 
 
 class TestDoneMain:
