@@ -116,6 +116,13 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: '"$RUNNER_TEMP/scripts/gather-pr-context.sh"'
 
+      # GH-1622: the probe-comment cleanup below only deletes comments
+      # made after this point, so it never touches an earlier review's.
+      - name: Record review start
+        if: steps.dedup.outputs.skip != 'true' && steps.pr-state.outputs.skip != 'true' && steps.stage.outputs.skip != 'true'
+        id: review-start
+        run: echo "iso=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
       # GH-1615: the CLI decides which model each alias (`sonnet`, `haiku`)
       # names, and the one bundled with the action lags a generation. One
       # repository variable, CLAUDE_CLI_VERSION, sets the CLI for every
@@ -145,7 +152,23 @@ jobs:
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # GH-1622: workload identity federation — the job's OIDC token
+          # (hence `id-token: write`) is exchanged for a short-lived token
+          # acting as the Dev10x service account. These are identifiers,
+          # not credentials. Never set anthropic_api_key beside them: a key
+          # outranks federation (claude-ci-cost.md rule 9). The action's
+          # post-step that drops probe inline comments ("Testing if I can
+          # comment…") calls the API with the static key only and fails
+          # open without one, so the classifier is off and the "Delete
+          # probe inline comments" step removes probes with the GitHub
+          # token. A stray probe matters here: STEP 7 drafts the PR on any
+          # inline comment. Turn classification back on if the post-step
+          # learns to use the federated token.
+          anthropic_federation_rule_id: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID }}
+          anthropic_organization_id: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
+          anthropic_service_account_id: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID }}
+          anthropic_workspace_id: ${{ vars.ANTHROPIC_WORKSPACE_ID }}
+          classify_inline_comments: "false"
           path_to_claude_code_executable: ${{ steps.claude-cli.outputs.path }}
           # GH-1585: static instructions first, per-run values last in
           # RUN CONTEXT. The API caches the prompt up to the first byte
@@ -251,6 +274,10 @@ jobs:
               `issue-comments.json`) to determine the correct round number
               (highest existing round + 1)
             - Use inline comments for specific issues
+            - The inline comment tool works and posts at once. Never call
+              it to test it, and never post a placeholder: every call is a
+              real finding on the PR. Tell subagents the same; they report
+              findings to you and never post themselves
             - Create ONE summary per review cycle: Write it with the Write
               tool to `review-summary-body.md` in the current directory,
               then run `gh pr review <PR> --comment --body-file review-summary-body.md`
@@ -302,6 +329,35 @@ jobs:
           # list that misses it silently disables STEP 3. See
           # .claude/rules/claude-ci-cost.md.
           claude_args: '--settings .github/claude-ci-settings.json --append-system-prompt-file .github/claude/ci-system-prompt.md --exclude-dynamic-system-prompt-sections --disallowed-tools "ScheduleWakeup,Monitor" --model sonnet --allowed-tools "Task,Read,Write,Grep,Glob,mcp__github_inline_comment__create_inline_comment,Bash(gh issue view:*),Bash(gh search:*),Bash(gh issue list:*),Bash(gh pr review:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh pr ready:*),Bash(gh api:*)"'
+
+      # GH-1622: stands in for the action's probe classifier, which needs
+      # the static key (see the federation comment above). Deletes
+      # claude[bot] inline comments from this run whose whole body is a
+      # tool test ("Test comment", "Can I post here?"); a real finding that
+      # merely opens like one never matches. Every deletion is logged.
+      # Ported from tt-pos b54b48b30.
+      - name: Delete probe inline comments
+        if: ${{ always() && steps.claude-review.outputs.conclusion != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          SINCE: ${{ steps.review-start.outputs.iso }}
+        run: |
+          # Without pipefail a failed listing would empty the loop and pass.
+          set -o pipefail
+          gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/comments" \
+            | jq -r --arg since "$SINCE" '.[][]
+                | select(.user.login == "claude[bot]" and .created_at >= $since)
+                | select((.body | length) < 100 and (.body | contains("**") | not))
+                | select(.body | test("^\\s*(test( comment)?|testing( (if|whether) (i can( comment| post)?( here| on this line)?|this works|the (inline )?comment( tool)?( works)?))?|this is a test( comment)?|can i (post|comment)( here)?|does this work|checking (if|whether) (i can|this works|the (inline )?comment( tool)? works))[.!?]?\\s*$"; "i"))
+                | .id' \
+            | while read -r id; do
+                if gh api -X DELETE "repos/${GITHUB_REPOSITORY}/pulls/comments/${id}"; then
+                  echo "::warning title=Deleted probe inline comment::Removed claude[bot] probe comment ${id} on PR #${PR_NUMBER}."
+                else
+                  echo "::error title=Probe inline comment left in place::Could not delete claude[bot] comment ${id}; it still counts as a review finding."
+                fi
+              done
 
       # GH-1585: cost, turns and cache use of this run in the job summary
       # and as a notice, so a prompt or model change can be compared before

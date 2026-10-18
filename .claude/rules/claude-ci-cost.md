@@ -82,7 +82,8 @@ these jobs.
    far more than they write. Compare runs before and after any prompt,
    flag or model change.
 8. **One CLI version (GH-1615).** Every Claude step runs the CLI
-   version in the `CLAUDE_CLI_VERSION` repository variable. The install
+   version in the `CLAUDE_CLI_VERSION` Actions variable (set on the
+   Dev10x-Guru organization). The install
    step fails on an empty value instead of installing `latest`, and runs
    from `RUNNER_TEMP` so a PR's `.npmrc` cannot redirect the registry;
    the action gets the binary through `path_to_claude_code_executable`.
@@ -92,6 +93,19 @@ these jobs.
    `--model` and move them by changing the variable. That changes every
    workflow without a PR: read the CLI changelog first, then compare
    usage reports (rule 7).
+9. **Federation, not keys (GH-1622).** Every Claude step authenticates
+   with the four `anthropic_federation_*` inputs, read from the
+   `ANTHROPIC_FEDERATION_RULE_ID` / `_ORGANIZATION_ID` /
+   `_SERVICE_ACCOUNT_ID` / `_WORKSPACE_ID` organization variables: the
+   job's GitHub OIDC token is exchanged for a short-lived token acting
+   as the Dev10x service account, so spend bills to that account and no
+   long-lived key sits in the repo. They are identifiers, not secrets.
+   Never set `anthropic_api_key` beside them — a key outranks
+   federation. The federation rule must accept the OIDC subject of every
+   trigger: `pull_request` for the reviewers, the default branch for
+   `claude.yml`'s comment events. The code review turns the action's
+   probe-comment classifier off (`classify_inline_comments: "false"`)
+   because it needs a key, and deletes probe comments in its own step.
 
 ## Verifying a change
 
