@@ -66,9 +66,12 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
+          # GH-1625: the model can Read the checkout; no step here pushes.
+          persist-credentials: false
 
       # GH-1585: same trusted-ref staging as claude-code-review.yml — the
-      # context script runs with this job's token.
+      # context script runs with this job's token. GH-1625: the prompt,
+      # claude_args, system prompt and CI settings come from the same ref.
       - name: Stage scripts from the trusted ref
         if: steps.dedup.outputs.skip != 'true' && steps.pr-state.outputs.skip != 'true'
         id: stage
@@ -80,18 +83,20 @@ jobs:
           ref=""
           for branch in "$BASE_REF" "$DEFAULT_BRANCH"; do
             git fetch --no-tags --depth=1 origin "$branch"
-            if git cat-file -e "FETCH_HEAD:$dir" 2>/dev/null; then
+            if git cat-file -e "FETCH_HEAD:$dir/build-claude-inputs.sh" 2>/dev/null; then
               ref=$(git rev-parse FETCH_HEAD)
               break
             fi
           done
           if [[ -z "$ref" ]]; then
-            echo "::notice::Neither $BASE_REF nor $DEFAULT_BRANCH has $dir yet — skipping rather than running this PR's own copy."
+            echo "::notice::Neither $BASE_REF nor $DEFAULT_BRANCH has $dir/build-claude-inputs.sh yet — skipping rather than running this PR's own copy."
             echo "skip=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          set -euo pipefail
           mkdir -p "$RUNNER_TEMP/scripts"
           git archive "$ref" "$dir" | tar -x -C "$RUNNER_TEMP/scripts" --strip-components=3
+          "$RUNNER_TEMP/scripts/stage-trusted.sh" "$ref"
 
       # GH-1585: everything the check needs is fetched here, so the model
       # makes no API calls of its own. The previous hygiene comment is
@@ -110,6 +115,17 @@ jobs:
                 and (.body | contains("<!-- dev10x-pr-hygiene -->")))] | last // {}' \
             "$ctx/issue-comments.json" > "$ctx/prior-hygiene-comment.json"
           echo "comment_id=$(jq -r '.id // empty' "$ctx/prior-hygiene-comment.json")" >> "$GITHUB_OUTPUT"
+
+      # GH-1625: prompt and claude_args from .github/claude/, RUN CONTEXT
+      # last; see claude-code-review.yml.
+      - name: Build Claude inputs
+        if: steps.dedup.outputs.skip != 'true' && steps.pr-state.outputs.skip != 'true' && steps.stage.outputs.skip != 'true'
+        id: inputs
+        env:
+          RUN_CONTEXT: |
+            - REPO: ${{ github.repository }}
+            - PR: ${{ github.event.pull_request.number }}
+        run: '"$RUNNER_TEMP/scripts/build-claude-inputs.sh" args/hygiene.txt prompts/hygiene.md'
 
       # GH-1615: pinned CLI from CLAUDE_CLI_VERSION; see claude-code-review.yml.
       - name: Install Claude Code CLI
@@ -140,111 +156,12 @@ jobs:
           anthropic_service_account_id: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID }}
           anthropic_workspace_id: ${{ vars.ANTHROPIC_WORKSPACE_ID }}
           path_to_claude_code_executable: ${{ steps.claude-cli.outputs.path }}
-          # GH-1585: static instructions first, per-run values last in
-          # RUN CONTEXT, so every run reads the cached prompt prefix.
-          prompt: |
-            You are reviewing a PR for metadata hygiene — title, description,
-            and commit history quality. This is NOT a code review. You have
-            no `gh` access: a step before you fetched everything, and a step
-            after you posts what you write.
-
-            REQUIRED FIRST STEP:
-            Read these files:
-            1. references/git-commits.md — conventions for commit messages,
-               PR titles, and branch naming
-            2. references/git-pr.md — PR body format, grooming, review feedback
-            3. references/git-jtbd.md — Job Story format, principles,
-               anti-patterns, and examples for outcome-focused titles
-
-            PR DATA — Read these files in `.claude-ci/pr-context/`:
-            - `pr.json`: title, body, author, head branch (headRefName)
-            - `commits.json`: every commit's headline and body
-
-            ANALYZE THREE AREAS:
-
-            1. **PR Title**
-               - Must follow: `<gitmoji> <TICKET-ID> <JTBD-inspired description>`
-               - Max 72 characters
-               - Ticket ID must be present (extract expected ID from branch name)
-               - Description SHOULD be outcome-focused (JTBD) for user-facing features
-               - For meta-work (docs, tooling, refactoring), implementation-focused
-                 titles are acceptable if the PR body explains the "why" using JTBD
-               - Bad: "Add X to Y" without context — Good: "Enable Z" (outcome)
-
-            2. **PR Description (body)**
-               - Must start with a JTBD Job Story as the **first paragraph** (1-3 lines)
-                 Format: `**When** [situation], **[actor] wants to** [motivation], **so [beneficiary] can** [outcome]`
-                 A Job Story written in the project's language is equally valid, using
-                 that language's markers — Polish is
-                 `**Gdy** …, **[rola] chce** …, **żeby [beneficjent] mógł** …`.
-                 Accept ONE language throughout; a story mixing English markers with
-                 another language's prose is a finding, not a pass (GH-1291).
-                 The release notes process collects Job Stories by position — it must
-                 come before the commit list and any other content
-               - May optionally include a compact commit list with links
-               - Must end with `Fixes: https://github.com/Dev10x-Guru/dev10x-claude/issues/NUMBER`
-               - Should NOT contain summaries or checklists (those go in the first comment)
-
-            3. **Commits**
-               - Each commit title: `<gitmoji> <TICKET-ID> <description>`
-               - Atomic: one logical change per commit
-               - No fixup! or squash! commits remaining
-               - Titles should be outcome-focused where possible
-
-            SEVERITY LABELS:
-            Classify each issue as REQUIRED or RECOMMENDED:
-            - **REQUIRED**: Violations that break tooling or integration
-              - Missing gitmoji (breaks changelog generation)
-              - No `Fixes:` link (breaks GitHub issue integration)
-              - Fixup commits remaining (blocks merge)
-              - Missing JTBD Job Story as first paragraph (breaks release
-                notes collection)
-              - JTBD not the first paragraph (commit list or other content
-                appears before the Job Story)
-            - **RECOMMENDED**: Style preferences that improve consistency
-              - Compact commit list format
-              - Ticket ID in title (helps tracking, omit for meta-work)
-              - JTBD-style title wording (preferred, not enforced for
-                infrastructure/tooling PRs)
-
-            TICKET ID VALIDATION:
-            Before suggesting a ticket ID from the branch name:
-            - Skip placeholder-looking IDs (e.g., `1234`, `0000`, `9999`)
-            - Skip IDs from auto-generated branch names (random suffix
-              patterns like `-knDH7`, `-7n0Qz`)
-            - Only suggest ticket IDs that look intentional
-
-            WRITE THE COMMENT — your only output:
-            Write the comment body with the Write tool to
-            `.claude-ci/hygiene-comment.md`, on every run. Do not post it:
-            the step after you edits this workflow's existing hygiene
-            comment in place, creates one when there is none, and posts
-            nothing when all checks pass and no comment exists yet.
-            - When ANY issues are found:
-              - No header — keep the comment compact and scannable
-              - A flat list of issues, each on its own line as a bullet point
-              - Each bullet prefixed with **REQUIRED** or **RECOMMENDED** label
-              - Each bullet includes a concrete fix (alternative wording, example)
-              - When flagging non-outcome-focused titles, append:
-                "📖 See `references/git-jtbd.md`"
-              - Keep tone constructive — this is a helpful nudge, not a gate
-            - When ALL checks pass, the body is the single line
-              `✅ PR hygiene checks pass.`
-
-            IMPORTANT:
-            - Do NOT review code quality, architecture, or tests — that's handled
-              by the code review workflow
-            - Do NOT approve or request changes — only comment
-            - Be concise — the goal is a quick, actionable checklist
-
-            RUN CONTEXT:
-            - REPO: ${{ github.repository }}
-            - PR: ${{ github.event.pull_request.number }}
-
-          # GH-1585: the first four flags are the shared, byte-stable CI
-          # prefix (see claude-code-review.yml). --tools leaves only the two
-          # tools this job uses, so the prefix carries no other tool schemas.
-          claude_args: '--settings .github/claude-ci-settings.json --append-system-prompt-file .github/claude/ci-system-prompt.md --exclude-dynamic-system-prompt-sections --disallowed-tools "ScheduleWakeup,Monitor" --model haiku --tools "Read,Write" --allowed-tools "Read,Write"'
+          # GH-1625: built from .github/claude/prompts/hygiene.md and
+          # .github/claude/args/hygiene.txt (staged from the base ref); edit
+          # those files, not this step. The args file's --tools leaves only
+          # Read and Write, so the prefix carries no other tool schemas.
+          prompt: ${{ steps.inputs.outputs.prompt }}
+          claude_args: ${{ steps.inputs.outputs.claude_args }}
 
       # GH-1585: see claude-code-review.yml.
       - name: Report Claude usage
@@ -272,7 +189,7 @@ jobs:
           COMMENT_ID: ${{ steps.pr-data.outputs.comment_id }}
         run: |
           body=.claude-ci/hygiene-comment.md
-          if [[ ! -s "$body" ]]; then
+          if [[ -L "$body" || ! -s "$body" ]]; then
             echo "::error title=Hygiene review wrote no comment::The model finished without writing $body."
             exit 1
           fi

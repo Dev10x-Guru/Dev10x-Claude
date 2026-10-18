@@ -1,0 +1,1 @@
+--settings .github/claude-ci-settings.json --append-system-prompt-file .github/claude/ci-system-prompt.md --exclude-dynamic-system-prompt-sections --disallowed-tools "ScheduleWakeup,Monitor" --model haiku --tools "Read,Write" --allowed-tools "Read,Write"
