@@ -47,12 +47,13 @@ def discover_fragments(
     *,
     directories: Iterable[Path],
     plugins: Sequence[str],
+    suffix: str = FRAGMENT_SUFFIX,
 ) -> list[ConfigFragment]:
     found: list[ConfigFragment] = []
     for directory in directories:
         if not directory.is_dir():
             continue
-        for path in sorted(directory.glob(f"*{FRAGMENT_SUFFIX}")):
+        for path in sorted(directory.glob(f"*{suffix}")):
             if path.stem not in plugins:
                 raise FragmentError(
                     f"{path}: a fragment must be named after a plugin ({', '.join(plugins)})"
@@ -113,6 +114,7 @@ def _merge_into(
 
 __all__ = [
     "CORE_PLUGIN",
+    "FRAGMENT_SUFFIX",
     "ConfigFragment",
     "FragmentError",
     "discover_fragments",
