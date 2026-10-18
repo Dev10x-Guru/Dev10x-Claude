@@ -41,10 +41,8 @@ Review guidelines are centralized in:
 
 Workflows should reference these files rather than duplicating content.
 
-API cost and prompt caching for the Claude review workflows:
-`.claude/rules/claude-ci-cost.md` (GH-1585). Models follow the
-`CLAUDE_CLI_VERSION` CLI pin, not the action version: rule 8 there
-(GH-1615).
+API cost, prompt caching, the CLI pin (rule 8) and which files a review
+reads from base vs the PR: `.claude/rules/claude-ci-cost.md`.
 
 ## Workflow Optimization
 

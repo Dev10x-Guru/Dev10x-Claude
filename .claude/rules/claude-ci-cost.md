@@ -55,7 +55,8 @@ these jobs.
    the Claude step, into `.claude-ci/pr-context/` (`INDEX.md` lists the
    files). Stage it from the base or default branch into `RUNNER_TEMP`,
    never from the PR checkout: it runs with the job token. When neither
-   branch has it, skip the review with a notice. This applies to jobs
+   branch has `build-claude-inputs.sh` beside it, skip the review with a
+   notice. This applies to jobs
    that review a whole PR; a job that answers a single comment may read
    the PR with `gh`, and its prompt says so.
 4. **Deterministic writes.** When the output is one comment, the model
@@ -70,7 +71,10 @@ these jobs.
    Exception: the code review passes no `--tools`, because it needs
    Bash and the subagent tool, whose name differs across CLI
    versions. A list that misses that tool silently disables subagent
-   dispatch.
+   dispatch. Subagent tiers come from each `.claude/agents/` spec's
+   `model:`; `reviewer-security` and `reviewer-silent-failures` stay on
+   `sonnet` in CI (GH-1619), so a Python or shell PR pays for two more
+   sonnet subagents. Revisit from the usage report if that dominates.
 6. **5-minute cache.** `claude-ci-settings.json` sets
    `FORCE_PROMPT_CACHING_5M=1`. A one-shot CI run rarely re-reads a
    1-hour entry, and that write costs 2× input. It also sets
@@ -109,13 +113,31 @@ these jobs.
 10. **Prompts and args are files (GH-1625).** The code review and the
     hygiene check read their prompt from `.github/claude/prompts/` and
     their `claude_args` from `.github/claude/args/<job>.txt` (one line,
-    the shared prefix first), so the workflow, `dev10x:gh-review-setup`
-    and a local review read one text. The stage step copies
-    `.github/claude/**` and `claude-ci-settings.json` from the base ref
-    over the checkout, and `build-claude-inputs.sh` joins the parts and
-    appends RUN CONTEXT. Edit the files, never the workflow step.
-    `tests/test_claude_ci_prompts.py` fails on a `${{` in those files,
-    an inline prompt, or a drifted prefix.
+    the shared prefix first), so one text can serve the workflow and,
+    once wired, `dev10x:gh-review-setup` and a local review mode
+    (follow-ups to GH-1625). `claude.yml` and the memory review still
+    carry inline prompts. The stage step copies the base-owned files
+    (table below) over the checkout, and `build-claude-inputs.sh` joins
+    the parts and appends RUN CONTEXT. Edit the files, never the
+    workflow step. `tests/test_claude_ci_prompts.py` fails on a `${{` in
+    those files, an inline prompt, or a drifted prefix.
+
+## Where each file comes from (GH-1620)
+
+A review runs the PR's code under the base branch's instructions: the
+rules, prompts, settings and `references/` a review reads all come
+from the base, so a PR cannot rewrite what its own review follows.
+
+| Source | Files | Why |
+|---|---|---|
+| Base branch (the action) | `.claude/`, `CLAUDE.md` and the other config `restoreConfigFromBase` restores; the PR's copies sit in `.claude-pr/` | claude-code-action restores them before the CLI starts |
+| Base branch (the workflow) | `.github/claude/**`, `.github/claude-ci-settings.json`, `references/**`, `.github/scripts/claude-pr-context/`; the code review keeps the PR's copies in `.claude-ci/pr-head/` | the stage step copies them from the base or default ref (rule 3, rule 10) |
+| The PR | everything else | the checkout is `refs/pull/<N>/merge`, the PR merged into its base |
+
+To review a change to one of those files against its new text, read
+the PR's copy (`.claude-pr/` or `.claude-ci/pr-head/`); the code
+review prompt says so. `claude-ci-settings.json` sets only the two
+environment values in rule 6; it does not change which plugins load.
 
 ## Verifying a change
 
