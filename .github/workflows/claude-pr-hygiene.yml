@@ -111,14 +111,29 @@ jobs:
             "$ctx/issue-comments.json" > "$ctx/prior-hygiene-comment.json"
           echo "comment_id=$(jq -r '.id // empty' "$ctx/prior-hygiene-comment.json")" >> "$GITHUB_OUTPUT"
 
+      # GH-1615: pinned CLI from CLAUDE_CLI_VERSION; see claude-code-review.yml.
+      - name: Install Claude Code CLI
+        if: steps.dedup.outputs.skip != 'true' && steps.pr-state.outputs.skip != 'true' && steps.stage.outputs.skip != 'true'
+        id: claude-cli
+        working-directory: ${{ runner.temp }}
+        env:
+          CLAUDE_CLI_VERSION: ${{ vars.CLAUDE_CLI_VERSION }}
+        run: |
+          set -euo pipefail
+          npm install --global "@anthropic-ai/claude-code@${CLAUDE_CLI_VERSION:?set the CLAUDE_CLI_VERSION repository variable}"
+          cli_path=$(command -v claude)
+          "$cli_path" --version
+          echo "path=$cli_path" >> "$GITHUB_OUTPUT"
+
       - name: Run PR Hygiene Review
         if: steps.dedup.outputs.skip != 'true' && steps.pr-state.outputs.skip != 'true' && steps.stage.outputs.skip != 'true'
         id: hygiene-review
-        uses: anthropics/claude-code-action@cfc3eb22bfed5c26ef66e3223c982af27e4524de # v1.0.231
+        uses: anthropics/claude-code-action@a26b07d8c778b0c43f64618e5fd29fd0f8af72e8 # v1.0.250
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          path_to_claude_code_executable: ${{ steps.claude-cli.outputs.path }}
           # GH-1585: static instructions first, per-run values last in
           # RUN CONTEXT, so every run reads the cached prompt prefix.
           prompt: |

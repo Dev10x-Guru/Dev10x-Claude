@@ -28,14 +28,28 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.ref || github.event.issue.pull_request && format('refs/pull/{0}/head', github.event.issue.number) || github.ref }}
 
+      # GH-1615: pinned CLI from CLAUDE_CLI_VERSION; see claude-code-review.yml.
+      - name: Install Claude Code CLI
+        id: claude-cli
+        working-directory: ${{ runner.temp }}
+        env:
+          CLAUDE_CLI_VERSION: ${{ vars.CLAUDE_CLI_VERSION }}
+        run: |
+          set -euo pipefail
+          npm install --global "@anthropic-ai/claude-code@${CLAUDE_CLI_VERSION:?set the CLAUDE_CLI_VERSION repository variable}"
+          cli_path=$(command -v claude)
+          "$cli_path" --version
+          echo "path=$cli_path" >> "$GITHUB_OUTPUT"
+
       - name: Run Claude Code
         id: claude
-        uses: anthropics/claude-code-action@f87768c6d25f92ae6efa7175e223ef77d4cbf97f # v1.0.166
+        uses: anthropics/claude-code-action@a26b07d8c778b0c43f64618e5fd29fd0f8af72e8 # v1.0.250
         env:
           COMMENT_BODY: ${{ github.event.comment.body || github.event.review.body || '' }}
           PR_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number || '' }}
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          path_to_claude_code_executable: ${{ steps.claude-cli.outputs.path }}
           additional_permissions: |
             actions: read
           prompt: |
