@@ -8,9 +8,11 @@ paths:
 
 # Claude CI Workflows — Cost and Prompt Caching (GH-1585)
 
-How `claude-code-review.yml` and `claude-pr-hygiene.yml` keep API spend
-low. Ported from tt-pos TD-6210. Each rule names the mechanism it relies
-on, so a change that breaks one is easy to spot in review.
+How the Claude workflows (`claude-code-review.yml`,
+`claude-pr-hygiene.yml`, `claude-memory-review.yml` and `claude.yml`)
+keep API spend low. Ported from tt-pos TD-6210 and AI-822. Each rule
+names the mechanism it relies on, so a change that breaks one is easy
+to spot in review.
 
 ## How the bill is made
 
@@ -45,13 +47,17 @@ these jobs.
 2. **Static first, per-run values last.** A `prompt:` holds the
    instructions first and ends with a `RUN CONTEXT:` block for the
    repository and PR number. Instructions refer to `<REPO>` and `<PR>`.
-   Never put `${{ }}` above the instructions.
+   Never put `${{ }}` above the instructions. In `claude.yml` the
+   triggering comment is per-run too: it sits in a `REQUEST:` block just
+   above RUN CONTEXT.
 3. **Prefetch, don't instruct.** PR data comes from
    `.github/scripts/claude-pr-context/gather-pr-context.sh`, run before
    the Claude step, into `.claude-ci/pr-context/` (`INDEX.md` lists the
    files). Stage it from the base or default branch into `RUNNER_TEMP`,
    never from the PR checkout: it runs with the job token. When neither
-   branch has it, skip the review with a notice.
+   branch has it, skip the review with a notice. This applies to jobs
+   that review a whole PR; a job that answers a single comment may read
+   the PR with `gh`, and its prompt says so.
 4. **Deterministic writes.** When the output is one comment, the model
    Writes it to a file and a shell step posts it. The hygiene check keeps
    one comment per PR, found by author and the `<!-- dev10x-pr-hygiene -->`
@@ -59,6 +65,8 @@ these jobs.
 5. **Smallest tool set.** `--tools` drops the schemas of built-in tools
    a job never uses. Never allow an `mcp__github__*` tool: any one of
    them starts the GitHub MCP server and registers all of its tools.
+   The `mcp__github_inline_comment__*` tool is a separate, single-tool
+   server and is fine.
    Exception: the code review passes no `--tools`, because it needs
    Bash and the subagent tool, whose name differs across CLI
    versions. A list that misses that tool silently disables subagent
@@ -74,13 +82,11 @@ these jobs.
    far more than they write. Compare runs before and after any prompt,
    flag or model change.
 8. **One CLI version (GH-1615).** Every Claude step runs the CLI
-   version in the `CLAUDE_CLI_VERSION` repository variable. An install
-   step passes it through `env:` and runs
-   `npm install --global "@anthropic-ai/claude-code@${CLAUDE_CLI_VERSION:?…}"`
-   with `RUNNER_TEMP` as its working directory, so a PR's `.npmrc`
-   cannot redirect the registry and an empty variable fails the step
-   instead of installing `latest`. The action gets the binary through
-   `path_to_claude_code_executable`. The CLI decides which model
+   version in the `CLAUDE_CLI_VERSION` repository variable. The install
+   step fails on an empty value instead of installing `latest`, and runs
+   from `RUNNER_TEMP` so a PR's `.npmrc` cannot redirect the registry;
+   the action gets the binary through `path_to_claude_code_executable`.
+   The CLI decides which model
    `sonnet` and `haiku` name, and the one bundled with
    `claude-code-action` lags a generation, so keep the aliases in
    `--model` and move them by changing the variable. That changes every
