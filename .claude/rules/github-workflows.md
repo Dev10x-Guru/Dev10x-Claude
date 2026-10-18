@@ -44,10 +44,17 @@ Workflows should reference these files rather than duplicating content.
 API cost and prompt caching for the Claude review workflows:
 `.claude/rules/claude-ci-cost.md` (GH-1585).
 
+**Models follow one CLI pin (GH-1615).** Every Claude workflow
+installs the CLI version in the `CLAUDE_CLI_VERSION` repository
+variable, and that CLI decides which model the `sonnet` / `haiku`
+aliases name. Move models by changing the variable, not by bumping
+the action or hard-coding model ids: `claude-ci-cost.md` rule 8.
+
 ## Workflow Optimization
 
 - Keep prompts minimal — reference agent specs and rules on demand
-- Add `Read` tool to `claude_args` so Claude can load files on-demand
+- Give a job only the tools it uses: `--tools` for built-in schemas,
+  `--allowed-tools` for permission (`claude-ci-cost.md` rule 5)
 - Use context variables for dynamic values (repository, PR number)
 - Only load agent specs for domains with changed files
 

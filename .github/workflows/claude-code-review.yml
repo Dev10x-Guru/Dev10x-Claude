@@ -19,6 +19,7 @@ on:
       - "references/**/*.md"
       - ".claude/agents/**/*.md"
       - ".github/claude/**"
+      - ".github/claude-ci-settings.json"
       - "!.github/workflows/claude*.yml"
 
 jobs:
@@ -115,14 +116,37 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: '"$RUNNER_TEMP/scripts/gather-pr-context.sh"'
 
+      # GH-1615: the CLI decides which model each alias (`sonnet`, `haiku`)
+      # names, and the one bundled with the action lags a generation. One
+      # repository variable, CLAUDE_CLI_VERSION, sets the CLI for every
+      # Claude workflow, so the aliases resolve to the same models
+      # everywhere and move with a variable change, not an action bump.
+      # `path_to_claude_code_executable` below skips the action's own
+      # install. An empty variable fails this step instead of installing
+      # `latest`. npm runs from RUNNER_TEMP because the PR checkout is
+      # untrusted: a .npmrc in the PR could otherwise redirect the registry.
+      - name: Install Claude Code CLI
+        if: steps.dedup.outputs.skip != 'true' && steps.pr-state.outputs.skip != 'true' && steps.stage.outputs.skip != 'true'
+        id: claude-cli
+        working-directory: ${{ runner.temp }}
+        env:
+          CLAUDE_CLI_VERSION: ${{ vars.CLAUDE_CLI_VERSION }}
+        run: |
+          set -euo pipefail
+          npm install --global "@anthropic-ai/claude-code@${CLAUDE_CLI_VERSION:?set the CLAUDE_CLI_VERSION repository variable}"
+          cli_path=$(command -v claude)
+          "$cli_path" --version
+          echo "path=$cli_path" >> "$GITHUB_OUTPUT"
+
       - name: Run Claude Code Review
         if: steps.dedup.outputs.skip != 'true' && steps.pr-state.outputs.skip != 'true' && steps.stage.outputs.skip != 'true'
         id: claude-review
-        uses: anthropics/claude-code-action@cfc3eb22bfed5c26ef66e3223c982af27e4524de # v1.0.231
+        uses: anthropics/claude-code-action@a26b07d8c778b0c43f64618e5fd29fd0f8af72e8 # v1.0.250
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          path_to_claude_code_executable: ${{ steps.claude-cli.outputs.path }}
           # GH-1585: static instructions first, per-run values last in
           # RUN CONTEXT. The API caches the prompt up to the first byte
           # that differs, so a PR number on line 1 made every run write
@@ -250,7 +274,7 @@ jobs:
             from the GitHub API — do NOT rely on your own recollection of
             whether you called create_inline_comment, and do NOT use the
             pre-fetched files, which predate this run:
-              `gh pr view <PR> --json reviewComments --jq '.reviewComments | length'`
+              `gh api repos/<REPO>/pulls/<PR>/comments --jq length`
             If the returned count is greater than 0, convert the PR to draft:
               `gh pr ready --undo <PR>`
             This lets the author fix all issues without triggering re-reviews

@@ -73,9 +73,24 @@ these jobs.
    turns, cache read, cache write and uncached input. Healthy runs read
    far more than they write. Compare runs before and after any prompt,
    flag or model change.
+8. **One CLI version (GH-1615).** Every Claude step runs the CLI
+   version in the `CLAUDE_CLI_VERSION` repository variable. An install
+   step passes it through `env:` and runs
+   `npm install --global "@anthropic-ai/claude-code@${CLAUDE_CLI_VERSION:?…}"`
+   with `RUNNER_TEMP` as its working directory, so a PR's `.npmrc`
+   cannot redirect the registry and an empty variable fails the step
+   instead of installing `latest`. The action gets the binary through
+   `path_to_claude_code_executable`. The CLI decides which model
+   `sonnet` and `haiku` name, and the one bundled with
+   `claude-code-action` lags a generation, so keep the aliases in
+   `--model` and move them by changing the variable. That changes every
+   workflow without a PR: read the CLI changelog first, then compare
+   usage reports (rule 7).
 
 ## Verifying a change
 
 Changes to `claude*.yml` are validated against the default branch, and
 the action skips on the PR that edits them. Verify on the next PR after
-merge, from the usage step's notice.
+merge, from the usage step: the per-model table in the job summary
+names the model ids the aliases resolved to, and the `::notice` line
+gives cache read against cache write.

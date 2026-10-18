@@ -82,12 +82,27 @@ jobs:
         if: steps.skip-check.outputs.skip != 'true'
         run: mkdir -p "${{ github.workspace }}/.claude-output"
 
+      # GH-1615: pinned CLI from CLAUDE_CLI_VERSION; see claude-code-review.yml.
+      - name: Install Claude Code CLI
+        if: steps.skip-check.outputs.skip != 'true'
+        id: claude-cli
+        working-directory: ${{ runner.temp }}
+        env:
+          CLAUDE_CLI_VERSION: ${{ vars.CLAUDE_CLI_VERSION }}
+        run: |
+          set -euo pipefail
+          npm install --global "@anthropic-ai/claude-code@${CLAUDE_CLI_VERSION:?set the CLAUDE_CLI_VERSION repository variable}"
+          cli_path=$(command -v claude)
+          "$cli_path" --version
+          echo "path=$cli_path" >> "$GITHUB_OUTPUT"
+
       - name: Run Claude Memory Review Analysis
         if: steps.skip-check.outputs.skip != 'true'
         id: claude-analysis
-        uses: anthropics/claude-code-action@f87768c6d25f92ae6efa7175e223ef77d4cbf97f # v1.0.166
+        uses: anthropics/claude-code-action@a26b07d8c778b0c43f64618e5fd29fd0f8af72e8 # v1.0.250
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          path_to_claude_code_executable: ${{ steps.claude-cli.outputs.path }}
           prompt: |
             # Post-PR Lessons Learned Analysis
 
@@ -155,13 +170,14 @@ jobs:
           steps.skip-check.outputs.skip != 'true'
           && github.event.pull_request.merged == true
         id: auto-implement
-        uses: anthropics/claude-code-action@f87768c6d25f92ae6efa7175e223ef77d4cbf97f # v1.0.166
+        uses: anthropics/claude-code-action@a26b07d8c778b0c43f64618e5fd29fd0f8af72e8 # v1.0.250
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           GITHUB_WORKSPACE: ${{ github.workspace }}
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          path_to_claude_code_executable: ${{ steps.claude-cli.outputs.path }}
           prompt: |
             # Implement Lessons Learned
 
