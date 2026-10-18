@@ -132,7 +132,13 @@ jobs:
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # GH-1622: workload identity federation; see claude-code-review.yml
+          # and claude-ci-cost.md rule 9. Never set anthropic_api_key beside
+          # these: a key outranks federation.
+          anthropic_federation_rule_id: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID }}
+          anthropic_organization_id: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
+          anthropic_service_account_id: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID }}
+          anthropic_workspace_id: ${{ vars.ANTHROPIC_WORKSPACE_ID }}
           path_to_claude_code_executable: ${{ steps.claude-cli.outputs.path }}
           # GH-1585: static instructions first, per-run values last in
           # RUN CONTEXT, so every run reads the cached prompt prefix.
