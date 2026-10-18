@@ -8,7 +8,11 @@ on:
       - 'references/**'
       - '.github/workflows/claude-memory-review.yml'
       - '.github/workflows/claude-code-review.yml'
+      - '.github/workflows/claude-pr-hygiene.yml'
       - '.github/workflows/claude.yml'
+      - '.github/claude/**'
+      - '.github/claude-ci-settings.json'
+      - '.github/scripts/claude-pr-context/**'
       - 'CLAUDE.md'
 
 jobs:
@@ -16,7 +20,7 @@ jobs:
     # Skip analysis for draft PRs and revert PRs.
     #
     # Fork PRs are skipped too (GH-1415): this job runs
-    # claude-code-action twice, and GitHub refuses to mint an OIDC token
+    # claude-code-action, and GitHub refuses to mint an OIDC token
     # for a fork-triggered `pull_request` run. The trigger here is
     # `pull_request` rather than `pull_request_target`, so the API key is
     # withheld and nothing leaks — but the job goes red on every merged
@@ -40,26 +44,36 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Gather PR context
+      - name: Resolve PR outcome
         id: pr-context
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_MERGED: ${{ github.event.pull_request.merged }}
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
           PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        # GH-1615: the write allow-rules Part 2 needs are granted only for
+        # a merged PR. With one session for both parts, the prompt alone
+        # would otherwise be all that keeps a rejected PR's run — which
+        # reads untrusted PR content — away from git push and gh pr create.
+        # Allow-rules gate permission, not tool schemas, so the cached
+        # prefix is the same either way.
         run: |
           if [[ "$PR_MERGED" == "true" ]]; then
-            echo "outcome=merged" >> "$GITHUB_OUTPUT"
+            outcome=merged
+            write_tools=',Edit,Bash(git config:*),Bash(git checkout:*),Bash(git pull:*),Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(gh pr create:*),Bash(gh pr edit:*),Bash(gh issue create:*)'
           else
-            echo "outcome=rejected" >> "$GITHUB_OUTPUT"
+            outcome=rejected
+            write_tools=''
           fi
-
-          PR_TITLE=$(gh pr view "$PR_NUMBER" --json title -q '.title')
-          echo "pr_number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
-          echo "pr_title=$PR_TITLE" >> "$GITHUB_OUTPUT"
-          echo "pr_author=$PR_AUTHOR" >> "$GITHUB_OUTPUT"
-          echo "pr_url=$PR_URL" >> "$GITHUB_OUTPUT"
+          {
+            echo "outcome=$outcome"
+            echo "write_tools=$write_tools"
+            echo "pr_number=$PR_NUMBER"
+            echo "pr_title=$PR_TITLE"
+            echo "pr_author=$PR_AUTHOR"
+            echo "pr_url=$PR_URL"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Skip cancelled PRs without comments
         id: skip-check
@@ -78,13 +92,51 @@ jobs:
           fi
           echo "skip=false" >> "$GITHUB_OUTPUT"
 
-      - name: Prepare output directory
+      # GH-1615: same trusted-ref staging as claude-code-review.yml — the
+      # context script runs with this job's token, and this job can push.
+      # A closed PR's checkout carries whatever that PR changed, so the
+      # script is taken from its base branch (or the default branch).
+      - name: Stage scripts from the trusted ref
         if: steps.skip-check.outputs.skip != 'true'
+        id: stage
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          dir=.github/scripts/claude-pr-context
+          ref=""
+          for branch in "$BASE_REF" "$DEFAULT_BRANCH"; do
+            git fetch --no-tags origin "$branch"
+            if git cat-file -e "FETCH_HEAD:$dir" 2>/dev/null; then
+              ref=$(git rev-parse FETCH_HEAD)
+              break
+            fi
+          done
+          if [[ -z "$ref" ]]; then
+            echo "::notice::Neither $BASE_REF nor $DEFAULT_BRANCH has $dir yet — skipping rather than running this PR's own copy."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          mkdir -p "$RUNNER_TEMP/scripts"
+          git archive "$ref" "$dir" | tar -x -C "$RUNNER_TEMP/scripts" --strip-components=3
+
+      # GH-1615: the bundle the code review reads — comments, reviews,
+      # threads and per-file patches, fetched once, instead of the model
+      # paying a full-context turn for each `gh` call.
+      - name: Gather PR context
+        if: steps.skip-check.outputs.skip != 'true' && steps.stage.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: '"$RUNNER_TEMP/scripts/gather-pr-context.sh"'
+
+      - name: Prepare output directory
+        if: steps.skip-check.outputs.skip != 'true' && steps.stage.outputs.skip != 'true'
         run: mkdir -p "${{ github.workspace }}/.claude-output"
 
       # GH-1615: pinned CLI from CLAUDE_CLI_VERSION; see claude-code-review.yml.
       - name: Install Claude Code CLI
-        if: steps.skip-check.outputs.skip != 'true'
+        if: steps.skip-check.outputs.skip != 'true' && steps.stage.outputs.skip != 'true'
         id: claude-cli
         working-directory: ${{ runner.temp }}
         env:
@@ -96,35 +148,38 @@ jobs:
           "$cli_path" --version
           echo "path=$cli_path" >> "$GITHUB_OUTPUT"
 
-      - name: Run Claude Memory Review Analysis
-        if: steps.skip-check.outputs.skip != 'true'
+      # GH-1615: one session analyses the PR and, for a merged PR,
+      # implements the lessons. Two sessions each paid for a full prefix,
+      # and the second re-read the report and every rule file the first
+      # had just read.
+      - name: Run Claude Memory Review
+        if: steps.skip-check.outputs.skip != 'true' && steps.stage.outputs.skip != 'true'
         id: claude-analysis
         uses: anthropics/claude-code-action@a26b07d8c778b0c43f64618e5fd29fd0f8af72e8 # v1.0.250
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           path_to_claude_code_executable: ${{ steps.claude-cli.outputs.path }}
+          # GH-1615: static instructions first, per-run values last in
+          # RUN CONTEXT, so every run reads the cached prompt prefix.
           prompt: |
-            # Post-PR Lessons Learned Analysis
+            # Post-PR Lessons Learned
 
             You are analyzing a closed Pull Request to extract lessons learned
             and identify improvements for the Claude Code review process.
+            Part 1 always runs. Part 2 runs only when OUTCOME in RUN CONTEXT
+            is `merged`. All paths below are relative to the working
+            directory, the checkout.
 
-            ## PR Context
-            - **Repository**: ${{ github.repository }}
-            - **PR Number**: ${{ github.event.pull_request.number }}
-            - **PR Title**: ${{ steps.pr-context.outputs.pr_title }}
-            - **PR Author**: ${{ steps.pr-context.outputs.pr_author }}
-            - **Outcome**: ${{ steps.pr-context.outputs.outcome }}
-            - **PR URL**: ${{ steps.pr-context.outputs.pr_url }}
-
-            ## Your Task
+            # Part 1 — Analysis
 
             ### Step 1: Gather PR Data
-            1. Use `gh pr view ${{ github.event.pull_request.number }} --json body,comments,reviews,files,additions,deletions,changedFiles`
-            2. Use `gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/comments`
-            3. Use `gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/reviews`
-            4. Use `gh pr diff ${{ github.event.pull_request.number }}`
-            5. Read CLAUDE.md, .claude/agents/ specs, references/review-checks-common.md
+            1. Read `.claude-ci/pr-context/INDEX.md`. The files it lists hold
+               the PR body, commits, comments, inline review comments,
+               reviews, review threads and one patch per changed file. Use
+               them instead of `gh`.
+            2. Read CLAUDE.md, .claude/agents/ specs, references/review-checks-common.md
 
             ### Step 2: Analyze Review Feedback Patterns
             For each review comment from Claude/github-actions[bot]:
@@ -149,7 +204,7 @@ jobs:
             - Would push a target file over its size budget
 
             ### Step 4: Create Report
-            Write to `${{ github.workspace }}/.claude-output/lessons_learned_report.md`
+            Write to `.claude-output/lessons_learned_report.md`
             with: Summary, Statistics, Feedback Analysis, Identified Improvements,
             and prioritized Action Items (High/Medium/Low).
 
@@ -163,32 +218,14 @@ jobs:
             - Quote actual code when referencing
             - Mark items as "already covered" if target file has similar guidance
 
-          claude_args: '--model haiku --allowed-tools "Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh api:*),Read,Glob,Grep,Write"'
+            If OUTCOME is not `merged`, stop here: Part 2 does not apply.
 
-      - name: Auto-implement Lessons Learned
-        if: >-
-          steps.skip-check.outputs.skip != 'true'
-          && github.event.pull_request.merged == true
-        id: auto-implement
-        uses: anthropics/claude-code-action@a26b07d8c778b0c43f64618e5fd29fd0f8af72e8 # v1.0.250
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          GITHUB_WORKSPACE: ${{ github.workspace }}
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          path_to_claude_code_executable: ${{ steps.claude-cli.outputs.path }}
-          prompt: |
-            # Implement Lessons Learned
+            # Part 2 — Implement Lessons Learned (OUTCOME `merged` only)
 
-            A Lessons Learned analysis for PR #${{ github.event.pull_request.number }}
-            has been written to:
-            ${{ github.workspace }}/.claude-output/lessons_learned_report.md
-
-            Your task: evaluate the lessons for genuine value, implement only
-            high-quality improvements, then open a PR ready for review
-            (do NOT pass --draft) and request review from a human. Do NOT
-            merge.
+            Your task: evaluate the lessons in your Part 1 report for genuine
+            value, implement only high-quality improvements, then open a PR
+            ready for review (do NOT pass --draft) and request review from a
+            human. Do NOT merge.
 
             A draft PR here is invisible by design: claude-code-review.yml
             and claude-pr-hygiene.yml both gate their jobs on
@@ -238,8 +275,8 @@ jobs:
                references ≤ 200.
 
             **Minimum threshold**: If fewer than 2 items survive filtering,
-            write "none" to `${{ github.workspace }}/.claude-output/docs_pr_url.txt`
-            and STOP. One marginal improvement is not worth a PR.
+            write "none" to `.claude-output/docs_pr_url.txt` and STOP. One
+            marginal improvement is not worth a PR.
 
             ## Writing Style for Insights
 
@@ -257,77 +294,95 @@ jobs:
 
             ## Steps
 
-            1. Read `.claude-output/lessons_learned_report.md`
+            1. From the "Action Items" of your Part 1 report, collect
+               **High** and **Medium** items targeting allowed files only.
 
-            2. From "Action Items", collect **High** and **Medium** items
-               targeting allowed files only.
-
-            3. Apply the Value Filter to each item. Log which items were
+            2. Apply the Value Filter to each item. Log which items were
                skipped and why (include in PR body under "Filtered items").
                For an item that is a genuine improvement but falls outside
                the four allowed file globs, or otherwise cannot be applied
-               in this run, file it as a follow-up issue with
-               `gh issue create --title "..." --label rules-maintenance`
-               instead of leaving it only as PR prose — prose in a PR that
-               may sit unreviewed does not survive; a filed issue does.
+               in this run, file it as a follow-up issue instead of leaving
+               it only as PR prose — prose in a PR that may sit unreviewed
+               does not survive; a filed issue does. Write its body with the
+               Write tool to `.claude-output/issue-<n>.md`, then run
+               `gh issue create --title "..." --body-file .claude-output/issue-<n>.md`.
                Link the issue in "Filtered items" alongside the skip reason.
 
-            4. If fewer than 2 items survive, write "none" to
-               `${{ github.workspace }}/.claude-output/docs_pr_url.txt`
-               and stop.
+            3. If fewer than 2 items survive, write "none" to
+               `.claude-output/docs_pr_url.txt` and stop.
 
-            5. For each surviving item, read the target file, then apply
-               the minimal precise change. Do not refactor surrounding
+            4. For each surviving item, the target file is already read;
+               apply the minimal precise change. Do not refactor surrounding
                content.
 
-            6. Configure git identity:
+            5. Configure git identity:
                git config user.email "github-actions[bot]@users.noreply.github.com"
                git config user.name "github-actions[bot]"
 
-            7. Create branch from develop:
+            6. Create branch from develop:
                git checkout develop
                git pull origin develop
-               git checkout -B "claude/lessons-pr-$PR_NUMBER"
+               git checkout -B "claude/lessons-pr-<PR>"
 
-            8. Stage only allowed paths and commit:
+            7. Stage only allowed paths and commit:
                git add CLAUDE.md .claude/ references/
                git commit -m "🤖 <outcome-focused title, max 72 chars>"
+
+            8. Write the PR body with the Write tool to
+               `.claude-output/pr_body.md`: the JTBD Job Story first, then
+               `## Changes applied` (bullet list of surviving items), then
+               `## Filtered items (skipped)` (bullet list with the skip
+               reason for each, including any filed follow-up issue links),
+               then a final line `Based on: <PR_URL>`.
 
             9. Push and open a PR targeting develop, ready for review
                (do NOT pass --draft — a draft is invisible to
                claude-code-review.yml, claude-pr-hygiene.yml, and CI in
                this repo, GH-1351):
-               git push origin "claude/lessons-pr-$PR_NUMBER"
-               gh pr create \
-                 --title "🤖 <outcome-focused title>" \
-                 --label "rules-maintenance" \
-                 --body "<JTBD Job Story>
-
-               ## Changes applied
-               <bullet list of surviving items>
-
-               ## Filtered items (skipped)
-               <bullet list with skip reason for each, including any
-               filed follow-up issue links>
-
-               Based on: ${{ github.event.pull_request.html_url }}" \
-                 --base develop
+               git push origin "claude/lessons-pr-<PR>"
+               gh pr create --title "🤖 <outcome-focused title>" --body-file .claude-output/pr_body.md --base develop
 
             10. Request review from a human so this PR reaches someone
-                instead of expiring unseen. Best-effort — do not let a
-                failure here (e.g. the account cannot be requested) stop
-                the run, since the PR itself must still be delivered:
-                gh pr edit "claude/lessons-pr-$PR_NUMBER" \
-                  --add-reviewer "${{ steps.pr-context.outputs.pr_author }}" \
-                  || echo "reviewer request failed — PR still stands"
+                instead of expiring unseen:
+                gh pr edit "claude/lessons-pr-<PR>" --add-reviewer "<PR_AUTHOR>"
+                This is best-effort: if it fails (e.g. the account cannot
+                be requested), carry on — the PR itself must still be
+                delivered.
 
-            11. Write the PR URL to
-                `${{ github.workspace }}/.claude-output/docs_pr_url.txt`
+            11. Write the PR URL to `.claude-output/docs_pr_url.txt`
 
-          claude_args: '--model haiku --allowed-tools "Read,Write,Edit,Glob,Grep,Bash(git config:*),Bash(git checkout:*),Bash(git pull:*),Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(gh pr create:*),Bash(gh pr edit:*),Bash(gh issue create:*)"'
+            RUN CONTEXT:
+            - REPO: ${{ github.repository }}
+            - PR: ${{ steps.pr-context.outputs.pr_number }}
+            - PR_URL: ${{ steps.pr-context.outputs.pr_url }}
+            - PR_TITLE: ${{ steps.pr-context.outputs.pr_title }}
+            - PR_AUTHOR: ${{ steps.pr-context.outputs.pr_author }}
+            - OUTCOME: ${{ steps.pr-context.outputs.outcome }}
+
+          # GH-1615: the first four flags are the shared CI prefix (see
+          # claude-code-review.yml). --tools leaves only the built-in tools
+          # the two parts use. Part 1 reads the context bundle, so it needs
+          # no `gh` read access. write_tools is empty unless the PR merged
+          # (see "Resolve PR outcome").
+          claude_args: '--settings .github/claude-ci-settings.json --append-system-prompt-file .github/claude/ci-system-prompt.md --exclude-dynamic-system-prompt-sections --disallowed-tools "ScheduleWakeup,Monitor" --model haiku --tools "Bash,Read,Write,Edit,Glob,Grep" --allowed-tools "Read,Write,Glob,Grep${{ steps.pr-context.outputs.write_tools }}"'
+
+      # GH-1615: cost and cache use of this run; see claude-code-review.yml.
+      - name: Report Claude usage
+        if: ${{ always() && steps.claude-analysis.outputs.execution_file != '' }}
+        env:
+          EXECUTION_FILE: ${{ steps.claude-analysis.outputs.execution_file }}
+        run: |
+          jq -r '[.[] | select(.type == "result")] | last
+            | "### Claude usage\n\n| Model | Input | Cache write | Cache read | Output | Cost (USD) |\n|---|---:|---:|---:|---:|---:|\n"
+              + ((.modelUsage // {}) | to_entries | map("| \(.key) | \(.value.inputTokens // 0) | \(.value.cacheCreationInputTokens // 0) | \(.value.cacheReadInputTokens // 0) | \(.value.outputTokens // 0) | \(.value.costUSD // 0 | . * 10000 | round / 10000) |") | join("\n"))
+              + "\n\n**Total:** $\(.total_cost_usd // 0 | . * 100 | round / 100) · \(.num_turns // 0) turns · \((.permission_denials // []) | length) permission denials\n"' \
+            "$EXECUTION_FILE" >> "$GITHUB_STEP_SUMMARY" || echo "::warning::Could not read usage from $EXECUTION_FILE"
+          jq -r '[.[] | select(.type == "result")] | last | [(.modelUsage // {})[]] as $m
+            | "::notice title=Claude usage::$\(.total_cost_usd // 0) · \(.num_turns // 0) turns · cache read \($m | map(.cacheReadInputTokens // 0) | add // 0) · cache write \($m | map(.cacheCreationInputTokens // 0) | add // 0) · uncached input \($m | map(.inputTokens // 0) | add // 0)"' \
+            "$EXECUTION_FILE" || true
 
       - name: Read documentation PR URL
-        if: always() && steps.skip-check.outputs.skip != 'true'
+        if: always() && steps.skip-check.outputs.skip != 'true' && steps.stage.outputs.skip != 'true'
         id: docs-pr
         env:
           GITHUB_WORKSPACE: ${{ github.workspace }}
