@@ -120,8 +120,8 @@ Load only the domains with changed files.
 ## Convert to draft when issues are found
 
 After reviewing, read the real inline-comment count from the API
-(`gh pr view <N> --json reviewComments --jq '.reviewComments | length'`)
-— do not rely on recollection. If the count is greater than 0, convert
+(`gh api repos/<REPO>/pulls/<N>/comments --jq length`) — do not rely
+on recollection; `gh pr view --json` has no `reviewComments` field. If the count is greater than 0, convert
 the PR to draft (`gh pr ready --undo <N>`) so the author can batch fixes
 without re-triggering a review on every push. If the count is 0, leave
 the PR as-is.

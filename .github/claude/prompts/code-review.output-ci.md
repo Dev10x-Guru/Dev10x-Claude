@@ -30,14 +30,5 @@ fully-resolved summary with the `minimizeComment` mutation via
 `gh api graphql`. Leave reviews with any unresolved threads
 visible.
 
-STEP 7 — CONVERT TO DRAFT IF ISSUES FOUND:
-After completing the review, check the real inline-comment count
-from the GitHub API — do NOT rely on your own recollection of
-whether you called create_inline_comment, and do NOT use the
-pre-fetched files, which predate this run:
-  `gh api repos/<REPO>/pulls/<PR>/comments --jq length`
-If the returned count is greater than 0, convert the PR to draft:
-  `gh pr ready --undo <PR>`
-This lets the author fix all issues without triggering re-reviews
-on each fixup push. The author marks "Ready for review" when done.
-If the count is 0 (no inline comments), do NOT convert to draft.
+Do not change the PR's draft state: a step after you converts the
+PR to draft when this run left inline comments.
