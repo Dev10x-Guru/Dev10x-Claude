@@ -45,8 +45,8 @@ Files matching: `.claude/rules/**/*.md`, `.claude/agents/**/*.md`,
    agents must point to files that exist
 6. **Agent naming** — new agents use `reviewer-<domain>.md`
    prefix convention
-7. **Orchestrator routing** — new agents must have a matching
-   entry in `claude-code-review.yml` STEP 3
+7. **Orchestrator routing** — new agents must have a row in the
+   INDEX.md File Patterns table, which CI routes by
 
 ## Output Format
 

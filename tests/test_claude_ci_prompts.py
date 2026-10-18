@@ -200,3 +200,63 @@ class TestBuildScript:
                 args_file="args/job.txt",
                 parts=["part.md"],
             )
+
+
+class TestRoutingParity:
+    """The CI review routes by INDEX.md alone (GH-1619).
+
+    A hand-copied agent list in the prompt drifted from INDEX.md and left
+    the security and silent-failure reviewers out of every CI review.
+    """
+
+    _INDEX = _REPO_ROOT / ".claude" / "rules" / "INDEX.md"
+    _CORE = _CLAUDE_DIR / "prompts" / "code-review.core.md"
+
+    @pytest.fixture(scope="class")
+    def routes(self) -> dict[str, list[str]]:
+        text = self._INDEX.read_text(encoding="utf-8")
+        table = text.split("## File Patterns -> Agents", 1)[1].split("\n## ", 1)[0]
+        rows = [line for line in table.splitlines() if line.startswith("| `")]
+        return {
+            pattern: re.findall(r"`([^`]+)`", row.split("|")[2])
+            for row in rows
+            for pattern in re.findall(r"`([^`]+)`", row.split("|")[1])
+        }
+
+    def test_core_prompt_routes_by_index(self) -> None:
+        core = self._CORE.read_text(encoding="utf-8")
+
+        assert ".claude/rules/INDEX.md" in core
+        assert "→ reviewer-" not in core
+
+    def test_every_routed_agent_has_a_spec(self, routes: dict[str, list[str]]) -> None:
+        agents = sorted({agent for names in routes.values() for agent in names})
+        specs = [
+            (_REPO_ROOT / ".claude" / "agents" / f"{agent}.md").is_file()
+            or (_REPO_ROOT / "agents" / f"{agent}.md").is_file()
+            for agent in agents
+        ]
+
+        assert dict(zip(agents, specs)) == dict.fromkeys(agents, True)
+
+    def test_every_internal_reviewer_is_reachable(self, routes: dict[str, list[str]]) -> None:
+        routed = {agent for names in routes.values() for agent in names}
+        internal = {
+            path.stem for path in (_REPO_ROOT / ".claude" / "agents").glob("reviewer-*.md")
+        }
+
+        assert internal - routed == set()
+
+    def test_python_reaches_security_and_silent_failure_reviewers(
+        self, routes: dict[str, list[str]]
+    ) -> None:
+        assert {"reviewer-security", "reviewer-silent-failures"} <= set(routes["**/*.py"])
+
+    @pytest.mark.parametrize(
+        "pattern",
+        [".github/workflows/**", "references/**", "CLAUDE.md"],
+    )
+    def test_index_covers_paths_the_old_inline_list_routed(
+        self, routes: dict[str, list[str]], pattern: str
+    ) -> None:
+        assert routes[pattern]

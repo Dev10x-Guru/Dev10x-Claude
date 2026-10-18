@@ -23,28 +23,29 @@ Check the PR title and description in `pr.json` for:
 PR metadata (title, body, commits) is checked by claude-pr-hygiene.yml.
 Do NOT provide feedback on those items.
 
-STEP 3 — DOMAIN-ROUTED REVIEW (delegate to haiku subagents):
+STEP 3 — DOMAIN-ROUTED REVIEW (delegate to subagents):
 Classify the changed files listed in
 `.claude-ci/pr-context/files.txt`. Never fetch the whole diff
 with `gh pr diff`. To see what changed in one file, Read
 `.claude-ci/pr-context/patches/<path>.patch`, and Read the file
 at HEAD for context. When INDEX.md shows no patch for a file,
-review that file from HEAD with Read instead. For EACH affected
-domain, dispatch ONE subagent via the Task tool using the
-registered agent name below (the .claude/agents/ specs carry
-`model: haiku` frontmatter, so the per-rule review work runs on
-the cheap tier while you — the orchestrator — only route,
-deduplicate, verify, and post):
+review that file from HEAD with Read instead. `.github/claude/`,
+`.github/claude-ci-settings.json` and `references/` were replaced
+by their base-branch copies before you started; read this PR's
+version of a changed file there at `.claude-ci/pr-head/<path>`.
 
-- Skills (skills/**) → reviewer-skill AND reviewer-skill-behavior
-- Infrastructure (Makefile, **/*.sh, bin/**, hooks/**,
-  .github/workflows/**) → reviewer-infra
-- Documentation (docs/**/*.md, .claude/**/*.md, CLAUDE.md,
-  README.md) → reviewer-docs
-- Rules/agents (.claude/rules/**, .claude/agents/**,
-  agents/**, references/**) → reviewer-rules-maintenance
-- Python/shell code (**/*.py, **/*.sh, not covered above)
-  → reviewer-generic
+Route by the "File Patterns -> Agents" table in
+`.claude/rules/INDEX.md` — it is the single routing source, so do
+not keep a list of your own. For each changed file, take every row
+whose File Pattern matches it; the row's Primary Agent column names
+the agents for that file. A file can match several rows and so
+reach several agents. Dispatch only agents registered in this
+session (a `.claude/agents/<name>.md` spec); when a matched row
+names an unregistered agent, review those files yourself and say
+so in the summary. For EACH resulting agent, dispatch ONE subagent
+via the Task tool with all of its files. Each spec's `model:`
+frontmatter sets its tier, while you — the orchestrator — only
+route, deduplicate, verify, and post.
 
 Dispatch all matched subagents in ONE message so they run in
 parallel. They run in the foreground and each Task call returns
