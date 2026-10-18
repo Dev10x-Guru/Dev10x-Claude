@@ -182,9 +182,10 @@ jobs:
           # comment…") calls the API with the static key only and fails
           # open without one, so the classifier is off and the "Delete
           # probe inline comments" step removes probes with the GitHub
-          # token. A stray probe matters here: STEP 7 drafts the PR on any
-          # inline comment. Turn classification back on if the post-step
-          # learns to use the federated token.
+          # token. A stray probe matters here: the draft-conversion step
+          # drafts the PR on any inline comment left in place. Turn
+          # classification back on if the post-step learns to use the
+          # federated token.
           anthropic_federation_rule_id: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID }}
           anthropic_organization_id: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
           anthropic_service_account_id: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID }}
@@ -224,7 +225,7 @@ jobs:
         run: |
           # Without pipefail a failed listing would empty the loop and pass.
           set -o pipefail
-          gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/comments" \
+          gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/comments?since=${SINCE}" \
             | jq -r --arg since "$SINCE" '.[][]
                 | select(.user.login == "claude[bot]" and .created_at >= $since)
                 | select((.body | length) < 100 and (.body | contains("**") | not))
@@ -237,6 +238,33 @@ jobs:
                   echo "::error title=Probe inline comment left in place::Could not delete claude[bot] comment ${id}; it still counts as a review finding."
                 fi
               done
+
+      # GH-1618: an inline comment is a blocking finding, so the PR goes
+      # back to draft and the author's fixup pushes do not each re-trigger
+      # a review; marking it ready again starts the next one. This used to
+      # be a prompt step the model ran itself, and it never fired: it
+      # counted with a field `gh pr view` does not have, and the action's
+      # classifier held comments back until after the session. Counting
+      # here, after the probe cleanup and with the job token, sees exactly
+      # the comments this run left.
+      - name: Convert to draft when the review left findings
+        if: ${{ steps.claude-review.outputs.conclusion == 'success' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          SINCE: ${{ steps.review-start.outputs.iso }}
+        run: |
+          set -euo pipefail
+          # Root comments only: a reply acknowledging a fix is not a finding.
+          count=$(gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/comments?since=${SINCE}" \
+            | jq --arg since "$SINCE" '[.[][] | select(.user.login == "claude[bot]"
+                and .created_at >= $since and .in_reply_to_id == null)] | length')
+          if [[ "$count" -gt 0 ]]; then
+            gh pr ready "$PR_NUMBER" --undo --repo "$GITHUB_REPOSITORY"
+            echo "::notice title=PR converted to draft::The review left ${count} inline finding(s); mark the PR ready for review when they are addressed."
+          else
+            echo "The review left no inline findings; the PR stays ready for review."
+          fi
 
       # GH-1585: cost, turns and cache use of this run in the job summary
       # and as a notice, so a prompt or model change can be compared before

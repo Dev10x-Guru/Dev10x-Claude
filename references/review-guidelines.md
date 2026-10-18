@@ -74,11 +74,13 @@ The guard applies to:
    - Acknowledgment of addressed issues
    - DO NOT repeat inline comment content
 8. Use COMMENT status (not REQUEST_CHANGES or APPROVE)
-9. If inline comments were posted, convert PR to draft:
-   `gh pr ready --undo $PR_NUMBER`
+9. If inline comments were posted, the PR goes to draft:
    - Prevents noisy re-reviews on fixup commits
    - Author marks "Ready for review" when fixes are complete
    - Do NOT convert if the review was clean (no inline comments)
+   - In this repo's CI, a workflow step does the conversion after
+     the review — never change the draft state yourself there
+     (GH-1618). Elsewhere: `gh pr ready --undo $PR_NUMBER`
 
 ## Workflow Cross-Awareness
 

@@ -20,17 +20,29 @@ import re
 import shlex
 import subprocess
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import pytest
 import yaml
 
-_REPO_ROOT = Path(__file__).parents[1]
-_CLAUDE_DIR = _REPO_ROOT / ".github" / "claude"
-_WORKFLOWS = _REPO_ROOT / ".github" / "workflows"
-_BUILD_SCRIPT = _REPO_ROOT / ".github" / "scripts" / "claude-pr-context" / "build-claude-inputs.sh"
+_REPO_ROOT: Path = Path(__file__).parents[1]
+_CLAUDE_DIR: Path = _REPO_ROOT / ".github" / "claude"
+_WORKFLOWS: Path = _REPO_ROOT / ".github" / "workflows"
+_BUILD_SCRIPT: Path = (
+    _REPO_ROOT / ".github" / "scripts" / "claude-pr-context" / "build-claude-inputs.sh"
+)
 
-_SHARED_PREFIX = [
+_PROMPT_FILES: list[Path] = sorted((_CLAUDE_DIR / "prompts").glob("*.md"))
+_ARGS_FILES: list[Path] = sorted((_CLAUDE_DIR / "args").glob("*.txt"))
+
+#: Every file whose text lands in a cached prefix: prompts, args, and the
+#: system prompt each job appends.
+_PREFIX_FILES: list[Path] = [*_PROMPT_FILES, *_ARGS_FILES, _CLAUDE_DIR / "ci-system-prompt.md"]
+
+_HEREDOC = re.compile(r"^(\w+)<<(\S+)\n(.*?)\n\2$", re.MULTILINE | re.DOTALL)
+_SINGLE_LINE = re.compile(r"^(\w+)=(.*)$", re.MULTILINE)
+
+_SHARED_PREFIX: list[str] = [
     "--settings",
     ".github/claude-ci-settings.json",
     "--append-system-prompt-file",
@@ -41,12 +53,12 @@ _SHARED_PREFIX = [
 ]
 
 #: Workflows whose prompt and claude_args come from .github/claude/ files.
-_FILE_DRIVEN_WORKFLOWS = ("claude-code-review.yml", "claude-pr-hygiene.yml")
+_FILE_DRIVEN_WORKFLOWS: tuple[str, ...] = ("claude-code-review.yml", "claude-pr-hygiene.yml")
 
 #: Workflows still carrying inline claude_args (out of GH-1625's scope).
-_INLINE_ARGS_WORKFLOWS = ("claude.yml", "claude-memory-review.yml")
+_INLINE_ARGS_WORKFLOWS: tuple[str, ...] = ("claude.yml", "claude-memory-review.yml")
 
-_ACTION = "anthropics/claude-code-action"
+_ACTION: str = "anthropics/claude-code-action"
 
 
 def _claude_steps(*, workflow: str) -> list[dict[str, Any]]:
@@ -59,10 +71,12 @@ def _claude_steps(*, workflow: str) -> list[dict[str, Any]]:
     ]
 
 
-def _build(*, tmp_path: Path, claude_dir: Path, args_file: str, parts: list[str]) -> str:
+def _run_build(
+    *, tmp_path: Path, claude_dir: Path, args_file: str, parts: list[str]
+) -> subprocess.CompletedProcess[str]:
     output = tmp_path / "github_output"
     output.write_text("", encoding="utf-8")
-    subprocess.run(
+    return subprocess.run(
         [str(_BUILD_SCRIPT), args_file, *parts],
         cwd=_REPO_ROOT,
         env={
@@ -72,55 +86,33 @@ def _build(*, tmp_path: Path, claude_dir: Path, args_file: str, parts: list[str]
             "RUN_CONTEXT": "- REPO: owner/repo\n- PR: 42\n",
         },
         capture_output=True,
-        check=True,
+        text=True,
         timeout=30,
     )
-    return output.read_text(encoding="utf-8")
 
 
 def _parse_outputs(*, raw: str) -> dict[str, str]:
-    outputs: dict[str, str] = {}
-    lines = iter(raw.splitlines())
-    for line in lines:
-        name, _, value = line.partition("=")
-        heredoc = re.fullmatch(r"(\w+)<<(\S+)", line)
-        multiline = heredoc is not None
-        outputs.update(
-            {heredoc.group(1): "\n".join(_until(lines=lines, delimiter=heredoc.group(2)))}
-            if multiline
-            else {name: value}
-        )
-    return outputs
+    heredocs = {match.group(1): match.group(3) for match in _HEREDOC.finditer(raw)}
+    single = dict(_SINGLE_LINE.findall(_HEREDOC.sub("", raw)))
+    return {**single, **heredocs}
 
 
-def _until(*, lines: Any, delimiter: str) -> list[str]:
-    collected: list[str] = []
-    for line in lines:
-        if line == delimiter:
-            return collected
-        collected.append(line)
-    raise AssertionError(f"heredoc delimiter {delimiter} never closed")
+@pytest.mark.parametrize("files", [_PROMPT_FILES, _ARGS_FILES], ids=["prompts", "args"])
+def test_every_glob_finds_files(files: list[Path]) -> None:
+    assert files
 
 
-@pytest.mark.parametrize(
-    "path",
-    sorted((_CLAUDE_DIR / "prompts").glob("*.md")) + sorted((_CLAUDE_DIR / "args").glob("*.txt")),
-    ids=lambda path: path.name,
-)
-def test_prompt_and_args_files_hold_no_expressions(path: Path) -> None:
+@pytest.mark.parametrize("path", _PREFIX_FILES, ids=lambda path: path.name)
+def test_prefix_files_hold_no_expressions(path: Path) -> None:
     assert "${{" not in path.read_text(encoding="utf-8")
 
 
-@pytest.mark.parametrize(
-    "path", sorted((_CLAUDE_DIR / "args").glob("*.txt")), ids=lambda p: p.name
-)
+@pytest.mark.parametrize("path", _ARGS_FILES, ids=lambda path: path.name)
 def test_args_files_are_one_line(path: Path) -> None:
     assert len(path.read_text(encoding="utf-8").splitlines()) == 1
 
 
-@pytest.mark.parametrize(
-    "path", sorted((_CLAUDE_DIR / "args").glob("*.txt")), ids=lambda p: p.name
-)
+@pytest.mark.parametrize("path", _ARGS_FILES, ids=lambda path: path.name)
 def test_args_files_lead_with_the_shared_prefix(path: Path) -> None:
     tokens = shlex.split(path.read_text(encoding="utf-8"))
 
@@ -134,6 +126,7 @@ def test_inline_claude_args_lead_with_the_shared_prefix(workflow: str) -> None:
         for step in _claude_steps(workflow=workflow)
     ]
 
+    assert len(prefixes) > 0
     assert prefixes == [_SHARED_PREFIX] * len(prefixes)
 
 
@@ -159,20 +152,44 @@ def test_build_step_names_files_that_exist(workflow: str) -> None:
         if step.get("id") == "inputs"
     ]
     named = shlex.split(build["run"])[1:]
+    missing = [name for name in named if not (_CLAUDE_DIR / name).is_file()]
 
-    assert [(_CLAUDE_DIR / name).is_file() for name in named] == [True] * len(named)
+    assert named
+    assert missing == []
+
+
+@pytest.mark.parametrize("workflow", _FILE_DRIVEN_WORKFLOWS)
+def test_stage_step_uses_the_shared_staging_script(workflow: str) -> None:
+    document = yaml.safe_load((_WORKFLOWS / workflow).read_text(encoding="utf-8"))
+    (stage,) = [
+        step
+        for job in document["jobs"].values()
+        for step in job["steps"]
+        if step.get("id") == "stage"
+    ]
+
+    assert '"$RUNNER_TEMP/scripts/stage-trusted.sh" "$ref"' in stage["run"]
 
 
 class TestBuildScript:
     @pytest.fixture
     def outputs(self, tmp_path: Path) -> dict[str, str]:
-        raw = _build(
+        result = _run_build(
             tmp_path=tmp_path,
             claude_dir=_CLAUDE_DIR,
             args_file="args/code-review.txt",
             parts=["prompts/code-review.core.md", "prompts/code-review.output-ci.md"],
         )
-        return _parse_outputs(raw=raw)
+        assert result.returncode == 0, result.stderr
+        return _parse_outputs(raw=(tmp_path / "github_output").read_text(encoding="utf-8"))
+
+    @pytest.fixture
+    def scratch_dir(self, tmp_path: Path) -> Path:
+        claude_dir = tmp_path / "claude"
+        (claude_dir / "args").mkdir(parents=True)
+        (claude_dir / "args" / "job.txt").write_text("--model haiku\n", encoding="utf-8")
+        (claude_dir / "part.md").write_text("Review the PR.\n", encoding="utf-8")
+        return claude_dir
 
     def test_claude_args_is_the_args_file(self, outputs: dict[str, str]) -> None:
         expected = (_CLAUDE_DIR / "args" / "code-review.txt").read_text(encoding="utf-8")
@@ -187,19 +204,34 @@ class TestBuildScript:
     def test_prompt_ends_with_run_context(self, outputs: dict[str, str]) -> None:
         assert outputs["prompt"].endswith("RUN CONTEXT:\n- REPO: owner/repo\n- PR: 42\n")
 
-    def test_refuses_a_part_holding_an_expression(self, tmp_path: Path) -> None:
-        claude_dir = tmp_path / "claude"
-        (claude_dir / "args").mkdir(parents=True)
-        (claude_dir / "args" / "job.txt").write_text("--model haiku\n", encoding="utf-8")
-        (claude_dir / "part.md").write_text("PR: ${{ github.ref }}\n", encoding="utf-8")
+    @pytest.mark.parametrize(
+        ("relative", "content", "message"),
+        [
+            ("part.md", "PR: ${{ github.ref }}\n", "contains ${{ }}"),
+            ("args/job.txt", "--model haiku\n--tools Read", "exactly one line"),
+            ("args/job.txt", "--model ${{ vars.MODEL }}\n", "contains ${{ }}"),
+        ],
+        ids=["expression-in-part", "two-line-args", "expression-in-args"],
+    )
+    def test_refuses_bad_input(
+        self, tmp_path: Path, scratch_dir: Path, relative: str, content: str, message: str
+    ) -> None:
+        (scratch_dir / relative).write_text(content, encoding="utf-8")
 
-        with pytest.raises(subprocess.CalledProcessError):
-            _build(
-                tmp_path=tmp_path,
-                claude_dir=claude_dir,
-                args_file="args/job.txt",
-                parts=["part.md"],
-            )
+        result = _run_build(
+            tmp_path=tmp_path, claude_dir=scratch_dir, args_file="args/job.txt", parts=["part.md"]
+        )
+
+        assert result.returncode == 1
+        assert message in result.stderr
+
+    def test_refuses_a_missing_part(self, tmp_path: Path, scratch_dir: Path) -> None:
+        result = _run_build(
+            tmp_path=tmp_path, claude_dir=scratch_dir, args_file="args/job.txt", parts=["gone.md"]
+        )
+
+        assert result.returncode == 1
+        assert "is missing" in result.stderr
 
 
 class TestRoutingParity:
@@ -209,13 +241,15 @@ class TestRoutingParity:
     the security and silent-failure reviewers out of every CI review.
     """
 
-    _INDEX = _REPO_ROOT / ".claude" / "rules" / "INDEX.md"
-    _CORE = _CLAUDE_DIR / "prompts" / "code-review.core.md"
+    _INDEX: ClassVar[Path] = _REPO_ROOT / ".claude" / "rules" / "INDEX.md"
+    _CORE: ClassVar[Path] = _CLAUDE_DIR / "prompts" / "code-review.core.md"
+    _HEADING: ClassVar[str] = "## File Patterns -> Agents"
 
     @pytest.fixture(scope="class")
     def routes(self) -> dict[str, list[str]]:
         text = self._INDEX.read_text(encoding="utf-8")
-        table = text.split("## File Patterns -> Agents", 1)[1].split("\n## ", 1)[0]
+        assert self._HEADING in text, f"INDEX.md lost its {self._HEADING!r} table"
+        table = text.split(self._HEADING, 1)[1].split("\n## ", 1)[0]
         rows = [line for line in table.splitlines() if line.startswith("| `")]
         return {
             pattern: re.findall(r"`([^`]+)`", row.split("|")[2])
@@ -230,14 +264,15 @@ class TestRoutingParity:
         assert "→ reviewer-" not in core
 
     def test_every_routed_agent_has_a_spec(self, routes: dict[str, list[str]]) -> None:
-        agents = sorted({agent for names in routes.values() for agent in names})
-        specs = [
-            (_REPO_ROOT / ".claude" / "agents" / f"{agent}.md").is_file()
-            or (_REPO_ROOT / "agents" / f"{agent}.md").is_file()
+        agents = {agent for names in routes.values() for agent in names}
+        missing = {
+            agent
             for agent in agents
-        ]
+            if not (_REPO_ROOT / ".claude" / "agents" / f"{agent}.md").is_file()
+            and not (_REPO_ROOT / "agents" / f"{agent}.md").is_file()
+        }
 
-        assert dict(zip(agents, specs)) == dict.fromkeys(agents, True)
+        assert missing == set()
 
     def test_every_internal_reviewer_is_reachable(self, routes: dict[str, list[str]]) -> None:
         routed = {agent for names in routes.values() for agent in names}
@@ -254,9 +289,32 @@ class TestRoutingParity:
 
     @pytest.mark.parametrize(
         "pattern",
-        [".github/workflows/**", "references/**", "CLAUDE.md"],
+        [".github/**", "references/**", "CLAUDE.md"],
     )
-    def test_index_covers_paths_the_old_inline_list_routed(
+    def test_index_covers_paths_the_review_triggers_on(
         self, routes: dict[str, list[str]], pattern: str
     ) -> None:
         assert routes[pattern]
+
+
+class TestDraftConversion:
+    """A shell step, not the model, drafts a PR with findings (GH-1618)."""
+
+    @pytest.fixture(scope="class")
+    def step_names(self) -> list[str]:
+        document = yaml.safe_load(
+            (_WORKFLOWS / "claude-code-review.yml").read_text(encoding="utf-8")
+        )
+        return [step["name"] for step in document["jobs"]["claude-review"]["steps"]]
+
+    def test_model_is_not_given_gh_pr_ready(self) -> None:
+        # Bash(gh api:*) can still reach the GraphQL draft mutations; the
+        # prompt, not the allowlist, keeps the model off them.
+        args = (_CLAUDE_DIR / "args" / "code-review.txt").read_text(encoding="utf-8")
+
+        assert "gh pr ready" not in args
+
+    def test_draft_step_runs_after_probe_cleanup(self, step_names: list[str]) -> None:
+        assert step_names.index("Convert to draft when the review left findings") > (
+            step_names.index("Delete probe inline comments")
+        )
