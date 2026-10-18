@@ -20,10 +20,11 @@ Wherever an instruction names one of its keys as a placeholder, such as
 
 ## PR context
 
-A step before you fetched the PR into `.claude-ci/pr-context/`.
-`INDEX.md` there lists every file. Read those files instead of running
-`gh` for anything they cover; `gh` is for writes and for state that
-changes during your run.
+When `.claude-ci/pr-context/INDEX.md` exists, a step before you fetched
+the PR into that directory, and `INDEX.md` lists every file. Read those
+files instead of running `gh` for anything they cover; `gh` is for
+writes and for state that changes during your run. When it does not
+exist, the task says how to read the PR.
 
 ## Bash
 

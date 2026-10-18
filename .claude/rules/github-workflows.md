@@ -42,13 +42,9 @@ Review guidelines are centralized in:
 Workflows should reference these files rather than duplicating content.
 
 API cost and prompt caching for the Claude review workflows:
-`.claude/rules/claude-ci-cost.md` (GH-1585).
-
-**Models follow one CLI pin (GH-1615).** Every Claude workflow
-installs the CLI version in the `CLAUDE_CLI_VERSION` repository
-variable, and that CLI decides which model the `sonnet` / `haiku`
-aliases name. Move models by changing the variable, not by bumping
-the action or hard-coding model ids: `claude-ci-cost.md` rule 8.
+`.claude/rules/claude-ci-cost.md` (GH-1585). Models follow the
+`CLAUDE_CLI_VERSION` CLI pin, not the action version: rule 8 there
+(GH-1615).
 
 ## Workflow Optimization
 
