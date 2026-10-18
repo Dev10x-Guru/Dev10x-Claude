@@ -106,6 +106,16 @@ these jobs.
    `claude.yml`'s comment events. The code review turns the action's
    probe-comment classifier off (`classify_inline_comments: "false"`)
    because it needs a key, and deletes probe comments in its own step.
+10. **Prompts and args are files (GH-1625).** The code review and the
+    hygiene check read their prompt from `.github/claude/prompts/` and
+    their `claude_args` from `.github/claude/args/<job>.txt` (one line,
+    the shared prefix first), so the workflow, `dev10x:gh-review-setup`
+    and a local review read one text. The stage step copies
+    `.github/claude/**` and `claude-ci-settings.json` from the base ref
+    over the checkout, and `build-claude-inputs.sh` joins the parts and
+    appends RUN CONTEXT. Edit the files, never the workflow step.
+    `tests/test_claude_ci_prompts.py` fails on a `${{` in those files,
+    an inline prompt, or a drifted prefix.
 
 ## Verifying a change
 
