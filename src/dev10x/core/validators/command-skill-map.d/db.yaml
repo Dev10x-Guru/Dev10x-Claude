@@ -1,0 +1,58 @@
+# DX006 rules for the db plugin (ADR-0034 Stage A3, GH-1590).
+# Merged into ../command-skill-map.yaml by dev10x.core.config.loader:
+# core's rules first, then each fragment in src/dev10x/core/plugins.yaml
+# order. First match wins. See the base file for the schema.
+#
+# infra merges before db, so `aws-vault exec … psql` and
+# `kubectl exec … psql` reach the advisory infra rule first; psql-write
+# still blocks them, because the hook evaluates blocking rules only.
+
+rules:
+  - name: psql-write
+    matcher: Bash
+    # `-[a-zA-Z]*c` rather than `-c` so getopt bundles (`psql -tAc "DROP …"`)
+    # and attached values (`psql -cDROP …`) match too — the shapes a
+    # scripted teardown actually uses.
+    patterns:
+      - 'psql.*\s-[a-zA-Z]*c.*\b(DROP|DELETE|UPDATE|INSERT|TRUNCATE|ALTER|GRANT|REVOKE)\b'
+      - 'psql.*--command[= ].*\b(DROP|DELETE|UPDATE|INSERT|TRUNCATE|ALTER|GRANT|REVOKE)\b'
+      - 'psql.*\s-[a-zA-Z]*c.*pg_(terminate|cancel)_backend'
+      - 'psql.*\s-[a-zA-Z]*f\b'
+      - 'psql.*\s--file[= ]'
+    except: []
+    hook_block: true
+    compensations:
+      - type: use-skill
+        skill: dev10x:db-psql
+        guardrails: SQL validation, SELECT-only enforcement
+        fallback: >
+          Writes are not the agent's to run. Print the SQL and ask the
+          supervisor to execute it manually. This includes test-database
+          teardown documented in project runbooks — a documented
+          procedure authorizes the SQL, not the executor.
+    reason: >
+      GH-1034: raw psql DDL/DML executes unvalidated writes. The generic
+      psql rule below is advisory and therefore cannot enforce the
+      SELECT-only contract that project CLAUDE.md files rely on. CREATE is
+      deliberately absent — `CREATE EXTENSION` in local setup made it noisy.
+      This rule is the dev10x:diag-friction steer; the enforcing gate is
+      the DX004 sql-safety validator, which runs at every profile tier.
+    related:
+      - dev10x:db
+      - tt:db
+
+  - name: psql
+    matcher: Bash
+    patterns:
+      - psql
+      - aws-vault exec.*psql
+    hook_block: false
+    compensations:
+      - type: use-skill
+        skill: dev10x:db-psql
+    reason: >
+      Direct psql calls bypass SQL validation hooks and may
+      accidentally execute write operations.
+    related:
+      - dev10x:db
+      - tt:db

@@ -104,8 +104,25 @@ def catalog_text(
     catalog_path: Path,
     fragment_dirs: Sequence[Path] | None = None,
 ) -> str:
-    files = catalog_files(catalog_path=catalog_path, fragment_dirs=fragment_dirs)
-    return "\n".join(path.read_text() for path in files)
+    text = catalog_path.read_text()
+    if not catalog_fragments(catalog_path=catalog_path, fragment_dirs=fragment_dirs):
+        return text
+    # GH-1589: fragments repeat top-level keys such as `base_permissions`.
+    # Concatenated, PyYAML keeps only the last occurrence of a duplicate
+    # key, so a fresh userspace copy would lose every core rule. Render
+    # the merged document instead, under the base file's header.
+    document = load_catalog_document(catalog_path=catalog_path, fragment_dirs=fragment_dirs)
+    body = yaml.safe_dump(document, sort_keys=False, allow_unicode=True)
+    return f"{_leading_comment(text=text)}{body}"
+
+
+def _leading_comment(*, text: str) -> str:
+    header: list[str] = []
+    for line in text.splitlines(keepends=True):
+        if line.strip() and not line.lstrip().startswith("#"):
+            break
+        header.append(line)
+    return "".join(header)
 
 
 __all__ = [

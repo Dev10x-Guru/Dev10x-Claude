@@ -1,0 +1,33 @@
+# DX006 rules for the infra plugin (ADR-0034 Stage A3, GH-1590).
+# Merged into ../command-skill-map.yaml by dev10x.core.config.loader:
+# core's rules first, then each fragment in src/dev10x/core/plugins.yaml
+# order. First match wins. See the base file for the schema.
+
+rules:
+  - name: kubectl
+    matcher: Bash
+    patterns:
+      - kubectl
+      - aws-vault exec.*kubectl
+    hook_block: false
+    compensations:
+      - type: use-skill
+        skill: dev10x:k8s
+    reason: >
+      Direct kubectl calls bypass aws-vault authentication and
+      may use wrong credentials or target wrong cluster.
+    related:
+      - dev10x:aws-vault
+
+  - name: aws-vault
+    matcher: Bash
+    patterns:
+      - aws secretsmanager
+      - aws-vault exec
+    hook_block: false
+    compensations:
+      - type: use-skill
+        skill: dev10x:aws-vault
+    reason: >
+      Direct aws CLI calls bypass credential management and
+      environment-specific profile selection.

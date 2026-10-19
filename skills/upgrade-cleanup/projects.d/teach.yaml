@@ -1,0 +1,13 @@
+# Permission-catalog fragment for the teach plugin (ADR-0034 Stage A3,
+# GH-1589). Merged into ../projects.yaml by
+# dev10x.core.skills.permission.catalog_paths; see the base file's
+# header for the catalog itself.
+
+base_permissions:
+  # --- Dev10x MCP tools: cli server (GH-878) ---
+  - "mcp__plugin_dev10x_cli__generate_skill_index"
+  - "mcp__plugin_dev10x_cli__audit_extract_session"
+  - "mcp__plugin_dev10x_cli__audit_analyze_actions"
+  # GH-1153: registered read-only, never catalogued until the coverage
+  # test found it.
+  - "mcp__plugin_dev10x_cli__resolve_plugin_origin"

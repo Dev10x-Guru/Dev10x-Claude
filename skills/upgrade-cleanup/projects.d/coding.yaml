@@ -1,0 +1,218 @@
+# Permission-catalog fragment for the coding plugin (ADR-0034 Stage A3,
+# GH-1589). Merged into ../projects.yaml by
+# dev10x.core.skills.permission.catalog_paths: lists append after core's
+# and the other plugins' in src/dev10x/core/plugins.yaml order. See the
+# base file's header for the catalog itself.
+#
+# Owns the Dev10x MCP tools that only coding skills declare, every
+# `Bash(gh …)` / `Bash(git …)` allow, the git aliases, the GitHub SSH
+# probe, the test/lint/dependency runners and the foreman/watchdog CLI
+# spellings. The safety floor (base_asks, base_denies) stays in core.
+
+# GH-1317: the foreman/watchdog read-only verbs were absent in EVERY
+# spelling, so an unattended pre-flight prompted on its own heartbeat
+# and seventeen per-checkout catch-alls were accepted ad hoc to get
+# past it. `skills/foreman/references/preflight-checklist.md` §1 names
+# a fourth runner for these — the plugin-cache install invokes them
+# through `--project $CLAUDE_PLUGIN_ROOT` (GH-961) — so that spelling
+# is listed here and nowhere else.
+command_spellings:
+  - prefixes:
+      ["", "uvx ", "uv run ", "uv run --project $CLAUDE_PLUGIN_ROOT "]
+    commands:
+      - dev10x foreman escalate  # GH-1582
+      - dev10x foreman probe
+      - dev10x foreman retire  # GH-1577
+      - dev10x foreman watch
+      - dev10x watchdog probe
+      - dev10x watchdog sessions
+
+base_permissions:
+  # --- Dev10x MCP tools: cli server (GH-878) ---
+  - "mcp__plugin_dev10x_cli__pr_comment_reply"
+  - "mcp__plugin_dev10x_cli__pr_review_comment_edit"
+  - "mcp__plugin_dev10x_cli__request_review"
+  - "mcp__plugin_dev10x_cli__detect_base_branch"
+  - "mcp__plugin_dev10x_cli__verify_pr_state"
+  - "mcp__plugin_dev10x_cli__pre_pr_checks"
+  - "mcp__plugin_dev10x_cli__create_pr"
+  - "mcp__plugin_dev10x_cli__generate_commit_list"
+  - "mcp__plugin_dev10x_cli__post_summary_comment"
+  - "mcp__plugin_dev10x_cli__pr_notify"
+  - "mcp__plugin_dev10x_cli__rebase_groom"
+  - "mcp__plugin_dev10x_cli__create_worktree"
+  - "mcp__plugin_dev10x_cli__mass_rewrite"
+  - "mcp__plugin_dev10x_cli__start_split_rebase"
+  - "mcp__plugin_dev10x_cli__next_worktree_name"
+  - "mcp__plugin_dev10x_cli__setup_aliases"
+  - "mcp__plugin_dev10x_cli__check_top_level_comments"
+  - "mcp__plugin_dev10x_cli__unresolved_threads"
+  - "mcp__plugin_dev10x_cli__ci_check_status"
+  # Test runner (GH-880, #877 E3 gap 1) — the diag-friction steer target
+  # for scoped py tests; `run_node_tests` stays in core.
+  - "mcp__plugin_dev10x_cli__run_tests"
+  - "mcp__plugin_dev10x_cli__collect_prs"
+  # GH-1153: registered read-only, never catalogued until the coverage
+  # test found it.
+  - "mcp__plugin_dev10x_cli__background_preamble"
+  # pr_labels defaults to action="list"; its add/remove writes are the
+  # sanctioned path for the review:cleared signal (GH-1008) and are
+  # idempotent, so skills call them unconditionally rather than probing.
+  - "mcp__plugin_dev10x_cli__pr_labels"
+  # Plugin-mandated workflow write (GH-1215): the raw milestone PATCH is
+  # routed to the wrapper, so leaving it uncatalogued is a dead end.
+  - "mcp__plugin_dev10x_cli__milestone_close"
+
+  # --- gh CLI patterns (GH-98) ---
+  - "Bash(gh pr view:*)"
+  - "Bash(gh pr diff:*)"
+  - "Bash(gh pr list:*)"
+  - "Bash(gh pr create:*)"
+  - "Bash(gh pr comment:*)"
+  - "Bash(gh pr review:*)"
+  - "Bash(gh pr checks:*)"
+  - "Bash(gh pr edit:*)"
+  - "Bash(gh pr ready:*)"
+  - "Bash(gh issue view:*)"
+  - "Bash(gh issue list:*)"
+  - "Bash(gh issue create:*)"
+  - "Bash(gh issue comment:*)"
+  - "Bash(gh api:*)"
+  - "Bash(gh auth:*)"
+  - "Bash(gh run view:*)"
+  - "Bash(gh run list:*)"
+  - "Bash(gh run watch:*)"
+  - "Bash(gh repo view:*)"
+  - "Bash(gh repo clone:*)"
+  - "Bash(gh repo set-default:*)"
+  # gh project read verbs (GH-1078). Write verbs (create/edit/delete/
+  # link/unlink/mark-template/item-add/item-edit/item-delete/
+  # item-archive) are deliberately absent so they keep prompting.
+  - "Bash(gh project list:*)"
+  - "Bash(gh project view:*)"
+  - "Bash(gh project item-list:*)"
+  - "Bash(gh project field-list:*)"
+
+  # --- Common git operations ---
+  - "Bash(git log:*)"
+  - "Bash(git add:*)"
+  - "Bash(git commit:*)"
+  - "Bash(git push:*)"
+  - "Bash(git diff:*)"
+  - "Bash(git status:*)"
+  - "Bash(git fetch:*)"
+  - "Bash(git branch:*)"
+  - "Bash(git branch -d:*)"
+  - "Bash(git branch -D:*)"
+  - "Bash(git branch --delete:*)"
+  - "Bash(git checkout:*)"
+  - "Bash(git symbolic-ref:*)"
+  - "Bash(git reset --soft:*)"
+  - "Bash(git reset --hard:*)"
+  - "Bash(git rebase:*)"
+  - "Bash(git stash:*)"
+  - "Bash(git remote:*)"
+
+  # --- Read-only cross-worktree git spellings (GH-1135, GH-1268) ---
+  # GH-1472 settled the open question this block depended on (ADR-0021,
+  # GH-925 F2): a mid-path `*` before `:*` is a literal character, so
+  # all 27 rules that stood here (`git -C * <verb>:*` and both plumbing
+  # orderings) never matched. They were dropped rather than rewritten to
+  # the space form, where `*` would also match `-c core.fsmonitor=<cmd>`
+  # and turn a read into arbitrary execution. A cross-worktree read
+  # prompts, as it always did; prefer running from the target checkout.
+
+  # --- Python project tooling (GH-20) ---
+  - "Bash(uv run pytest:*)" # cli-friction: allow raw-pytest — base allow rule for plugin-maintenance, not a skill doc
+  - "Bash(uv run --extra dev pytest:*)" # cli-friction: allow raw-pytest — base allow rule for plugin-maintenance, not a skill doc
+  - "Bash(uv run ruff:*)"
+  # GH-1248 added `uv run --directory * <tool>:*` forms here; GH-1472
+  # dropped them — the `*` before `:*` is literal, so they never matched.
+  # The DX007 prefix-friction validator already strips `--directory <p>`
+  # and re-matches the inner command against the plain rules above.
+  # GH-1189: `uv lock`, `uv sync`, `uv build`, `uv tool`, `uv pip *` and
+  # `uv run *` were all catalogued; `uv add` was not, so a crew worker
+  # adding a dependency prompted on an unattended night run while
+  # `catalog-gap` reported 0 missing. `npm install *` is already a default
+  # at the same trust level — both mutate a manifest and a lockfile in the
+  # checkout, neither reaches outside it. `uv remove` is the symmetric
+  # form; cataloguing only the additive half is how the next unattended
+  # run finds the same wedge from the other direction.
+  - "Bash(uv add:*)"
+  - "Bash(uv remove:*)"
+  # GH-1149: the SANCTIONED lint form is bare `pre-commit run` — CLAUDE.md
+  # says to call it directly, never via `uv run`. Only the discouraged
+  # `uv run` shape was catalogued here, so the form users are told to use
+  # prompted in every project. The rule exists in
+  # src/dev10x/core/skills/permission/baseline-permissions.yaml (build-tools
+  # tier), but that catalog is read by `permission resolve/audit/doctor`
+  # and never by the ensure-base write path — a rule present only there
+  # reaches no settings file. Global settings happened to carry it, which
+  # masked the gap until GH-47 (project file wins) made global irrelevant.
+  - "Bash(pre-commit run:*)"
+
+  # --- SSH probes (GH-20) ---
+  # Push/PR setup paths verify GitHub SSH access.
+  - "Bash(ssh -T git@github.com)"
+
+  # --- Git aliases (GH-852, GH-853) ---
+  # All base branch aliases from dev10x:git-alias-setup.
+  # Preserved at project level as safety anchors — they enable
+  # hook feedback and branch-specific allow rules.
+  - "Bash(git develop-log:*)"
+  - "Bash(git develop-diff:*)"
+  - "Bash(git develop-rebase:*)"
+  - "Bash(git autosquash-develop:*)"
+  - "Bash(git development-log:*)"
+  - "Bash(git development-diff:*)"
+  - "Bash(git development-rebase:*)"
+  - "Bash(git autosquash-development:*)"
+  - "Bash(git trunk-log:*)"
+  - "Bash(git trunk-diff:*)"
+  - "Bash(git trunk-rebase:*)"
+  - "Bash(git autosquash-trunk:*)"
+  - "Bash(git main-log:*)"
+  - "Bash(git main-diff:*)"
+  - "Bash(git main-rebase:*)"
+  - "Bash(git autosquash-main:*)"
+  - "Bash(git master-log:*)"
+  - "Bash(git master-diff:*)"
+  - "Bash(git master-rebase:*)"
+  - "Bash(git autosquash-master:*)"
+
+  # --- Safe-by-default command catalog (GH-310) ---
+  # The git and gh half of core's GH-310 block: see the rationale there.
+
+  # Version / help info flags for the option-2 footgun verbs — always safe
+  - "Bash(git --version)"
+  - "Bash(gh --version)"
+  - "Bash(gh --help)"
+
+  # git — read-only inspection (mutating git already covered above and
+  # routed to skills via the SkillRedirectValidator allow rules)
+  - "Bash(git show:*)"
+  - "Bash(git rev-parse:*)"
+  - "Bash(git describe:*)"
+  - "Bash(git ls-files:*)"
+  - "Bash(git ls-tree:*)"
+  - "Bash(git blame:*)"
+  - "Bash(git shortlog:*)"
+  - "Bash(git merge-base:*)"
+  - "Bash(git worktree list:*)"
+  - "Bash(git config --get:*)"
+  - "Bash(git config --list:*)"
+  - "Bash(git tag --list:*)"
+  - "Bash(git reflog:*)"
+  - "Bash(git cat-file:*)"
+  - "Bash(git rev-list:*)"
+  - "Bash(git for-each-ref:*)"
+
+  # gh — read-only inspection (mutating gh already covered above)
+  - "Bash(gh release view:*)"
+  - "Bash(gh release list:*)"
+  - "Bash(gh search:*)"
+  - "Bash(gh label list:*)"
+  - "Bash(gh workflow view:*)"
+  - "Bash(gh workflow list:*)"
+  - "Bash(gh cache list:*)"
+  - "Bash(gh pr status:*)"

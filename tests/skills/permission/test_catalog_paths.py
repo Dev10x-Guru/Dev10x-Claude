@@ -5,6 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+import yaml
+from dev10x.skills.permission.catalog_paths import shipped_projects_catalog
+from dev10x.skills.permission.config import parse_config
 
 from dev10x.skills.permission import (
     catalog_load,
@@ -14,8 +17,6 @@ from dev10x.skills.permission import (
     merge_worktree_permissions,
     update_paths,
 )
-from dev10x.skills.permission.catalog_paths import shipped_projects_catalog
-from dev10x.skills.permission.config import parse_config
 
 
 class TestShippedProjectsCatalog:
@@ -111,13 +112,27 @@ class TestCatalogFragments:
         text = catalog_paths.catalog_text(catalog_path=plain_catalog)
         assert text == plain_catalog.read_text()
 
-    def test_text_joins_the_catalog_and_its_fragments(self, fragmented_catalog: Path) -> None:
-        fragments = fragmented_catalog.parent / "projects.d"
-        expected = "\n".join(
-            path.read_text()
-            for path in (fragmented_catalog, fragments / "scoping.yaml", fragments / "coding.yaml")
+    def test_text_of_a_fragmented_catalog_parses_to_the_merge(
+        self, fragmented_catalog: Path
+    ) -> None:
+        """GH-1589: concatenating files that repeat `base_permissions` kept
+        only the last copy of the key, dropping every core rule."""
+        text = catalog_paths.catalog_text(catalog_path=fragmented_catalog)
+
+        assert yaml.safe_load(text) == catalog_paths.load_catalog_document(
+            catalog_path=fragmented_catalog
         )
-        assert catalog_paths.catalog_text(catalog_path=fragmented_catalog) == expected
+
+    def test_text_of_a_fragmented_catalog_keeps_the_base_header(self, tmp_path: Path) -> None:
+        catalog = tmp_path / "projects.yaml"
+        catalog.write_text("# header line\n\n# second\nroots: []\n# body comment\n")
+        fragments = tmp_path / catalog_paths.FRAGMENTS_DIRNAME
+        fragments.mkdir()
+        (fragments / "qa.yaml").write_text("base_permissions:\n  - qa-rule\n")
+
+        text = catalog_paths.catalog_text(catalog_path=catalog)
+
+        assert text == "# header line\n\n# second\nroots: []\nbase_permissions:\n- qa-rule\n"
 
 
 class TestParseConfigReadsFragments:
