@@ -30,6 +30,7 @@ from dev10x.skills.permission.catalog_merge import MergedCatalog, merge_catalogs
 from dev10x.skills.permission.catalog_paths import catalog_text, shipped_projects_catalog
 from dev10x.skills.permission.catalog_result import _result
 from dev10x.skills.permission.config import parse_config, resolve_config
+from dev10x.skills.permission.settings_discovery import discover_settings
 
 MEMORY_CONFIG = Dev10xConfigDir.projects_yaml()
 USERSPACE_CONFIG = Dev10xConfigDir.upgrade_cleanup_projects_yaml()
@@ -107,34 +108,7 @@ def find_settings_files(
     *,
     include_user: bool,
 ) -> list[Path]:
-    files: list[Path] = []
-    if include_user:
-        user_dir = ClaudeDir.home()
-        for name in ("settings.json", "settings.local.json"):
-            candidate = user_dir / name
-            if candidate.exists():
-                files.append(candidate)
-
-    project_settings_dir = ClaudeDir.projects_dir()
-    if project_settings_dir.is_dir():
-        for settings_file in project_settings_dir.rglob("settings.local.json"):
-            files.append(settings_file)
-
-    for root in roots:
-        root_path = Path(root).expanduser()
-        if not root_path.is_dir():
-            continue
-        for settings_file in root_path.rglob(".claude/settings.local.json"):
-            files.append(settings_file)
-
-    seen: set[Path] = set()
-    unique: list[Path] = []
-    for f in files:
-        resolved = f.resolve()
-        if resolved not in seen:
-            seen.add(resolved)
-            unique.append(resolved)
-    return unique
+    return discover_settings(roots=roots, include_user=include_user).files
 
 
 KNOWN_PLUGIN_DIRS = ("dev10x", "Dev10x", "dev10x-claude")

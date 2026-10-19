@@ -31,7 +31,7 @@ async def catalog_gap(*, verbose: bool = False) -> Result[dict[str, Any]]:
 
     Returns:
         ok({"total_missing": int, "files_checked": int, "clean": bool,
-            "messages": [str, ...]})
+            "messages": [str, ...], "out_of_roots": [str, ...]})
     """
     return await asyncio.to_thread(_run_catalog_gap, verbose=verbose)
 
@@ -51,6 +51,7 @@ def _run_catalog_gap(*, verbose: bool) -> Result[dict[str, Any]]:
         settings_files=settings_files,
         quiet=False,
         verbose=verbose,
+        out_of_roots=ctx.value.out_of_roots,
     )
     # catalog_gap is typed dict[str, object]; the counts are ints by
     # contract, so narrow explicitly rather than trusting the annotation.
@@ -61,6 +62,7 @@ def _run_catalog_gap(*, verbose: bool) -> Result[dict[str, Any]]:
             "files_checked": int(cast(int, result.get("files_changed", 0))),
             "clean": total_missing == 0,
             "messages": result.get("messages", []),
+            "out_of_roots": [str(path) for path in ctx.value.out_of_roots],
         }
     )
 

@@ -1,0 +1,301 @@
+"""Tests for settings_discovery.py: pruned root walk plus git worktrees (GH-1626)."""
+
+import subprocess
+from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
+from dev10x.skills.permission.catalog_load import find_settings_files
+from dev10x.skills.permission.settings_discovery import (
+    VENDORED_DIRS,
+    SettingsDiscovery,
+    discover_settings,
+    git_registered_worktrees,
+    outside_roots,
+)
+
+from dev10x import subprocess_utils
+from dev10x.skills.permission import clean_project_files, settings_discovery
+
+GIT_ENV_VARS = ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR")
+
+
+def _settings(*, project: Path) -> Path:
+    claude = project / ".claude"
+    claude.mkdir(parents=True, exist_ok=True)
+    path = claude / "settings.local.json"
+    path.write_text("{}")
+    return path
+
+
+def _git(*args: str, cwd: Path) -> None:
+    subprocess.run(
+        [
+            "git",
+            "-c",
+            "user.name=Test",
+            "-c",
+            "user.email=test@example.com",
+            "-c",
+            "commit.gpgsign=false",
+            *args,
+        ],
+        cwd=cwd,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+
+@pytest.fixture(autouse=True)
+def isolated_claude_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    home = tmp_path / "claude-home"
+    monkeypatch.setenv("DEV10X_CLAUDE_HOME", str(home))
+    for name in GIT_ENV_VARS:
+        monkeypatch.delenv(name, raising=False)
+    return home
+
+
+@pytest.fixture
+def root(tmp_path: Path) -> Path:
+    path = tmp_path / "work"
+    path.mkdir()
+    return path
+
+
+@pytest.fixture
+def repo_with_outside_worktree(root: Path, tmp_path: Path) -> tuple[Path, Path]:
+    repo = root / "proj"
+    repo.mkdir()
+    _git("init", "-q", cwd=repo)
+    _git("commit", "-q", "--allow-empty", "-m", "init", cwd=repo)
+    worktree = tmp_path / "herdr" / "worktrees" / "proj-1"
+    _git("worktree", "add", "-q", "-b", "side", str(worktree), cwd=repo)
+    return repo, worktree
+
+
+@pytest.fixture
+def git_discovery(
+    repo_with_outside_worktree: tuple[Path, Path],
+    root: Path,
+) -> tuple[SettingsDiscovery, Path, Path]:
+    repo, worktree = repo_with_outside_worktree
+    repo_settings = _settings(project=repo)
+    worktree_settings = _settings(project=worktree)
+    discovery = discover_settings(roots=[str(root)], include_user=False)
+    return discovery, repo_settings.resolve(), worktree_settings.resolve()
+
+
+class TestVendoredPruning:
+    @pytest.mark.parametrize("vendored", sorted(VENDORED_DIRS))
+    def test_skips_settings_under_vendored_dir(self, root: Path, vendored: str) -> None:
+        _settings(project=root / "app" / vendored / "pkg")
+
+        assert discover_settings(roots=[str(root)], include_user=False).files == []
+
+    def test_keeps_project_settings_beside_vendored_dir(self, root: Path) -> None:
+        kept = _settings(project=root / "app")
+        _settings(project=root / "app" / "node_modules" / ".pnpm" / "thread-stream")
+
+        assert discover_settings(roots=[str(root)], include_user=False).files == [kept.resolve()]
+
+
+class TestGitWorktreeDiscovery:
+    def test_finds_worktree_outside_roots(
+        self, git_discovery: tuple[SettingsDiscovery, Path, Path]
+    ) -> None:
+        discovery, repo_settings, worktree_settings = git_discovery
+
+        assert discovery.files == [repo_settings, worktree_settings]
+
+    def test_reports_worktree_outside_roots(
+        self, git_discovery: tuple[SettingsDiscovery, Path, Path]
+    ) -> None:
+        discovery, _repo_settings, worktree_settings = git_discovery
+
+        assert discovery.out_of_roots == [worktree_settings]
+
+    def test_worktree_without_settings_is_not_added(
+        self, repo_with_outside_worktree: tuple[Path, Path], root: Path
+    ) -> None:
+        repo, _worktree = repo_with_outside_worktree
+        repo_settings = _settings(project=repo)
+
+        discovery = discover_settings(roots=[str(root)], include_user=False)
+
+        assert discovery == SettingsDiscovery(files=[repo_settings.resolve()], out_of_roots=[])
+
+    def test_worktree_inside_roots_is_listed_once(
+        self, repo_with_outside_worktree: tuple[Path, Path], tmp_path: Path
+    ) -> None:
+        _repo, worktree = repo_with_outside_worktree
+        worktree_settings = _settings(project=worktree)
+
+        discovery = discover_settings(
+            roots=[str(tmp_path / "work"), str(tmp_path / "herdr")], include_user=False
+        )
+
+        assert discovery == SettingsDiscovery(files=[worktree_settings.resolve()], out_of_roots=[])
+
+    def test_queries_git_once_per_worktree_family(
+        self,
+        repo_with_outside_worktree: tuple[Path, Path],
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        _repo, worktree = repo_with_outside_worktree
+        calls: list[Path] = []
+        real = settings_discovery.git_registered_worktrees
+
+        def recording(root_path: Path) -> list[Path]:
+            calls.append(root_path)
+            return real(root_path)
+
+        monkeypatch.setattr(settings_discovery, "git_registered_worktrees", recording)
+
+        discover_settings(roots=[str(tmp_path)], include_user=False)
+
+        assert calls == [worktree]
+
+
+class TestGitRegisteredWorktreesFailures:
+    @pytest.mark.parametrize(
+        "error",
+        [
+            subprocess.TimeoutExpired(cmd=["git"], timeout=10),
+            FileNotFoundError("git"),
+        ],
+    )
+    def test_raising_git_yields_no_worktrees(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+        error: Exception,
+    ) -> None:
+        def raising(*_args: object, **_kwargs: object) -> None:
+            raise error
+
+        monkeypatch.setattr(subprocess_utils, "run", raising)
+
+        assert git_registered_worktrees(tmp_path) == []
+        assert "git worktree list" in caplog.text
+
+    def test_non_zero_exit_yields_no_worktrees(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        monkeypatch.setattr(
+            subprocess_utils,
+            "run",
+            lambda *_a, **_k: SimpleNamespace(returncode=128, stdout=""),
+        )
+
+        assert git_registered_worktrees(tmp_path) == []
+        assert "exited 128" in caplog.text
+
+    def test_passes_a_bounded_timeout(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        seen: dict[str, object] = {}
+
+        def recording(*_args: object, **kwargs: object) -> SimpleNamespace:
+            seen.update(kwargs)
+            return SimpleNamespace(returncode=0, stdout="")
+
+        monkeypatch.setattr(subprocess_utils, "run", recording)
+
+        git_registered_worktrees(tmp_path)
+
+        assert seen["timeout"] == settings_discovery.GIT_WORKTREE_TIMEOUT_SECONDS
+
+    def test_timed_out_repo_still_keeps_walked_settings(
+        self, root: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        project = root / "proj"
+        (project / ".git").mkdir(parents=True)
+        kept = _settings(project=project)
+
+        def raising(*_args: object, **_kwargs: object) -> None:
+            raise subprocess.TimeoutExpired(cmd=["git"], timeout=10)
+
+        monkeypatch.setattr(subprocess_utils, "run", raising)
+
+        assert discover_settings(roots=[str(root)], include_user=False) == SettingsDiscovery(
+            files=[kept.resolve()], out_of_roots=[]
+        )
+
+
+class TestClaudeProjectsDir:
+    def test_keeps_claude_projects_settings(self, isolated_claude_home: Path) -> None:
+        project_settings = isolated_claude_home / "projects" / "-work-app" / "settings.local.json"
+        project_settings.parent.mkdir(parents=True)
+        project_settings.write_text("{}")
+
+        assert discover_settings(roots=[], include_user=False) == SettingsDiscovery(
+            files=[project_settings.resolve()], out_of_roots=[]
+        )
+
+
+class TestDedupe:
+    def test_overlapping_roots_list_each_file_once(self, root: Path) -> None:
+        kept = _settings(project=root / "app")
+
+        files = discover_settings(roots=[str(root), str(root / "app")], include_user=False).files
+
+        assert files == [kept.resolve()]
+
+    def test_symlinked_root_resolves_to_one_file(self, root: Path, tmp_path: Path) -> None:
+        kept = _settings(project=root / "app")
+        alias = tmp_path / "alias"
+        alias.symlink_to(root)
+
+        files = discover_settings(roots=[str(root), str(alias)], include_user=False).files
+
+        assert files == [kept.resolve()]
+
+
+class TestOutsideRoots:
+    @pytest.mark.parametrize(
+        "relative,expected_outside",
+        [
+            ("work/app/.claude/settings.local.json", False),
+            ("elsewhere/app/.claude/settings.local.json", True),
+            ("claude-home/settings.json", False),
+        ],
+    )
+    def test_classifies_by_root_and_claude_home(
+        self, tmp_path: Path, relative: str, expected_outside: bool
+    ) -> None:
+        path = tmp_path / relative
+
+        result = outside_roots(files=[path], roots=[str(tmp_path / "work")])
+
+        assert (result == [path]) is expected_outside
+
+
+class TestCleanProjectFilesDelegate:
+    def test_matches_discovery_without_user_files(
+        self,
+        root: Path,
+        isolated_claude_home: Path,
+    ) -> None:
+        isolated_claude_home.mkdir()
+        (isolated_claude_home / "settings.json").write_text("{}")
+        _settings(project=root / "app")
+
+        assert clean_project_files.find_settings_files(roots=[str(root)]) == find_settings_files(
+            roots=[str(root)], include_user=False
+        )
+
+    def test_never_includes_user_files(
+        self,
+        root: Path,
+        isolated_claude_home: Path,
+    ) -> None:
+        isolated_claude_home.mkdir()
+        (isolated_claude_home / "settings.json").write_text("{}")
+
+        assert clean_project_files.find_settings_files(roots=[str(root)]) == []

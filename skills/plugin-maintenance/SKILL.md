@@ -319,6 +319,16 @@ to add your project roots. (The userspace config path keeps the
 `upgrade-cleanup` directory name for backward compatibility — the
 on-disk location does not change with the rename.)
 
+**How settings files are found (GH-1626).** `ensure-base`,
+`catalog-gap` and `clean` walk each root for
+`.claude/settings.local.json`, skipping `node_modules`, `.venv`,
+`venv`, `.tox`, `.git`, `dist`, `build` and `site-packages`. For every
+git repo the walk meets, they also add each worktree from
+`git worktree list`, wherever it lives on disk, so a worktree outside
+every root (for example under `~/.herdr/worktrees/`) is still checked
+and seeded. `catalog-gap` lists those worktrees under
+"Out-of-roots worktrees".
+
 ## Workflow
 
 The numbered headings below (1–13) match the **full** mode task
@@ -978,6 +988,13 @@ The script looks for `projects.yaml` in two locations (first wins):
 
 The userspace location is preserved across the rename so existing
 users do not need to migrate config files.
+
+`projects.yaml` is not the whole catalog. Each plugin owns a fragment
+at `projects.d/<plugin>.yaml` beside the resolved `projects.yaml`
+(GH-1589). The loader reads `projects.yaml` first (core), then merges
+the fragments in `src/dev10x/core/plugins.yaml` order, so list-valued
+keys such as `base_permissions` accumulate across files rather than
+the last file winning.
 
 ## Options
 

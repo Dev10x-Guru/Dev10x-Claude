@@ -137,7 +137,9 @@ async def permission_catalog_gap(
 
     Returns:
         Dictionary with keys: total_missing (int), files_checked (int),
-        clean (bool), messages (list[str])
+        clean (bool), messages (list[str]), out_of_roots (list[str]) —
+        settings files of worktrees found through git outside every
+        configured root (GH-1626)
     """
     from dev10x import permission as perm
 

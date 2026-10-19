@@ -972,6 +972,7 @@ def catalog_gap(
     quiet: bool = False,
     verbose: bool = False,
     toplevel: str | None = None,
+    out_of_roots: list[Path] | None = None,
 ) -> dict[str, object]:
     """Report which catalog rules each settings file is missing (GH-1136).
 
@@ -979,6 +980,10 @@ def catalog_gap(
     carry the catalog?" without writing anything, so post-upgrade
     verification is a command rather than a reading of a maintenance log.
     Exits non-zero when any file has a gap.
+
+    ``out_of_roots`` names the worktrees discovery reached only through
+    git (GH-1626). They are checked like any other file, and also listed
+    on their own so a location missing from ``roots`` is visible.
     """
     from dev10x.skills.permission.catalog_gap import compute_gap, format_gap_report
 
@@ -1005,6 +1010,14 @@ def catalog_gap(
         )
         total_missing += gap.total_missing
         messages.extend(format_gap_report(gap, verbose=verbose))
+        messages.append("")
+
+    if out_of_roots:
+        messages.append(
+            f"Out-of-roots worktrees ({len(out_of_roots)}): found through"
+            " `git worktree list`, not under any configured root"
+        )
+        messages.extend(f"  {path}" for path in out_of_roots)
         messages.append("")
 
     return _result(

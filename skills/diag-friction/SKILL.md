@@ -155,7 +155,10 @@ mcp__plugin_dev10x_cli__permission_catalog_gap()
 
    Returns `total_missing`, `files_checked`, `clean`, and the
    per-family `messages`. Pass `verbose=true` to list every missing
-   rule rather than the counts.
+   rule rather than the counts. `out_of_roots` lists worktrees found
+   through `git worktree list` that sit under no configured root
+   (GH-1626). They are checked like any other file; a non-empty list
+   means `roots` is missing a location, so mention it in the report.
 
    **Fallback — Bash** (only when the MCP server is unavailable):
 

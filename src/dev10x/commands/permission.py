@@ -6,9 +6,9 @@ from types import ModuleType
 
 import click
 
+from dev10x.core.permission.service import PermissionContext, load_permission_context
 from dev10x.domain.claude_paths import ClaudeDir
 from dev10x.domain.common.result import ErrorResult
-from dev10x.core.permission.service import PermissionContext, load_permission_context
 
 
 @click.group()
@@ -270,6 +270,7 @@ def catalog_gap(*, quiet: bool, verbose: bool) -> None:
                 settings_files=ctx.settings_files,
                 quiet=quiet,
                 verbose=verbose,
+                out_of_roots=ctx.out_of_roots,
             )
         )
     )
@@ -316,8 +317,8 @@ def report(*, days: int, top: int, predicted: bool) -> None:
 
     from datetime import UTC, datetime, timedelta
 
-    from dev10x.teach.audit.log_reader import iter_records
     from dev10x.skills.permission.friction_report import build_report, format_report
+    from dev10x.teach.audit.log_reader import iter_records
 
     since = datetime.now(UTC) - timedelta(days=days) if days > 0 else None
     result = build_report(records=iter_records(since=since), top=top)
