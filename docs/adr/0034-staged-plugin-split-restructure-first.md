@@ -182,7 +182,7 @@ Order, set by the supervisor:
 | B6 | task management | The `plan.yaml` contract and the hook fragment came from Stage A. |
 | B7 | tickets + scoping | Coding↔scoping stays a declared mutual dependency. |
 | B8 | core | Finalized in place under the `dev10x` name. Only the core's own skills remain, plus coding until B9. |
-| B9 | coding | Leaves last as its own plugin. It is the only move that splits skills from the MCP server's home, so it requires the coding tool modules to register from the coding plugin while running in the `dev10x` server (see Risks). |
+| B9 | coding | Leaves last as its own plugin. Its skills, hook fragment and config fragments move, but its MCP tool modules stay registered by core's `cli` server (see [Stage B decisions](#stage-b-decisions)). |
 
 ### Key rules
 
@@ -195,8 +195,9 @@ Order, set by the supervisor:
    documents the field (`"name"`, `"name@marketplace"`, or
    `{name, marketplace, version}`), and a plugin that an enabled plugin
    depends on starts enabled. A `plugin-doctor` check stays only as a
-   belt-and-braces guard. The exact declaration form is decided in
-   GH-1561 before B1.
+   belt-and-braces guard. The declaration form is bare names generated
+   from `plugins.yaml` (GH-1561, see
+   [Stage B decisions](#stage-b-decisions)).
 4. **One PyPI package, `dev10x`.** All plugins import from it, which
    avoids duplicating the safety-hook chain.
 
@@ -273,8 +274,8 @@ Stage A removes the risk that made ADR-0020 reject the split.
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
 | A missed `dev10x:<skill>` reference after a move | Medium | Medium | The reference inventory test from Stage A, plus the rename tool's dry-run diff in each move PR |
-| A satellite is installed without core | Medium | High | The manifest `dependencies: ["dev10x"]` declaration (Key rule 3), backed by a `plugin-doctor` check and install docs (GH-1561 decides the form before B1) |
-| B9: coding tools must register in a server shipped by core | Medium | High | Stage A namespace registration via `register(server)`. Before B9, verify the `dev10x` server can load `dev10x.coding` tools when the coding plugin is installed, or keep coding in `dev10x` |
+| A satellite is installed without core | Medium | High | The manifest `dependencies` declaration generated from `plugins.yaml` (Key rule 3, GH-1561), backed by a `plugin-doctor` check and install docs |
+| B9: coding tools must register in a server shipped by core | Low | High | Core's `cli` server keeps registering `dev10x.coding` tools unconditionally; only skills and fragments move (GH-1563). Core-only installs list the coding tools |
 | User configs reference old names | High | Low | The upgrade-cleanup migration, plus a one-release alias (ADR-0028) |
 | Long-lived shims drift | Medium | Low | The boundary test enforces new paths, and the shims are removed in one PR after B9 |
 
@@ -307,14 +308,58 @@ B1 QA → B2 infrastructure → B3 databases → B4 communication → B5 skill
 management → B6 task management → B7 tickets + scoping → B8 core →
 B9 coding. Each step is one PR series that ends in a release.
 
+### Stage B decisions
+
+The supervisor decided the Stage B open decisions on 2026-10-19
+(milestone 76, tracker GH-1522).
+
+1. **`qa-scope` stays in coding (GH-1562).** Its only automated caller
+   is `gh-pr-monitor` Phase 2.5, which already invokes it "if
+   available". Moving it would add a soft coding→QA edge, and coding
+   installs without `dev10x-qa` would silently lose QA triage. It
+   analyses a diff and files tickets, with no browser. B1 therefore
+   moves the six QA skills already listed in `plugins.yaml`, and no new
+   dependency edge is added.
+2. **Satellites use the native manifest `dependencies` field
+   (GH-1561).** Claude Code documents it in the manifest reference;
+   bare names resolve within the plugin's own marketplace, and a
+   dependency of an enabled plugin starts enabled.
+   - `plugins.yaml` stays the source of truth: hard `dependencies` with
+     core implicit for every key, checked for known keys and
+     acyclicity.
+   - Each satellite manifest gets `["dev10x", …]` plus its hard
+     dependencies mapped through `plugin_names`, e.g. coding declares
+     `["dev10x", "dev10x-tasks"]`.
+   - `soft_dependencies` are never emitted to a manifest; they describe
+     edges that degrade, not install requirements.
+   - A test asserts each manifest equals what `plugins.yaml` derives.
+   - A `plugin-doctor` check and install docs remain as a backup.
+   - Version constraints and auto-install behaviour are not yet
+     verified; B1 confirms both before relying on them. Version
+     lockstep through the object form is deferred until then.
+3. **B9 runs, and coding's MCP tools stay in core (GH-1563).** Tools
+   follow the server; skills follow the plugin.
+   - `server_cli.py` registers the `coding` namespace from the single
+     `dev10x` package, so the server can always load those tools.
+   - Registering them only when the coding plugin is enabled is not
+     reliable. The optional shared MCP daemon (GH-338) serves several
+     projects with one tool list fixed at startup, while plugin
+     enablement is per project.
+   - B9 moves coding's skills, hook fragment and config fragments to
+     `dev10x-coding`. No `mcp__plugin_dev10x_cli__*` name changes.
+   - Core-only installs list the git and GitHub tools without the
+     skills that drive them. Gated registration is revisited only if
+     tool-list size becomes a measured problem.
+
 ### Open decisions (record before the dependent step)
 
-1. How satellites declare their dependency on core (before B1).
+1. ~~How satellites declare their dependency on core~~ — decided
+   (GH-1561): see [Stage B decisions](#stage-b-decisions).
 2. Where `task-guard` lives: core, task management, or coding (before
    A3).
-3. Where `qa-scope` lives: coding, or QA with a new coding→QA edge
-   (before B1).
-4. Whether B9 runs, or coding stays inside `dev10x` (before B9).
+3. ~~Where `qa-scope` lives~~ — decided (GH-1562): coding.
+4. ~~Whether B9 runs~~ — decided (GH-1563): it runs, with coding's MCP
+   tools kept in core.
 
 ## References
 
