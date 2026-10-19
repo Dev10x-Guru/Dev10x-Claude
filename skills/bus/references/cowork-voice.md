@@ -32,8 +32,19 @@ Keep these words exact; confusing them cost a full morning once.
 |------|-----------------------------------|
 | Desktop chat, text | Cowork writes a file via Desktop Commander (`SendMessage` from the cloud is "not reachable") |
 | Same chat, voice | voice → `send_to_cowork_agent` → Cowork → file; the answer returns the same way, ~1–2 min per loop |
-| Claude Code on the same host | `SendMessage`, or the bus |
-| Cloud Claude Code (claude.ai/code) | `SendMessage`; replies via its own remote `send_message` |
+| Claude Code on the same host | `SendMessage` (native socket); the bus only for the status board or an unlisted session |
+| Claude Code on another machine | `SendMessage` while both sessions run Remote Control; the session shows as `Remote Control` in `ListAgents` |
+| Cloud Claude Code (claude.ai/code) | `SendMessage` while this session runs Remote Control; replies via its own remote `send_message` |
+
+## Status instead of polling
+
+Each Claude Code session keeps one line on the board with
+`status.py` (`working` / `needs-input` / `done`, a callsign, one
+sentence). For "what needs me?", Cowork runs `board.py` — or reads
+`/tmp/claude-bus/status/*` — instead of asking every session. A
+session that finishes or stalls on a request also sends `status.py …
+--notify cowork`, so Cowork sees a `<callsign>: <state>` notice in
+`cowork/new/` without a 60-second loop of questions.
 
 ## Replying to a voice request
 
@@ -41,8 +52,14 @@ When a request carries `Voice: yes`, the reply is read aloud:
 
 - At most three plain sentences — no tables, code, paths or
   abbreviations.
+- Name work by callsign and what it does ("the login fix"), never by
+  ticket, PR or mailbox number — numbers blur when heard.
 - Technical detail for the text side goes after a line
   `--- for the text session (do not read aloud) ---`.
+
+A voice hub that supervises several sessions follows
+`dev10x:voice-supervisor` (one decision per turn, screen-only work
+kept off the voice channel).
 
 ## Merging work requested over the bus
 
@@ -52,12 +69,13 @@ exception the supervisor named), through `dev10x:gh-pr-merge`.
 
 ## Limits
 
-- **One host.** The Maildir lives in that host's `/tmp`. A Claude Code
-  session on a *different* PC cannot see it, and `device_bash` in the
-  chat does not see it either — only Desktop Commander on the same
-  host does. Reaching another PC needs a transport the bus does not
-  provide yet (a synced directory, or SSH from Desktop Commander);
-  treat that as an open design question, not a workaround to improvise.
+- **One host for the Maildir.** It lives in that host's `/tmp`. A
+  Claude Code session on a *different* PC cannot see it, and
+  `device_bash` in the chat does not see it either — only Desktop
+  Commander on the same host does. Claude Code sessions on other PCs
+  talk to each other natively through Remote Control (Delivery paths
+  above), so a hub session on this host can relay between Cowork and
+  them. Cowork itself still reaches only this host's bus (#1519).
 - Timestamps: take `Date` and the filename stamp from a clock tool,
   never from the model's head — a Cowork once stamped files ~15 min
   ahead, which scrambles mailbox order.
@@ -100,12 +118,18 @@ Voice: yes            # only when the answer will be read aloud
 First message in a new chat: Subject `hello` to registry with
 Reply-To: cowork and Role: cowork.
 
+"What needs me?": read every file in /tmp/claude-bus/status/ (one per
+session: State, Callsign, one sentence) and answer with the
+needs-input ones first. Name sessions by their Callsign, never by
+ticket, PR or mailbox number.
+
 Voice: call send_to_cowork_agent with "find <role> in the claude-bus
 registry, send it <question> with Voice: yes, then check
-/tmp/claude-bus/cowork/new/ about every 60 s and relay the answer
-verbatim". Tell the user the answer arrives in 1–2 minutes; when it
-does, read it aloud and skip everything after the "for the text
-session" line.
+/tmp/claude-bus/cowork/new/ for its reply or a `<callsign>: done` /
+`needs-input` notice and relay it verbatim". Tell the user the answer
+arrives in 1–2 minutes; when it does, read it aloud and skip
+everything after the "for the text session" line. Ask the user at most
+one question per turn; keep code reviews and diffs for the screen.
 
 Never: start Telegram polling, promise in voice to write something
 yourself, or write outside /tmp/claude-bus/.
