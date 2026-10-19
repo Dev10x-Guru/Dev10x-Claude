@@ -4,19 +4,26 @@ import argparse
 import sys
 import time
 from collections.abc import Callable, Iterable, Iterator
+from datetime import datetime
 from pathlib import Path
 
 from dev10x.comm.skills.bus.maildir import (
     BUS_ROOT,
     INVALID_MESSAGE_EXIT,
+    DuplicateFilter,
+    InboundPolicy,
     InvalidMessageError,
+    classify,
     is_own_thread_message,
     maildirs_for,
+    mark_read,
+    read_message,
     unread,
     validate_mailbox_name,
 )
 
 POLL_INTERVAL_SECONDS = 1.0
+SET_ASIDE = frozenset({"REFUSED", "EXPIRED", "DUP"})
 
 
 def arrivals(
@@ -59,11 +66,55 @@ def inbound(messages: Iterable[Path], name: str) -> list[Path]:
     )
 
 
+def screen(
+    message: Path,
+    policy: InboundPolicy,
+    duplicates: DuplicateFilter,
+    now: datetime,
+) -> tuple[str, Path]:
+    headers, body = read_message(message=message)
+    verdict = classify(
+        headers=headers,
+        body=body,
+        policy=policy,
+        duplicates=duplicates,
+        now=now,
+    )
+    if verdict in SET_ASIDE:
+        return verdict, mark_read(message=message)
+    return verdict, message
+
+
+def report(
+    messages: list[Path],
+    policy: InboundPolicy,
+    duplicates: DuplicateFilter,
+) -> None:
+    now = datetime.now().astimezone()
+    for message in messages:
+        verdict, path = screen(message=message, policy=policy, duplicates=duplicates, now=now)
+        print(f"{verdict} {path}", flush=True)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Print 'NEW <path>' for each message arriving in a claude-bus mailbox."
+        description="Print '<VERDICT> <path>' for each message arriving in a claude-bus mailbox."
     )
     parser.add_argument("name", help="mailbox name to watch (threads included)")
+    parser.add_argument(
+        "--hold",
+        action="append",
+        default=[],
+        metavar="SENDER",
+        help="report this sender's messages as HELD for approval (repeatable)",
+    )
+    parser.add_argument(
+        "--refuse",
+        action="append",
+        default=[],
+        metavar="SENDER",
+        help="mark this sender's messages read unseen, reported as REFUSED (repeatable)",
+    )
     parser.add_argument("--root", type=Path, default=BUS_ROOT, help=argparse.SUPPRESS)
     parser.add_argument(
         "--interval", type=float, default=POLL_INTERVAL_SECONDS, help=argparse.SUPPRESS
@@ -86,20 +137,24 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
         validate_mailbox_name(field="mailbox", value=args.name)
+        policy = InboundPolicy(refuse=frozenset(args.refuse), hold=frozenset(args.hold))
     except InvalidMessageError as exc:
         print(f"ERROR {exc}", file=sys.stderr)
         return INVALID_MESSAGE_EXIT
+    duplicates = DuplicateFilter()
     if args.once:
-        for message in next_batch(
-            root=args.root, name=args.name, interval=args.interval, polls=args.polls
-        ):
-            print(f"NEW {message}", flush=True)
+        report(
+            messages=next_batch(
+                root=args.root, name=args.name, interval=args.interval, polls=args.polls
+            ),
+            policy=policy,
+            duplicates=duplicates,
+        )
         return 0
     for poll, batch in enumerate(
         arrivals(root=args.root, name=args.name, interval=args.interval), start=1
     ):
-        for message in batch:
-            print(f"NEW {message}", flush=True)
+        report(messages=batch, policy=policy, duplicates=duplicates)
         if args.polls is not None and poll >= args.polls:
             break
     return 0
