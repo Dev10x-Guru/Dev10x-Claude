@@ -9,6 +9,29 @@
 # `dev10x` for core, `dev10x-<key>` for every satellite. Extraction
 # moves a skill's invocation name to `<plugin name>:<skill>`, and
 # `dev10x skill rename` reads its target prefixes from here.
+#
+# `marketplace` is where every plugin installs from; an install id is
+# `<plugin name>@<marketplace>`. `extracted` lists the keys that already
+# ship as their own plugin (Stage B). Until a key is listed there, its
+# code ships inside `dev10x` and `dev10x.core.plugin_enablement` resolves
+# it to the core install id.
+#
+# `dependencies` are hard install dependencies (core is implicit for
+# every plugin); they must name known keys and stay acyclic.
+# `soft_dependencies` are mutual `Skill()` edges that degrade when the
+# other plugin is absent (ADR-0034: coding<->scoping, QA->coding).
+marketplace: Dev10x-Guru
+extracted: []
+dependencies:
+  coding:
+    - tasks
+soft_dependencies:
+  coding:
+    - scoping
+  scoping:
+    - coding
+  qa:
+    - coding
 plugin_names:
   qa: dev10x-qa
   infra: dev10x-infra

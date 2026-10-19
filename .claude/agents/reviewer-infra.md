@@ -44,8 +44,8 @@ Files matching: `Makefile`, `**/*.sh`, `bin/**`, `hooks/**`,
 10. **Tag creation idempotency** — flag bare `git tag <name>` in release
     scripts; prefer `git tag -f <name>` to allow safe re-runs after
     partial failures.
-11. **hooks.json integrity** — for `hooks/hooks.json` changes: verify
-    all referenced script paths exist, matcher patterns are valid
+11. **Hook file integrity** — for `hooks/hooks.json` / `hooks/hooks.d/*.json`
+    (listed in plugin.json `hooks`): script paths exist, matchers are valid
     (Bash, Edit|Write, Skill, SessionStart), no duplicate entries,
     all Python hook scripts use a uv shebang (`#!/usr/bin/env -S uv run
     --script`) and are invoked directly (not via `python3` prefix), and

@@ -11,8 +11,6 @@ import pytest
 from dev10x.core.config.fragments import ConfigFragment, FragmentError, discover_fragments
 from dev10x.core.config.hook_fragments import hook_files, merged_hook_entries
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-
 
 def _hook_document(*, event: str, matcher: str, command: str, timeout: int) -> dict[str, Any]:
     hook = {"type": "command", "command": command, "timeout": timeout}
@@ -59,17 +57,6 @@ def split_files(split_root: Path) -> list[Path]:
 @pytest.fixture
 def split_entries(split_root: Path) -> set[tuple[str, str, str, int]]:
     return merged_hook_entries(plugin_root=split_root)
-
-
-@pytest.fixture
-def repo_hooks_json_entries() -> set[tuple[str, str, str, int]]:
-    document = json.loads((REPO_ROOT / "hooks" / "hooks.json").read_text())
-    return {
-        (event, group["matcher"], hook["command"], hook["timeout"])
-        for event, groups in document["hooks"].items()
-        for group in groups
-        for hook in group["hooks"]
-    }
 
 
 class TestDiscoverFragmentsSuffix:
@@ -136,9 +123,3 @@ class TestMergedHookEntries:
         _write_json(path=plugin_root / "hooks" / "hooks.d" / "qa.json", document=document)
         with pytest.raises(FragmentError, match="top-level `hooks` key"):
             merged_hook_entries(plugin_root=plugin_root)
-
-    def test_repo_entries_match_hooks_json(
-        self,
-        repo_hooks_json_entries: set[tuple[str, str, str, int]],
-    ) -> None:
-        assert merged_hook_entries(plugin_root=REPO_ROOT) == repo_hooks_json_entries

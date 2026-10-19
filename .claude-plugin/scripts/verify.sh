@@ -63,6 +63,14 @@ hooks_json="$REPO_ROOT/hooks/hooks.json"
 if [[ -f "$hooks_json" ]]; then
     check_pass "hooks.json found"
 
+    # Core entries live in hooks.json; each plugin's in hooks/hooks.d (GH-1556).
+    hook_files=("$hooks_json")
+    for fragment in "$REPO_ROOT"/hooks/hooks.d/*.json; do
+        if [[ -f "$fragment" ]]; then
+            hook_files+=("$fragment")
+        fi
+    done
+
     while IFS= read -r hook_cmd; do
         resolved="${hook_cmd//\$CLAUDE_PLUGIN_ROOT/$REPO_ROOT}"
         script_path=$(echo "$resolved" | awk '{print $NF}')
@@ -77,7 +85,7 @@ if [[ -f "$hooks_json" ]]; then
         else
             check_fail "Hook '$hook_base': $script_path (missing)"
         fi
-    done < <(jq -r '.. | .command? // empty' "$hooks_json" | sort -u)
+    done < <(jq -r '.. | .command? // empty' "${hook_files[@]}" | sort -u)
 else
     check_fail "hooks.json not found"
 fi

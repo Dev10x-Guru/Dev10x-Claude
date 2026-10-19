@@ -34,7 +34,7 @@ Extract and inventory:
 For each hook script file in `~/.claude/hooks/`:
 
 1. Check if it's registered in `settings.json` under the correct matcher
-2. Cross-reference against plugin `hooks.json` files (in `~/.claude/plugins/cache/`) to detect **duplicate execution** — the same hook running both from user settings and a plugin
+2. Cross-reference against each plugin's hook files — `hooks/hooks.json` plus any files its `plugin.json` lists under `"hooks"` (e.g. `hooks/hooks.d/*.json`), in `~/.claude/plugins/cache/` — to detect **duplicate execution** — the same hook running both from user settings and a plugin
 3. For duplicates, `diff` the user copy vs plugin copy to detect **version drift**
 4. Flag unregistered hook files as CRITICAL (protection is inert)
 

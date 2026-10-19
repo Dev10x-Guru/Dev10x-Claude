@@ -67,8 +67,11 @@ We will split in **two stages**.
 2. **Stage B** then extracts one plugin at a time, renaming only the
    skills that move in each step.
 
-The core plugin **keeps the name `dev10x`**, both MCP servers, and all
-hooks. That way no MCP tool is ever renamed.
+The core plugin **keeps the name `dev10x`**, both MCP servers, and the
+core hooks in `hooks/hooks.json`. Each other plugin's hook entries live
+in `hooks/hooks.d/<plugin>.json`, which the manifest lists under
+`"hooks"` so Claude Code merges them into the default file (GH-1556).
+That way no MCP tool is ever renamed.
 
 ### Architecture
 
@@ -143,7 +146,7 @@ Every step ships inside `dev10x` and keeps:
    `dev10x`:
    - the permission catalog;
    - `families.yaml` and `command-skill-map.yaml`;
-   - `hooks.json`.
+   - `hooks.json`, split into `hooks/hooks.d/<plugin>.json`.
 
    The same step removes three cross-area edges:
    - `gh-context` leaves coding, so tickets no longer depend on it;
@@ -200,6 +203,46 @@ Order, set by the supervisor:
    [Stage B decisions](#stage-b-decisions)).
 4. **One PyPI package, `dev10x`.** All plugins import from it, which
    avoids duplicating the safety-hook chain.
+
+### Plugin dependencies
+
+The install chain is **coding → tasks → core** (GH-1556). Coding's
+`work-on` keeps a terminal task open through the tasks plugin's
+`task-guard`, so coding cannot install without tasks, and every plugin
+needs core.
+
+`src/dev10x/core/plugins.yaml` records this as data:
+
+- `dependencies` lists hard install dependencies by namespace key
+  (`coding: [tasks]`). Core is implicit for every plugin and declares
+  none. A test requires known keys and an acyclic graph; Stage B turns
+  each entry into the manifest `dependencies` field (Key rule 3).
+- `soft_dependencies` lists the mutual `Skill()` edges that degrade
+  when the other plugin is absent: coding↔scoping and QA→coding
+  (`review-pack → request-review`). These are not install
+  requirements, may form cycles, and are only checked for known keys.
+- `extracted` lists the keys already shipped as their own plugin. A key
+  not listed there still ships inside `dev10x`, so
+  `dev10x.core.plugin_enablement` resolves it to the core install id
+  (`dev10x@Dev10x-Guru`); an extracted key resolves to
+  `dev10x-<key>@<marketplace>`.
+
+### Hooks per plugin
+
+Hooks follow the same split. `hooks/hooks.json` keeps the core entries
+(session start/stop, skill pre/post, the Bash/Monitor validator chain,
+the Edit/Write validator, pre-compact, permission-denied).
+`hooks/hooks.d/tasks.json` holds `task-guard` and `task-plan-sync`, and
+`hooks/hooks.d/coding.json` holds `ruff-format`. Claude Code runs
+matching hooks from all files in parallel, in no defined order, so no
+entry may depend on another running first.
+
+`task-guard` belongs to tasks (resolving open decision 2). It guards a
+plan whose context sets `guard_terminal_task`, the generic opt-in any
+orchestrator can write. Coding's `work_on`/`routing_table` context
+keys trigger it only while the coding plugin is enabled, read from the
+`enabledPlugins` settings (local over project over user), and an
+unreadable settings file counts as enabled.
 
 ## Alternatives Considered
 
@@ -355,8 +398,9 @@ The supervisor decided the Stage B open decisions on 2026-10-19
 
 1. ~~How satellites declare their dependency on core~~ — decided
    (GH-1561): see [Stage B decisions](#stage-b-decisions).
-2. Where `task-guard` lives: core, task management, or coding (before
-   A3).
+2. ~~Where `task-guard` lives~~ — decided (GH-1556): task management,
+   with coding's rules gated on the coding plugin being enabled (see
+   [Hooks per plugin](#hooks-per-plugin)).
 3. ~~Where `qa-scope` lives~~ — decided (GH-1562): coding.
 4. ~~Whether B9 runs~~ — decided (GH-1563): it runs, with coding's MCP
    tools kept in core.
