@@ -13,6 +13,15 @@ from dev10x.skills.bus import done, maildir, send, watch
 from tests.skills.bus.conftest import Run
 
 RunMain = Callable[[Callable[..., int], list[str]], Run]
+SCREENED_ARRIVALS = {
+    "a-loop-1": "---\nFrom: looper\nSubject: ping\n---\n\nsame\n",
+    "a-loop-2": "---\nFrom: looper\nSubject: ping\n---\n\nsame\n",
+    "b-held": "---\nFrom: stranger\nSubject: hi\n---\n\nhello\n",
+    "c-refused": "---\nFrom: spammer\nSubject: buy\n---\n\nnow\n",
+    "d-expired": (
+        "---\nFrom: cowork\nSubject: old\nExpires: 2000-01-01T00:00:00+00:00\n---\n\nstale\n"
+    ),
+}
 
 
 def _only_message(mailbox: Path) -> str:
@@ -109,6 +118,23 @@ class TestSendMain:
     def test_invalid_message_names_the_field(self, rejected: Run) -> None:
         assert rejected.stderr.startswith("ERROR recipient '../escape'")
 
+    def test_expires_in_writes_expires_header(
+        self, root: Path, body_file: Path, run_main: RunMain
+    ) -> None:
+        run_main(
+            send.main,
+            ["a", "s", str(body_file), "--from", "b", "--expires-in", "15", "--root", str(root)],
+        )
+
+        assert "\nExpires: " in _only_message(mailbox=root / "a")
+
+    @pytest.mark.parametrize("raw", ["soon", "0"])
+    def test_expires_in_rejects_bad_minutes(self, root: Path, body_file: Path, raw: str) -> None:
+        with pytest.raises(SystemExit) as exited:
+            send.main(argv=["a", "s", str(body_file), "--from", "b", "--expires-in", raw])
+
+        assert exited.value.code == 2
+
 
 class TestWatchMain:
     @pytest.fixture
@@ -157,6 +183,50 @@ class TestWatchMain:
         )
 
         assert next(batches) == [thread_new / "m"]
+
+    @pytest.fixture
+    def screened_run(
+        self,
+        root: Path,
+        inbox: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        run_main: RunMain,
+    ) -> Run:
+        def deliver(seconds: float) -> None:
+            for name, text in SCREENED_ARRIVALS.items():
+                (inbox / name).write_text(text, encoding="utf-8")
+
+        monkeypatch.setattr(watch.time, "sleep", deliver)
+        return run_main(
+            watch.main,
+            [
+                "a",
+                "--hold",
+                "stranger",
+                "--refuse",
+                "spammer",
+                "--root",
+                str(root),
+                "--polls",
+                "1",
+            ],
+        )
+
+    def test_screens_each_arrival(self, screened_run: Run, root: Path, inbox: Path) -> None:
+        cur = root / "a" / "cur"
+
+        assert screened_run.stdout.splitlines() == [
+            f"NEW {inbox / 'a-loop-1'}",
+            f"DUP {cur / 'a-loop-2:2,S'}",
+            f"HELD {inbox / 'b-held'}",
+            f"REFUSED {cur / 'c-refused:2,S'}",
+            f"EXPIRED {cur / 'd-expired:2,S'}",
+        ]
+
+    def test_invalid_policy_sender_exits_two(self, root: Path, run_main: RunMain) -> None:
+        result = run_main(watch.main, ["a", "--hold", "../x", "--root", str(root)])
+
+        assert result.exit_code == INVALID_MESSAGE_EXIT
 
     @pytest.fixture
     def sleeps(
@@ -329,6 +399,35 @@ class TestWatchOnceMain:
         self, snapshot_window_run: Run, inbox: Path
     ) -> None:
         assert snapshot_window_run.stdout == f"NEW {inbox / 'fresh'}\n"
+
+    @pytest.fixture
+    def screened_once_run(
+        self,
+        root: Path,
+        inbox: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        run_main: RunMain,
+    ) -> Run:
+        for name, text in SCREENED_ARRIVALS.items():
+            (inbox / name).write_text(text, encoding="utf-8")
+        monkeypatch.setattr(watch.time, "sleep", lambda seconds: None)
+        return run_main(
+            watch.main,
+            ["a", "--once", "--refuse", "spammer", "--root", str(root), "--polls", "0"],
+        )
+
+    def test_once_screens_unread_mail(
+        self, screened_once_run: Run, root: Path, inbox: Path
+    ) -> None:
+        cur = root / "a" / "cur"
+
+        assert screened_once_run.stdout.splitlines() == [
+            f"NEW {inbox / 'a-loop-1'}",
+            f"DUP {cur / 'a-loop-2:2,S'}",
+            f"NEW {inbox / 'b-held'}",
+            f"REFUSED {cur / 'c-refused:2,S'}",
+            f"EXPIRED {cur / 'd-expired:2,S'}",
+        ]
 
 
 class TestDoneMain:
