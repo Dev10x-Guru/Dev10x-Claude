@@ -15,7 +15,6 @@ import json
 import re
 from pathlib import Path
 
-from dev10x import subprocess_utils
 from dev10x.domain.common.allow_rule import AllowRule
 from dev10x.domain.common.mktmp_path import MKTMP_GENERALIZE_PATTERN, MKTMP_PATH_PATTERN
 from dev10x.domain.common.policy import Policy, PolicySource
@@ -25,6 +24,7 @@ from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.skills.permission.catalog_paths import shipped_projects_catalog
 from dev10x.skills.permission.config import parse_config, resolve_config
 from dev10x.skills.permission.policy_authoring import policy_from_accepted_prompt
+from dev10x.skills.permission.settings_discovery import git_registered_worktrees
 
 MEMORY_CONFIG = Dev10xConfigDir.projects_yaml()
 USERSPACE_CONFIG = Dev10xConfigDir.upgrade_cleanup_projects_yaml()
@@ -140,32 +140,6 @@ def resolve_main_project(worktree_dir: Path) -> Path | None:
         return None
     main_git_dir = gitdir_path.parent.parent
     return main_git_dir.parent
-
-
-def git_registered_worktrees(root_path: Path) -> list[Path]:
-    """Worktree paths git has registered for the repo at ``root_path``.
-
-    Uses ``git worktree list --porcelain`` so worktrees registered *outside*
-    the conventional ``<root>/.worktrees/`` layout are discovered too — the
-    glob-only scan silently skipped them, and a whole project could be
-    missed if it kept its worktrees elsewhere (GH-813 Finding 2). Returns
-    ``[]`` when ``root_path`` is not a git repo or git is unavailable, so a
-    non-repo root degrades to the directory glob rather than erroring.
-    """
-    result = subprocess_utils.run(
-        ["git", "worktree", "list", "--porcelain"],
-        cwd=str(root_path),
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if result.returncode != 0:
-        return []
-    return [
-        Path(line[len("worktree ") :].strip())
-        for line in result.stdout.splitlines()
-        if line.startswith("worktree ")
-    ]
 
 
 def find_worktree_groups(roots: list[str]) -> dict[Path, list[Path]]:

@@ -166,6 +166,32 @@ class TestCatalogGap:
         assert result.value["total_missing"] == 0
         assert result.value["files_checked"] == 1
         assert result.value["messages"]
+        assert result.value["out_of_roots"] == []
+
+    @pytest.mark.asyncio
+    async def test_lists_out_of_roots_worktrees(self) -> None:
+        """GH-1626: a settings file outside every root is surfaced by path."""
+        find_config, load_config, find_files = _resolved_context(
+            settings_files=[Path("/elsewhere/.claude/settings.local.json")]
+        )
+        with (
+            find_config,
+            load_config,
+            find_files,
+            patch(
+                f"{MOD}.catalog_gap",
+                return_value={
+                    "exit_code": 0,
+                    "messages": [],
+                    "errors": [],
+                    "total_added": 0,
+                    "files_changed": 1,
+                },
+            ),
+        ):
+            result = await perm_mod.catalog_gap()
+
+        assert result.value["out_of_roots"] == ["/elsewhere/.claude/settings.local.json"]
 
     @pytest.mark.asyncio
     async def test_reports_the_gap_rather_than_erroring(self) -> None:
