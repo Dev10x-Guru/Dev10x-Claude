@@ -21,15 +21,15 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
-from dev10x.domain.common.policy import Policy, PolicyAssessment, PolicySource
-from dev10x.domain.common.policy_resolution import attach_assessments
-from dev10x.skills.permission_investigator import fixtures, load_matrix_from_state
-from dev10x.skills.permission_investigator.matrix import Matrix, RuleShape, generate_matrix
-from dev10x.skills.permission_investigator.policy_report import (
+from dev10x.core.skills.permission_investigator import fixtures, load_matrix_from_state
+from dev10x.core.skills.permission_investigator.matrix import Matrix, RuleShape, generate_matrix
+from dev10x.core.skills.permission_investigator.policy_report import (
     investigator_assessment,
     render_policy_report,
 )
-from dev10x.skills.permission_investigator.report import render_markdown_report
+from dev10x.core.skills.permission_investigator.report import render_markdown_report
+from dev10x.domain.common.policy import Policy, PolicyAssessment, PolicySource
+from dev10x.domain.common.policy_resolution import attach_assessments
 
 
 def _state_missing() -> dict[str, Any]:

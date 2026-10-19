@@ -5,7 +5,7 @@ from pathlib import Path
 
 import click
 
-from dev10x.domain.common.result import ErrorResult
+from dev10x.core.domain.common.result import ErrorResult
 
 
 @click.group()

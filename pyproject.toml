@@ -87,6 +87,10 @@ src = ["src"]
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]
 
+[tool.ruff.lint.isort]
+# GH-1608
+known-first-party = ["dev10x"]
+
 [tool.pytest_benchmark]
 # Store baselines in .benchmarks/ (gitignored per-run, cached by CI)
 storage = "file"
