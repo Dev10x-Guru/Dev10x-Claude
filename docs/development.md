@@ -90,8 +90,12 @@ See `.claude/rules/skill-naming.md` for naming conventions and
 
 ## Adding a new hook
 
-Hooks live in `hooks/scripts/` and are registered in
-`hooks/hooks.json`. Supported lifecycle events:
+Hooks live in `hooks/scripts/`. Register a core hook in
+`hooks/hooks.json`, and a hook that belongs to another plugin in
+`hooks/hooks.d/<plugin>.json` (ADR-0034, GH-1556). A new fragment file
+must also be listed under `"hooks"` in `.claude-plugin/plugin.json`, in
+`plugins.yaml` order; `tests/hooks/test_hooks_fragments.py` checks
+both. Supported lifecycle events:
 
 | Event | When it fires |
 |-------|--------------|

@@ -23,9 +23,41 @@ def expected_plugin_name(*, key: str) -> str:
 class PluginMap:
     plugins: dict[str, tuple[str, ...]]
     plugin_names: dict[str, str] = field(default_factory=dict)
+    marketplace: str = ""
+    extracted: tuple[str, ...] = ()
+    dependencies: dict[str, tuple[str, ...]] = field(default_factory=dict)
+    soft_dependencies: dict[str, tuple[str, ...]] = field(default_factory=dict)
 
     def plugin_name(self, *, key: str) -> str | None:
         return self.plugin_names.get(key)
+
+    def is_extracted(self, *, key: str) -> bool:
+        return key in self.extracted
+
+    def unknown_extracted(self) -> list[str]:
+        return sorted(set(self.extracted) - set(self.plugins))
+
+    def unknown_dependency_keys(self) -> list[str]:
+        return _unknown_keys(edges=self.dependencies, known=set(self.plugins))
+
+    def unknown_soft_dependency_keys(self) -> list[str]:
+        return _unknown_keys(edges=self.soft_dependencies, known=set(self.plugins))
+
+    def dependency_cycle(self) -> list[str]:
+        for start in sorted(self.dependencies):
+            cycle = self._cycle_from(path=(start,))
+            if cycle:
+                return cycle
+        return []
+
+    def _cycle_from(self, *, path: tuple[str, ...]) -> list[str]:
+        for nxt in self.dependencies.get(path[-1], ()):
+            if nxt in path:
+                return [*path[path.index(nxt) :], nxt]
+            cycle = self._cycle_from(path=(*path, nxt))
+            if cycle:
+                return cycle
+        return []
 
     def known_plugin_names(self) -> tuple[str, ...]:
         return tuple(self.plugin_names.values())
@@ -64,11 +96,24 @@ class PluginMap:
         return {plugin: len(skills) for plugin, skills in self.plugins.items()}
 
 
+def _unknown_keys(*, edges: dict[str, tuple[str, ...]], known: set[str]) -> list[str]:
+    named = set(edges) | {target for targets in edges.values() for target in targets}
+    return sorted(named - known)
+
+
+def _edge_map(*, raw: Any) -> dict[str, tuple[str, ...]]:
+    return {key: tuple(targets or ()) for key, targets in (raw or {}).items()}
+
+
 def parse_plugin_map(*, data: dict[str, Any]) -> PluginMap:
     plugins = data.get("plugins") or {}
     return PluginMap(
         plugins={plugin: tuple(skills or ()) for plugin, skills in plugins.items()},
         plugin_names=dict(data.get("plugin_names") or {}),
+        marketplace=str(data.get("marketplace") or ""),
+        extracted=tuple(data.get("extracted") or ()),
+        dependencies=_edge_map(raw=data.get("dependencies")),
+        soft_dependencies=_edge_map(raw=data.get("soft_dependencies")),
     )
 
 

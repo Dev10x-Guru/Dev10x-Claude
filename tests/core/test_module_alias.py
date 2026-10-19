@@ -215,6 +215,7 @@ class TestMovedPackages:
             ("dev10x.plan.service", "dev10x.tasks.plan.service"),
             ("dev10x.session.task_index", "dev10x.tasks.session.task_index"),
             ("dev10x.hooks.task_plan_sync", "dev10x.tasks.hooks.task_plan_sync"),
+            ("dev10x.hooks.task_guard", "dev10x.tasks.hooks.task_guard"),
             ("dev10x.mcp.plan_tools", "dev10x.tasks.mcp.plan_tools"),
             ("dev10x.mcp.task_index_tools", "dev10x.tasks.mcp.task_index_tools"),
             ("dev10x.skills.bus", "dev10x.comm.skills.bus"),

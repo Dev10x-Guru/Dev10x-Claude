@@ -53,16 +53,6 @@
             "timeout": 5
           }
         ]
-      },
-      {
-        "matcher": "TaskUpdate",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$CLAUDE_PLUGIN_ROOT/hooks/scripts/audit-wrap task-guard $CLAUDE_PLUGIN_ROOT/hooks/scripts/task-guard.py",
-            "timeout": 5
-          }
-        ]
       }
     ],
     "Stop": [
@@ -109,26 +99,6 @@
             "type": "command",
             "command": "$CLAUDE_PLUGIN_ROOT/hooks/scripts/audit-wrap skill-post $CLAUDE_PLUGIN_ROOT/hooks/scripts/skill-post.py",
             "timeout": 3
-          }
-        ]
-      },
-      {
-        "matcher": "Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$CLAUDE_PLUGIN_ROOT/hooks/scripts/audit-wrap ruff-format $CLAUDE_PLUGIN_ROOT/hooks/scripts/ruff-format.py",
-            "timeout": 15
-          }
-        ]
-      },
-      {
-        "matcher": "TaskCreate|TaskUpdate",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$CLAUDE_PLUGIN_ROOT/hooks/scripts/audit-wrap task-plan-sync $CLAUDE_PLUGIN_ROOT/hooks/scripts/task-plan-sync.py",
-            "timeout": 5
           }
         ]
       }

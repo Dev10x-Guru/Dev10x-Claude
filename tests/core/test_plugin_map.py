@@ -78,6 +78,69 @@ class TestRepositoryPluginMap:
     def test_names_are_keyed_by_plugin_only(self, plugin_map: PluginMap) -> None:
         assert set(plugin_map.plugin_names) == set(plugin_map.plugins)
 
+    def test_marketplace_is_the_core_install_marketplace(self, plugin_map: PluginMap) -> None:
+        assert plugin_map.marketplace == "Dev10x-Guru"
+
+    def test_nothing_is_extracted_during_stage_a(self, plugin_map: PluginMap) -> None:
+        assert plugin_map.extracted == ()
+
+    def test_extracted_keys_are_known_plugins(self, plugin_map: PluginMap) -> None:
+        assert plugin_map.unknown_extracted() == []
+
+    def test_hard_dependencies_name_known_plugins(self, plugin_map: PluginMap) -> None:
+        assert plugin_map.unknown_dependency_keys() == []
+
+    def test_core_declares_no_dependencies(self, plugin_map: PluginMap) -> None:
+        assert "core" not in plugin_map.dependencies
+
+    def test_hard_dependencies_are_acyclic(self, plugin_map: PluginMap) -> None:
+        assert plugin_map.dependency_cycle() == []
+
+    def test_coding_depends_on_tasks(self, plugin_map: PluginMap) -> None:
+        assert plugin_map.dependencies == {"coding": ("tasks",)}
+
+    def test_soft_dependencies_name_known_plugins(self, plugin_map: PluginMap) -> None:
+        assert plugin_map.unknown_soft_dependency_keys() == []
+
+
+class TestPluginDependencies:
+    @pytest.mark.parametrize(
+        ("dependencies", "expected"),
+        [
+            pytest.param({"a": ["b"], "b": ["c"]}, [], id="chain"),
+            pytest.param({"a": ["b", "c"], "b": ["c"]}, [], id="diamond"),
+            pytest.param({"a": ["a"]}, ["a", "a"], id="self-loop"),
+            pytest.param({"a": ["b"], "b": ["c"], "c": ["b"]}, ["b", "c", "b"], id="loop"),
+        ],
+    )
+    def test_dependency_cycle(self, dependencies: dict, expected: list[str]) -> None:
+        assert parse_plugin_map(data={"dependencies": dependencies}).dependency_cycle() == expected
+
+    def test_flags_unknown_dependency_keys(self) -> None:
+        mapped = parse_plugin_map(
+            data={"plugins": {"coding": [], "tasks": []}, "dependencies": {"coding": ["ghost"]}}
+        )
+        assert mapped.unknown_dependency_keys() == ["ghost"]
+
+    def test_flags_unknown_soft_dependency_keys(self) -> None:
+        mapped = parse_plugin_map(
+            data={"plugins": {"qa": []}, "soft_dependencies": {"qa": ["coding"], "x": None}}
+        )
+        assert mapped.unknown_soft_dependency_keys() == ["coding", "x"]
+
+    @pytest.mark.parametrize(("key", "expected"), [("qa", True), ("db", False)])
+    def test_is_extracted(self, key: str, expected: bool) -> None:
+        mapped = parse_plugin_map(data={"plugins": {"qa": [], "db": []}, "extracted": ["qa"]})
+        assert mapped.is_extracted(key=key) is expected
+
+    def test_flags_an_unknown_extracted_key(self) -> None:
+        mapped = parse_plugin_map(data={"plugins": {"qa": []}, "extracted": ["qa", "ghost"]})
+        assert mapped.unknown_extracted() == ["ghost"]
+
+    def test_missing_sections_parse_to_empty(self) -> None:
+        mapped = parse_plugin_map(data={})
+        assert (mapped.marketplace, mapped.extracted, mapped.dependencies) == ("", (), {})
+
 
 class TestPluginNames:
     @pytest.fixture

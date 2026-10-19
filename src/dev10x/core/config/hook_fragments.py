@@ -1,8 +1,9 @@
 """Hook registrations split by future plugin (ADR-0034 Stage A3, GH-1556).
 
-``hooks/hooks.json`` stays the file the harness loads; per-plugin
-``hooks/hooks.d/<plugin>.json`` fragments are read alongside it so a
-split can be proven lossless before any plugin manifest points at them.
+``hooks/hooks.json`` holds the core entries and is loaded by the harness
+by default; each plugin's entries live in ``hooks/hooks.d/<plugin>.json``,
+which ``.claude-plugin/plugin.json`` lists under ``hooks`` so the harness
+merges them in. Reading every file together proves the split lossless.
 """
 
 from __future__ import annotations

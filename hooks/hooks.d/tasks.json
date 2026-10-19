@@ -1,0 +1,29 @@
+{
+  "description": "Task-management hooks: guard the terminal task and mirror the task list to plan.yaml",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "TaskUpdate",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PLUGIN_ROOT/hooks/scripts/audit-wrap task-guard $CLAUDE_PLUGIN_ROOT/hooks/scripts/task-guard.py",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "TaskCreate|TaskUpdate",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PLUGIN_ROOT/hooks/scripts/audit-wrap task-plan-sync $CLAUDE_PLUGIN_ROOT/hooks/scripts/task-plan-sync.py",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
