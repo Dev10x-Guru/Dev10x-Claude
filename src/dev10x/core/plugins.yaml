@@ -39,6 +39,7 @@ plugins:
     - gog
     - slack
     - slack-setup
+    - voice-supervisor
   teach:
     - audit-file
     - context-audit

@@ -1,0 +1,112 @@
+{
+  "skill_name": "dev10x:voice-supervisor",
+  "eval_dimensions": [
+    {
+      "id": "spoken-turn-shape",
+      "name": "Spoken Turn Shape",
+      "description": "A spoken turn is a headline with counts, at most two callsign items, and at most one question — three sentences at most, with no ticket, PR, commit or mailbox numbers before the text-session divider."
+    },
+    {
+      "id": "one-decision-gate",
+      "name": "One Decision per Turn",
+      "description": "Pending decisions are queued as tasks; exactly one is asked per turn, through AskUserQuestion in a Claude Code hub, with the recommended option first."
+    },
+    {
+      "id": "screen-only-routing",
+      "name": "Screen-Only Routing",
+      "description": "Code reviews, diffs, visual QA and long documents become [screen] tasks with a link; voice mentions only their count and callsigns."
+    },
+    {
+      "id": "task_tracking",
+      "name": "Task Tracking",
+      "description": "Creates the 'Supervise sessions by voice' task at invocation."
+    }
+  ],
+  "evals": [
+    {
+      "id": "what-needs-me",
+      "name": "Board summary in callsign words",
+      "description": "The supervisor asks 'what needs me?' while one session needs input, two work and one is done.",
+      "input": "board.py prints Needs you (1) payments migration [dev10x-7], Working (2), Done (1) checkout copy [tt-2] with PR #412",
+      "assertions": [
+        {
+          "dimension": "spoken-turn-shape",
+          "check": "behavioral",
+          "signal": "The spoken part names 'the payments migration' and 'the checkout copy' and contains no '#412', 'dev10x-7', 'tt-2' or 'GH-' token before the text-session divider"
+        },
+        {
+          "dimension": "spoken-turn-shape",
+          "check": "behavioral",
+          "signal": "The spoken part has at most three sentences and at most one question mark"
+        }
+      ]
+    },
+    {
+      "id": "three-decisions-one-question",
+      "name": "Several decisions collapse to one question",
+      "description": "Three sessions each wait on a supervisor decision; the hub is a Claude Code session.",
+      "input": "Board shows three needs-input sessions with different questions",
+      "assertions": [
+        {
+          "dimension": "one-decision-gate",
+          "check": "tool_called",
+          "tool": "TaskCreate",
+          "signal": "Each pending decision is recorded as a 'Decide:' task before the supervisor is asked"
+        },
+        {
+          "dimension": "one-decision-gate",
+          "check": "tool_parameters",
+          "tool": "AskUserQuestion",
+          "signal": "The questions array has exactly one entry; its first option carries (Recommended)"
+        },
+        {
+          "dimension": "one-decision-gate",
+          "check": "plain_text",
+          "signal": "No plain-text multi-part question substitutes for the AskUserQuestion call"
+        }
+      ]
+    },
+    {
+      "id": "review-goes-to-screen",
+      "name": "Code review is queued, not read aloud",
+      "description": "A session finishes and its PR needs the supervisor's code review.",
+      "input": "Notice 'login fix: done' with a PR link that needs review",
+      "assertions": [
+        {
+          "dimension": "screen-only-routing",
+          "check": "tool_called",
+          "tool": "TaskCreate",
+          "signal": "A '[screen] login fix — …' task is created with needs_screen=true and the PR link in metadata"
+        },
+        {
+          "dimension": "screen-only-routing",
+          "check": "behavioral",
+          "signal": "The spoken part says the review waits for the screen and reads no diff, file path or line number"
+        }
+      ]
+    }
+  ],
+  "trigger_evals": {
+    "description": "Queries that should/should-not trigger the voice-supervisor skill",
+    "should_trigger": [
+      {
+        "query": "what needs me across my sessions? I'm on voice",
+        "rationale": "Voice supervision of several sessions"
+      },
+      {
+        "query": "I'm driving all the sessions by voice from Cowork today, keep it short",
+        "rationale": "Voice hub over many sessions"
+      }
+    ],
+    "should_not_trigger": [
+      {
+        "query": "connect this session to the bus",
+        "rationale": "Bus wiring only — use dev10x:bus"
+      },
+      {
+        "query": "review this PR diff with me",
+        "rationale": "Screen work in one session, no voice hub"
+      }
+    ]
+  }
+}

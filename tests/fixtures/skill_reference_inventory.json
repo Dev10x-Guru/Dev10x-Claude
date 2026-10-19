@@ -2,10 +2,10 @@
   "adr": 23,
   "adr-evaluate": 15,
   "afk": 26,
-  "ask": 27,
+  "ask": 28,
   "audit-file": 37,
   "aws-vault": 15,
-  "bus": 10,
+  "bus": 16,
   "cli": 7,
   "context-audit": 5,
   "db": 8,
@@ -106,6 +106,7 @@
   "tts": 23,
   "upgrade-cleanup": 29,
   "verify-acc-dod": 54,
+  "voice-supervisor": 7,
   "work-on": 167,
   "yt-upload": 41
 }
