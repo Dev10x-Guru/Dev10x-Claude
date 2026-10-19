@@ -234,7 +234,6 @@
     "mcp__plugin_dev10x_cli__detect_tracker",
     "mcp__plugin_dev10x_cli__generate_commit_list",
     "mcp__plugin_dev10x_cli__generate_skill_index",
-    "mcp__plugin_dev10x_cli__human_review_status",
     "mcp__plugin_dev10x_cli__ide_status",
     "mcp__plugin_dev10x_cli__issue_comment_delete",
     "mcp__plugin_dev10x_cli__issue_comment_edit",

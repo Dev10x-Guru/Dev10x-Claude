@@ -214,7 +214,6 @@ base_permissions:
   - "mcp__plugin_dev10x_cli__resolve_gate"
   - "mcp__plugin_dev10x_cli__preset_pin_status"
   - "mcp__plugin_dev10x_cli__supervisor_review_status"
-  - "mcp__plugin_dev10x_cli__human_review_status"
   - "mcp__plugin_dev10x_cli__tracker_status"
   # GH-1261
   - "mcp__plugin_dev10x_cli__ide_status"

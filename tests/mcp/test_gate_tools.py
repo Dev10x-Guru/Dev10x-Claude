@@ -11,9 +11,9 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from dev10x.domain.documents.session_yaml import SessionYamlDocument
 from dev10x.domain.gate_policy import MIGRATOR_COMMAND
+
 from dev10x.mcp.gate_query import (
     LEGACY_PROJECT_POLICY_RELPATH,
     PROJECT_POLICY_RELPATH,
@@ -627,7 +627,7 @@ class TestPresetPinTools:
         assert "Not in a git repository" in (await preset_pin_status())["error"]
 
 
-class TestHumanReviewStatusTool:
+class TestSupervisorReviewStatusTool:
     """ADR-0019 / GH-950: the sanctioned MCP read of the review posture.
 
     Without this tool the three skill call sites named `read_human_review()`
@@ -636,12 +636,11 @@ class TestHumanReviewStatusTool:
     """
 
     @pytest.mark.asyncio
-    async def test_renamed_tool_reports_the_enum_and_the_alias(
+    async def test_reports_the_enum_without_the_retired_alias(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
-        # GH-1161: `supervisor_review_status` is the current name; the
-        # boolean `human_review` key rides along for one release so callers
-        # that still branch on it keep working.
+        # GH-1161: the boolean `human_review` payload key reached its
+        # removal version (ADR-0028), so only the enum is reported.
         from dev10x.mcp.gate_tools import supervisor_review_status
 
         _write_session_yaml(tmp_path, "supervisor_review: none\n")
@@ -653,11 +652,11 @@ class TestHumanReviewStatusTool:
         payload = await supervisor_review_status()
 
         assert payload["supervisor_review"] == "none"
-        assert payload["human_review"] is False
+        assert "human_review" not in payload
         assert payload["repo_root"] == str(tmp_path)
 
     @pytest.mark.asyncio
-    async def test_renamed_tool_defaults_to_required(
+    async def test_defaults_to_required(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
         from dev10x.mcp.gate_tools import supervisor_review_status
@@ -669,23 +668,10 @@ class TestHumanReviewStatusTool:
         assert (await supervisor_review_status())["supervisor_review"] == "required"
 
     @pytest.mark.asyncio
-    async def test_deprecated_tool_name_still_answers(
+    async def test_legacy_config_key_still_reads_as_none(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
-        from dev10x.mcp.gate_tools import human_review_status
-
-        _write_session_yaml(tmp_path, "supervisor_review: none\n")
-        monkeypatch.setattr(
-            "dev10x.domain.git_context.GitContext.toplevel",
-            property(lambda self: str(tmp_path)),
-        )
-        assert (await human_review_status())["supervisor_review"] == "none"
-
-    @pytest.mark.asyncio
-    async def test_reports_false_from_durable_config(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-    ) -> None:
-        from dev10x.mcp.gate_tools import human_review_status
+        from dev10x.mcp.gate_tools import supervisor_review_status
 
         _write_session_yaml(tmp_path, "human_review: false\n")
         monkeypatch.setattr(
@@ -693,9 +679,9 @@ class TestHumanReviewStatusTool:
             property(lambda self: str(tmp_path)),
         )
 
-        payload = await human_review_status()
+        payload = await supervisor_review_status()
 
-        assert payload["human_review"] is False
+        assert payload["supervisor_review"] == "none"
         assert payload["repo_root"] == str(tmp_path)
 
     @pytest.mark.asyncio
@@ -706,13 +692,13 @@ class TestHumanReviewStatusTool:
 
         A linked worktree whose directory name matches no `friction.yaml`
         glob resolves the repo root (GH-978). Reading from the raw toplevel
-        would report `true` here while `resolve_gate(gate="merge")` read the
-        repo's `false` and lifted its floor — one durable fact, two answers.
+        would report `required` here while `resolve_gate(gate="merge")` read
+        the repo's `none` and lifted its floor — one durable fact, two answers.
         """
         import yaml
-
         from dev10x.domain.dev10x_paths import Dev10xConfigDir
-        from dev10x.mcp.gate_tools import human_review_status
+
+        from dev10x.mcp.gate_tools import supervisor_review_status
         from dev10x.session import preset_pin
 
         repo = tmp_path / "work" / "bl-zebra"
@@ -736,27 +722,13 @@ class TestHumanReviewStatusTool:
             property(lambda self: str(worktree)),
         )
 
-        assert (await human_review_status())["human_review"] is False
-
-    @pytest.mark.asyncio
-    async def test_defaults_to_true_when_unset(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-    ) -> None:
-        """Absent means humans review — the safe direction."""
-        from dev10x.mcp.gate_tools import human_review_status
-
-        monkeypatch.setattr(
-            "dev10x.domain.git_context.GitContext.toplevel",
-            property(lambda self: str(tmp_path)),
-        )
-
-        assert (await human_review_status())["human_review"] is True
+        assert (await supervisor_review_status())["supervisor_review"] == "none"
 
     @pytest.mark.asyncio
     async def test_malformed_value_fails_toward_more_oversight(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
-        from dev10x.mcp.gate_tools import human_review_status
+        from dev10x.mcp.gate_tools import supervisor_review_status
 
         _write_session_yaml(tmp_path, 'human_review: "no"\n')
         monkeypatch.setattr(
@@ -764,20 +736,20 @@ class TestHumanReviewStatusTool:
             property(lambda self: str(tmp_path)),
         )
 
-        assert (await human_review_status())["human_review"] is True
+        assert (await supervisor_review_status())["supervisor_review"] == "required"
 
     @pytest.mark.asyncio
     async def test_reports_a_wire_error_outside_a_repo(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from dev10x.mcp.gate_tools import human_review_status
+        from dev10x.mcp.gate_tools import supervisor_review_status
 
         monkeypatch.setattr(
             "dev10x.domain.git_context.GitContext.toplevel",
             property(lambda self: None),
         )
 
-        assert "Not in a git repository" in (await human_review_status())["error"]
+        assert "Not in a git repository" in (await supervisor_review_status())["error"]
 
 
 class TestSupervisorReviewPinTool:
@@ -792,7 +764,7 @@ class TestSupervisorReviewPinTool:
         )
         # `supervisor_review_status` resolves its toplevel via `GitContext`
         # directly (unlike the `_common_dir`-keyed pin tools), so it needs
-        # its own patch — same pattern `TestHumanReviewStatusTool` uses.
+        # its own patch — same pattern `TestSupervisorReviewStatusTool` uses.
         monkeypatch.setattr(
             "dev10x.domain.git_context.GitContext.toplevel",
             property(lambda self: str(main)),
@@ -815,12 +787,11 @@ class TestSupervisorReviewPinTool:
         assert after["supervisor_review"] == "none"
 
     @pytest.mark.asyncio
-    async def test_deprecated_human_review_key_also_counts_as_pinned(
-        self, zebra_repo: Path
-    ) -> None:
+    async def test_legacy_human_review_key_also_counts_as_pinned(self, zebra_repo: Path) -> None:
         """A repo migrated before this tool existed must not report unset."""
-        from dev10x.mcp.gate_tools import supervisor_review_status
         from dev10x.session.preset_pin import pin_project_prefs
+
+        from dev10x.mcp.gate_tools import supervisor_review_status
 
         pin_project_prefs(prefs={"human_review": False}, cwd=str(zebra_repo))
 

@@ -200,7 +200,7 @@ one session). Use these shapes verbatim:
 | `pr_close` | `pr_number` | `number` (that's `issue_close`'s param name) |
 | `resolve_plugin_origin` | `skill_paths` (list of absolute paths) | singular `skill_path` |
 | `pin_gate_preset` | `preset`; optional `scope` (`repo` default / `repo-only` / `dir`) | passing a `match` or a path — the tool derives the repo stem itself; passing `gate_overrides={"supervisor_review": ...}` — it is not a per-gate toggle (absent from `_ENUM_TOGGLES`), use `pin_supervisor_review` instead (GH-1165) |
-| `supervisor_review_status` | none (optional `cwd`) | reading `friction.yaml` directly instead — the tool owns the precedence; the deprecated `human_review_status` name still answers until its removal version in `dev10x.domain.deprecations` (ADR-0022 D-2, ADR-0028) |
+| `supervisor_review_status` | none (optional `cwd`) | reading `friction.yaml` directly instead — the tool owns the precedence; calling `human_review_status` — that alias was removed in v0.109.0, and the payload no longer carries the boolean `human_review` key (ADR-0022 D-2, ADR-0028) |
 | `pin_supervisor_review` | `supervisor_review` (`required`/`none`); optional `scope` (`repo` default / `repo-only` / `dir`) | reaching for `pin_gate_preset`'s `gate_overrides` — `supervisor_review` is a project-wide fact, not a gate toggle (GH-1165) |
 | `tracker_status` | none (optional `cwd`) | treating `pinned: false` as "no tracker" — it still reports a resolved `tracker` (the default) |
 | `pin_tracker` | `tracker` (`linear`/`jira`/`github`); optional `scope` | passing `gitlab`/`clickup` — not in v1 scope, and an unknown value errors rather than defaulting |
@@ -617,7 +617,7 @@ Behavioral caveats:
   repo-stem keying and the same `pin_project_prefs` writer, and both are
   idempotent: an entry already covering the checkout is replaced, never
   duplicated. Gate the onboarding ask on `supervisor_review_status` →
-  `pinned: false` — the deprecated `human_review` boolean alias (ADR-0019)
+  `pinned: false` — the legacy `human_review` boolean config key (ADR-0019)
   still counts as pinned until its removal version in the ADR-0028
   register (`dev10x.domain.deprecations`), so a repo migrated before this
   tool existed is not reported as unset. Nothing is written under a
@@ -715,7 +715,6 @@ supporting each tool:
 | `resolve_gate` | `cli` | GH-742 (ADR-0016 spike) | v0.83.0+ |
 | `preset_pin_status` | `cli` | GH-855 | v0.92.0+ |
 | `pin_gate_preset` | `cli` | GH-855 | v0.92.0+ |
-| `human_review_status` | `cli` | GH-950 | v0.93.0+ (deprecated alias for `supervisor_review_status`, GH-1161) |
 | `supervisor_review_status` | `cli` | GH-1161 | v0.97.0+ |
 | `pin_supervisor_review` | `cli` | GH-1165 | v0.97.0+ |
 | `tracker_status` | `cli` | GH-768 | v0.95.0+ |

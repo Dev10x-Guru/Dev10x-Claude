@@ -738,24 +738,6 @@
       "title": "generate_skill_indexArguments",
       "type": "object"
     },
-    "human_review_status": {
-      "properties": {
-        "cwd": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Cwd"
-        }
-      },
-      "title": "human_review_statusArguments",
-      "type": "object"
-    },
     "ide_status": {
       "properties": {
         "cwd": {
