@@ -49,7 +49,7 @@ def load_permission_context(*, include_user: bool | None = None) -> Result[Permi
     an explicit bool to override it (e.g. ``promote-plan`` excludes
     user settings).
     """
-    from dev10x.skills.permission import update_paths as mod
+    from dev10x.core.skills.permission import update_paths as mod
 
     resolved = mod.find_config()
     if isinstance(resolved, ErrorResult):
