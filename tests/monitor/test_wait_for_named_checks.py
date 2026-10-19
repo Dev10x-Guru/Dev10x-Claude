@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-import yaml
 from dev10x.skills.monitor.ci_check_status import (
     compute_verdict,
     is_terminal,
@@ -14,6 +13,7 @@ from dev10x.skills.monitor.ci_check_status import (
 )
 
 from dev10x.core.config.hook_fragments import merged_hook_entries
+from dev10x.core.config.loader import load_document
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 _MAP = _REPO_ROOT / "src" / "dev10x" / "core" / "validators" / "command-skill-map.yaml"
@@ -101,7 +101,7 @@ def test_monitor_is_on_the_bash_validator_chain():
 
 @pytest.mark.parametrize("rule_name", ["ci-loop-handrolled", "watch-loop-handrolled"])
 def test_loop_shapes_are_denied_not_advised(rule_name: str):
-    data = yaml.safe_load(_MAP.read_text()) or {}
+    data = load_document(yaml_path=_MAP)
     rule = next(r for r in data["rules"] if r["name"] == rule_name)
     assert rule["hook_block"] is True
     assert rule["compensations"], "a blocking rule must name an executable fix"

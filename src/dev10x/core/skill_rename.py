@@ -2,8 +2,8 @@
 
 Stage B moves ``dev10x:<skill>`` to ``dev10x-<area>:<skill>`` one plugin
 at a time. The scan covers the NS-05b inventory scope
-(:func:`dev10x.core.skill_references.scanned_paths`) plus the
-``command-skill-map.d`` fragments, so the inventory test can verify a
+(:func:`dev10x.core.skill_references.scanned_paths`, which includes the
+``command-skill-map.d`` fragments), so the inventory test can verify a
 rename by counts alone. ``.claude/`` is outside that scope on purpose:
 rule files there are supervisor-owned and get their own pass.
 
@@ -20,7 +20,6 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
-from dev10x.core.config.loader import fragment_dir
 from dev10x.core.domain.common.result import ErrorResult, Result, err, ok
 from dev10x.core.domain.file_locks import atomic_write_text
 from dev10x.core.plugin_map import CORE_PLUGIN_NAME, PluginMap
@@ -105,8 +104,7 @@ def parse_invocation_name(*, text: str, plugin_names: Iterable[str]) -> Result[I
 
 
 def rename_scope(*, root: Path) -> list[Path]:
-    fragments = sorted(fragment_dir(yaml_path=root / COMMAND_SKILL_MAP).glob("*.yaml"))
-    return sorted({*scanned_paths(root=root), *fragments})
+    return sorted(set(scanned_paths(root=root)))
 
 
 def rewrite_text(*, text: str, old: InvocationName, new: InvocationName) -> tuple[str, int]:

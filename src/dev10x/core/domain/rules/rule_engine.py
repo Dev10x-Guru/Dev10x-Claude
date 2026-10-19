@@ -7,6 +7,7 @@ that supports lazy iteration (stops at first blocking match).
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -64,8 +65,8 @@ class RuleEngine:
             )
         return None
 
+    def matching_command_rules(self, *, command: str) -> Iterator[MatchingRule]:
+        return (rule for rule in self.command_rules if rule.matches_command(command=command))
+
     def evaluate_command(self, *, command: str) -> MatchingRule | None:
-        for rule in self.command_rules:
-            if rule.matches_command(command=command):
-                return rule
-        return None
+        return next(self.matching_command_rules(command=command), None)

@@ -27,6 +27,8 @@ import pytest
 
 yaml = pytest.importorskip("yaml", reason="pyyaml not installed")
 
+from dev10x.config.loader import load_document  # noqa: E402
+
 from dev10x.skills.audit import cli_friction as cli_friction_mod  # noqa: E402
 
 # ── Paths to canonical data files ────────────────────────────────────────────
@@ -42,7 +44,7 @@ _SKILL_MD_PATH = _REPO_ROOT / "skills" / "diag-friction" / "SKILL.md"
 
 @pytest.fixture(scope="module")
 def command_map() -> dict:
-    return yaml.safe_load(_MAP_PATH.read_text())
+    return load_document(yaml_path=_MAP_PATH)
 
 
 @pytest.fixture(scope="module")
