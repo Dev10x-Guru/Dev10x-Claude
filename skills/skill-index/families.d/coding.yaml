@@ -1,6 +1,7 @@
 # Skill-index fragment for the coding plugin (ADR-0034 Stage A3,
-# GH-1552). Merged into ../families.yaml by scripts/lib-families.sh.
-# Display-names for coding skills only; family grouping stays in core.
+# GH-1552, GH-1589). Merged into ../families.yaml by
+# scripts/lib-families.sh. Holds the coding families whole, plus the
+# display-names for coding skills.
 
 display_map:
   commit: dev10x:git-commit
@@ -15,5 +16,48 @@ display_map:
   pr:triage: dev10x:gh-pr-triage
   pr:comment-fixup: dev10x:gh-pr-fixup
   ticket:work-on: dev10x:work-on
-  dev10x:investigate: investigate
   release-notes: dev10x:release-notes
+
+families:
+  - label: Pipeline
+    description: "Branch → implement → PR"
+    skills:
+      - ticket:work-on
+      - dev10x:ticket-branch
+
+  - label: Git
+    description: "Atomic commits, clean history"
+    skills:
+      - commit
+      - commit:split
+      - commit:fixup
+      - branch:groom
+      - commit:to-new-ticket
+
+  - label: PR
+    description: "Full PR lifecycle with review agents"
+    skills:
+      - pr:create
+      - dev10x:review
+      - pr:respond
+      - pr:monitor
+      - pr:request-review
+      - pr:triage
+      - pr:comment-fixup
+
+  - label: Testing
+    description: "pytest, flaky tests, QA scoping"
+    skills:
+      - dev10x:py-test
+      - dev10x:py-test-flaky
+      - dev10x:qa-scope
+
+  - label: Ops
+    description: "Bug and error investigation"
+    skills:
+      - dev10x:investigate
+
+  - label: Reports
+    description: "Release notes"
+    skills:
+      - release-notes

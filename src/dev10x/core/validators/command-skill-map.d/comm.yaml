@@ -1,0 +1,18 @@
+# DX006 rules for the comm plugin (ADR-0034 Stage A3, GH-1590).
+# Merged into ../command-skill-map.yaml by dev10x.core.config.loader:
+# core's rules first, then each fragment in src/dev10x/core/plugins.yaml
+# order. First match wins. See the base file for the schema.
+
+rules:
+  - name: slack-api
+    matcher: Bash
+    patterns:
+      - curl.*slack.com/api
+      - curl.*hooks.slack.com
+    hook_block: false
+    compensations:
+      - type: use-skill
+        skill: dev10x:slack
+    reason: >
+      Direct Slack API calls bypass token management and
+      structured message formatting.

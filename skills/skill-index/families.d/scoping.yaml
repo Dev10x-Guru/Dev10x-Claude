@@ -1,0 +1,10 @@
+# Skill-index fragment for the tickets + scoping plugin (ADR-0034
+# Stage A3, GH-1589). Merged into ../families.yaml by
+# scripts/lib-families.sh.
+
+families:
+  - label: Scoping
+    description: "Scope work and file tickets"
+    skills:
+      - dev10x:ticket-scope
+      - dev10x:ticket-create

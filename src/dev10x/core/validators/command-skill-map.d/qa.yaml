@@ -1,0 +1,44 @@
+# DX006 rules for the QA plugin (ADR-0034 Stage A3, GH-1590).
+# Merged into ../command-skill-map.yaml by dev10x.core.config.loader:
+# core's rules first, then each fragment in src/dev10x/core/plugins.yaml
+# order. First match wins. See the base file for the schema.
+
+rules:
+  - name: playwright
+    matcher: Bash
+    patterns:
+      - playwright
+      - npx playwright
+      - uv run.*playwright
+    hook_block: false
+    compensations:
+      - type: use-skill
+        skill: dev10x:playwright
+    reason: >
+      Direct playwright calls skip CF Access header injection
+      and credential management for staging environments.
+
+  - name: qa-evidence-stitch
+    matcher: Bash
+    patterns:
+      - "(magick|montage|convert)\\b[^|&;]*/tmp/Dev10x/playwright"
+    except:
+      - "convert-evidence.sh"
+    hook_block: false
+    compensations:
+      - type: use-alternative
+        guardrails: fixed shape, output path bounded by the run directory
+        description: >
+          `${CLAUDE_PLUGIN_ROOT}/skills/qa-self/scripts/convert-evidence.sh
+          stitch <run-dir> [out.png]` — stacks the run's PNGs with a
+          separator and resolves the IM6/IM7 spelling itself. Covered by
+          the versioned per-file script rule, so it never prompts.
+    reason: >
+      An ad-hoc `magick <files> -append` over a QA run prompts, and the
+      prompt offers `magick *` — a catch-all over an arbitrary output
+      path — as the "don't ask again" rule (GH-1141). Routing to the
+      script keeps the composition shape fixed and the output path
+      bounded by the run directory, which is what makes the narrow
+      script rule sufficient.
+    related:
+      - dev10x:qa-self

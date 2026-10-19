@@ -25,11 +25,13 @@ step ever depends on the split being finished.
 ### Current State
 
 - One plugin, `dev10x`, with 94 skills, 2 MCP servers (`cli` with about
-  90 tools, `db`), 11 hook entries, and one `src/dev10x` package.
+  90 tools, `db`), 12 hook entries across `hooks/hooks.json` and
+  `hooks/hooks.d/*.json`, and one `src/dev10x` package.
 - Shared configuration that mixes every area:
   - the permission catalog (`skills/upgrade-cleanup/projects.yaml`);
   - `skills/skill-index/families.yaml`;
-  - `src/dev10x/validators/command-skill-map.yaml`;
+  - `src/dev10x/core/validators/command-skill-map.yaml` (with
+    fragments in `command-skill-map.d/`);
   - `hooks/hooks.json`.
 - The `cli` MCP server runs scripts that live inside coding skill
   folders, such as `gh-context`, `gh-pr-*`, `git-*`, `release-notes`
@@ -243,6 +245,52 @@ orchestrator can write. Coding's `work_on`/`routing_table` context
 keys trigger it only while the coding plugin is enabled, read from the
 `enabledPlugins` settings (local over project over user), and an
 unreadable settings file counts as enabled.
+
+### Config fragments per plugin
+
+The permission catalog, `families.yaml` and `command-skill-map.yaml`
+split in Stage A3 (GH-1589, GH-1590). Each base file keeps core's part,
+and `<name>.d/<plugin>.yaml` holds each plugin's. Readers merge core
+first, then the fragments in `plugins.yaml` order.
+
+The supervisor accepted the reorder this causes:
+
+- `ensure-base` appends catalog rules in the merged order, not the
+  one-file order. A test pins that every list keeps the same multiset
+  of rules, with no duplicates.
+- `SKILLS.md` lists families in plugin order (Setup, QA, Data, Meta,
+  Session, Scoping, then the coding families).
+- DX006's first-match-wins can pick a different rule when several rules
+  match one command. Tests pin the winners that changed.
+
+Ownership rules:
+
+1. **MCP allows** belong to the plugin whose skills declare the tool in
+   `allowed-tools`. A tool declared by skills of several plugins, or by
+   none, stays in core. A test recomputes each owner from the skill
+   front matter and `plugins.yaml`, with a short override list (the
+   `db` server's `query` belongs to db).
+2. **`Bash(gh …)` and `Bash(git …)`** allows, the git aliases, the
+   test/lint runners and the foreman CLI spellings belong to coding.
+   Generic shell, `/tmp`, data tools, docs domains, `Skill(dev10x:*)`
+   and the `dev10x` CLI stay in core.
+3. **The safety floor stays in core:** `base_asks`, `base_denies`,
+   `tracker_denies` and the IDE blocks. A deny must hold in every
+   install, whichever plugins it has.
+4. **Families stay whole.** Each family lives in exactly one fragment,
+   and every skill in it belongs to that fragment's plugin. Shipped
+   families name only Dev10x skills.
+5. **DX006 rules** belong to the plugin of their first skill
+   compensation, or to the owner of the tool they steer to. Generic
+   shell-shape rules stay in core. `ci-loop-handrolled` stays in core
+   on purpose: a CI poll loop must reach it before
+   `watch-loop-handrolled` and before any plugin's rules. The `gh` CLI
+   rules stay together in coding even where their wrapper is used more
+   widely.
+
+The hook skips an exempted match (a safe push, a backgrounded watch
+loop) and keeps evaluating, so the reorder cannot let a loop body
+through unchecked (GH-1590).
 
 ## Alternatives Considered
 
