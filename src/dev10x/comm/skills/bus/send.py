@@ -73,6 +73,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.body_file == "-"
         else Path(args.body_file).read_text(encoding="utf-8")
     )
+    expires = datetime.now().astimezone() + args.expires_in if args.expires_in else None
     try:
         delivery = send(
             root=args.root,
@@ -84,9 +85,7 @@ def main(argv: list[str] | None = None) -> int:
                 in_reply_to=args.in_reply_to,
                 references=args.references,
                 voice=args.voice,
-                expires=(
-                    datetime.now().astimezone() + args.expires_in if args.expires_in else None
-                ),
+                expires=expires,
                 extra_headers=tuple(args.header),
             ),
             body=body,

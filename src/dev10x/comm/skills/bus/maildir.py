@@ -19,6 +19,12 @@ FRONTMATTER = "---\n"
 STATUS_DIR = "status"
 STATES = ("needs-input", "working", "done")
 DUPLICATE_WINDOW = timedelta(minutes=2)
+NEW = "NEW"
+HELD = "HELD"
+DUP = "DUP"
+EXPIRED = "EXPIRED"
+REFUSED = "REFUSED"
+SET_ASIDE = frozenset({REFUSED, EXPIRED, DUP})
 MAILBOX_NAME = re.compile(r"[A-Za-z0-9]+([._-][A-Za-z0-9]+)*")
 HEADER_KEY = re.compile(r"[A-Za-z][A-Za-z0-9-]*")
 BUS_HEADERS = frozenset(
@@ -300,9 +306,12 @@ class DuplicateFilter:
     last_seen: dict[str, datetime] = field(default_factory=dict)
 
     def repeats(self, key: str, now: datetime) -> bool:
-        previous = self.last_seen.get(key)
+        self.last_seen = {
+            seen: at for seen, at in self.last_seen.items() if now - at < self.window
+        }
+        repeated = key in self.last_seen
         self.last_seen[key] = now
-        return previous is not None and now - previous < self.window
+        return repeated
 
 
 @dataclass(frozen=True)
@@ -324,14 +333,33 @@ def classify(
 ) -> str:
     sender = headers.get("from", "")
     if sender in policy.refuse:
-        return "REFUSED"
+        return REFUSED
     if is_expired(headers=headers, now=now):
-        return "EXPIRED"
+        return EXPIRED
     if sender and duplicates.repeats(key=fingerprint(headers=headers, body=body), now=now):
-        return "DUP"
+        return DUP
     if sender in policy.hold:
-        return "HELD"
-    return "NEW"
+        return HELD
+    return NEW
+
+
+def screen_message(
+    message: Path,
+    policy: InboundPolicy,
+    duplicates: DuplicateFilter,
+    now: datetime,
+) -> tuple[str, Path]:
+    headers, body = read_message(message=message)
+    verdict = classify(
+        headers=headers,
+        body=body,
+        policy=policy,
+        duplicates=duplicates,
+        now=now,
+    )
+    if verdict in SET_ASIDE:
+        return verdict, mark_read(message=message)
+    return verdict, message
 
 
 @dataclass(frozen=True)
@@ -353,24 +381,30 @@ class SessionStatus:
     def label(self) -> str:
         return f"{self.callsign} [{self.mailbox}]" if self.callsign else self.mailbox
 
+    @property
+    def headers(self) -> dict[str, str]:
+        return {
+            "Mailbox": self.mailbox,
+            "Callsign": self.callsign,
+            "State": self.state,
+            "Updated": self.updated.isoformat(timespec="seconds"),
+        }
+
+    def notice(self, recipient: str) -> Envelope:
+        return Envelope(
+            sender=self.mailbox,
+            recipient=recipient,
+            subject=f"{self.callsign or self.mailbox}: {self.state}",
+            extra_headers=(("State", self.state), ("Callsign", self.callsign)),
+        )
+
 
 def write_status(root: Path, status: SessionStatus) -> Path:
     directory = root / STATUS_DIR
     root.mkdir(mode=0o700, parents=True, exist_ok=True)
     directory.mkdir(exist_ok=True)
-    draft = directory / f".{status.mailbox}.tmp"
-    draft.write_text(
-        render(
-            headers={
-                "Mailbox": status.mailbox,
-                "Callsign": status.callsign,
-                "State": status.state,
-                "Updated": status.updated.isoformat(timespec="seconds"),
-            },
-            body=status.summary,
-        ),
-        encoding="utf-8",
-    )
+    draft = directory / f".{status.mailbox}.{os.getpid()}.tmp"
+    draft.write_text(render(headers=status.headers, body=status.summary), encoding="utf-8")
     return draft.replace(directory / status.mailbox)
 
 

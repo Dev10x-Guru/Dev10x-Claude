@@ -13,17 +13,14 @@ from dev10x.comm.skills.bus.maildir import (
     DuplicateFilter,
     InboundPolicy,
     InvalidMessageError,
-    classify,
     is_own_thread_message,
     maildirs_for,
-    mark_read,
-    read_message,
+    screen_message,
     unread,
     validate_mailbox_name,
 )
 
 POLL_INTERVAL_SECONDS = 1.0
-SET_ASIDE = frozenset({"REFUSED", "EXPIRED", "DUP"})
 
 
 def arrivals(
@@ -66,25 +63,6 @@ def inbound(messages: Iterable[Path], name: str) -> list[Path]:
     )
 
 
-def screen(
-    message: Path,
-    policy: InboundPolicy,
-    duplicates: DuplicateFilter,
-    now: datetime,
-) -> tuple[str, Path]:
-    headers, body = read_message(message=message)
-    verdict = classify(
-        headers=headers,
-        body=body,
-        policy=policy,
-        duplicates=duplicates,
-        now=now,
-    )
-    if verdict in SET_ASIDE:
-        return verdict, mark_read(message=message)
-    return verdict, message
-
-
 def report(
     messages: list[Path],
     policy: InboundPolicy,
@@ -92,7 +70,9 @@ def report(
 ) -> None:
     now = datetime.now().astimezone()
     for message in messages:
-        verdict, path = screen(message=message, policy=policy, duplicates=duplicates, now=now)
+        verdict, path = screen_message(
+            message=message, policy=policy, duplicates=duplicates, now=now
+        )
         print(f"{verdict} {path}", flush=True)
 
 
