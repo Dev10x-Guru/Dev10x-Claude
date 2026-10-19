@@ -24,6 +24,17 @@ SCREENED_ARRIVALS = {
 }
 
 
+def _screened_lines(root: Path, inbox: Path) -> list[str]:
+    cur = root / "a" / "cur"
+    return [
+        f"NEW {inbox / 'a-loop-1'}",
+        f"DUP {cur / 'a-loop-2:2,S'}",
+        f"HELD {inbox / 'b-held'}",
+        f"REFUSED {cur / 'c-refused:2,S'}",
+        f"EXPIRED {cur / 'd-expired:2,S'}",
+    ]
+
+
 def _only_message(mailbox: Path) -> str:
     (message,) = (mailbox / "new").iterdir()
     return message.read_text(encoding="utf-8")
@@ -213,15 +224,7 @@ class TestWatchMain:
         )
 
     def test_screens_each_arrival(self, screened_run: Run, root: Path, inbox: Path) -> None:
-        cur = root / "a" / "cur"
-
-        assert screened_run.stdout.splitlines() == [
-            f"NEW {inbox / 'a-loop-1'}",
-            f"DUP {cur / 'a-loop-2:2,S'}",
-            f"HELD {inbox / 'b-held'}",
-            f"REFUSED {cur / 'c-refused:2,S'}",
-            f"EXPIRED {cur / 'd-expired:2,S'}",
-        ]
+        assert screened_run.stdout.splitlines() == _screened_lines(root=root, inbox=inbox)
 
     def test_invalid_policy_sender_exits_two(self, root: Path, run_main: RunMain) -> None:
         result = run_main(watch.main, ["a", "--hold", "../x", "--root", str(root)])
@@ -413,21 +416,24 @@ class TestWatchOnceMain:
         monkeypatch.setattr(watch.time, "sleep", lambda seconds: None)
         return run_main(
             watch.main,
-            ["a", "--once", "--refuse", "spammer", "--root", str(root), "--polls", "0"],
+            [
+                "a",
+                "--once",
+                "--hold",
+                "stranger",
+                "--refuse",
+                "spammer",
+                "--root",
+                str(root),
+                "--polls",
+                "0",
+            ],
         )
 
     def test_once_screens_unread_mail(
         self, screened_once_run: Run, root: Path, inbox: Path
     ) -> None:
-        cur = root / "a" / "cur"
-
-        assert screened_once_run.stdout.splitlines() == [
-            f"NEW {inbox / 'a-loop-1'}",
-            f"DUP {cur / 'a-loop-2:2,S'}",
-            f"NEW {inbox / 'b-held'}",
-            f"REFUSED {cur / 'c-refused:2,S'}",
-            f"EXPIRED {cur / 'd-expired:2,S'}",
-        ]
+        assert screened_once_run.stdout.splitlines() == _screened_lines(root=root, inbox=inbox)
 
 
 class TestDoneMain:

@@ -9,7 +9,6 @@ from dev10x.comm.skills.bus.maildir import (
     BUS_ROOT,
     INVALID_MESSAGE_EXIT,
     STATES,
-    Envelope,
     InvalidMessageError,
     SessionStatus,
     send,
@@ -36,15 +35,6 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def notice_envelope(status: SessionStatus, recipient: str) -> Envelope:
-    return Envelope(
-        sender=status.mailbox,
-        recipient=recipient,
-        subject=f"{status.callsign or status.mailbox}: {status.state}",
-        extra_headers=(("State", status.state), ("Callsign", status.callsign)),
-    )
-
-
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
@@ -55,9 +45,7 @@ def main(argv: list[str] | None = None) -> int:
             updated=datetime.now().astimezone(),
             callsign=args.callsign,
         )
-        notices = [
-            notice_envelope(status=status, recipient=recipient) for recipient in args.notify
-        ]
+        notices = [status.notice(recipient=recipient) for recipient in args.notify]
     except InvalidMessageError as exc:
         print(f"ERROR {exc}", file=sys.stderr)
         return INVALID_MESSAGE_EXIT

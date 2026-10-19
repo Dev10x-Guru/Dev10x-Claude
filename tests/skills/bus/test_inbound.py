@@ -139,6 +139,11 @@ class TestDuplicateFilter:
     def test_repeat_after_the_window_passes(self, duplicates: DuplicateFilter) -> None:
         assert not duplicates.repeats(key="k", now=NOW + timedelta(minutes=5))
 
+    def test_forgets_keys_older_than_the_window(self, duplicates: DuplicateFilter) -> None:
+        duplicates.repeats(key="other", now=NOW + timedelta(minutes=5))
+
+        assert list(duplicates.last_seen) == ["other"]
+
 
 class TestInboundPolicy:
     def test_rejects_a_bad_sender_name(self) -> None:
@@ -176,22 +181,18 @@ class TestClassify:
             == expected
         )
 
-    @pytest.fixture
-    def second_verdict(self) -> str:
+    @pytest.mark.parametrize(
+        ("headers", "expected"),
+        [(LOOP, "DUP"), ({}, "NEW")],
+        ids=["identical-repeat-is-dup", "no-sender-is-never-dup"],
+    )
+    def test_second_identical_message(self, headers: dict[str, str], expected: str) -> None:
         duplicates = DuplicateFilter()
-        classify(headers=LOOP, body="hi", policy=InboundPolicy(), duplicates=duplicates, now=NOW)
-        return classify(
-            headers=LOOP, body="hi", policy=InboundPolicy(), duplicates=duplicates, now=NOW
-        )
+        verdicts = [
+            classify(
+                headers=headers, body="hi", policy=InboundPolicy(), duplicates=duplicates, now=NOW
+            )
+            for _ in range(2)
+        ]
 
-    def test_identical_repeat_is_dup(self, second_verdict: str) -> None:
-        assert second_verdict == "DUP"
-
-    def test_messages_without_a_sender_are_never_dup(self) -> None:
-        duplicates = DuplicateFilter()
-        classify(headers={}, body="", policy=InboundPolicy(), duplicates=duplicates, now=NOW)
-
-        assert (
-            classify(headers={}, body="", policy=InboundPolicy(), duplicates=duplicates, now=NOW)
-            == "NEW"
-        )
+        assert verdicts == ["NEW", expected]
