@@ -7,9 +7,8 @@ import warnings
 from pathlib import Path
 
 import pytest
-import yaml
-
-from dev10x.config.loader import load_config
+from dev10x.config.loader import load_config, load_document
+from dev10x.domain.rules.rule_engine import RuleEngine
 from dev10x.domain.rules.validation_rule import Compensation, MatchingRule
 from dev10x.validators.skill_redirect import (
     _REGEX_METACHARS_RE,
@@ -21,6 +20,7 @@ from dev10x.validators.skill_redirect import (
     names_quick_token,
     unreachable_patterns,
 )
+
 from tests.fakers import BashHookInputFaker
 from tests.validators.loop_shapes import BARE_POLL_LOOP, UNTIL_POLL_LOOP
 
@@ -1023,6 +1023,71 @@ class TestWatchLoopBackgroundedIsNotBlocked:
 
 
 @pytest.fixture()
+def loop_first_engine(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The shipped rules with watch-loop-handrolled moved to the front.
+
+    A per-plugin split lands it ahead of git-push and psql-write, which is
+    the order GH-1590's exemption hazard needs.
+    """
+    import dev10x.validators.skill_redirect as mod
+
+    config, engine = _load_config()
+    loop = next(rule for rule in engine.command_rules if rule.name == "watch-loop-handrolled")
+    reordered = [loop, *(rule for rule in engine.command_rules if rule is not loop)]
+    monkeypatch.setattr(mod, "_CONFIG", config)
+    monkeypatch.setattr(mod, "_ENGINE", RuleEngine(command_rules=reordered))
+
+
+@pytest.mark.usefixtures("loop_first_engine")
+class TestAnExemptionClearsOneRuleNotTheCommand:
+    """GH-1590: a backgrounded loop is exempt from the loop rule only."""
+
+    @pytest.mark.parametrize(
+        ("command", "label"),
+        [
+            ("while true; do git push; sleep 1; done", "git push"),
+            ('while true; do psql -c "DELETE FROM t"; sleep 5; done', "psql-write"),
+        ],
+    )
+    def test_validate_reaches_the_rule_behind_the_loop(
+        self, validator: SkillRedirectValidator, command: str, label: str
+    ) -> None:
+        result = validator.validate(inp=_make_backgrounded_input(command=command))
+
+        assert result is not None
+        assert f"`{label}` blocked" in result.message
+
+    def test_correct_reaches_the_rule_behind_the_loop(
+        self, validator: SkillRedirectValidator
+    ) -> None:
+        inp = _make_backgrounded_input(command="while true; do git push; sleep 1; done")
+
+        result = validator.correct(inp=inp)
+
+        assert result is not None
+        assert "dev10x:git" in result.message
+
+    def test_a_backgrounded_loop_with_a_harmless_body_still_passes(
+        self, validator: SkillRedirectValidator
+    ) -> None:
+        inp = _make_backgrounded_input(command=UNTIL_POLL_LOOP)
+
+        assert validator.validate(inp=inp) is None
+
+
+def test_a_safe_push_inside_a_foreground_loop_is_still_a_loop(
+    validator: SkillRedirectValidator,
+) -> None:
+    """The safe-push exemption clears git-push, so the loop rule still fires."""
+    command = "while true; do git push origin feature-x; sleep 1; done"
+
+    result = validator.validate(inp=_make_input(command=command))
+
+    assert result is not None
+    assert "watch-loop-handrolled" in result.message
+
+
+@pytest.fixture()
 def loop_block_message(validator: SkillRedirectValidator) -> str:
     result = validator.validate(inp=_make_input(command=BARE_POLL_LOOP))
     assert result is not None
@@ -1212,7 +1277,7 @@ class TestBlockMessageFallback:
         assert "Skill(" not in result.message
 
 
-_RULES: list[dict] = yaml.safe_load(_YAML_PATH.read_text())["rules"]
+_RULES: list[dict] = load_document(yaml_path=_YAML_PATH)["rules"]
 _HOOK_BLOCK_RULES: list[dict] = [entry for entry in _RULES if entry.get("hook_block")]
 _COMPENSATION_PAIRS: list[tuple[str, str]] = [
     (entry.get("name", "<unnamed>"), comp["type"])
@@ -1227,7 +1292,7 @@ def _rule_ids(rules: list[dict]) -> list[str]:
 
 class TestYamlSchema:
     def test_yaml_file_is_valid(self) -> None:
-        data = yaml.safe_load(_YAML_PATH.read_text())
+        data = load_document(yaml_path=_YAML_PATH)
         assert "config" in data
         assert "rules" in data
         assert data["config"]["plugin_repo"]

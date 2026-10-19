@@ -227,6 +227,30 @@ def _is_backgrounded(*, inp: HookInput) -> bool:
     return bool(tool_input.get("run_in_background"))
 
 
+def _is_exempt(*, rule: MatchingRule, inp: HookInput) -> bool:
+    if rule.name == "git-push":
+        return _is_safe_direct_push(inp.command)
+    if rule.name == "watch-loop-handrolled":
+        return _is_backgrounded(inp=inp)
+    return False
+
+
+def _first_enforced_rule(*, engine: RuleEngine, inp: HookInput) -> MatchingRule | None:
+    # GH-1590: an exemption clears one rule, not the command. Once rules
+    # live in per-plugin fragments, a backgrounded loop can match
+    # watch-loop-handrolled before the git-push or psql-write rule that
+    # also covers its body, so stopping at the first match would let the
+    # body through unchecked.
+    return next(
+        (
+            rule
+            for rule in engine.matching_command_rules(command=inp.command)
+            if not _is_exempt(rule=rule, inp=inp)
+        ),
+        None,
+    )
+
+
 def _format_correction_msg(
     *,
     label: str,
@@ -601,12 +625,8 @@ class SkillRedirectValidator(ValidatorBase):
         if BOOLEAN_SKIP_RE.match(inp.command):
             return HookResult(message=UNRATIONALIZED_SKIP_MSG)
         config, engine = _get_config_and_engine()
-        rule = engine.evaluate_command(command=inp.command)
+        rule = _first_enforced_rule(engine=engine, inp=inp)
         if rule is None:
-            return None
-        if rule.name == "git-push" and _is_safe_direct_push(inp.command):
-            return None
-        if rule.name == "watch-loop-handrolled" and _is_backgrounded(inp=inp):
             return None
         comp = rule.compensations[0] if rule.compensations else None
         if not comp:
@@ -633,7 +653,7 @@ class SkillRedirectValidator(ValidatorBase):
         from dev10x.domain import HookRetry as _HookRetry
 
         _, engine = _get_config_and_engine()
-        rule = engine.evaluate_command(command=inp.command)
+        rule = _first_enforced_rule(engine=engine, inp=inp)
         if rule is None:
             return None
         comp = rule.compensations[0] if rule.compensations else None

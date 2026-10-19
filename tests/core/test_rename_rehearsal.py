@@ -23,6 +23,7 @@ from dev10x.core.plugin_map import load_plugin_map
 from dev10x.core.skill_references import (
     SCANNED_DIRS,
     SCANNED_FILES,
+    SCANNED_FRAGMENT_DIRS,
     count_references,
     scanned_paths,
 )
@@ -67,6 +68,10 @@ def _copy_repository(*, source: Path, target: Path) -> None:
     for relative in SCANNED_FILES:
         (target / relative).parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source / relative, target / relative)
+    for directory in SCANNED_FRAGMENT_DIRS:
+        (target / directory).mkdir(parents=True, exist_ok=True)
+        for fragment in (source / directory).glob("*.yaml"):
+            shutil.copy2(fragment, target / directory / fragment.name)
 
 
 def _plan(*, root: Path, old: str, new: str) -> RenamePlan:

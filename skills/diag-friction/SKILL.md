@@ -30,6 +30,8 @@ allowed-tools:
   - Read(.claude/settings.local.json)
   - Read(${CLAUDE_PLUGIN_ROOT}/skills/diag-friction/references/*)
   - Read(${CLAUDE_PLUGIN_ROOT}/src/dev10x/core/validators/command-skill-map.yaml)
+  - Read(${CLAUDE_PLUGIN_ROOT}/src/dev10x/core/validators/command-skill-map.d/*)
+  - Glob
   - Bash(uvx dev10x permission catalog-gap:*)
   - Bash(dev10x permission catalog-gap:*)
   - Bash(uvx dev10x permission ensure-base:*)
@@ -92,10 +94,16 @@ and ships updates ahead of skill docs; skipping the Read is a
 documented Step 2 violation.
 
 1. `Read(file_path="${CLAUDE_PLUGIN_ROOT}/src/dev10x/core/validators/command-skill-map.yaml")`
+2. `Glob(pattern="*.yaml", path="${CLAUDE_PLUGIN_ROOT}/src/dev10x/core/validators/command-skill-map.d")`,
+   then `Read` every file it lists.
 
-The YAML in `skills/diag-friction/references/command-skill-map.yaml`
-is a legacy copy — prefer the hook's YAML which is the single
-source of truth.
+The map is split into per-plugin fragments (ADR-0034 Stage A3): the
+base file holds the core rules and `command-skill-map.d/<plugin>.yaml`
+holds the rest. The hook evaluates the base rules first, then each
+fragment in `src/dev10x/core/plugins.yaml` order (`core`, then `qa`,
+`infra`, `db`, `comm`, `teach`, `tasks`, `scoping`, `coding`); the
+first matching rule wins. Reading only the base file misses most
+rules.
 
 Match the identified command against the `patterns` list in each
 mapping entry. Use prefix matching — if the command starts with

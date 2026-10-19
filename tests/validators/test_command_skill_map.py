@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-import yaml
+from dev10x.config.loader import load_document
 
 from tests.validators.loop_shapes import BARE_POLL_LOOP
 
@@ -30,8 +30,7 @@ _REQUIRED_RULE_FIELDS: frozenset[str] = frozenset(
 
 
 def _load_rules() -> list[dict[str, Any]]:
-    data: dict[str, Any] = yaml.safe_load(_YAML_PATH.read_text()) or {}
-    return data.get("rules", [])
+    return load_document(yaml_path=_YAML_PATH).get("rules", [])
 
 
 def _hook_block_rules() -> list[dict[str, Any]]:
@@ -51,7 +50,7 @@ class TestYamlFileAccessible:
         assert _YAML_PATH.exists(), f"YAML not found at {_YAML_PATH}"
 
     def test_yaml_parses_without_error(self) -> None:
-        data = yaml.safe_load(_YAML_PATH.read_text())
+        data = load_document(yaml_path=_YAML_PATH)
         assert isinstance(data, dict)
 
     def test_rules_list_is_non_empty(self) -> None:

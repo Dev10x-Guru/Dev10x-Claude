@@ -4,7 +4,6 @@ from pathlib import Path
 
 import pytest
 import yaml
-
 from dev10x.domain.common.config_io import ConfigIOError
 from dev10x.domain.documents.config_document import Config
 from dev10x.domain.rules.rule_engine import RuleEngine
@@ -204,6 +203,28 @@ class TestRuleEngineEvaluateCommand:
         result = engine.evaluate_command(command="git push --dry-run")
 
         assert result is None
+
+
+class TestMatchingCommandRules:
+    """GH-1590: every matching rule, in order, so a caller can skip one."""
+
+    @pytest.fixture()
+    def engine(self) -> RuleEngine:
+        return RuleEngine(
+            command_rules=[
+                MatchingRule(name="loop", matcher="Bash", patterns=[r"\bwhile\b"]),
+                MatchingRule(name="unrelated", matcher="Bash", patterns=["^kubectl"]),
+                MatchingRule(name="push", matcher="Bash", patterns=["git push"]),
+            ],
+        )
+
+    def test_yields_every_match_in_rule_order(self, engine: RuleEngine) -> None:
+        matches = engine.matching_command_rules(command="while true; do git push; done")
+
+        assert [rule.name for rule in matches] == ["loop", "push"]
+
+    def test_yields_nothing_for_an_unmatched_command(self, engine: RuleEngine) -> None:
+        assert list(engine.matching_command_rules(command="git status")) == []
 
 
 class TestSubcommandBoundary:

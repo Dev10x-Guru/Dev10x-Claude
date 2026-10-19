@@ -18,6 +18,7 @@ REFERENCE = re.compile(r"(?<![\w.-])[Dd]ev10x:([a-z0-9][a-z0-9-]*[a-z0-9])(?![\w
 SCANNED_SUFFIXES = (".md", ".yaml", ".yml", ".json", ".py", ".sh")
 SCANNED_DIRS = ("skills", "docs", "references", "agents", "commands")
 SCANNED_FILES = ("src/dev10x/core/validators/command-skill-map.yaml",)
+SCANNED_FRAGMENT_DIRS = ("src/dev10x/core/validators/command-skill-map.d",)
 
 
 def references_in(*, text: str) -> list[str]:
@@ -30,6 +31,8 @@ def scanned_paths(*, root: Path) -> list[Path]:
         if (root / directory).is_dir():
             paths.extend(walk_repository(root / directory, suffixes=SCANNED_SUFFIXES))
     paths.extend(root / file for file in SCANNED_FILES if (root / file).is_file())
+    for directory in SCANNED_FRAGMENT_DIRS:
+        paths.extend(sorted((root / directory).glob("*.yaml")))
     return paths
 
 
@@ -48,6 +51,7 @@ __all__ = [
     "REFERENCE",
     "SCANNED_DIRS",
     "SCANNED_FILES",
+    "SCANNED_FRAGMENT_DIRS",
     "SCANNED_SUFFIXES",
     "count_references",
     "references_in",

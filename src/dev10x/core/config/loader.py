@@ -105,7 +105,7 @@ def _write_cache(
         pass
 
 
-def _load_document(*, yaml_path: Path) -> dict[str, Any]:
+def load_document(*, yaml_path: Path) -> dict[str, Any]:
     data: dict[str, Any] = yaml.safe_load(yaml_path.read_text()) or {}
     directory = fragment_dir(yaml_path=yaml_path)
     if not directory.is_dir():
@@ -115,7 +115,7 @@ def _load_document(*, yaml_path: Path) -> dict[str, Any]:
 
 
 def _parse_yaml(*, yaml_path: Path) -> Config:
-    data = _load_document(yaml_path=yaml_path)
+    data = load_document(yaml_path=yaml_path)
     cfg_data = data.get("config", {})
 
     rules = [MatchingRule.from_yaml_entry(entry=entry) for entry in data.get("rules", [])]
