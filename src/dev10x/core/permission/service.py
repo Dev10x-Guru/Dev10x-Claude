@@ -21,6 +21,7 @@ from typing import Any
 
 from dev10x.domain.common.result import ErrorResult, Result, ok
 from dev10x.skills.permission.catalog_merge import CatalogDrift
+from dev10x.skills.permission.settings_discovery import outside_roots
 
 
 @dataclass(frozen=True)
@@ -31,6 +32,7 @@ class PermissionContext:
     config: dict[str, Any]
     settings_files: list[Path]
     drift: CatalogDrift = field(default_factory=CatalogDrift)
+    out_of_roots: list[Path] = field(default_factory=list)
 
 
 def load_permission_context(*, include_user: bool | None = None) -> Result[PermissionContext]:
@@ -47,7 +49,7 @@ def load_permission_context(*, include_user: bool | None = None) -> Result[Permi
     an explicit bool to override it (e.g. ``promote-plan`` excludes
     user settings).
     """
-    from dev10x.skills.permission import update_paths as mod
+    from dev10x.core.skills.permission import update_paths as mod
 
     resolved = mod.find_config()
     if isinstance(resolved, ErrorResult):
@@ -57,16 +59,15 @@ def load_permission_context(*, include_user: bool | None = None) -> Result[Permi
     config = merged.config
 
     use_user = config.get("include_user_settings", True) if include_user is None else include_user
-    settings_files = mod.find_settings_files(
-        roots=config.get("roots", []),
-        include_user=use_user,
-    )
+    roots = config.get("roots", [])
+    settings_files = mod.find_settings_files(roots=roots, include_user=use_user)
     return ok(
         PermissionContext(
             config_path=config_path,
             config=config,
             settings_files=settings_files,
             drift=merged.drift,
+            out_of_roots=outside_roots(files=settings_files, roots=roots),
         )
     )
 

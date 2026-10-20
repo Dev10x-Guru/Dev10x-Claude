@@ -22,7 +22,7 @@ from pathlib import Path
 
 import msgpack
 import pytest
-import yaml
+from dev10x.config.loader import load_document
 
 YAML_PATH = (
     Path(__file__).resolve().parent.parent.parent
@@ -35,7 +35,7 @@ YAML_PATH = (
 
 
 def _load_yaml() -> dict:
-    return yaml.safe_load(YAML_PATH.read_text())
+    return load_document(yaml_path=YAML_PATH)
 
 
 def _extract_patterns(data: dict) -> list[str]:

@@ -31,13 +31,13 @@ async def catalog_gap(*, verbose: bool = False) -> Result[dict[str, Any]]:
 
     Returns:
         ok({"total_missing": int, "files_checked": int, "clean": bool,
-            "messages": [str, ...]})
+            "messages": [str, ...], "out_of_roots": [str, ...]})
     """
     return await asyncio.to_thread(_run_catalog_gap, verbose=verbose)
 
 
 def _run_catalog_gap(*, verbose: bool) -> Result[dict[str, Any]]:
-    from dev10x.skills.permission import update_paths as mod
+    from dev10x.core.skills.permission import update_paths as mod
 
     ctx = load_permission_context()
     if isinstance(ctx, ErrorResult):
@@ -51,6 +51,7 @@ def _run_catalog_gap(*, verbose: bool) -> Result[dict[str, Any]]:
         settings_files=settings_files,
         quiet=False,
         verbose=verbose,
+        out_of_roots=ctx.value.out_of_roots,
     )
     # catalog_gap is typed dict[str, object]; the counts are ints by
     # contract, so narrow explicitly rather than trusting the annotation.
@@ -61,6 +62,7 @@ def _run_catalog_gap(*, verbose: bool) -> Result[dict[str, Any]]:
             "files_checked": int(cast(int, result.get("files_changed", 0))),
             "clean": total_missing == 0,
             "messages": result.get("messages", []),
+            "out_of_roots": [str(path) for path in ctx.value.out_of_roots],
         }
     )
 
@@ -75,7 +77,7 @@ def _run_sub_command(
     dry_run: bool = False,
     quiet: bool = False,
 ) -> Result[dict[str, Any]]:
-    from dev10x.skills.permission import update_paths as mod
+    from dev10x.core.skills.permission import update_paths as mod
 
     ctx = load_permission_context()
     if isinstance(ctx, ErrorResult):
@@ -213,7 +215,7 @@ def _run_update_paths(
 ) -> Result[dict[str, Any]]:
     from pathlib import Path
 
-    from dev10x.skills.permission import update_paths as mod
+    from dev10x.core.skills.permission import update_paths as mod
 
     if init:
         return err("init is not supported via MCP; run `uvx dev10x permission init`.")

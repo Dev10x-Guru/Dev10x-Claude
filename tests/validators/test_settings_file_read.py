@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-import yaml
+from dev10x.config.loader import load_document
 
 _YAML_PATH = (
     Path(__file__).resolve().parent.parent.parent
@@ -20,8 +20,7 @@ _YAML_PATH = (
 
 
 def _rule(name: str) -> dict[str, Any]:
-    data: dict[str, Any] = yaml.safe_load(_YAML_PATH.read_text()) or {}
-    for entry in data.get("rules", []):
+    for entry in load_document(yaml_path=_YAML_PATH).get("rules", []):
         if entry.get("name") == name:
             return entry
     raise AssertionError(f"rule {name!r} not found in command-skill-map.yaml")

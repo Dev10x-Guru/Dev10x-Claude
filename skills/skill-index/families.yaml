@@ -6,98 +6,17 @@
 # display_map translates display-names to internal invocation-name
 # keys from SKILL.md. Skills not in display_map match by exact key.
 #
-# This file is the core fragment (ADR-0034 Stage A3, GH-1552). Entries
-# that name one plugin's skills live in families.d/<plugin>.yaml and
-# are merged in by scripts/lib-families.sh. `families` stays whole here:
-# it is an ordered list spanning plugins, and appending per-plugin
-# fragments would reorder SKILLS.md (#1589).
-
-display_map:
-  logs: logs:start
-  triage-sentry: triage-sentry
-  app-db: tt:db
+# This file is the core fragment (ADR-0034 Stage A3, GH-1552, GH-1589).
+# Each family lives whole in the fragment of the plugin that owns its
+# skills: families.d/<plugin>.yaml, merged in by scripts/lib-families.sh
+# core first, then in src/dev10x/core/plugins.yaml order — which is the
+# order SKILLS.md lists the families in. Only Dev10x skills belong in a
+# shipped family; add personal skills through a user families.yaml.
 
 families:
-  - label: Pipeline
-    description: "Scope → branch → implement → PR"
+  - label: Setup
+    description: "Onboarding and playbooks"
     skills:
       - dev10x:onboarding
-      - ticket:work-on
       - dev10x:playbook
       - dev10x:playbook-maintenance
-      - ticket:scope
-      - ticket:create
-      - ticket:branch
-
-  - label: Git
-    description: "Atomic commits, clean history"
-    skills:
-      - commit
-      - commit:split
-      - commit:fixup
-      - branch:groom
-      - commit:to-new-ticket
-
-  - label: PR
-    description: "Full PR lifecycle with review agents"
-    skills:
-      - pr:create
-      - pr:review
-      - pr:respond
-      - pr:monitor
-      - pr:request-review
-      - pr:triage
-      - pr:comment-fixup
-
-  - label: Session
-    description: "Track progress, defer & resume work"
-    skills:
-      - dev10x:session-wrap-up
-      - dev10x:park
-      - dev10x:park-discover
-
-  - label: Testing
-    description: "pytest, e2e, QA"
-    skills:
-      - test
-      - test:fix-flaky
-      - tt:e2e-debug
-      - dev10x:qa-scope
-      - dev10x:qa-self
-
-  - label: Ops
-    description: "k8s logs, payment & device debugging"
-    skills:
-      - logs
-      - debug:payments
-      - debug:square-terminal
-      - dev10x:investigate
-      - triage-sentry
-      - inbox:triage
-
-  - label: Data
-    description: "Schema context, safe queries, KPI"
-    skills:
-      - app-db
-      - Dev10x-db-psql
-      - report:pos-gpv
-
-  - label: Reports
-    description: "Standups, summaries, release notes"
-    skills:
-      - work:daily
-      - work:weekly
-      - work:summary
-      - release-notes
-      - release:safe-to-ship
-
-  - label: Meta
-    description: "Create skills, audit usage, code review"
-    skills:
-      - dev10x:skill-create
-      - dev10x:skill-audit
-      - dev10x:skill-index
-      - dev10x:memory-maintenance
-      - dev10x:context-audit
-      - dev10x:playbook-maintenance
-      - review

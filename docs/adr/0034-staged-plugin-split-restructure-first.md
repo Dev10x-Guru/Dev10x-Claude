@@ -25,11 +25,13 @@ step ever depends on the split being finished.
 ### Current State
 
 - One plugin, `dev10x`, with 94 skills, 2 MCP servers (`cli` with about
-  90 tools, `db`), 11 hook entries, and one `src/dev10x` package.
+  90 tools, `db`), 12 hook entries across `hooks/hooks.json` and
+  `hooks/hooks.d/*.json`, and one `src/dev10x` package.
 - Shared configuration that mixes every area:
   - the permission catalog (`skills/upgrade-cleanup/projects.yaml`);
   - `skills/skill-index/families.yaml`;
-  - `src/dev10x/validators/command-skill-map.yaml`;
+  - `src/dev10x/core/validators/command-skill-map.yaml` (with
+    fragments in `command-skill-map.d/`);
   - `hooks/hooks.json`.
 - The `cli` MCP server runs scripts that live inside coding skill
   folders, such as `gh-context`, `gh-pr-*`, `git-*`, `release-notes`
@@ -67,8 +69,11 @@ We will split in **two stages**.
 2. **Stage B** then extracts one plugin at a time, renaming only the
    skills that move in each step.
 
-The core plugin **keeps the name `dev10x`**, both MCP servers, and all
-hooks. That way no MCP tool is ever renamed.
+The core plugin **keeps the name `dev10x`**, both MCP servers, and the
+core hooks in `hooks/hooks.json`. Each other plugin's hook entries live
+in `hooks/hooks.d/<plugin>.json`, which the manifest lists under
+`"hooks"` so Claude Code merges them into the default file (GH-1556).
+That way no MCP tool is ever renamed.
 
 ### Architecture
 
@@ -143,7 +148,7 @@ Every step ships inside `dev10x` and keeps:
    `dev10x`:
    - the permission catalog;
    - `families.yaml` and `command-skill-map.yaml`;
-   - `hooks.json`.
+   - `hooks.json`, split into `hooks/hooks.d/<plugin>.json`.
 
    The same step removes three cross-area edges:
    - `gh-context` leaves coding, so tickets no longer depend on it;
@@ -200,6 +205,92 @@ Order, set by the supervisor:
    [Stage B decisions](#stage-b-decisions)).
 4. **One PyPI package, `dev10x`.** All plugins import from it, which
    avoids duplicating the safety-hook chain.
+
+### Plugin dependencies
+
+The install chain is **coding → tasks → core** (GH-1556). Coding's
+`work-on` keeps a terminal task open through the tasks plugin's
+`task-guard`, so coding cannot install without tasks, and every plugin
+needs core.
+
+`src/dev10x/core/plugins.yaml` records this as data:
+
+- `dependencies` lists hard install dependencies by namespace key
+  (`coding: [tasks]`). Core is implicit for every plugin and declares
+  none. A test requires known keys and an acyclic graph; Stage B turns
+  each entry into the manifest `dependencies` field (Key rule 3).
+- `soft_dependencies` lists the mutual `Skill()` edges that degrade
+  when the other plugin is absent: coding↔scoping and QA→coding
+  (`review-pack → request-review`). These are not install
+  requirements, may form cycles, and are only checked for known keys.
+- `extracted` lists the keys already shipped as their own plugin. A key
+  not listed there still ships inside `dev10x`, so
+  `dev10x.core.plugin_enablement` resolves it to the core install id
+  (`dev10x@Dev10x-Guru`); an extracted key resolves to
+  `dev10x-<key>@<marketplace>`.
+
+### Hooks per plugin
+
+Hooks follow the same split. `hooks/hooks.json` keeps the core entries
+(session start/stop, skill pre/post, the Bash/Monitor validator chain,
+the Edit/Write validator, pre-compact, permission-denied).
+`hooks/hooks.d/tasks.json` holds `task-guard` and `task-plan-sync`, and
+`hooks/hooks.d/coding.json` holds `ruff-format`. Claude Code runs
+matching hooks from all files in parallel, in no defined order, so no
+entry may depend on another running first.
+
+`task-guard` belongs to tasks (resolving open decision 2). It guards a
+plan whose context sets `guard_terminal_task`, the generic opt-in any
+orchestrator can write. Coding's `work_on`/`routing_table` context
+keys trigger it only while the coding plugin is enabled, read from the
+`enabledPlugins` settings (local over project over user), and an
+unreadable settings file counts as enabled.
+
+### Config fragments per plugin
+
+The permission catalog, `families.yaml` and `command-skill-map.yaml`
+split in Stage A3 (GH-1589, GH-1590). Each base file keeps core's part,
+and `<name>.d/<plugin>.yaml` holds each plugin's. Readers merge core
+first, then the fragments in `plugins.yaml` order.
+
+The supervisor accepted the reorder this causes:
+
+- `ensure-base` appends catalog rules in the merged order, not the
+  one-file order. A test pins that every list keeps the same multiset
+  of rules, with no duplicates.
+- `SKILLS.md` lists families in plugin order (Setup, QA, Data, Meta,
+  Session, Scoping, then the coding families).
+- DX006's first-match-wins can pick a different rule when several rules
+  match one command. Tests pin the winners that changed.
+
+Ownership rules:
+
+1. **MCP allows** belong to the plugin whose skills declare the tool in
+   `allowed-tools`. A tool declared by skills of several plugins, or by
+   none, stays in core. A test recomputes each owner from the skill
+   front matter and `plugins.yaml`, with a short override list (the
+   `db` server's `query` belongs to db).
+2. **`Bash(gh …)` and `Bash(git …)`** allows, the git aliases, the
+   test/lint runners and the foreman CLI spellings belong to coding.
+   Generic shell, `/tmp`, data tools, docs domains, `Skill(dev10x:*)`
+   and the `dev10x` CLI stay in core.
+3. **The safety floor stays in core:** `base_asks`, `base_denies`,
+   `tracker_denies` and the IDE blocks. A deny must hold in every
+   install, whichever plugins it has.
+4. **Families stay whole.** Each family lives in exactly one fragment,
+   and every skill in it belongs to that fragment's plugin. Shipped
+   families name only Dev10x skills.
+5. **DX006 rules** belong to the plugin of their first skill
+   compensation, or to the owner of the tool they steer to. Generic
+   shell-shape rules stay in core. `ci-loop-handrolled` stays in core
+   on purpose: a CI poll loop must reach it before
+   `watch-loop-handrolled` and before any plugin's rules. The `gh` CLI
+   rules stay together in coding even where their wrapper is used more
+   widely.
+
+The hook skips an exempted match (a safe push, a backgrounded watch
+loop) and keeps evaluating, so the reorder cannot let a loop body
+through unchecked (GH-1590).
 
 ## Alternatives Considered
 
@@ -355,8 +446,9 @@ The supervisor decided the Stage B open decisions on 2026-10-19
 
 1. ~~How satellites declare their dependency on core~~ — decided
    (GH-1561): see [Stage B decisions](#stage-b-decisions).
-2. Where `task-guard` lives: core, task management, or coding (before
-   A3).
+2. ~~Where `task-guard` lives~~ — decided (GH-1556): task management,
+   with coding's rules gated on the coding plugin being enabled (see
+   [Hooks per plugin](#hooks-per-plugin)).
 3. ~~Where `qa-scope` lives~~ — decided (GH-1562): coding.
 4. ~~Whether B9 runs~~ — decided (GH-1563): it runs, with coding's MCP
    tools kept in core.

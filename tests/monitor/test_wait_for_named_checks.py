@@ -2,21 +2,20 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
 import pytest
-import yaml
-
 from dev10x.skills.monitor.ci_check_status import (
     compute_verdict,
     is_terminal,
     unsettled_named_checks,
 )
 
+from dev10x.core.config.hook_fragments import merged_hook_entries
+from dev10x.core.config.loader import load_document
+
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-_HOOKS = _REPO_ROOT / "hooks" / "hooks.json"
 _MAP = _REPO_ROOT / "src" / "dev10x" / "core" / "validators" / "command-skill-map.yaml"
 
 _BOT_LEGS = ["claude-review", "hygiene-review"]
@@ -92,16 +91,17 @@ def test_green_run_with_wait_for_still_waits_for_an_unregistered_leg():
 
 def test_monitor_is_on_the_bash_validator_chain():
     """A loop routed through Monitor to dodge the Bash hook is seen too."""
-    hooks = json.loads(_HOOKS.read_text())
-    pre = hooks["hooks"]["PreToolUse"]
-    monitor = next(entry for entry in pre if entry["matcher"] == "Monitor")
-    bash = next(entry for entry in pre if entry["matcher"] == "Bash")
-    assert monitor["hooks"][0]["command"] == bash["hooks"][0]["command"]
+    commands = {
+        matcher: command
+        for event, matcher, command, _ in merged_hook_entries(plugin_root=_REPO_ROOT)
+        if event == "PreToolUse"
+    }
+    assert commands["Monitor"] == commands["Bash"]
 
 
 @pytest.mark.parametrize("rule_name", ["ci-loop-handrolled", "watch-loop-handrolled"])
 def test_loop_shapes_are_denied_not_advised(rule_name: str):
-    data = yaml.safe_load(_MAP.read_text()) or {}
+    data = load_document(yaml_path=_MAP)
     rule = next(r for r in data["rules"] if r["name"] == rule_name)
     assert rule["hook_block"] is True
     assert rule["compensations"], "a blocking rule must name an executable fix"

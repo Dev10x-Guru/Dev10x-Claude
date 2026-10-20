@@ -13,12 +13,13 @@ import sys
 from pathlib import Path
 
 import pytest
+import yaml
 from click.testing import CliRunner
-
-from dev10x.cli import cli
-from dev10x.config.loader import load_config
+from dev10x.config.loader import load_config, load_document
 from dev10x.domain.rules.rule_engine import RuleEngine
 from dev10x.hooks.edit_validator import validate_edit_write
+
+from dev10x.cli import cli
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -57,7 +58,7 @@ class TestConfigCaching:
             pytest.skip("command-skill-map.yaml not found")
 
         yaml_copy = tmp_path / "config.yaml"
-        yaml_copy.write_text(yaml_path.read_text())
+        yaml_copy.write_text(yaml.safe_dump(load_document(yaml_path=yaml_path)))
 
         load_config(yaml_path=yaml_copy)
 
@@ -69,7 +70,7 @@ class TestConfigCaching:
             pytest.skip("command-skill-map.yaml not found")
 
         yaml_copy = tmp_path / "config.yaml"
-        yaml_copy.write_text(yaml_path.read_text())
+        yaml_copy.write_text(yaml.safe_dump(load_document(yaml_path=yaml_path)))
 
         first = load_config(yaml_path=yaml_copy)
         second = load_config(yaml_path=yaml_copy)
@@ -122,7 +123,7 @@ class TestEditValidatorRules:
         if not yaml_path.exists():
             pytest.skip("command-skill-map.yaml not found")
 
-        engine = RuleEngine.from_yaml(path=yaml_path)
+        engine = RuleEngine.from_config(config=load_config(yaml_path=yaml_path))
 
         assert len(engine.edit_rules) > 0
         assert all(r.name for r in engine.edit_rules)

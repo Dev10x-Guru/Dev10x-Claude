@@ -8,8 +8,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
-import yaml
-
+from dev10x.config.loader import load_document
 from dev10x.domain.common.baseline_catalog import load_baseline_dict
 from dev10x.skills.permission.catalog_paths import load_catalog_document
 
@@ -60,7 +59,7 @@ def test_qa_self_declares_the_verbs_its_scripts_call():
 
 
 def test_map_steers_raw_composition_to_the_script():
-    data = yaml.safe_load(_MAP.read_text()) or {}
+    data = load_document(yaml_path=_MAP)
     rule = next(r for r in data["rules"] if r["name"] == "qa-evidence-stitch")
     assert rule["hook_block"] is False  # advisory — the script is the fix
     assert "convert-evidence.sh" in rule["except"]

@@ -1,0 +1,15 @@
+# Permission-catalog fragment for the QA plugin (ADR-0034 Stage A3,
+# GH-1589). Merged into ../projects.yaml by
+# dev10x.core.skills.permission.catalog_paths; see the base file's
+# header for the catalog itself.
+
+base_permissions:
+  # --- QA evidence inspection (GH-1141) ---
+  # `identify` is read-only and already required by qa-self's
+  # verify-evidence.py, which shells out to
+  # `identify -format '%[fx:standard_deviation]'` to reject blank
+  # screenshots. The composing verbs (magick/montage/convert) live in
+  # the tier-2 `imagemagick-evidence` group instead — the sanctioned
+  # path for those is `convert-evidence.sh stitch`, whose fixed shape
+  # the versioned per-file script rule already covers.
+  - "Bash(identify:*)"

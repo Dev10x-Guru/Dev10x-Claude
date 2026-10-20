@@ -2,7 +2,8 @@
 
 ``tests/fixtures/skill_reference_inventory.json`` pins the reference
 count per skill across skills, playbooks, evals, docs, references,
-agents, commands and ``command-skill-map.yaml``. A Stage B rename PR
+agents, commands, ``command-skill-map.yaml`` and its ``command-skill-map.d``
+fragments. A Stage B rename PR
 moves a skill's whole count to its new prefix; any other change means a
 reference was added or dropped, so update the fixture in the same PR.
 """
@@ -16,6 +17,7 @@ import pytest
 
 from dev10x.core.plugin_map import skill_directories
 from dev10x.core.skill_references import (
+    SCANNED_FRAGMENT_DIRS,
     count_references,
     references_in,
     scanned_paths,
@@ -105,3 +107,10 @@ class TestReferenceDetection:
         (tmp_path / "docs" / "ignored.txt").write_text("dev10x:git\n")
 
         assert count_references(paths=scanned_paths(root=tmp_path)) == {"git": 2, "review": 1}
+
+    def test_command_map_fragments_are_scanned(self, tmp_path: Path) -> None:
+        fragments = tmp_path / SCANNED_FRAGMENT_DIRS[0]
+        fragments.mkdir(parents=True)
+        (fragments / "coding.yaml").write_text("skill: dev10x:git-commit\n")
+
+        assert scanned_paths(root=tmp_path) == [fragments / "coding.yaml"]

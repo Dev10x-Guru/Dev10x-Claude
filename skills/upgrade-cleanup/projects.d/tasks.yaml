@@ -1,0 +1,15 @@
+# Permission-catalog fragment for the tasks plugin (ADR-0034 Stage A3,
+# GH-1589). Merged into ../projects.yaml by
+# dev10x.core.skills.permission.catalog_paths; see the base file's
+# header for the catalog itself.
+
+base_permissions:
+  # --- Dev10x MCP tools: cli server (GH-878, GH-1215) ---
+  - "mcp__plugin_dev10x_cli__task_index_get"
+  # The park family's only sanctioned write path (GH-1009, ADR-0018 D5).
+  # Reaching the store with Write/Edit trips the self-settings consent
+  # gate AND bypasses the file lock, so two parallel worktrees parking at
+  # once lose an entry — the prompt here has no safe alternative to steer
+  # toward.
+  - "mcp__plugin_dev10x_cli__task_index_append"
+  - "mcp__plugin_dev10x_cli__task_index_set"

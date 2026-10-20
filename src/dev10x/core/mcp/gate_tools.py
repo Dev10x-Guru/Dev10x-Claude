@@ -16,9 +16,6 @@ import asyncio
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from dev10x.domain.common.result import ErrorResult, Result, err, ok
-from dev10x.domain.documents.friction_yaml import PinScope
-from dev10x.domain.file_locks import atomic_append_line
 from dev10x.core.mcp._app import mcp_tool
 
 # Read/compute half of gate resolution (GH-840). Re-exported here so the
@@ -29,6 +26,9 @@ from dev10x.core.mcp.gate_query import (
     PROJECT_POLICY_RELPATH,
     GateResolutionQuery,
 )
+from dev10x.domain.common.result import ErrorResult, Result, err, ok
+from dev10x.domain.documents.friction_yaml import PinScope
+from dev10x.domain.file_locks import atomic_append_line
 
 if TYPE_CHECKING:  # pragma: no cover
     from dev10x.domain.gate_policy import GateResolution
@@ -37,7 +37,6 @@ __all__ = [
     "LEGACY_PROJECT_POLICY_RELPATH",
     "PROJECT_POLICY_RELPATH",
     "GateResolutionQuery",
-    "human_review_status",
     "ide_status",
     "pin_gate_preset",
     "pin_ide",
@@ -168,15 +167,14 @@ async def preset_pin_status(cwd: str | None = None) -> Result[dict]:
 
 
 def _read_supervisor_review() -> Result[dict[str, Any]]:
-    """Shared body for `supervisor_review_status` and its deprecated alias.
+    """Body of `supervisor_review_status`.
 
     Callers bind the effective CWD (GH-979) before invoking this.
     """
+    from dev10x.core.mcp.gate_query import _policy_toplevel
     from dev10x.domain.documents.friction_yaml import FrictionYamlDocument
     from dev10x.domain.documents.session_yaml import SessionYamlDocument
-    from dev10x.domain.gate_policy import SUPERVISOR_REVIEW_REQUIRED
     from dev10x.domain.git_context import GitContext
-    from dev10x.core.mcp.gate_query import _policy_toplevel
 
     toplevel = GitContext().toplevel
     if toplevel is None:
@@ -189,8 +187,9 @@ def _read_supervisor_review() -> Result[dict[str, Any]]:
     policy_toplevel = _policy_toplevel(toplevel)
     document = SessionYamlDocument(toplevel=policy_toplevel)
     supervisor_review = document.read_supervisor_review()
-    # A `friction.yaml` entry (either key — the deprecated `human_review`
-    # alias still counts, GH-1165) is "pinned"; falling back to `defaults:`
+    # A `friction.yaml` entry (either key — the `human_review` config key
+    # still counts until its removal version in dev10x.domain.deprecations,
+    # GH-1165) is "pinned"; falling back to `defaults:`
     # or the safe unset default is not. This is the "first pick" signal an
     # onboarding gate consults before offering to remember the answer —
     # same contract as `preset_pin_status` / `tracker_status`.
@@ -199,9 +198,6 @@ def _read_supervisor_review() -> Result[dict[str, Any]]:
     return ok(
         {
             "supervisor_review": supervisor_review,
-            # Deprecated alias, emitted until its removal version in
-            # dev10x.domain.deprecations (ADR-0022 D-2).
-            "human_review": supervisor_review == SUPERVISOR_REVIEW_REQUIRED,
             "pinned": pinned,
             "repo_root": toplevel,
         }
@@ -231,30 +227,11 @@ async def supervisor_review_status(cwd: str | None = None) -> Result[dict]:
     Returns:
         Dictionary with keys: supervisor_review ("required" | "none" —
         "required" when unset or malformed, so a bad value fails toward
-        MORE oversight), human_review (the deprecated boolean alias),
-        pinned (bool — a `friction.yaml` entry names `supervisor_review`
-        or the deprecated `human_review` alias; consult this BEFORE
+        MORE oversight), pinned (bool — a `friction.yaml` entry names
+        `supervisor_review` or the legacy `human_review` key; consult this BEFORE
         offering to remember an onboarding pick, same "first pick"
         contract as `preset_pin_status` / `tracker_status`), repo_root.
         `{"error": ...}` outside a git repo.
-    """
-    return await asyncio.to_thread(_read_supervisor_review)
-
-
-@mcp_tool
-async def human_review_status(cwd: str | None = None) -> Result[dict]:
-    """Deprecated alias for `supervisor_review_status` (ADR-0022 D-2).
-
-    `human_review` conflated the session supervisor with the wider team,
-    which is why it could only ever gate `merge`. Retained until its removal
-    version in `dev10x.domain.deprecations`; returns the same payload,
-    including the boolean `human_review` key.
-
-    Args:
-        cwd: Effective working directory (GH-979).
-
-    Returns:
-        Same as `supervisor_review_status`.
     """
     return await asyncio.to_thread(_read_supervisor_review)
 
@@ -318,7 +295,7 @@ async def tracker_status(cwd: str | None = None) -> Result[dict]:
         source ("project" | "defaults" | "default"), repo_name, repo_root,
         choices. `{"error": ...}` outside a git repository.
     """
-    from dev10x.session import tracker_pin
+    from dev10x.core.session import tracker_pin
 
     return await asyncio.to_thread(tracker_pin.tracker_status, cwd=cwd)
 
@@ -352,7 +329,7 @@ async def pin_tracker(
         prefs. `{"error": ...}` on an unknown tracker or scope, or
         outside a git repository.
     """
-    from dev10x.session import tracker_pin
+    from dev10x.core.session import tracker_pin
 
     return await asyncio.to_thread(tracker_pin.pin_tracker, tracker=tracker, scope=scope, cwd=cwd)
 
@@ -376,7 +353,7 @@ async def ide_status(cwd: str | None = None) -> Result[dict]:
         ("project" | "defaults" | "default"), repo_name, repo_root,
         choices. `{"error": ...}` outside a git repository.
     """
-    from dev10x.session import ide_pin
+    from dev10x.core.session import ide_pin
 
     return await asyncio.to_thread(ide_pin.ide_status, cwd=cwd)
 
@@ -414,7 +391,7 @@ async def pin_ide(
         prefs. `{"error": ...}` on an unknown IDE or scope, or outside a
         git repository.
     """
-    from dev10x.session import ide_pin
+    from dev10x.core.session import ide_pin
 
     return await asyncio.to_thread(ide_pin.pin_ide, ide=ide, scope=scope, cwd=cwd)
 
@@ -454,7 +431,7 @@ async def pin_supervisor_review(
         prefs. `{"error": ...}` on an unknown value or scope, or outside a
         git repository.
     """
-    from dev10x.session import supervisor_review_pin
+    from dev10x.core.session import supervisor_review_pin
 
     return await asyncio.to_thread(
         supervisor_review_pin.pin_supervisor_review,

@@ -1,0 +1,17 @@
+{
+  "description": "Coding hooks: format the edited Python hunk after Edit/Write",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PLUGIN_ROOT/hooks/scripts/audit-wrap ruff-format $CLAUDE_PLUGIN_ROOT/hooks/scripts/ruff-format.py",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}

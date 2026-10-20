@@ -1,0 +1,8 @@
+# Skill-index fragment for the db plugin (ADR-0034 Stage A3, GH-1589).
+# Merged into ../families.yaml by scripts/lib-families.sh.
+
+families:
+  - label: Data
+    description: "Safe read-only queries"
+    skills:
+      - dev10x:db-psql

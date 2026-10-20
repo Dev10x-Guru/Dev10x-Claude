@@ -77,24 +77,6 @@ class Deprecation:
 
 REGISTER: tuple[Deprecation, ...] = (
     Deprecation(
-        name="human_review_status",
-        audience=Audience.MCP,
-        since="0.97.0",
-        removed_in="0.109.0",
-        replacement="supervisor_review_status",
-        issue="GH-1161",
-        locations=("src/dev10x/core/mcp/gate_tools.py",),
-    ),
-    Deprecation(
-        name="human_review",
-        audience=Audience.MCP,
-        since="0.97.0",
-        removed_in="0.109.0",
-        replacement="supervisor_review",
-        issue="GH-1161",
-        locations=("src/dev10x/core/mcp/gate_tools.py",),
-    ),
-    Deprecation(
         name="human_review",
         audience=Audience.CONFIG,
         since="0.97.0",
@@ -104,6 +86,7 @@ REGISTER: tuple[Deprecation, ...] = (
         locations=(
             "src/dev10x/core/domain/documents/session_yaml.py",
             "src/dev10x/core/domain/documents/friction_yaml.py",
+            "src/dev10x/core/mcp/gate_tools.py",
         ),
     ),
     Deprecation(

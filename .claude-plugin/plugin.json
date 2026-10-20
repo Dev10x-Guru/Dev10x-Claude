@@ -10,6 +10,7 @@
   "repository": "https://github.com/Dev10x-Guru/dev10x-claude",
   "license": "MIT",
   "keywords": ["git", "commits", "pull-requests", "code-review", "workflow", "tasks"],
+  "hooks": ["./hooks/hooks.d/tasks.json", "./hooks/hooks.d/coding.json"],
   "mcpServers": {
     "cli": {
       "command": "${CLAUDE_PLUGIN_ROOT}/servers/cli_server.py",

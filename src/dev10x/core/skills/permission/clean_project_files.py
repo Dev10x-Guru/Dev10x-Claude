@@ -54,6 +54,7 @@ from dev10x.skills.permission.legacy_namespace import (
     NamespaceMigration,
     migrate_legacy_namespace,
 )
+from dev10x.skills.permission.settings_discovery import discover_settings
 from dev10x.skills.permission.star_prefix import StarPrefixRepair, repair_star_prefix
 
 MEMORY_CONFIG = Dev10xConfigDir.projects_yaml()
@@ -698,28 +699,7 @@ def _format_messages(
 
 
 def find_settings_files(roots: list[str]) -> list[Path]:
-    files: list[Path] = []
-
-    project_settings_dir = ClaudeDir.projects_dir()
-    if project_settings_dir.is_dir():
-        for settings_file in project_settings_dir.rglob("settings.local.json"):
-            files.append(settings_file)
-
-    for root in roots:
-        root_path = Path(root).expanduser()
-        if not root_path.is_dir():
-            continue
-        for settings_file in root_path.rglob(".claude/settings.local.json"):
-            files.append(settings_file)
-
-    seen: set[Path] = set()
-    unique: list[Path] = []
-    for f in files:
-        resolved = f.resolve()
-        if resolved not in seen:
-            seen.add(resolved)
-            unique.append(resolved)
-    return unique
+    return discover_settings(roots=roots, include_user=False).files
 
 
 @dataclass(frozen=True)

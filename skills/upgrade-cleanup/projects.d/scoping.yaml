@@ -1,15 +1,34 @@
 # Permission-catalog fragment for the tickets + scoping plugin
-# (ADR-0034 Stage A3, GH-1551). Merged into ../projects.yaml by
+# (ADR-0034 Stage A3, GH-1551, GH-1589). Merged into ../projects.yaml by
 # dev10x.core.skills.permission.catalog_paths; see that file's header
-# for the catalog itself. Only whole top-level sections live here, so
-# the merged catalog — and every settings file seeded from it — is
-# identical to the one-file original.
+# for the catalog itself. Lists append after core's and the earlier
+# plugins' in src/dev10x/core/plugins.yaml order, so the merged catalog
+# holds every rule the one-file original did, in a new order.
+
+base_permissions:
+  # --- Dev10x MCP tools: cli server (GH-878) ---
+  # GH-1153: read-only milestone/label roster behind dev10x:ticket-create
+  # Step 4. It was registered, declared in SKILL.md `allowed-tools`, and
+  # listed in .claude/rules/mcp-tools.md — none of which grants anything.
+  # Absent from every catalog, ensure-base could never seed it, so every
+  # caller prompted. test_catalog_covers_mcp_tools.py now fails on any
+  # un-catalogued read tool so this cannot recur silently.
+  - "mcp__plugin_dev10x_cli__triage_roster"
+  # GH-1359: read-only, mirrors issue_list — no gh api fallback needed.  # cli-friction: allow raw-gh-api — names the CLI it replaces
+  - "mcp__plugin_dev10x_cli__pr_list"
+  # Plugin-mandated workflow writes (GH-1215): the raw-CLI equivalents
+  # are routed to these wrappers, so leaving them uncatalogued makes the
+  # sanctioned path prompt while the unsanctioned one is denied.
+  - "mcp__plugin_dev10x_cli__milestone_create"
+  - "mcp__plugin_dev10x_cli__milestones_bulk_create"
+  - "mcp__plugin_dev10x_cli__issues_bulk_create"
+  - "mcp__plugin_dev10x_cli__issues_bulk_edit"
 
 # --- Tracker-keyed permissions (GH-768) ---
 # `ensure-base` / `seed_worktree` fold in exactly ONE of these blocks —
 # the tracker resolved from the `tracker:` key in the matching
 # `projects[]` entry of ~/.config/Dev10x/friction.yaml, defaulting to
-# `linear` (the pre-GH-768 behaviour, so upgrades lose nothing).
+# `linear` (the pre-GH-768 behavior, so upgrades lose nothing).
 #
 # v1 covers linear / jira / github. GitLab and ClickUp are deliberately
 # absent: ClickUp has no native skill or MCP path, and the `glab` surface

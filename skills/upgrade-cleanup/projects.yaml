@@ -87,22 +87,8 @@ command_spellings:
       - dev10x init
       - dev10x github-app
 
-  # GH-1317: the foreman/watchdog read-only verbs were absent in EVERY
-  # spelling, so an unattended pre-flight prompted on its own heartbeat
-  # and seventeen per-checkout catch-alls were accepted ad hoc to get
-  # past it. `skills/foreman/references/preflight-checklist.md` §1 names
-  # a fourth runner for these — the plugin-cache install invokes them
-  # through `--project $CLAUDE_PLUGIN_ROOT` (GH-961) — so that spelling
-  # is listed here and nowhere else.
-  - prefixes:
-      ["", "uvx ", "uv run ", "uv run --project $CLAUDE_PLUGIN_ROOT "]
-    commands:
-      - dev10x foreman escalate  # GH-1582
-      - dev10x foreman probe
-      - dev10x foreman retire  # GH-1577
-      - dev10x foreman watch
-      - dev10x watchdog probe
-      - dev10x watchdog sessions
+  # The foreman/watchdog spellings (GH-1317) are coding's: see
+  # projects.d/coding.yaml.
 
 # Base permissions that update-paths.py --ensure-base will add to every
 # settings.local.json if missing.  These are stable, version-independent
@@ -172,6 +158,10 @@ base_permissions:
   # already covers all grep invocations.
 
   # --- Dev10x MCP tools: cli server (GH-878) ---
+  # GH-1589: a tool's allow lives in the fragment of the plugin whose
+  # skills declare it (projects.d/<plugin>.yaml). Tools declared by
+  # skills of several plugins, or by none, stay here in core. Pinned by
+  # tests/skills/permission/test_catalog_ownership.py.
   - "mcp__plugin_dev10x_cli__detect_tracker"
   - "mcp__plugin_dev10x_cli__pr_detect"
   - "mcp__plugin_dev10x_cli__issue_get"
@@ -180,53 +170,24 @@ base_permissions:
   - "mcp__plugin_dev10x_cli__issue_comment_delete"
   - "mcp__plugin_dev10x_cli__issue_create"
   - "mcp__plugin_dev10x_cli__pr_comments"
-  - "mcp__plugin_dev10x_cli__pr_comment_reply"
-  - "mcp__plugin_dev10x_cli__pr_review_comment_edit"
-  - "mcp__plugin_dev10x_cli__request_review"
-  - "mcp__plugin_dev10x_cli__detect_base_branch"
-  - "mcp__plugin_dev10x_cli__verify_pr_state"
-  - "mcp__plugin_dev10x_cli__pre_pr_checks"
-  - "mcp__plugin_dev10x_cli__create_pr"
-  - "mcp__plugin_dev10x_cli__generate_commit_list"
-  - "mcp__plugin_dev10x_cli__post_summary_comment"
-  - "mcp__plugin_dev10x_cli__pr_notify"
   - "mcp__plugin_dev10x_cli__push_safe"
-  - "mcp__plugin_dev10x_cli__rebase_groom"
-  - "mcp__plugin_dev10x_cli__create_worktree"
-  - "mcp__plugin_dev10x_cli__mass_rewrite"
-  - "mcp__plugin_dev10x_cli__start_split_rebase"
-  - "mcp__plugin_dev10x_cli__next_worktree_name"
-  - "mcp__plugin_dev10x_cli__setup_aliases"
   - "mcp__plugin_dev10x_cli__mktmp"
   - "mcp__plugin_dev10x_cli__plan_sync_set_context"
   - "mcp__plugin_dev10x_cli__plan_sync_json_summary"
   - "mcp__plugin_dev10x_cli__plan_sync_archive"
-  - "mcp__plugin_dev10x_cli__check_top_level_comments"
-  - "mcp__plugin_dev10x_cli__unresolved_threads"
-  - "mcp__plugin_dev10x_cli__ci_check_status"
   # Test runners (GH-880, #877 E3 gap 1) — the diag-friction steer target
   # for scoped py/node tests. Without these, the steered one-liner
   # (run_node_tests(runner="npm", cwd=...)) just moves the prompt.
-  - "mcp__plugin_dev10x_cli__run_tests"
+  # `run_tests` is coding's (projects.d/coding.yaml).
   - "mcp__plugin_dev10x_cli__run_node_tests"
   - "mcp__plugin_dev10x_cli__update_paths"
-  - "mcp__plugin_dev10x_cli__collect_prs"
-  - "mcp__plugin_dev10x_cli__generate_skill_index"
-  - "mcp__plugin_dev10x_cli__audit_extract_session"
-  - "mcp__plugin_dev10x_cli__audit_analyze_actions"
   - "mcp__plugin_dev10x_cli__audit_analyze_permissions"
   - "mcp__plugin_dev10x_cli__usage_blocks"
   # GH-1175: read-only catalog-coverage check behind dev10x:diag-friction
   # Step 3a. Catalogued in the same commit that registers the tool — the
   # friction-diagnosis skill's own first step must not be a prompt.
   - "mcp__plugin_dev10x_cli__permission_catalog_gap"
-  # GH-1153: read-only milestone/label roster behind dev10x:ticket-create
-  # Step 4. It was registered, declared in SKILL.md `allowed-tools`, and
-  # listed in .claude/rules/mcp-tools.md — none of which grants anything.
-  # Absent from every catalog, ensure-base could never seed it, so every
-  # caller prompted. test_catalog_covers_mcp_tools.py now fails on any
-  # un-catalogued read tool so this cannot recur silently.
-  - "mcp__plugin_dev10x_cli__triage_roster"
+  # GH-1153's `triage_roster` lives in projects.d/scoping.yaml.
   # GH-1319: read-only milestone listing, the general-purpose counterpart
   # to triage_roster's open-milestone read. Read-only, so it belongs here
   # rather than in WRITE_TOOLS_NOT_SEEDED.
@@ -238,8 +199,6 @@ base_permissions:
   # the test's WRITE_TOOLS_NOT_SEEDED list).
   - "mcp__plugin_dev10x_cli__audit_hook_log_path"
   - "mcp__plugin_dev10x_cli__audit_hook_recent"
-  - "mcp__plugin_dev10x_cli__background_preamble"
-  - "mcp__plugin_dev10x_cli__resolve_plugin_origin"
   - "mcp__plugin_dev10x_cli__slack_thread_is_forward"
 
   # GH-1215: the guard added by GH-1153 scanned 5 of 12 mcp modules and
@@ -255,19 +214,11 @@ base_permissions:
   - "mcp__plugin_dev10x_cli__resolve_gate"
   - "mcp__plugin_dev10x_cli__preset_pin_status"
   - "mcp__plugin_dev10x_cli__supervisor_review_status"
-  - "mcp__plugin_dev10x_cli__human_review_status"
   - "mcp__plugin_dev10x_cli__tracker_status"
   # GH-1261
   - "mcp__plugin_dev10x_cli__ide_status"
-  - "mcp__plugin_dev10x_cli__task_index_get"
   - "mcp__plugin_dev10x_cli__list_client_roots"
   - "mcp__plugin_dev10x_cli__pr_get"
-  # GH-1359: read-only, mirrors issue_list — no gh api fallback needed.  # cli-friction: allow raw-gh-api — names the CLI it replaces
-  - "mcp__plugin_dev10x_cli__pr_list"
-  # pr_labels defaults to action="list"; its add/remove writes are the
-  # sanctioned path for the review:cleared signal (GH-1008) and are
-  # idempotent, so skills call them unconditionally rather than probing.
-  - "mcp__plugin_dev10x_cli__pr_labels"
   # Review-pattern analysis (GH-346..GH-350). All four report only —
   # author_reference_rules is a dry run that returns rendered docs for
   # human review and writes no file.
@@ -292,27 +243,16 @@ base_permissions:
   - "mcp__plugin_dev10x_cli__pr_review_edit"
   - "mcp__plugin_dev10x_cli__resolve_review_thread"
   - "mcp__plugin_dev10x_cli__minimize_comments"
-  - "mcp__plugin_dev10x_cli__milestone_create"
-  - "mcp__plugin_dev10x_cli__milestone_close"
   - "mcp__plugin_dev10x_cli__milestone_edit"
   - "mcp__plugin_dev10x_cli__milestone_reopen"
-  - "mcp__plugin_dev10x_cli__milestones_bulk_create"
-  - "mcp__plugin_dev10x_cli__issues_bulk_create"
-  - "mcp__plugin_dev10x_cli__issues_bulk_edit"
-  # issue_labels (GH-1322): same GH-1215 reasoning as pr_labels above —
-  # its raw-CLI equivalent (`gh issue edit --add-label`/`--remove-label`)  # cli-friction: allow raw-gh-issue — names the CLI it replaces
+  # issue_labels (GH-1322): same GH-1215 reasoning as pr_labels
+  # (projects.d/coding.yaml) — its raw-CLI equivalent
+  # (`gh issue edit --add-label`/`--remove-label`)  # cli-friction: allow raw-gh-issue — names the CLI it replaces
   # is routed/blocked, so this wrapper is the only sanctioned route.
   - "mcp__plugin_dev10x_cli__issue_labels"
-  # The park family's only sanctioned write path (GH-1009, ADR-0018 D5).
-  # Reaching the store with Write/Edit trips the self-settings consent
-  # gate AND bypasses the file lock, so two parallel worktrees parking at
-  # once lose an entry — the prompt here has no safe alternative to steer
-  # toward.
-  - "mcp__plugin_dev10x_cli__task_index_append"
-  - "mcp__plugin_dev10x_cli__task_index_set"
-
-  # --- Dev10x MCP tools: db server (GH-878) ---
-  - "mcp__plugin_dev10x_db__query"
+  # The milestone create/bulk writes are scoping's, milestone_close is
+  # coding's, the park family's task_index_* writes are tasks', and the
+  # db server's `query` is db's — each in its projects.d fragment.
 
   # --- Temp file tree (GH-878, GH-1095, GH-1325) ---
   # mktmp writes every skill's intermediate files under /tmp/Dev10x/.
@@ -324,35 +264,11 @@ base_permissions:
   - "Read(//tmp/Dev10x/**)"
   - "Edit(//tmp/Dev10x/**)"
 
-  # --- gh CLI patterns (GH-98) ---
-  - "Bash(gh pr view:*)"
-  - "Bash(gh pr diff:*)"
-  - "Bash(gh pr list:*)"
-  - "Bash(gh pr create:*)"
-  - "Bash(gh pr comment:*)"
-  - "Bash(gh pr review:*)"
-  - "Bash(gh pr checks:*)"
-  - "Bash(gh pr edit:*)"
-  - "Bash(gh pr ready:*)"
-  - "Bash(gh issue view:*)"
-  - "Bash(gh issue list:*)"
-  - "Bash(gh issue create:*)"
-  - "Bash(gh issue comment:*)"
-  - "Bash(gh api:*)"
-  - "Bash(gh auth:*)"
-  - "Bash(gh run view:*)"
-  - "Bash(gh run list:*)"
-  - "Bash(gh run watch:*)"
-  - "Bash(gh repo view:*)"
-  - "Bash(gh repo clone:*)"
-  - "Bash(gh repo set-default:*)"
-  # gh project read verbs (GH-1078). Write verbs (create/edit/delete/
-  # link/unlink/mark-template/item-add/item-edit/item-delete/
-  # item-archive) are deliberately absent so they keep prompting.
-  - "Bash(gh project list:*)"
-  - "Bash(gh project view:*)"
-  - "Bash(gh project item-list:*)"
-  - "Bash(gh project field-list:*)"
+  # --- gh and git CLI (GH-98 and later) ---
+  # Every `Bash(gh …)` and `Bash(git …)` allow, the git aliases, the
+  # GitHub SSH probe and the test, lint and pre-commit runners live in
+  # projects.d/coding.yaml (GH-1589). The pager denies stay below in
+  # `base_denies`: a floor belongs to core.
 
   # --- Read-only discovery in plugin cache (GH-122) ---
   # `Bash(find:*)` does not reliably match `find <path> ... | head`
@@ -363,78 +279,15 @@ base_permissions:
   # legacy `Dev10x` one match (GH-1499).
   - "Bash(find ~/.claude/plugins/cache/Dev10x-Guru:*)"
 
-  # --- Common git operations ---
-  - "Bash(git log:*)"
-  - "Bash(git add:*)"
-  - "Bash(git commit:*)"
-  - "Bash(git push:*)"
-  - "Bash(git diff:*)"
-  - "Bash(git status:*)"
-  - "Bash(git fetch:*)"
-  - "Bash(git branch:*)"
-  - "Bash(git branch -d:*)"
-  - "Bash(git branch -D:*)"
-  - "Bash(git branch --delete:*)"
-  - "Bash(git checkout:*)"
-  - "Bash(git symbolic-ref:*)"
-  - "Bash(git reset --soft:*)"
-  - "Bash(git reset --hard:*)"
-  - "Bash(git rebase:*)"
-  - "Bash(git stash:*)"
-  - "Bash(git remote:*)"
-
   # --- QA evidence inspection (GH-1141) ---
-  # `identify` is read-only and already required by qa-self's
-  # verify-evidence.py, which shells out to
-  # `identify -format '%[fx:standard_deviation]'` to reject blank
-  # screenshots. The composing verbs (magick/montage/convert) live in
-  # the tier-2 `imagemagick-evidence` group instead — the sanctioned
-  # path for those is `convert-evidence.sh stitch`, whose fixed shape
-  # the versioned per-file script rule already covers.
-  - "Bash(identify:*)"
-
-  # --- Read-only cross-worktree git spellings (GH-1135, GH-1268) ---
-  # GH-1472 settled the open question this block depended on (ADR-0021,
-  # GH-925 F2): a mid-path `*` before `:*` is a literal character, so
-  # all 27 rules that stood here (`git -C * <verb>:*` and both plumbing
-  # orderings) never matched. They were dropped rather than rewritten to
-  # the space form, where `*` would also match `-c core.fsmonitor=<cmd>`
-  # and turn a read into arbitrary execution. A cross-worktree read
-  # prompts, as it always did; prefer running from the target checkout.
+  # `Bash(identify:*)` lives in projects.d/qa.yaml.
 
   # --- Python project tooling (GH-20) ---
   # PEP 723 shebangs (#!/usr/bin/env -S uv run --script) execute
   # via direct script paths already enumerated under "Plugin
-  # scripts". The rules below cover explicit Bash invocations
-  # of `uv run` for tests, lint, and CLI usage.
-  - "Bash(uv run pytest:*)" # cli-friction: allow raw-pytest — base allow rule for plugin-maintenance, not a skill doc
-  - "Bash(uv run --extra dev pytest:*)" # cli-friction: allow raw-pytest — base allow rule for plugin-maintenance, not a skill doc
-  - "Bash(uv run ruff:*)"
+  # scripts". The rule below covers the Dev10x CLI through `uv run`;
+  # the test, lint and dependency runners are coding's.
   - "Bash(uv run dev10x:*)"
-  # GH-1248 added `uv run --directory * <tool>:*` forms here; GH-1472
-  # dropped them — the `*` before `:*` is literal, so they never matched.
-  # The DX007 prefix-friction validator already strips `--directory <p>`
-  # and re-matches the inner command against the plain rules above.
-  # GH-1189: `uv lock`, `uv sync`, `uv build`, `uv tool`, `uv pip *` and
-  # `uv run *` were all catalogued; `uv add` was not, so a crew worker
-  # adding a dependency prompted on an unattended night run while
-  # `catalog-gap` reported 0 missing. `npm install *` is already a default
-  # at the same trust level — both mutate a manifest and a lockfile in the
-  # checkout, neither reaches outside it. `uv remove` is the symmetric
-  # form; cataloguing only the additive half is how the next unattended
-  # run finds the same wedge from the other direction.
-  - "Bash(uv add:*)"
-  - "Bash(uv remove:*)"
-  # GH-1149: the SANCTIONED lint form is bare `pre-commit run` — CLAUDE.md
-  # says to call it directly, never via `uv run`. Only the discouraged
-  # `uv run` shape was catalogued here, so the form users are told to use
-  # prompted in every project. The rule exists in
-  # src/dev10x/core/skills/permission/baseline-permissions.yaml (build-tools
-  # tier), but that catalog is read by `permission resolve/audit/doctor`
-  # and never by the ensure-base write path — a rule present only there
-  # reaches no settings file. Global settings happened to carry it, which
-  # masked the gap until GH-47 (project file wins) made global irrelevant.
-  - "Bash(pre-commit run:*)"
 
   # --- Temp-file staging (GH-1189) ---
   # `cp`/`mv` under the plugin's own scratch roots prompted on an
@@ -491,35 +344,6 @@ base_permissions:
   - "Bash(type:*)"
   - "Bash(hash:*)"
 
-  # --- SSH probes (GH-20) ---
-  # Push/PR setup paths verify GitHub SSH access.
-  - "Bash(ssh -T git@github.com)"
-
-  # --- Git aliases (GH-852, GH-853) ---
-  # All base branch aliases from dev10x:git-alias-setup.
-  # Preserved at project level as safety anchors — they enable
-  # hook feedback and branch-specific allow rules.
-  - "Bash(git develop-log:*)"
-  - "Bash(git develop-diff:*)"
-  - "Bash(git develop-rebase:*)"
-  - "Bash(git autosquash-develop:*)"
-  - "Bash(git development-log:*)"
-  - "Bash(git development-diff:*)"
-  - "Bash(git development-rebase:*)"
-  - "Bash(git autosquash-development:*)"
-  - "Bash(git trunk-log:*)"
-  - "Bash(git trunk-diff:*)"
-  - "Bash(git trunk-rebase:*)"
-  - "Bash(git autosquash-trunk:*)"
-  - "Bash(git main-log:*)"
-  - "Bash(git main-diff:*)"
-  - "Bash(git main-rebase:*)"
-  - "Bash(git autosquash-main:*)"
-  - "Bash(git master-log:*)"
-  - "Bash(git master-diff:*)"
-  - "Bash(git master-rebase:*)"
-  - "Bash(git autosquash-master:*)"
-
   # --- Safe-by-default command catalog (GH-310) ---
   # Goal: an unsupervised (adaptive / AFK) session must never stall on a
   # permission prompt for a command that is safe to run. Every prompt is
@@ -575,9 +399,7 @@ base_permissions:
   - "Bash(date:*)"
 
   # Version / help info flags for the option-2 footgun verbs — always safe
-  - "Bash(git --version)"
-  - "Bash(gh --version)"
-  - "Bash(gh --help)"
+  # (the git and gh ones are coding's)
   - "Bash(bash --version)"
   - "Bash(sh --version)"
   - "Bash(uv --version)"
@@ -596,35 +418,6 @@ base_permissions:
   - "Bash(env --version)"
   - "Bash(xargs --version)"
   - "Bash(make --version)"
-
-  # git — read-only inspection (mutating git already covered above and
-  # routed to skills via the SkillRedirectValidator allow rules)
-  - "Bash(git show:*)"
-  - "Bash(git rev-parse:*)"
-  - "Bash(git describe:*)"
-  - "Bash(git ls-files:*)"
-  - "Bash(git ls-tree:*)"
-  - "Bash(git blame:*)"
-  - "Bash(git shortlog:*)"
-  - "Bash(git merge-base:*)"
-  - "Bash(git worktree list:*)"
-  - "Bash(git config --get:*)"
-  - "Bash(git config --list:*)"
-  - "Bash(git tag --list:*)"
-  - "Bash(git reflog:*)"
-  - "Bash(git cat-file:*)"
-  - "Bash(git rev-list:*)"
-  - "Bash(git for-each-ref:*)"
-
-  # gh — read-only inspection (mutating gh already covered above)
-  - "Bash(gh release view:*)"
-  - "Bash(gh release list:*)"
-  - "Bash(gh search:*)"
-  - "Bash(gh label list:*)"
-  - "Bash(gh workflow view:*)"
-  - "Bash(gh workflow list:*)"
-  - "Bash(gh cache list:*)"
-  - "Bash(gh pr status:*)"
 
   # uv — read-only environment inspection (test/lint/run already covered)
   - "Bash(uv pip list:*)"
@@ -840,7 +633,7 @@ base_denies:
   # command prefix and defeats allow-rule matching for every `Bash(git <verb>:*)`
   # rule in this catalog — the same prefix-shift problem documented for env-var
   # prefixes. Neither pager shape is in base_permissions, so denying them is
-  # additive hardening rather than a behaviour change: today they fall through
+  # additive hardening rather than a behavior change: today they fall through
   # to a prompt. Git is already non-interactive under Claude Code, so the pager
   # flags buy nothing that would be lost.
   #

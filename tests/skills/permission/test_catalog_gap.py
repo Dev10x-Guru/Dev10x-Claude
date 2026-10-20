@@ -6,10 +6,10 @@ import json
 from pathlib import Path
 
 import pytest
+from dev10x.skills.permission.catalog_gap import compute_gap, format_gap_report, rule_family
 
 from dev10x.skills.permission import catalog_write as mod
 from dev10x.skills.permission import enumerate_mcp
-from dev10x.skills.permission.catalog_gap import compute_gap, format_gap_report, rule_family
 
 
 @pytest.fixture
@@ -318,6 +318,23 @@ def test_catalog_gap_is_clean_after_ensure_base(
     result = mod.catalog_gap(config=config, settings_files=[settings_file])
     assert result["exit_code"] == 0
     assert "0 missing allow / 0 missing deny" in "\n".join(result["messages"])
+
+
+def test_catalog_gap_lists_out_of_roots_worktrees(settings_file: Path, config: dict):
+    """GH-1626: a worktree found only through git is named on its own."""
+    result = mod.catalog_gap(
+        config=config,
+        settings_files=[settings_file],
+        out_of_roots=[settings_file],
+    )
+    report = "\n".join(result["messages"])
+    assert "Out-of-roots worktrees (1)" in report
+    assert f"  {settings_file}" in result["messages"]
+
+
+def test_catalog_gap_omits_section_without_out_of_roots(settings_file: Path, config: dict):
+    result = mod.catalog_gap(config=config, settings_files=[settings_file])
+    assert "Out-of-roots" not in "\n".join(result["messages"])
 
 
 def test_catalog_gap_writes_nothing(settings_file: Path, config: dict):

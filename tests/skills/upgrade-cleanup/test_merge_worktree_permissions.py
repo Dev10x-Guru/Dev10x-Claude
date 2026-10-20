@@ -4,12 +4,13 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-
-from dev10x.skills.permission import merge_worktree_permissions as mod
 from dev10x.skills.permission.merge_worktree_permissions import (
     generalize_permission,
     is_noise,
 )
+
+from dev10x import subprocess_utils
+from dev10x.skills.permission import merge_worktree_permissions as mod
 
 
 def _make_worktree(*, main: Path, wt: Path, settings: bool = True) -> None:
@@ -101,7 +102,7 @@ class TestGitRegisteredWorktrees:
     def test_parses_porcelain_worktree_paths(self, tmp_path: Path, monkeypatch) -> None:
         out = "worktree /a/main\nHEAD abc\n\nworktree /a/side/wt1\nHEAD def\n"
         monkeypatch.setattr(
-            mod.subprocess_utils,
+            subprocess_utils,
             "run",
             lambda *a, **k: SimpleNamespace(returncode=0, stdout=out),
         )
@@ -112,7 +113,7 @@ class TestGitRegisteredWorktrees:
 
     def test_empty_when_not_a_git_repo(self, tmp_path: Path, monkeypatch) -> None:
         monkeypatch.setattr(
-            mod.subprocess_utils,
+            subprocess_utils,
             "run",
             lambda *a, **k: SimpleNamespace(returncode=128, stdout=""),
         )

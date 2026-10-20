@@ -11,8 +11,8 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from dev10x.domain.common.result import ErrorResult, err, ok
+
 from dev10x.permission import service
 from dev10x.skills.permission import catalog_load
 from dev10x.skills.permission import update_paths as up
@@ -45,6 +45,12 @@ def test_returns_context_on_success(stub_config: dict) -> None:
     assert ctx.config_path == Path("/cfg.yaml")
     assert ctx.config["roots"] == ["/root"]
     assert ctx.settings_files == [Path("/proj/.claude/settings.local.json")]
+
+
+def test_reports_files_outside_every_root(stub_config: dict) -> None:
+    """GH-1626: /proj sits outside the configured /root, so it was found via git."""
+    result = service.load_permission_context()
+    assert result.value.out_of_roots == [Path("/proj/.claude/settings.local.json")]
 
 
 def test_honors_config_include_user_by_default(stub_config: dict) -> None:

@@ -90,9 +90,8 @@ re-derive preset behavior in prose. The tool reads session policy
 0. **Durable posture pre-check (ADR-0019, renamed by ADR-0022 D-2).** Call
    `mcp__plugin_dev10x_cli__supervisor_review_status()` and read
    `supervisor_review` from the response (default `required`; the
-   deprecated boolean `human_review` rides along until removal in
-   `0.112.0` per the deprecation register (GH-1161, ADR-0028), where
-   `required` is `true`). Do NOT read
+   boolean `human_review` payload key was removed in `0.109.0` per the
+   deprecation register, GH-1161, ADR-0028). Do NOT read
    `~/.config/Dev10x/friction.yaml` directly or re-derive its
    first-match-wins precedence in prose — same rule this section already
    applies to `resolve_gate`. When it is `false`, this project has no humans in

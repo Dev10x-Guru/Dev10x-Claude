@@ -1,6 +1,6 @@
 # Hook Implementation Patterns
 
-> **[OVERRIDE DETECTED]** — 458 lines against the 200-line rule-file
+> **[OVERRIDE DETECTED]** — 488 lines against the 200-line rule-file
 > budget in `.claude/rules/INDEX.md` (GH-1438), the second-largest
 > unexplained breach after `mcp-tools.md`.
 >
@@ -228,9 +228,16 @@ GH-1143 — and it is why `decide` reads the marker but never writes it.
 Do NOT create a new hook entry in `hooks/hooks.json` for a
 SessionStart/Stop feature — always extend the orchestrator.
 
+### Hook files are split per plugin (GH-1556)
+
+`hooks/hooks.json` holds the core entries; each other plugin's live
+in `hooks/hooks.d/<plugin>.json`, listed under `"hooks"` in
+`.claude-plugin/plugin.json` (ADR-0034). Matching hooks from all files
+run in parallel, in no defined order — never rely on sequencing.
+
 ### Audit wrapper application
 
-Every entry in `hooks/hooks.json` is prefixed with `audit-wrap`:
+Every entry in every hook file is prefixed with `audit-wrap`:
 
 ```
 $CLAUDE_PLUGIN_ROOT/hooks/scripts/audit-wrap <name> <command-path>
@@ -266,7 +273,7 @@ that configures 99 and passes its own pre-commit on the original forms.
 2. **Never prune imports or apply lint fixes.** Unused-import removal
    needs whole-file intent; a post-`Edit` pass sees one step of a
    possibly multi-step change. Leave it to the project's pre-commit.
-3. **Honour the project's configuration.** Read `[tool.ruff]`, then
+3. **Honor the project's configuration.** Read `[tool.ruff]`, then
    `[tool.black] line-length`, then `max-line-length`. A project that
    runs its own pre-commit and configures no ruff formatter is left
    alone entirely — anything the hook rewrites there is net-new

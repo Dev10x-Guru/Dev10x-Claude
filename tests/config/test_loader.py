@@ -10,13 +10,13 @@ from pathlib import Path
 import msgpack
 import pytest
 import yaml
-
 from dev10x.config.loader import (
     _dict_to_config,
     _parse_yaml,
     _read_cache,
     _write_cache,
     load_config,
+    load_document,
     source_files,
 )
 
@@ -306,6 +306,26 @@ class TestFragments:
 
         assert "qa-rule" in [rule.name for rule in result.rules]
 
+    def test_the_cache_records_every_fragment_it_was_built_from(
+        self, yaml_file: Path, cache_path: Path, fragment_dir: Path
+    ) -> None:
+        load_config(yaml_path=yaml_file)
+
+        data = msgpack.unpackb(cache_path.read_bytes(), raw=False)
+
+        assert data["sources"] == [str(yaml_file), str(fragment_dir / "qa.yaml")]
+
+    def test_touching_a_fragment_invalidates_the_cache(
+        self, yaml_file: Path, cache_path: Path, fragment_dir: Path
+    ) -> None:
+        load_config(yaml_path=yaml_file)
+        future = time.time() + 10
+        os.utime(fragment_dir / "qa.yaml", (future, future))
+
+        result = _read_cache(cache_path=cache_path, yaml_path=yaml_file, ttl_seconds=3600)
+
+        assert result is None
+
     def test_a_cache_without_a_source_list_still_serves_a_plain_map(
         self, yaml_file: Path, cache_path: Path
     ) -> None:
@@ -314,6 +334,35 @@ class TestFragments:
         result = _read_cache(cache_path=cache_path, yaml_path=yaml_file, ttl_seconds=3600)
 
         assert result is not None
+
+
+class TestLoadDocument:
+    """GH-1590: readers of the raw map get the same merge the hook loads."""
+
+    def test_a_map_without_fragments_is_the_file(
+        self, yaml_file: Path, minimal_yaml_content: dict
+    ) -> None:
+        assert load_document(yaml_path=yaml_file) == minimal_yaml_content
+
+    def test_fragment_rules_are_appended_in_plugin_order(
+        self, yaml_file: Path, fragment_dir: Path
+    ) -> None:
+        (fragment_dir / "coding.yaml").write_text(_rule_fragment(name="coding-rule"))
+
+        document = load_document(yaml_path=yaml_file)
+
+        assert [rule["name"] for rule in document["rules"]] == [
+            "block-push",
+            "qa-rule",
+            "coding-rule",
+        ]
+
+    def test_the_config_section_survives_the_merge(
+        self, yaml_file: Path, fragment_dir: Path
+    ) -> None:
+        document = load_document(yaml_path=yaml_file)
+
+        assert document["config"] == {"plugin_repo": "https://github.com/example/repo"}
 
 
 class TestDictToConfig:
