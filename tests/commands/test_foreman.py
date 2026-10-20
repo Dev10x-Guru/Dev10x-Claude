@@ -86,9 +86,8 @@ def test_probe_reports_parked_and_own_merge_contracts(scratchpad: Path) -> None:
 def test_watch_mutes_own_merge_base_movement(
     scratchpad: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import dev10x.skills.foreman.watch as watch
-
     import dev10x.commands.foreman as commands
+    import dev10x.skills.foreman.watch as watch
 
     (scratchpad / "merged-shas").write_text("def5678\n", encoding="utf-8")
     shas = iter(["abc1234", "def5678abc", "def5678abc"])
@@ -142,9 +141,8 @@ def test_probe_reports_the_burn_projection(scratchpad: Path) -> None:
 def test_watch_emits_quota_low_before_the_wall(
     scratchpad: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import dev10x.skills.foreman.watch as watch
-
     import dev10x.commands.foreman as commands
+    import dev10x.skills.foreman.watch as watch
 
     monkeypatch.setattr(
         watch,
@@ -279,9 +277,8 @@ def test_probe_flags_a_retired_heartbeat(scratchpad: Path) -> None:
 
 
 def test_watch_emits_base_movement(scratchpad: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    import dev10x.skills.foreman.watch as watch
-
     import dev10x.commands.foreman as commands
+    import dev10x.skills.foreman.watch as watch
 
     shas = iter(["abc1234", "def5678", "def5678"])
     monkeypatch.setattr(watch, "base_branch_sha", lambda *, base_branch, repo=None: next(shas))

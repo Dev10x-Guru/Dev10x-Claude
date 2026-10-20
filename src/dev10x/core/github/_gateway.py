@@ -24,10 +24,10 @@ import subprocess
 from collections.abc import Callable
 from typing import Any
 
+from dev10x.core.github.app_auth import AppConfig, get_bot_token
 from dev10x.domain.common.repository_ref import RepositoryRef
 from dev10x.domain.common.result import Result, err, ok
 from dev10x.domain.retry import RetryPolicy, is_retryable, retry_after_seconds
-from dev10x.core.github.app_auth import AppConfig, get_bot_token
 from dev10x.subprocess_utils import async_run, async_run_script
 
 log = logging.getLogger(__name__)

@@ -8,8 +8,8 @@ from collections.abc import Callable
 from pathlib import Path
 
 import pytest
-from dev10x.domain.common.result import err, ok
 
+from dev10x.domain.common.result import err, ok
 from dev10x.skills.foreman import (
     WatchState,
     active_quota_block,

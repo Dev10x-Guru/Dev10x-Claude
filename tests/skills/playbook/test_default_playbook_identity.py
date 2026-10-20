@@ -11,6 +11,10 @@ The one intended change since is ``optional: true`` on the three
 structured-spec steps that delegate to scoping skills, so they drop out
 when scoping is not installed. The golden is compared with exactly that
 delta removed, and the delta is asserted on its own.
+
+The top-level ``version`` is left out of every digest: bumpversion
+rewrites it on each release, which is not a change to the plays
+(GH-1608).
 """
 
 from __future__ import annotations
@@ -25,8 +29,9 @@ import pytest
 from dev10x.skills.playbook import load_plugin_default
 from dev10x.subprocess_utils import get_plugin_root
 
-PRE_SPLIT_SHA256 = "0cd0de092fb5c7a3507835463491af468a3c9ac5abc32249e844d449048d81c5"
-RESOLVED_SHA256 = "45d198d7bc59616c52cfba507f2df9d10242e31a6ec342db9b184c78338b1f9b"
+PRE_SPLIT_SHA256 = "a9ee7911d09b680484b249271d5c427554ef68ec93f21ce04fc9e01d6d0869c3"
+RESOLVED_SHA256 = "6a8db9b4d64ce1497b8094415e85368f09e488c90fb867fadcd8a4ce1cfb93c2"
+RELEASE_MANAGED_KEY = "version"
 
 DELTA_PLAY = "structured-spec"
 OPTIONAL_SINCE_SPLIT = (
@@ -37,7 +42,8 @@ OPTIONAL_SINCE_SPLIT = (
 
 
 def _digest(document: dict[str, Any]) -> str:
-    canonical = json.dumps(document, sort_keys=True, ensure_ascii=False)
+    pinned = {key: value for key, value in document.items() if key != RELEASE_MANAGED_KEY}
+    canonical = json.dumps(pinned, sort_keys=True, ensure_ascii=False)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
@@ -75,6 +81,12 @@ def test_split_reproduces_the_pre_split_document(resolved: dict[str, Any]) -> No
 @pytest.mark.parametrize("subject", OPTIONAL_SINCE_SPLIT)
 def test_scoping_steps_are_optional(subject: str, resolved: dict[str, Any]) -> None:
     assert _steps_by_subject(resolved)[subject]["optional"] is True
+
+
+def test_release_version_bump_keeps_the_pin(resolved: dict[str, Any]) -> None:
+    bumped = {**resolved, RELEASE_MANAGED_KEY: "999.0.0"}
+
+    assert _digest(bumped) == _digest(resolved)
 
 
 def test_resolved_default_is_pinned(resolved: dict[str, Any]) -> None:

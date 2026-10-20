@@ -37,7 +37,7 @@ async def catalog_gap(*, verbose: bool = False) -> Result[dict[str, Any]]:
 
 
 def _run_catalog_gap(*, verbose: bool) -> Result[dict[str, Any]]:
-    from dev10x.skills.permission import update_paths as mod
+    from dev10x.core.skills.permission import update_paths as mod
 
     ctx = load_permission_context()
     if isinstance(ctx, ErrorResult):
@@ -75,7 +75,7 @@ def _run_sub_command(
     dry_run: bool = False,
     quiet: bool = False,
 ) -> Result[dict[str, Any]]:
-    from dev10x.skills.permission import update_paths as mod
+    from dev10x.core.skills.permission import update_paths as mod
 
     ctx = load_permission_context()
     if isinstance(ctx, ErrorResult):
@@ -213,7 +213,7 @@ def _run_update_paths(
 ) -> Result[dict[str, Any]]:
     from pathlib import Path
 
-    from dev10x.skills.permission import update_paths as mod
+    from dev10x.core.skills.permission import update_paths as mod
 
     if init:
         return err("init is not supported via MCP; run `uvx dev10x permission init`.")

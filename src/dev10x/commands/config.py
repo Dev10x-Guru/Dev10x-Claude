@@ -57,7 +57,7 @@ def _schema_report(*, cwd: str | None, dry_run: bool) -> dict[str, Any]:
     The domain layer returns ``Result`` so the same call is reusable from
     an MCP boundary; the script layer owns the exit code (GH-246 H7).
     """
-    from dev10x.domain.common.result import SuccessResult
+    from dev10x.core.domain.common.result import SuccessResult
     from dev10x.domain.config_migration import migrate_configs
 
     result = migrate_configs(toplevel=cwd or os.getcwd(), dry_run=dry_run)
@@ -121,8 +121,8 @@ def migrate_skill_names(*, dry_run: bool) -> None:
     playbook overrides under the Dev10x config root. Idempotent — a run
     with no old names left writes nothing.
     """
+    from dev10x.core.domain.common.result import SuccessResult
     from dev10x.core.skills.upgrade_cleanup.skill_names import migrate_user_configs
-    from dev10x.domain.common.result import SuccessResult
 
     result = migrate_user_configs(config_home=Dev10xConfigDir.home(), dry_run=dry_run)
     if not isinstance(result, SuccessResult):

@@ -16,9 +16,6 @@ import asyncio
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from dev10x.domain.common.result import ErrorResult, Result, err, ok
-from dev10x.domain.documents.friction_yaml import PinScope
-from dev10x.domain.file_locks import atomic_append_line
 from dev10x.core.mcp._app import mcp_tool
 
 # Read/compute half of gate resolution (GH-840). Re-exported here so the
@@ -29,6 +26,9 @@ from dev10x.core.mcp.gate_query import (
     PROJECT_POLICY_RELPATH,
     GateResolutionQuery,
 )
+from dev10x.domain.common.result import ErrorResult, Result, err, ok
+from dev10x.domain.documents.friction_yaml import PinScope
+from dev10x.domain.file_locks import atomic_append_line
 
 if TYPE_CHECKING:  # pragma: no cover
     from dev10x.domain.gate_policy import GateResolution
@@ -162,7 +162,7 @@ async def preset_pin_status(cwd: str | None = None) -> Result[dict]:
         entry's durable keys, or {}), suggested_match (the globs a `repo`
         scoped pin would write). `{"error": ...}` outside a git repo.
     """
-    from dev10x.session import preset_pin
+    from dev10x.core.session import preset_pin
 
     return await asyncio.to_thread(preset_pin.preset_pin_status, cwd=cwd)
 
@@ -172,11 +172,11 @@ def _read_supervisor_review() -> Result[dict[str, Any]]:
 
     Callers bind the effective CWD (GH-979) before invoking this.
     """
+    from dev10x.core.mcp.gate_query import _policy_toplevel
     from dev10x.domain.documents.friction_yaml import FrictionYamlDocument
     from dev10x.domain.documents.session_yaml import SessionYamlDocument
     from dev10x.domain.gate_policy import SUPERVISOR_REVIEW_REQUIRED
     from dev10x.domain.git_context import GitContext
-    from dev10x.core.mcp.gate_query import _policy_toplevel
 
     toplevel = GitContext().toplevel
     if toplevel is None:
@@ -288,7 +288,7 @@ async def pin_gate_preset(
         Dictionary with keys: path, match, repo_name, repo_root, scope,
         prefs. `{"error": ...}` on an unknown scope or outside a git repo.
     """
-    from dev10x.session import preset_pin
+    from dev10x.core.session import preset_pin
 
     return await asyncio.to_thread(
         preset_pin.pin_preset,
@@ -318,7 +318,7 @@ async def tracker_status(cwd: str | None = None) -> Result[dict]:
         source ("project" | "defaults" | "default"), repo_name, repo_root,
         choices. `{"error": ...}` outside a git repository.
     """
-    from dev10x.session import tracker_pin
+    from dev10x.core.session import tracker_pin
 
     return await asyncio.to_thread(tracker_pin.tracker_status, cwd=cwd)
 
@@ -352,7 +352,7 @@ async def pin_tracker(
         prefs. `{"error": ...}` on an unknown tracker or scope, or
         outside a git repository.
     """
-    from dev10x.session import tracker_pin
+    from dev10x.core.session import tracker_pin
 
     return await asyncio.to_thread(tracker_pin.pin_tracker, tracker=tracker, scope=scope, cwd=cwd)
 
@@ -376,7 +376,7 @@ async def ide_status(cwd: str | None = None) -> Result[dict]:
         ("project" | "defaults" | "default"), repo_name, repo_root,
         choices. `{"error": ...}` outside a git repository.
     """
-    from dev10x.session import ide_pin
+    from dev10x.core.session import ide_pin
 
     return await asyncio.to_thread(ide_pin.ide_status, cwd=cwd)
 
@@ -414,7 +414,7 @@ async def pin_ide(
         prefs. `{"error": ...}` on an unknown IDE or scope, or outside a
         git repository.
     """
-    from dev10x.session import ide_pin
+    from dev10x.core.session import ide_pin
 
     return await asyncio.to_thread(ide_pin.pin_ide, ide=ide, scope=scope, cwd=cwd)
 
@@ -454,7 +454,7 @@ async def pin_supervisor_review(
         prefs. `{"error": ...}` on an unknown value or scope, or outside a
         git repository.
     """
-    from dev10x.session import supervisor_review_pin
+    from dev10x.core.session import supervisor_review_pin
 
     return await asyncio.to_thread(
         supervisor_review_pin.pin_supervisor_review,

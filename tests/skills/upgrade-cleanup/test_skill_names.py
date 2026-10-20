@@ -7,8 +7,8 @@ Every test writes under ``tmp_path``; the root conftest also points
 
 from __future__ import annotations
 
-from contextlib import contextmanager
 from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest

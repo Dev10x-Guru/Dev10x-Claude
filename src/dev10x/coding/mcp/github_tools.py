@@ -1486,7 +1486,7 @@ async def cluster_review_comments(
     Returns:
         Dictionary with keys: patterns (list), summary (dict); or error.
     """
-    from dev10x.github import review_patterns
+    from dev10x.coding.github import review_patterns
 
     return await review_patterns.cluster_review_comments(
         repos=repos,
@@ -1520,7 +1520,7 @@ async def candidate_rules_report(
         Dictionary with keys: report (str), patterns (list), summary
         (dict); or error.
     """
-    from dev10x.github import candidate_rules
+    from dev10x.coding.github import candidate_rules
 
     return await candidate_rules.candidate_rules_report(
         repos=repos,
@@ -1563,7 +1563,7 @@ async def validate_candidate_patterns(
     Returns:
         Dictionary with keys: validated (list), summary (dict); or error.
     """
-    from dev10x.github import pattern_validation
+    from dev10x.coding.github import pattern_validation
 
     return await pattern_validation.validate_candidate_patterns(
         repos=repos,
@@ -1609,7 +1609,7 @@ async def author_reference_rules(
         Dictionary with keys: rules (list), routing_fragment (str),
         summary (dict); or error.
     """
-    from dev10x.github import rule_authoring
+    from dev10x.coding.github import rule_authoring
 
     return await rule_authoring.author_reference_rules(
         repos=repos,
@@ -1640,7 +1640,7 @@ async def rule_confidence_report(
     Returns:
         Dictionary with keys: ranked (list), summary (dict).
     """
-    from dev10x.github import rule_confidence
+    from dev10x.coding.github import rule_confidence
 
     return await rule_confidence.rule_confidence_report(store_path=store_path)
 
@@ -1664,7 +1664,7 @@ async def record_rule_feedback(
     Returns:
         Dictionary with key: feedback (dict); or error on bad outcome.
     """
-    from dev10x.github import rule_confidence
+    from dev10x.coding.github import rule_confidence
 
     return await rule_confidence.record_rule_feedback(
         rule_id=rule_id,
