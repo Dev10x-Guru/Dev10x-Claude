@@ -208,6 +208,16 @@ Three constraints came out of building the first one:
    `StopSignal` — a branch nobody can observe is a branch nobody can
    retire or trust, the same argument GH-1257 made for the other five.
 
+5. **Open work never blocks.** GH-1377 blocked every turn that ended
+   with actionable tasks ("the plan still has work on it"), on the
+   theory that a Stop `block` is how auto-advance is implemented. The
+   supervisor retired it as noise: auto-advance is owned by the skill
+   and playbook instructions ("complete a task, start the next"), and
+   a hook re-asserting them after each turn of a long plan added a
+   block per turn and nothing else. Open work ends the turn under
+   `open_work`. The blocks that remain fire only once the list says
+   the work is done — a dirty tree, or the stand-down gate.
+
 **Keep the decision out of the hook.** `dev10x.hooks.stop_verdict`
 holds the rule and is a pure function over `(payload, plan)`;
 `build_stop_verdict` is the wiring that finds the plan and records the

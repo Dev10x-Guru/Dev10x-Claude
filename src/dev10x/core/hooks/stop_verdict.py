@@ -32,18 +32,17 @@ that recommendation:
 
     A gate fires only where there is no recommended next action.
 
-**Blocking continues the turn (GH-1366).** A Stop hook's ``block``
-means *do not stop*: the steer becomes the continued turn's next
-instruction. So "auto-advance" — proceed to the next task without
-asking — is expressed by BLOCKING with a continue-steer, not by
-letting the turn end. An earlier cut read it the other way and let a
-session with pending tasks stop at a "natural reporting point".
+**Open work ends the turn quietly.** GH-1377 once blocked every turn
+that stopped with actionable tasks, steering "the plan still has work
+on it". The supervisor retired it: a block on every turn of a long
+plan was noise, and auto-advance belongs to the skill and playbook
+instructions that already say "complete a task, start the next" —
+not to a hook re-asserting them after each turn.
 
-Open work therefore continues the turn. The discriminator is the
-terminal ``Verify acceptance criteria`` task GH-149 keeps open until
-the supervisor signs off: since that makes "something is open" true
-almost always, what separates "keep going" from "genuinely waiting" is
-whether anything *besides* that gate is open.
+The terminal ``Verify acceptance criteria`` task GH-149 keeps open
+still matters, because it decides which quiet ending applies: work
+besides that gate reads as ``OPEN_WORK``, the gate alone as
+``AWAITING_SUPERVISOR``.
 
 An **absent task list** is not a depleted one (GH-1055):
 the task tools ship by default only on older models, so a session
@@ -189,10 +188,10 @@ _ANSWER_RESULT_KEYS = ("questions", "answers")
 #: on running fanout children there is nothing to continue with, and the
 #: harness delivers each child's completion notification on its own — so
 #: waiting is the correct end of the turn, and `watch-loop-handrolled`
-#: rightly forbids every way of waiting in-turn. Without a marker the
-#: verdict could not tell such a task from actionable work and re-blocked
-#: every turn. Any truthy value counts; clearing it (``None``) makes the
-#: task actionable again.
+#: rightly forbids every way of waiting in-turn. The marker keeps a
+#: mid-wave turn out of the dirty-tree block, which only a finished list
+#: should reach. Any truthy value counts; clearing it (``None``) makes
+#: the task actionable again.
 AWAITING_KEY = "awaiting"
 
 
@@ -211,6 +210,8 @@ class StopSignal(StrEnum):
     apart because they answer different questions: the first says the
     plan named a next action, the second says there was no plan to read.
     Collapsing them would hide exactly the population GH-1055 is about.
+    GH-1377 turned ``OPEN_WORK`` into a blocking ``CONTINUE``; with that
+    block retired the name returns, since the turn now ends again.
 
     ``SUBAGENT_PATH`` is separated from ``SUBAGENT`` for the same reason
     (GH-1340). The payload-key discriminators have never fired, and the
@@ -225,7 +226,7 @@ class StopSignal(StrEnum):
     """
 
     STOP_HOOK_ACTIVE = "stop_hook_active"
-    CONTINUE = "continue"
+    OPEN_WORK = "open_work"
     AWAITING_SUPERVISOR = "awaiting_supervisor"
     AWAITING_SUBAGENTS = "awaiting_subagents"
     NO_TASK_LIST = "no_task_list"
@@ -999,59 +1000,21 @@ def _is_awaiting(*, task: dict) -> bool:
 
 
 def auto_advances(*, signal: TaskSignal) -> bool:
-    """Whether the agent should keep working rather than end the turn.
+    """Whether the plan still names a next action for the agent.
 
-    **The name of the verdict is not the direction of the turn**
-    (GH-1366). A Stop hook's ``block`` means *do not stop* — the turn
-    continues and the steer becomes its next instruction. GH-1339 read
-    "auto-advance" as "let the turn end quietly" and so returned
-    ``block=False`` on open work, which removed the only mechanism that
-    keeps an agent going. A session with real pending tasks then
-    stopped at a "natural reporting point" and nothing objected.
-
-    Auto-advance in this codebase means *proceed to the next task
-    without asking*, and proceeding requires the turn to stay alive. So
-    actionable work now continues the turn.
+    The answer no longer blocks the Stop. Auto-advance is the skill's
+    and playbook's job — "complete a task, start the next" — and a hook
+    re-asserting it after every turn was noise the supervisor retired.
+    What this predicate still decides is which quiet ending applies,
+    and that the tree is not consulted while work remains.
 
     The discriminator is structural, not a guess about English: GH-149
     keeps a terminal ``Verify acceptance criteria`` task open until the
-    supervisor signs off, so "something is open" is true nearly always
-    and would fire this gate every turn — the exact over-firing GH-1339
-    was filed to end. What separates "keep going" from "genuinely
-    waiting" is whether anything *besides* that gate is open.
+    supervisor signs off, so "something is open" is true nearly always.
+    What separates "work remains" from "genuinely waiting" is whether
+    anything *besides* that gate is open.
     """
     return signal.has_actionable_work
-
-
-def _continue_reason(*, signal: TaskSignal) -> str:
-    """The steer for a turn that stopped with work still to do.
-
-    It names the next task and never mentions ``AskUserQuestion``.
-    There is no decision here to hand anyone: the plan already says
-    what comes next, and asking about it is the defect GH-1339
-    removed.
-    """
-    nxt = signal.actionable_subjects[0]
-    remaining = len(signal.actionable_subjects)
-    tail = "" if remaining == 1 else f" ({remaining} tasks still open.)"
-    return (
-        "⛔  The plan still has work on it, so this turn is not over.\n\n"
-        f"Next: **{nxt}**.{tail}\n\n"
-        "Continue with it now. Do not summarise progress and stop — a "
-        "report is not a stopping point, and the supervisor asked for "
-        "the work, not a status update. Do not ask whether to carry on; "
-        "the plan is the authorisation.\n\n"
-        "Running low on context is not a reason to stop either. Carry "
-        "on, or hand off through the skill's documented wrap-up so the "
-        "remaining tasks survive — never simply end mid-plan.\n\n"
-        "If this task genuinely cannot proceed, say what blocks it and "
-        "pick up the next unblocked task instead of ending here.\n\n"
-        "If it is waiting on a subagent you already dispatched, do not "
-        "poll or loop — tag it with `TaskUpdate(taskId, "
-        f'metadata={{"{AWAITING_KEY}": "subagent"}})` and end the turn. '
-        "The completion notification wakes you; clear the tag "
-        f'(`{{"{AWAITING_KEY}": null}}`) when it arrives.'
-    )
 
 
 def _dirty_tree_reason(*, dirty: tuple[str, ...]) -> str:
@@ -1261,14 +1224,10 @@ def decide(
 def _decide_on_tasks(*, signal: TaskSignal, dirty: tuple[str, ...] | None) -> StopVerdict:
     """The task-list half of :func:`decide`, once the list is known to count."""
     if auto_advances(signal=signal):
-        # Blocking CONTINUES the turn (GH-1366). The tree is not
+        # The playbook drives the next task, not a block. The tree is not
         # consulted: uncommitted work mid-task is normal, and gating it
         # would re-create the over-firing GH-1339 removed.
-        return StopVerdict(
-            block=True,
-            reason=_continue_reason(signal=signal),
-            signal=StopSignal.CONTINUE,
-        )
+        return StopVerdict(block=False, signal=StopSignal.OPEN_WORK)
 
     if signal.awaits_dispatched_work:
         # Everything left is parked on subagents (GH-1464). Their
