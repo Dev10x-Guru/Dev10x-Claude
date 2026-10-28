@@ -789,10 +789,11 @@ Agent Tracking).
 also set `TaskUpdate(taskId, metadata={"awaiting": "subagent"})`
 and clear it (`{"awaiting": null}`) when that agent's notification
 arrives. While every open task carries the tag, the Stop verdict
-lets the turn end (`awaiting_subagents`) instead of demanding a
-continuation you cannot make — waiting in-turn is forbidden by
-`watch-loop-handrolled`, and the notification resumes you anyway.
-Without the tag the verdict re-blocked each notification turn.
+records the turn as `awaiting_subagents` rather than `open_work`,
+so the audit log tells a session waiting on its wave from one idle
+with work in hand. Either way the turn ends — waiting in-turn is
+forbidden by `watch-loop-handrolled`, and the notification resumes
+you anyway.
 
 **Serial fallback.** When the Agent tool is unavailable or
 the user opts out (`mode: serial` playbook override),

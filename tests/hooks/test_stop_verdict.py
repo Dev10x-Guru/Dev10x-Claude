@@ -754,9 +754,8 @@ class TestWiringRecordsTheBlock:
     ) -> None:
         """The wiring's whole job: find the plan and hand it to the rule.
 
-        A plan with open work keeps the turn alive (GH-1366); a depleted
-        one blocks to ask for sign-off. Both are blocks, so the verdicts
-        are told apart by their signal.
+        A plan with open work lets the turn end; a depleted one blocks to
+        ask for sign-off.
         """
         transcript = _transcript(
             tmp_path=tmp_path,
@@ -779,8 +778,7 @@ class TestWiringRecordsTheBlock:
 
         open_work = build_stop_verdict(data={"session_id": "w3", "transcript_path": transcript})
 
-        assert open_work is not None
-        assert open_work.signal == StopSignal.CONTINUE
+        assert open_work is None
 
         monkeypatch.setattr(
             "dev10x.hooks.session_dispatch.read_plan_summary",

@@ -27,7 +27,7 @@ that to be decided explicitly rather than left to grow.
 | Loop guards | `stop_hook_active`, `cooldown_marker` (`:1202-1215`) | **Floor.** Without them a blocking hook never lets a turn end |
 | Nobody to ask | `subagent`, `subagent_path`, `standby`, `no_transcript`, `no_task_list`, `foreign_plan` (`:1205-1242`) | **Structural.** No evidence, or no human on the other end |
 | Already answered | `asked`, `stood_down` (`:1228-1252`) | **Structural** |
-| Keep working | `continue` (`:1263-1271`, GH-1366) | **Not a gate.** This is how auto-advance is implemented: a Stop `block` continues the turn |
+| Work remains | `open_work` (was `continue`, GH-1366) | **Not a gate.** The turn ends quietly; auto-advance is driven by skill and playbook instructions, no longer by a continue-block |
 | Waiting correctly | `awaiting_subagents`, `awaiting_supervisor` (`:1273-1295`) | **Structural** (GH-1464, GH-149) |
 | Tree says not done | `dirty_tree` (`:1282-1290`, GH-1365) | **Instruction**, not a question |
 | **Everything complete** | `blocked` (`:1297`) with the stand-down steer (`_reason`, `:1092-1174`) | **The one decision gate.** It asks the supervisor to choose the next move, stand down, or go on standby |

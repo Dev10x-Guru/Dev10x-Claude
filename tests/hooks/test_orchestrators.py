@@ -206,25 +206,43 @@ class TestSessionStopVerdict:
         assert envelope["decision"] == "block"
         assert "dev10x:ask" in envelope["reason"]
 
-    def test_default_cwd_ignores_an_open_plan_elsewhere(self, tmp_path: Path) -> None:
-        """GH-1583/GH-1587: an open plan in another checkout must not leak in.
+    def test_default_cwd_ignores_a_blocking_plan_elsewhere(self, tmp_path: Path) -> None:
+        """GH-1583/GH-1587: a plan in another checkout must not leak in.
 
-        The open plan lives in a seeded repo that is never passed as cwd,
-        so a plain run must end quietly and only the explicit cwd blocks.
+        The blocking plan lives in a seeded repo that is never passed as
+        cwd, so a plain run must end quietly and only the explicit cwd
+        blocks.
         """
-        open_repo = _repo_with_open_plan(tmp_path=tmp_path)
+        depleted_repo = _repo_with_depleted_plan(tmp_path=tmp_path)
         payload = {
             "session_id": f"isolation-{uuid.uuid4()}",
             "transcript_path": self._transcript(tmp_path=tmp_path, closing="Committed."),
         }
 
         default_run = _run(SESSION_STOP, payload)
-        open_run = _run(
-            SESSION_STOP, {**payload, "session_id": f"isolation-{uuid.uuid4()}"}, cwd=open_repo
+        depleted_run = _run(
+            SESSION_STOP,
+            {**payload, "session_id": f"isolation-{uuid.uuid4()}"},
+            cwd=depleted_repo,
         )
 
         assert '"decision"' not in default_run.stdout
-        assert json.loads(open_run.stdout)["decision"] == "block"
+        assert json.loads(depleted_run.stdout)["decision"] == "block"
+
+    def test_an_open_plan_emits_no_envelope(self, tmp_path: Path) -> None:
+        """Open work ends the turn; the playbook, not the hook, drives the next task."""
+        result = _run(
+            SESSION_STOP,
+            {
+                "session_id": f"verdict-open-{uuid.uuid4()}",
+                "transcript_path": self._transcript(tmp_path=tmp_path, closing="Committed."),
+            },
+            cwd=_repo_with_open_plan(tmp_path=tmp_path),
+        )
+
+        assert result.returncode == 0
+        assert '"decision"' not in result.stdout
+        assert "Thank you for using Dev10x" in result.stdout
 
     def test_a_block_suppresses_the_goodbye(self, tmp_path: Path) -> None:
         """A farewell while the turn is being continued would be a lie."""

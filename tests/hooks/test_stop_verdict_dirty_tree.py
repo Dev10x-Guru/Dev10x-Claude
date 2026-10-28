@@ -100,23 +100,18 @@ class TestADirtyTreeMeansNotDone:
 
 
 class TestOpenWorkIsNeverGatedOnTheTree:
-    def test_open_work_continues_without_mentioning_the_tree(
+    def test_open_work_ends_quietly_despite_a_dirty_tree(
         self, tmp_path: Path, isolated_markers: Path
     ) -> None:
-        """WIP mid-task is normal, so the tree is not consulted yet.
-
-        The turn still continues (GH-1366), but on the plan's authority
-        — the steer names the next task, not the uncommitted files.
-        """
+        """WIP mid-task is normal, so the tree is not consulted yet."""
         verdict = decide(
             data={"session_id": "d5", "transcript_path": _transcript(tmp_path=tmp_path)},
             plan=PENDING_PLAN,
             dirty=_DIRTY,
         )
 
-        assert verdict.signal == StopSignal.CONTINUE
-        assert "Monitor CI" in verdict.reason
-        assert "stop_verdict.py" not in verdict.reason
+        assert verdict.block is False
+        assert verdict.signal == StopSignal.OPEN_WORK
 
     def test_an_absent_list_advances_with_a_dirty_tree(
         self, tmp_path: Path, isolated_markers: Path

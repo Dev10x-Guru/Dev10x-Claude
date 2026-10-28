@@ -102,7 +102,7 @@ class TestDecide:
 
         assert verdict.signal == StopSignal.AWAITING_SUBAGENTS
 
-    def test_one_actionable_task_still_continues_the_turn(
+    def test_one_actionable_task_reads_as_open_work(
         self,
         transcript: str,
         isolated_markers: Path,
@@ -116,17 +116,5 @@ class TestDecide:
 
         verdict = decide(data={"session_id": "aw3", "transcript_path": transcript}, plan=plan)
 
-        assert verdict.block is True
-        assert verdict.signal == StopSignal.CONTINUE
-        assert "Draft release notes" in verdict.reason
-
-    def test_the_continue_steer_names_the_tag(
-        self,
-        transcript: str,
-        isolated_markers: Path,
-    ) -> None:
-        plan = {"tasks": [_task(subject="Monitor wave")]}
-
-        verdict = decide(data={"session_id": "aw4", "transcript_path": transcript}, plan=plan)
-
-        assert '{"awaiting": "subagent"}' in verdict.reason
+        assert verdict.block is False
+        assert verdict.signal == StopSignal.OPEN_WORK
