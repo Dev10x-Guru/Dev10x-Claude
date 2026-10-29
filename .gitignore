@@ -26,7 +26,8 @@ dist/
 # Regenerable config caches (GH-1075). dev10x.config.loader derives these
 # from the sibling YAML and rewrites them whenever they are missing or
 # stale, so a test run or hook invocation would otherwise dirty the tree.
-src/dev10x/core/validators/*.msgpack
+# GH-1671
+src/dev10x/**/*.msgpack
 
 # Claude Code local settings
 .claude/settings.local.json
@@ -38,3 +39,7 @@ src/dev10x/core/validators/*.msgpack
 
 # Local coding-agent instructions
 AGENTS.md
+
+# Local Codex mirrors of .claude/agents and .claude/skills (GH-1671)
+.codex/
+.agents/
