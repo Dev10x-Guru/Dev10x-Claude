@@ -1,0 +1,79 @@
+{
+  "skill_name": "dev10x:diag-approval",
+  "description": "Evaluation criteria for dev10x:diag-approval (GH-1676)",
+  "eval_dimensions": [
+    {
+      "id": "call-identification",
+      "name": "Approved Call Identification",
+      "description": "Candidates are calls since the supervisor's previous message that prompted and ran, copied verbatim in the form triage needs (full Bash command, full MCP name, Read(<path>)); an explicit argument wins; nothing is guessed when no call prompted."
+    },
+    {
+      "id": "ambiguity-gate",
+      "name": "Ambiguous Candidate Gate",
+      "description": "With two or three candidates, AskUserQuestion lists them newest first, with exactly one (Recommended) option leading and a final None of these option; a single candidate skips the question."
+    },
+    {
+      "id": "delegation",
+      "name": "Delegation to permission-grant",
+      "description": "The skill delegates via Skill(dev10x:permission-grant), never calls permission_grant itself, and closes with the outcome read from the delegated report."
+    }
+  ],
+  "evals": [
+    {
+      "id": "single-approved-bash",
+      "name": "One approved Bash command is handed over verbatim",
+      "input": "Agent ran \"rg -n 'allow' ~/.claude/settings.json\", the supervisor approved the prompt, then invoked /dev10x:diag-approval",
+      "assertions": [
+        {
+          "dimension": "call-identification",
+          "check": "behavioral",
+          "signal": "verbatim_command — the handed-over target equals the approved command string exactly"
+        },
+        {
+          "dimension": "ambiguity-gate",
+          "check": "tool_not_called",
+          "tool": "AskUserQuestion",
+          "signal": "single_candidate_skips_gate — no AskUserQuestion with one candidate"
+        },
+        {
+          "dimension": "delegation",
+          "check": "tool_called",
+          "tool": "Skill",
+          "signal": "delegates — Skill(dev10x:permission-grant) is called with the target as args"
+        },
+        {
+          "dimension": "delegation",
+          "check": "tool_not_called",
+          "tool": "mcp__plugin_dev10x_cli__permission_grant",
+          "signal": "no_direct_grant — the write tool is not called from this skill"
+        }
+      ]
+    },
+    {
+      "id": "ambiguous-candidates",
+      "name": "Two recent prompted calls trigger the candidate gate",
+      "input": "Agent ran 'make lint' and then 'mcp__plugin_x__tool', both prompted and were approved; supervisor invoked /dev10x:diag-approval",
+      "assertions": [
+        {
+          "dimension": "ambiguity-gate",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "assertion": "candidate_gate_uses_tool",
+          "signal": "AskUserQuestion lists mcp__plugin_x__tool first as the only (Recommended) option, then make lint, then None of these"
+        }
+      ]
+    },
+    {
+      "id": "nothing-prompted",
+      "name": "No prompted call stops without guessing",
+      "input": "Supervisor invoked /dev10x:diag-approval at the start of a session",
+      "assertions": [
+        {
+          "dimension": "call-identification",
+          "check": "behavioral",
+          "signal": "stops_cleanly — output says nothing prompted since the last message, no target is guessed, and the task is completed"
+        }
+      ]
+    }
+  ]
+}
