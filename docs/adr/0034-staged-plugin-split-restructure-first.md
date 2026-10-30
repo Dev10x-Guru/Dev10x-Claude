@@ -85,7 +85,7 @@ That way no MCP tool is ever renamed.
 |---|---|---|
 | QA (6) | `dev10x-qa` | playwright, qa-self, qa-publish, review-pack, tts, yt-upload |
 | infrastructure (2) | `dev10x-infra` | k8s, aws-vault |
-| databases (2) | `dev10x-db` | db, db-psql |
+| databases (3) | `dev10x-db` | db, db-psql, sql-handoff |
 | communication (5) | `dev10x-comm` | bus, slack, slack-setup, gchat, gog |
 | skill management (7) | `dev10x-teach` | skill-create, skill-audit, skill-audit-queue, audit-file, skill-index, context-audit, memory-maintenance |
 | task management (7) | `dev10x-tasks` | session-tasks, session-wrap-up, plan-sync, park, park-discover, park-todo, park-remind |
