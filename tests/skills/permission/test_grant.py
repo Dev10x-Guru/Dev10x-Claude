@@ -216,6 +216,7 @@ class TestTriageVerdicts:
             ("Read(~/.aws/**)", Verdict.REFUSE_SENSITIVE),
             ("Read(**/.env*)", Verdict.REFUSE_SENSITIVE),
             ("Read(~/.config/gh/**)", Verdict.REFUSE_SENSITIVE),
+            ("Read(~/.config/gh-dash/**)", Verdict.GRANT),
             ("cat $HOME/notes", Verdict.NORMALIZE),
             ("cat ../../../../../../etc/shadow-copy", Verdict.OUTSIDE_WORKDIR),
             ("", Verdict.TOO_BROAD),
@@ -459,24 +460,11 @@ class TestTriageVerdicts:
             workdir=workdir,
             skill_map=skill_map,
         )
-        assert (result.files_missing, result.files_unreadable) == ([project_settings], [broken])
-
-    def test_unusable_settings_get_repair_advice(
-        self,
-        tmp_path: Path,
-        project_settings: Path,
-        workdir: Path,
-        skill_map: list[MatchingRule],
-    ) -> None:
-        broken = tmp_path / "broken.json"
-        broken.write_text("{not json")
-        result = _triage(
-            target="make test",
-            settings_files=[project_settings, broken],
-            workdir=workdir,
-            skill_map=skill_map,
+        assert (result.files_missing, result.files_unreadable, result.advice) == (
+            [project_settings],
+            [broken],
+            [f"Repair or remove unreadable settings file {broken}"],
         )
-        assert result.advice == [f"Repair or remove unreadable settings file {broken}"]
 
     def test_non_list_rule_entries_are_ignored(
         self,
