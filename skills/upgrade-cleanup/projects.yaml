@@ -78,6 +78,7 @@ command_spellings:
       - dev10x permission ensure-ignored
       - dev10x permission record-upgrade
       - dev10x permission report
+      - dev10x permission triage  # GH-1676; `grant` stays unseeded
       - dev10x permission update-paths
       - dev10x permission findings
       - dev10x doctor run
@@ -189,6 +190,10 @@ base_permissions:
   # Step 3a. Catalogued in the same commit that registers the tool — the
   # friction-diagnosis skill's own first step must not be a prompt.
   - "mcp__plugin_dev10x_cli__permission_catalog_gap"
+  # GH-1676: read-only triage behind dev10x:permission-grant and
+  # dev10x:diag-approval. Its write twin, permission_grant, stays in
+  # WRITE_TOOLS_NOT_SEEDED so its prompt remains the confirmation.
+  - "mcp__plugin_dev10x_cli__permission_triage"
   # GH-1153's `triage_roster` lives in projects.d/scoping.yaml.
   # GH-1319: read-only milestone listing, the general-purpose counterpart
   # to triage_roster's open-milestone read. Read-only, so it belongs here

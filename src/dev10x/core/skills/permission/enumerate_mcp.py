@@ -527,6 +527,9 @@ WRITE_TOOLS_NOT_SEEDED: frozenset[str] = frozenset(
         # Appends to the review-rule feedback store that
         # rule_confidence_report ranks from.
         "mcp__plugin_dev10x_cli__record_rule_feedback",
+        # Adds an allow rule to every settings file at once (GH-1676);
+        # its prompt is the supervisor's confirmation of the grant.
+        "mcp__plugin_dev10x_cli__permission_grant",
     }
 )
 

@@ -2000,6 +2000,96 @@
       "title": "permission_catalog_gapArguments",
       "type": "object"
     },
+    "permission_grant": {
+      "properties": {
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "dry_run": {
+          "default": false,
+          "title": "Dry Run",
+          "type": "boolean"
+        },
+        "rule": {
+          "title": "Rule",
+          "type": "string"
+        },
+        "target": {
+          "title": "Target",
+          "type": "string"
+        },
+        "working_dirs": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Working Dirs"
+        }
+      },
+      "required": [
+        "target",
+        "rule"
+      ],
+      "title": "permission_grantArguments",
+      "type": "object"
+    },
+    "permission_triage": {
+      "properties": {
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "target": {
+          "title": "Target",
+          "type": "string"
+        },
+        "working_dirs": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Working Dirs"
+        }
+      },
+      "required": [
+        "target"
+      ],
+      "title": "permission_triageArguments",
+      "type": "object"
+    },
     "pin_gate_preset": {
       "$defs": {
         "PinScope": {

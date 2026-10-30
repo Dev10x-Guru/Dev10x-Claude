@@ -12,6 +12,8 @@ result dicts (``exit_code``, ``messages``, ``errors``, stats). No
 from __future__ import annotations
 
 import asyncio
+import os
+from pathlib import Path
 from typing import Any, cast
 
 from dev10x.domain.common.result import ErrorResult, Result, err, ok
@@ -64,6 +66,107 @@ def _run_catalog_gap(*, verbose: bool) -> Result[dict[str, Any]]:
             "messages": result.get("messages", []),
             "out_of_roots": [str(path) for path in ctx.value.out_of_roots],
         }
+    )
+
+
+async def triage(
+    *,
+    target: str,
+    working_dirs: list[str] | None = None,
+) -> Result[dict[str, Any]]:
+    """Recommend the one fix for a prompted command or rule (GH-1676).
+
+    Read-only. Returns the triage verdict — use-alternative, normalize,
+    outside-workdir, refuse-sensitive, denied, already-allowed or grant —
+    with the rule it would grant and the settings files that lack it.
+    """
+    return await asyncio.to_thread(_run_triage, target=target, working_dirs=working_dirs)
+
+
+async def grant(
+    *,
+    target: str,
+    rule: str,
+    working_dirs: list[str] | None = None,
+    dry_run: bool = False,
+) -> Result[dict[str, Any]]:
+    """Grant the triaged rule to every settings file that lacks it (GH-1676).
+
+    Refuses unless triage returns ``grant`` and derives exactly ``rule``,
+    so a better fix is never skipped and the approved rule is the one
+    written. Writes through the backup + git-tracked guard.
+    """
+    return await asyncio.to_thread(
+        _run_grant,
+        target=target,
+        rule=rule,
+        working_dirs=working_dirs,
+        dry_run=dry_run,
+    )
+
+
+def catalog_denies(*, config: dict[str, Any]) -> list[str]:
+    """Every deny the catalog would seed, tracker and IDE blocks included."""
+    from dev10x.skills.permission.catalog_write import render_catalog
+
+    rendered = render_catalog(config=config, toplevel=None, quiet=True)
+    return [*config.get("base_denies", []), *rendered.deny]
+
+
+def _resolve_working_dirs(*, working_dirs: list[str] | None) -> Result[list[Path]]:
+    from dev10x.subprocess_utils import effective_cwd
+
+    if not working_dirs:
+        return ok([Path(effective_cwd() or os.getcwd())])
+    paths = [Path(directory).expanduser() for directory in working_dirs]
+    relative = [str(path) for path in paths if not path.is_absolute()]
+    if relative:
+        return err(f"working_dirs must be absolute (GH-1264): {', '.join(relative)}")
+    return ok(paths)
+
+
+def _run_triage(*, target: str, working_dirs: list[str] | None) -> Result[dict[str, Any]]:
+    from dev10x.skills.permission.grant import triage as run_triage
+
+    ctx = load_permission_context()
+    if isinstance(ctx, ErrorResult):
+        return ctx
+    resolved = _resolve_working_dirs(working_dirs=working_dirs)
+    if isinstance(resolved, ErrorResult):
+        return resolved
+    result = run_triage(
+        target=target,
+        settings_files=ctx.value.settings_files,
+        working_dirs=resolved.value,
+        base_denies=catalog_denies(config=ctx.value.config),
+    )
+    return ok(result.to_dict())
+
+
+def _run_grant(
+    *,
+    target: str,
+    rule: str,
+    working_dirs: list[str] | None,
+    dry_run: bool,
+) -> Result[dict[str, Any]]:
+    from dev10x.skills.permission.grant import grant_everywhere
+
+    ctx = load_permission_context()
+    if isinstance(ctx, ErrorResult):
+        return ctx
+    if not ctx.value.settings_files:
+        return err("No settings files found.")
+    resolved = _resolve_working_dirs(working_dirs=working_dirs)
+    if isinstance(resolved, ErrorResult):
+        return resolved
+    return grant_everywhere(
+        target=target,
+        settings_files=ctx.value.settings_files,
+        working_dirs=resolved.value,
+        base_denies=catalog_denies(config=ctx.value.config),
+        dry_run=dry_run,
+        confirmed_rule=rule,
     )
 
 
