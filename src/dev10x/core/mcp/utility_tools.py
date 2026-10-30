@@ -147,6 +147,89 @@ async def permission_catalog_gap(
 
 
 @server.tool()
+async def permission_triage(
+    target: str,
+    working_dirs: list[str] | None = None,
+    cwd: str | None = None,
+) -> dict:
+    """Recommend the one fix for a prompted command before granting it (GH-1676).
+
+    Read-only. Checks run in friction-fix order (source > normalize >
+    grant) and the first hit wins:
+
+    - refuse-sensitive — DX014 target; keep the prompt
+    - denied — a deny rule names the shape on purpose (GH-972)
+    - use-alternative — the command-skill map routes it to a skill/tool
+    - normalize — chaining, `${...}`, escaped quotes, env prefix, redirect
+    - outside-workdir — a read outside the working directories; add
+      `additionalDirectories` or a `Read()` rule, not a Bash rule
+    - already-allowed — every settings file covers it; look elsewhere
+    - grant — the generalized rule and the files that lack it
+
+    Args:
+        target: The prompted Bash command, or a rule such as
+            `mcp__server__tool` / `Read(~/x/**)` / `Bash(rg:*)`
+        working_dirs: Absolute session working directories; defaults to cwd
+        cwd: Effective working directory (GH-979)
+
+    Returns:
+        Dictionary with keys: target, verdict, rule, reason, advice
+        (list[str]), files_missing (list[str])
+    """
+    from dev10x import permission as perm
+    from dev10x.subprocess_utils import use_cwd
+
+    with use_cwd(cwd):
+        return to_wire(await perm.triage(target=target, working_dirs=working_dirs))
+
+
+@server.tool()
+async def permission_grant(
+    target: str,
+    rule: str,
+    working_dirs: list[str] | None = None,
+    dry_run: bool = False,
+    cwd: str | None = None,
+) -> dict:
+    """Pre-approve a command's rule in every settings file at once (GH-1676).
+
+    Writes the global `~/.claude` settings, `~/.claude/projects/**` and
+    every `<root>/**/.claude/settings.local.json`. Runs
+    `permission_triage` first and refuses any verdict but `grant`, and
+    refuses when `rule` differs from the rule triage derives. A
+    git-tracked `settings.json` is redirected to `settings.local.json`;
+    every write is backed up. Deliberately not pre-approved: the
+    harness prompt on this call, which shows `rule`, is the
+    supervisor's confirmation.
+
+    Args:
+        target: The prompted Bash command, or a permission rule
+        rule: The rule `permission_triage` returned, echoed back
+        working_dirs: Absolute session working directories; defaults to cwd
+        dry_run: Report the files that would change without writing
+        cwd: Effective working directory (GH-979)
+
+    Returns:
+        Dictionary with keys: rule, granted (list[str]), failed
+        (list[str]), dry_run, messages, triage. `{"error": ...,
+        "triage": {...}}` when triage recommends a different fix, the
+        rule differs, or any file failed to write.
+    """
+    from dev10x import permission as perm
+    from dev10x.subprocess_utils import use_cwd
+
+    with use_cwd(cwd):
+        return to_wire(
+            await perm.grant(
+                target=target,
+                rule=rule,
+                working_dirs=working_dirs,
+                dry_run=dry_run,
+            )
+        )
+
+
+@server.tool()
 async def record_upgrade(version: str | None = None) -> dict:
     """Record the currently-installed plugin version as applied.
 

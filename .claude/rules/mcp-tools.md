@@ -215,6 +215,7 @@ one session). Use these shapes verbatim:
 | `create_pr` | `title`, `issue_id`, plus either `job_story` or `body`; optional `head`, `milestone`, `repo` | passing a long `job_story` and expecting the extra paragraphs to survive — only `body` is used verbatim (GH-1073); assuming `repo` is rejected — it is accepted since GH-1269 |
 | `merge_pr` | `pr_number`; optional `expected_head_sha`, `use_bot` | omitting `expected_head_sha` after a pre-merge gate read `headRefOid` — the merge then takes whatever the head is *now* (GH-1267); reading `merged_as` as a request rather than a result — it reports which identity actually merged (GH-1272) |
 | `update_pr` | `pr_number`, plus at least one of `body` / `title` / `base_branch` / `milestone` | `gh pr edit --milestone` — routed here (GH-1098) |
+| `permission_triage` / `permission_grant` | `target` (the prompted command, or a rule); grant also needs `rule`, the triage rule echoed back so the approval prompt names it; optional `working_dirs` (absolute), and `dry_run` on grant | passing a hand-built rule for a command — pass the command so triage can see its shape (GH-1676); expecting grant to write on a non-`grant` verdict, or with a `rule` triage did not derive — it refuses and returns the triage; relative `working_dirs` — rejected (GH-1264) |
 
 Behavioral caveats:
 
@@ -744,6 +745,8 @@ supporting each tool:
 | `task_index_set` | `cli` | GH-1009 | v0.94.0+ |
 | `usage_blocks` | `cli` | GH-878 | v0.90.0+ |
 | `permission_catalog_gap` | `cli` | GH-1175 | v0.97.0+ |
+| `permission_triage` | `cli` | GH-1676 | v0.109.0+ |
+| `permission_grant` | `cli` | GH-1676 | v0.109.0+ (write; not seeded) |
 | `query` | `db` | PR #126 | v0.25.0+ |
 
 When adding a new tool, update this table and note any dependencies on

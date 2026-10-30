@@ -276,6 +276,88 @@ def catalog_gap(*, quiet: bool, verbose: bool) -> None:
     )
 
 
+def _working_dirs(*, values: tuple[str, ...]) -> list[Path]:
+    return [Path(value).expanduser().resolve() for value in values] or [Path.cwd()]
+
+
+@permission.command(name="triage")
+@click.argument("target")
+@click.option(
+    "--working-dir",
+    "working_dirs",
+    multiple=True,
+    help="Session working directory (repeatable; default: CWD)",
+)
+def triage(*, target: str, working_dirs: tuple[str, ...]) -> None:
+    """Recommend the one fix for a prompted command or rule (GH-1676).
+
+    Read-only. Exits 0 only on a `grant` verdict, so a script can gate a
+    grant on it.
+    """
+    from dev10x.core.permission import catalog_denies
+    from dev10x.skills.permission.grant import Verdict
+    from dev10x.skills.permission.grant import triage as run_triage
+
+    ctx = _require_context()
+    result = run_triage(
+        target=target,
+        settings_files=ctx.settings_files,
+        working_dirs=_working_dirs(values=working_dirs),
+        base_denies=catalog_denies(config=ctx.config),
+    )
+    click.echo(f"Verdict: {result.verdict}")
+    click.echo(f"Rule:    {result.rule}")
+    click.echo(f"Reason:  {result.reason}")
+    for line in result.advice:
+        click.echo(f"  - {line}")
+    for path in result.files_missing:
+        click.echo(f"  missing in {path}")
+    for path in result.files_unreadable:
+        click.echo(f"  unreadable {path}")
+    sys.exit(0 if result.verdict is Verdict.GRANT else 1)
+
+
+@permission.command(name="grant")
+@click.argument("target")
+@click.option(
+    "--working-dir",
+    "working_dirs",
+    multiple=True,
+    help="Session working directory (repeatable; default: CWD)",
+)
+@click.option("--dry-run", is_flag=True, help="Show changes without modifying files")
+def grant(*, target: str, working_dirs: tuple[str, ...], dry_run: bool) -> None:
+    """Pre-approve a command's rule in every settings file at once (GH-1676).
+
+    Exits non-zero when nothing was written, so a scripted grant cannot
+    read silence as success (GH-1136).
+    """
+    from dev10x.core.permission import catalog_denies
+    from dev10x.skills.permission.grant import grant_everywhere
+
+    ctx = _require_settings()
+    if ctx is None:
+        sys.exit(1)
+    result = grant_everywhere(
+        target=target,
+        settings_files=ctx.settings_files,
+        working_dirs=_working_dirs(values=working_dirs),
+        base_denies=catalog_denies(config=ctx.config),
+        dry_run=dry_run,
+    )
+    if isinstance(result, ErrorResult):
+        click.echo(f"ERROR: {result.error}", err=True)
+        for line in result.details.get("messages", []):
+            click.echo(line, err=True)
+        for line in result.details.get("triage", {}).get("advice", []):
+            click.echo(f"  - {line}", err=True)
+        sys.exit(1)
+    for message in result.value["messages"]:
+        click.echo(message)
+    verb = "Would grant" if dry_run else "Granted"
+    click.echo(f"{verb} {result.value['rule']} in {len(result.value['granted'])} file(s).")
+
+
 def _report_predicted() -> None:
     from dev10x.skills.permission.friction_report import (
         format_predicted_surface,
