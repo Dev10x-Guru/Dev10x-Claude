@@ -14,7 +14,9 @@ if TYPE_CHECKING:
         Delta,
         Matrix,
         PermissionDeltaQuery,
+        fixtures,
         load_matrix_from_state,
+        runner,
     )
 
 alias_package(old=__name__, new="dev10x.core.skills.permission_investigator")
@@ -23,5 +25,7 @@ __all__ = [
     "Delta",
     "Matrix",
     "PermissionDeltaQuery",
+    "fixtures",
     "load_matrix_from_state",
+    "runner",
 ]
