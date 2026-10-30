@@ -99,11 +99,13 @@ plugins:
   core:
     - afk
     - ask
+    - diag-approval
     - diag-friction
     - friction-setup
     - gh-context
     - onboarding
     - permission-audit-apply
+    - permission-grant
     - permission-investigator
     - playbook
     - playbook-maintenance

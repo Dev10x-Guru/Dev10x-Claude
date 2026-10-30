@@ -21,7 +21,7 @@ ADR_0034_COUNTS = {
     "teach": 7,
     "tasks": 7,
     "scoping": 15,
-    "core": 15,
+    "core": 17,
     "coding": 37,
 }
 
