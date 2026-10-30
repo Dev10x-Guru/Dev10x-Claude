@@ -163,9 +163,12 @@ _EXPANSION_RE = re.compile(r"\$\{|\$\(|\$[A-Za-z_]|`")
 # Credential and secret stores named by their directory or file, with or
 # without a trailing slash or glob. The DX014 operand patterns need an
 # exact filename, so `rg x ~/.ssh` and `Read(~/.aws/**)` slipped past them.
+# Kept local on purpose: widening DX014 itself would prompt on a plain
+# `ls ~/.ssh`, which hook-patterns.md requires to stay silent. Granting a
+# rule is the stricter question, so it gets the stricter list.
 _SENSITIVE_ROOT_RE = re.compile(
-    r"(?:^|/|~)\.(?:ssh|aws|gnupg|kube|docker|netrc|pgpass|git-credentials|env)\b"
-    r"|\.config/gh\b"
+    r"(?:(?:^|/|~)\.(?:ssh|aws|gnupg|kube|docker|netrc|pgpass|git-credentials|env)"
+    r"|\.config/gh)(?![\w-])"
 )
 _OBFUSCATION_RE = re.compile(r"\\[\"']|\"\"|''")
 _REDIRECT_RE = re.compile(r"<<|>")
@@ -343,10 +346,6 @@ def _normalized(*, path: Path) -> Path:
     return Path(os.path.normpath(path.expanduser()))
 
 
-def _outside(*, path: Path, working_dirs: list[Path]) -> bool:
-    return not any(path.is_relative_to(_normalized(path=directory)) for directory in working_dirs)
-
-
 def _normalize_reasons(*, command: str) -> list[str]:
     unquoted = strip_quoted_spans(command=command)
     tokens = split_tokens(command=command)
@@ -368,12 +367,12 @@ def _outside_paths(*, command: str, working_dirs: list[Path]) -> list[Path]:
     tokens = split_tokens(command=command)
     if not tokens or Path(tokens[0]).name not in _READ_VERBS:
         return []
-    base = working_dirs[0] if working_dirs else Path.cwd()
+    roots = [_normalized(path=directory) for directory in working_dirs]
     paths: list[Path] = []
     for token in operand_tokens(command=command)[1:]:
         anchored = token.startswith(("/", "~"))
-        path = _normalized(path=Path(token) if anchored else base / token)
-        if _outside(path=path, working_dirs=working_dirs):
+        path = _normalized(path=Path(token) if anchored else roots[0] / token)
+        if not any(path.is_relative_to(root) for root in roots):
             paths.append(path)
     return paths
 
@@ -406,16 +405,26 @@ def triage(
     fix, and only then is a rule granted to the files that lack it.
     """
     target = target.strip()
-    command_form = not is_rule(target)
-    rule = derive_rule(command=target) if command_form else target
-    command = target if command_form else bash_prefix(rule=target)
+    if is_rule(target):
+        rule, command = target, bash_prefix(rule=target)
+    else:
+        rule, command = derive_rule(command=target), target
+    signature = _signature(target=target)
+
+    def verdict(*, kind: Verdict, reason: str, advice: list[str], **files: list[Path]) -> Triage:
+        return Triage(
+            target=target,
+            verdict=kind,
+            rule=rule,
+            reason=reason,
+            advice=advice,
+            **files,
+        )
 
     sensitive = _sensitive(target=target)
     if sensitive:
-        return Triage(
-            target=target,
-            verdict=Verdict.REFUSE_SENSITIVE,
-            rule=rule,
+        return verdict(
+            kind=Verdict.REFUSE_SENSITIVE,
             reason=f"Sensitive target ({', '.join(sensitive)}); DX014 keeps the prompt.",
             advice=[
                 "Approve it case by case, or bless one exact probe in "
@@ -425,10 +434,8 @@ def triage(
 
     too_broad = breadth_problem(rule=rule)
     if too_broad:
-        return Triage(
-            target=target,
-            verdict=Verdict.TOO_BROAD,
-            rule=rule,
+        return verdict(
+            kind=Verdict.TOO_BROAD,
             reason=too_broad,
             advice=[
                 "Keep approving it per use, or grant a narrower rule naming the exact "
@@ -444,17 +451,14 @@ def triage(
     for block in readable.values():
         denies.update(_rules(permissions=block, key="deny"))
     overlapped = _overlapped_deny(rule=rule, denies=denies)
-    if overlapped or _covers(rules=denies, signature=_signature(target=target), rule=rule):
-        reason = (
-            f"The rule would also cover the deliberate deny {overlapped}."
-            if overlapped
-            else "A deny rule names this shape on purpose; a grant would fight it."
-        )
-        return Triage(
-            target=target,
-            verdict=Verdict.DENIED,
-            rule=rule,
-            reason=reason,
+    if overlapped or _covers(rules=denies, signature=signature, rule=rule):
+        return verdict(
+            kind=Verdict.DENIED,
+            reason=(
+                f"The rule would also cover the deliberate deny {overlapped}."
+                if overlapped
+                else "A deny rule names this shape on purpose; a grant would fight it."
+            ),
             advice=["Run the exact command yourself with the `!` prefix if it is needed."],
         )
 
@@ -465,30 +469,24 @@ def triage(
             None,
         )
         if routed is not None:
-            return Triage(
-                target=target,
-                verdict=Verdict.USE_ALTERNATIVE,
-                rule=rule,
+            return verdict(
+                kind=Verdict.USE_ALTERNATIVE,
                 reason=f"The command-skill map routes this command ({routed.name}).",
                 advice=[_describe(compensation=c) for c in routed.compensations],
             )
 
         reasons = _normalize_reasons(command=command)
         if reasons:
-            return Triage(
-                target=target,
-                verdict=Verdict.NORMALIZE,
-                rule=rule,
+            return verdict(
+                kind=Verdict.NORMALIZE,
                 reason="No allow rule can match this command shape.",
                 advice=reasons,
             )
 
         outside = _outside_paths(command=command, working_dirs=working_dirs)
         if outside:
-            return Triage(
-                target=target,
-                verdict=Verdict.OUTSIDE_WORKDIR,
-                rule=rule,
+            return verdict(
+                kind=Verdict.OUTSIDE_WORKDIR,
                 reason="It reads outside the working directories; a Bash rule cannot lift that.",
                 advice=[
                     *(
@@ -499,30 +497,23 @@ def triage(
                 ],
             )
 
-    signature = _signature(target=target)
     missing = [
         path
         for path, block in readable.items()
         if not _covers(
-            rules=_rules(permissions=block, key="allow"),
-            signature=signature,
-            rule=rule,
+            rules=_rules(permissions=block, key="allow"), signature=signature, rule=rule
         )
     ]
     repair = [f"Repair or remove unreadable settings file {path}" for path in unreadable]
     if not missing:
-        return Triage(
-            target=target,
-            verdict=Verdict.ALREADY_ALLOWED,
-            rule=rule,
+        return verdict(
+            kind=Verdict.ALREADY_ALLOWED,
             reason="Every readable settings file already allows it.",
             advice=["Run dev10x:diag-friction on the exact command that prompted.", *repair],
             files_unreadable=unreadable,
         )
-    return Triage(
-        target=target,
-        verdict=Verdict.GRANT,
-        rule=rule,
+    return verdict(
+        kind=Verdict.GRANT,
         reason=f"No better fix applies; {len(missing)} settings file(s) lack the rule.",
         advice=repair,
         files_missing=missing,
@@ -535,6 +526,25 @@ def _append_allow(*, path: Path, rule: str) -> None:
         allow = data.setdefault("permissions", {}).setdefault("allow", [])
         if rule not in allow:
             allow.append(rule)
+
+
+_ALREADY_COVERED = "already covered"
+
+
+def _grant_one(*, path: Path, rule: str, signature: str, dry_run: bool) -> str | None:
+    """Write ``rule`` into one file; return why it was not written, or None."""
+    block = _permissions(path=path)
+    if block is None:
+        return "unreadable settings"
+    if _covers(rules=_rules(permissions=block, key="allow"), signature=signature, rule=rule):
+        return _ALREADY_COVERED
+    if dry_run:
+        return None
+    try:
+        _append_allow(path=path, rule=rule)
+    except (OSError, ValueError) as exc:
+        return str(exc)
+    return None
 
 
 def grant_everywhere(
@@ -589,21 +599,12 @@ def grant_everywhere(
     granted: list[str] = []
     failed: list[str] = []
     for path in writable:
-        block = _permissions(path=path)
-        if block is None:
-            failed.append(str(path))
-            messages.append(f"  FAILED (unreadable settings) {path}")
+        problem = _grant_one(path=path, rule=result.rule, signature=signature, dry_run=dry_run)
+        if problem == _ALREADY_COVERED:
             continue
-        if _covers(
-            rules=_rules(permissions=block, key="allow"), signature=signature, rule=result.rule
-        ):
-            continue
-        try:
-            if not dry_run:
-                _append_allow(path=path, rule=result.rule)
-        except (OSError, ValueError) as exc:
+        if problem:
             failed.append(str(path))
-            messages.append(f"  FAILED {path}: {exc}")
+            messages.append(f"  FAILED {path}: {problem}")
             continue
         granted.append(str(path))
         messages.append(f"  + {result.rule}  {path}")

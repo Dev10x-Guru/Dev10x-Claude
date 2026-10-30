@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 from types import ModuleType
@@ -277,7 +278,9 @@ def catalog_gap(*, quiet: bool, verbose: bool) -> None:
 
 
 def _working_dirs(*, values: tuple[str, ...]) -> list[Path]:
-    return [Path(value).expanduser().resolve() for value in values] or [Path.cwd()]
+    # abspath, not resolve(): triage compares un-resolved paths, so following
+    # symlinks here alone would give the CLI different verdicts than MCP.
+    return [Path(os.path.abspath(Path(value).expanduser())) for value in values] or [Path.cwd()]
 
 
 @permission.command(name="triage")

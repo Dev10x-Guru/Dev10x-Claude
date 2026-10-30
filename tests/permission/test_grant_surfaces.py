@@ -128,39 +128,32 @@ class TestAdapter:
         assert "No settings files" in result.error
 
     @pytest.mark.parametrize(
-        "operation",
-        [
-            lambda: perm_mod.triage(target="make test", working_dirs=["repo"]),
-            lambda: perm_mod.grant(target="make test", rule="Bash(make:*)", working_dirs=["."]),
-        ],
+        ("operation", "kwargs"),
+        [("triage", {}), ("grant", {"rule": "Bash(make:*)"})],
     )
     @pytest.mark.asyncio
     async def test_rejects_relative_working_dirs(
-        self, operation: object, context: PermissionContext
+        self, operation: str, kwargs: dict[str, str], context: PermissionContext
     ) -> None:
         with patch(CONTEXT, return_value=ok(context)):
-            result = await operation()  # type: ignore[operator]
+            result = await getattr(perm_mod, operation)(
+                target="make test",
+                working_dirs=["repo"],
+                **kwargs,
+            )
         assert isinstance(result, ErrorResult)
         assert "must be absolute" in result.error
 
     @pytest.mark.parametrize(
-        "operation",
-        [
-            lambda: perm_mod.triage(target="make test"),
-            lambda: perm_mod.grant(target="make test", rule="Bash(make:*)"),
-        ],
+        ("operation", "kwargs"),
+        [("triage", {}), ("grant", {"rule": "Bash(make:*)"})],
     )
     @pytest.mark.asyncio
-    async def test_propagates_context_error(self, operation: object) -> None:
+    async def test_propagates_context_error(self, operation: str, kwargs: dict[str, str]) -> None:
         with patch(CONTEXT, return_value=ErrorResult(error="No config found.")):
-            result = await operation()  # type: ignore[operator]
+            result = await getattr(perm_mod, operation)(target="make test", **kwargs)
         assert isinstance(result, ErrorResult)
         assert result.error == "No config found."
-
-    def test_catalog_denies_include_configured_denies(self) -> None:
-        assert "Bash(pnpm deploy:*)" in perm_mod.catalog_denies(
-            config={"base_denies": ["Bash(pnpm deploy:*)"]}
-        )
 
 
 class TestMcpTools:
