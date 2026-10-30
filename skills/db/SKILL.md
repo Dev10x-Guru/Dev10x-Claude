@@ -128,3 +128,5 @@ This skill provides query planning guidance. Actual query execution
 is handled by engine-specific skills:
 
 - **`dev10x:db-psql`** — PostgreSQL via psql wrapper
+- **`dev10x:sql-handoff`** — hands write statements to the user and
+  verifies them with a SELECT afterwards

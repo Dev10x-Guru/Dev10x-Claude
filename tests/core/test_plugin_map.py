@@ -16,7 +16,7 @@ from dev10x.subprocess_utils import get_plugin_root
 ADR_0034_COUNTS = {
     "qa": 6,
     "infra": 2,
-    "db": 2,
+    "db": 3,
     "comm": 6,
     "teach": 7,
     "tasks": 7,
