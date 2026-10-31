@@ -46,7 +46,7 @@ FRAGMENT_RULES = {
     "qa": ["playwright", "qa-evidence-stitch"],
     "infra": ["kubectl", "aws-vault"],
     "db": ["psql-write", "psql"],
-    "comm": ["slack-api"],
+    "comm": ["slack-api", "gog-global-flags-first"],
     "coding": [
         "git-commit",
         "gh-pr-create",
@@ -65,6 +65,7 @@ FRAGMENT_RULES = {
         "gh-issue-comment",
         "gh-issue-list",
         "gh-pr-list",
+        "gh-ci-rerun",
         "gh-milestone-create",
         "gh-milestone-edit",
         "git-push-safe-script",
