@@ -21,13 +21,37 @@ from dev10x import subprocess_utils
 from dev10x.domain.claude_paths import ClaudeDir
 
 VENDORED_DIRS = frozenset(
-    {"node_modules", ".venv", "venv", ".tox", ".git", "dist", "build", "site-packages"}
+    {
+        "node_modules",
+        ".venv",
+        "venv",
+        "vendor",
+        ".tox",
+        ".git",
+        "dist",
+        "build",
+        "site-packages",
+    }
 )
+EXCLUDE_DIRS_KEY = "exclude_dirs"
 GIT_WORKTREE_TIMEOUT_SECONDS = 10
 SETTINGS_DIR = ".claude"
 SETTINGS_NAME = "settings.local.json"
 
 log = logging.getLogger(__name__)
+
+
+def vendored_dirs(config: dict) -> frozenset[str]:
+    """The directory names every walk prunes: the built-in set plus the user's.
+
+    ``exclude_dirs`` in the userspace catalog names extra directories a
+    machine needs skipped (GH-1600). A non-list value or a non-string
+    entry is ignored, matching the defensive parsing of other catalog keys.
+    """
+    extra = config.get(EXCLUDE_DIRS_KEY)
+    if not isinstance(extra, list):
+        return VENDORED_DIRS
+    return VENDORED_DIRS | {name for name in extra if isinstance(name, str) and name}
 
 
 @dataclass(frozen=True)
@@ -92,7 +116,11 @@ def outside_roots(*, files: list[Path], roots: list[str]) -> list[Path]:
     ]
 
 
-def _walk_root(root_path: Path) -> tuple[list[Path], list[Path]]:
+def _walk_root(
+    root_path: Path,
+    *,
+    excluded: frozenset[str] = VENDORED_DIRS,
+) -> tuple[list[Path], list[Path]]:
     settings: list[Path] = []
     repos: list[Path] = []
     for dirpath, dirnames, filenames in os.walk(root_path):
@@ -101,8 +129,18 @@ def _walk_root(root_path: Path) -> tuple[list[Path], list[Path]]:
             repos.append(current)
         if current.name == SETTINGS_DIR and SETTINGS_NAME in filenames:
             settings.append(current / SETTINGS_NAME)
-        dirnames[:] = sorted(name for name in dirnames if name not in VENDORED_DIRS)
+        dirnames[:] = sorted(name for name in dirnames if name not in excluded)
     return settings, repos
+
+
+def walk_repos(
+    root_path: Path,
+    *,
+    excluded: frozenset[str] = VENDORED_DIRS,
+) -> list[Path]:
+    """Every directory under ``root_path`` holding a ``.git`` entry, vendored dirs pruned."""
+    _settings, repos = _walk_root(root_path, excluded=excluded)
+    return repos
 
 
 def _worktree_settings(repos: list[Path]) -> list[Path]:
@@ -126,7 +164,12 @@ def _dedupe(paths: list[Path]) -> list[Path]:
     return list(unique)
 
 
-def discover_settings(*, roots: list[str], include_user: bool) -> SettingsDiscovery:
+def discover_settings(
+    *,
+    roots: list[str],
+    include_user: bool,
+    excluded: frozenset[str] = VENDORED_DIRS,
+) -> SettingsDiscovery:
     files: list[Path] = []
     if include_user:
         user_dir = ClaudeDir.home()
@@ -144,7 +187,7 @@ def discover_settings(*, roots: list[str], include_user: bool) -> SettingsDiscov
         root_path = Path(root).expanduser()
         if not root_path.is_dir():
             continue
-        root_settings, root_repos = _walk_root(root_path)
+        root_settings, root_repos = _walk_root(root_path, excluded=excluded)
         files.extend(root_settings)
         repos.extend(root_repos)
 

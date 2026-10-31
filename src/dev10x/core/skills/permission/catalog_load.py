@@ -30,7 +30,7 @@ from dev10x.skills.permission.catalog_merge import MergedCatalog, merge_catalogs
 from dev10x.skills.permission.catalog_paths import catalog_text, shipped_projects_catalog
 from dev10x.skills.permission.catalog_result import _result
 from dev10x.skills.permission.config import parse_config, resolve_config
-from dev10x.skills.permission.settings_discovery import discover_settings
+from dev10x.skills.permission.settings_discovery import VENDORED_DIRS, discover_settings
 
 MEMORY_CONFIG = Dev10xConfigDir.projects_yaml()
 USERSPACE_CONFIG = Dev10xConfigDir.upgrade_cleanup_projects_yaml()
@@ -107,8 +107,9 @@ def find_settings_files(
     roots: list[str],
     *,
     include_user: bool,
+    excluded: frozenset[str] = VENDORED_DIRS,
 ) -> list[Path]:
-    return discover_settings(roots=roots, include_user=include_user).files
+    return discover_settings(roots=roots, include_user=include_user, excluded=excluded).files
 
 
 KNOWN_PLUGIN_DIRS = ("dev10x", "Dev10x", "dev10x-claude")

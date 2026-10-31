@@ -30,6 +30,7 @@ from typing import Literal
 from dev10x import subprocess_utils
 from dev10x.domain.file_locks import atomic_append_line
 from dev10x.domain.git_context import GitContext
+from dev10x.skills.permission.settings_discovery import VENDORED_DIRS, walk_repos
 
 #: Relative to the repo root — the spelling `.git/info/exclude` expects.
 IGNORE_PATTERN = ".claude/Dev10x/"
@@ -139,7 +140,11 @@ def ensure_ignored(*, repo_root: Path, dry_run: bool = False) -> IgnoreOutcome:
     )
 
 
-def discover_repo_roots(roots: list[Path]) -> list[Path]:
+def discover_repo_roots(
+    roots: list[Path],
+    *,
+    excluded: frozenset[str] = VENDORED_DIRS,
+) -> list[Path]:
     """Expand each configured root into every git repo beneath it (GH-1330).
 
     A configured root may itself be a repo (`/work/dx/Dev10x-Claude`), or a
@@ -149,21 +154,23 @@ def discover_repo_roots(roots: list[Path]) -> list[Path]:
     the container itself has no `.git` — so every real repo underneath
     was never reached.
 
-    Mirrors the walk `update_paths.find_settings_files` already uses for
-    `.claude/settings.local.json`: `root.rglob(".git")` for a container,
-    keeping the root itself when IT is the repo rather than also
-    descending into its own tree (a worktree's `.git` is a file, not a
-    directory, so entry type is never checked).
+    A container is walked with the same vendored-dir pruning settings
+    discovery uses (GH-1600), so a git-installed package under
+    `node_modules` is never treated as a repo to write into. The root is
+    kept as-is when IT is the repo rather than also descending into its
+    own tree (a worktree's `.git` is a file, so entry type is never
+    checked).
     """
     seen: dict[Path, None] = {}
-    for root in roots:
+    for configured in roots:
+        root = configured.expanduser()
         if not root.is_dir():
             continue
         if (root / ".git").exists():
             seen.setdefault(root.resolve(), None)
             continue
-        for git_entry in root.rglob(".git"):
-            seen.setdefault(git_entry.parent.resolve(), None)
+        for repo in walk_repos(root, excluded=excluded):
+            seen.setdefault(repo.resolve(), None)
     return list(seen.keys())
 
 

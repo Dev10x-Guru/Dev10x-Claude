@@ -628,6 +628,7 @@ def clean(
 ) -> None:
     """Clean redundant permissions from project settings files."""
     from dev10x.core.skills.permission import clean_project_files as mod
+    from dev10x.core.skills.permission.settings_discovery import vendored_dirs
 
     if restore:
         sys.exit(mod._restore(config_path=_require_config(mod)))
@@ -652,7 +653,10 @@ def clean(
         click.echo(f"Current plugin version: {current_version}")
 
     base_permissions = set(config.get("base_permissions", []))
-    settings_files = mod.find_settings_files(roots=config.get("roots", []))
+    settings_files = mod.find_settings_files(
+        roots=config.get("roots", []),
+        excluded=vendored_dirs(config),
+    )
     migration_layers = mod.namespace_migration_layers(settings_files=settings_files)
 
     if not settings_files and not migration_layers:
@@ -947,6 +951,7 @@ def ensure_ignored(*, dry_run: bool, quiet: bool) -> None:
     silent no-op success (GH-1215's class of blindness).
     """
     from dev10x.core.skills.permission import ignore_session_state as mod
+    from dev10x.core.skills.permission.settings_discovery import vendored_dirs
 
     ctx = _require_context()
     roots = ctx.config.get("roots", [])
@@ -957,7 +962,10 @@ def ensure_ignored(*, dry_run: bool, quiet: bool) -> None:
     if dry_run and not quiet:
         click.echo("(dry run — no files will be modified)\n")
 
-    repo_roots = mod.discover_repo_roots([Path(root) for root in roots])
+    repo_roots = mod.discover_repo_roots(
+        roots=[Path(root) for root in roots],
+        excluded=vendored_dirs(ctx.config),
+    )
     if not repo_roots:
         click.echo(
             "0 candidates found — no git repository under the configured "
