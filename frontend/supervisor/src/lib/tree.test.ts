@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { pickSession } from "./selection";
 import { makeSession, makeWorkspace } from "./testing";
-import { buildTree, folderLabel, markOf, matches } from "./tree";
+import { buildTree, markOf, matches } from "./tree";
 
 const DX = "/work/dx/Dev10x-Claude";
 const WT = "/work/.herdr/worktrees/Dev10x-Claude/poc";
@@ -54,16 +54,6 @@ describe("buildTree", () => {
   it("falls back to the folder when the workspace is unknown", () => {
     const [project] = buildTree([makeSession({ cwd: "/x", workspace: makeWorkspace({ project: "", root: "" }) })]);
     expect([project.name, project.folders[0].root]).toEqual(["/x", "/x"]);
-  });
-});
-
-describe("folderLabel", () => {
-  it.each([
-    [DX, "Dev10x-Claude", "main checkout"],
-    [WT, "Dev10x-Claude", "poc"],
-    ["/", "x", "/"],
-  ])("labels %s", (root, project, label) => {
-    expect(folderLabel(root, project)).toBe(label);
   });
 });
 
