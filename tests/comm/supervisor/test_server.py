@@ -17,6 +17,7 @@ from dev10x.comm.skills.bus.maildir import mailbox_unread, read_message
 from dev10x.comm.supervisor import server as server_module
 from dev10x.comm.supervisor.decisions import ANSWERED, DELIVERED, OPEN, DecisionStore
 from dev10x.comm.supervisor.paths import TOKEN_HEADER
+from dev10x.comm.supervisor.pending import Preview
 from dev10x.comm.supervisor.probes import ProbeError, Snapshot
 from dev10x.comm.supervisor.server import (
     MAX_BODY_BYTES,
@@ -61,6 +62,9 @@ QUESTION = {
     "options": [{"label": "Relay"}, {"label": "mc"}],
 }
 PROMPT_TEXT = " Do you want to proceed?\n ❯ 1. Yes\n   2. Yes, and don't ask again\n   3. No\n"
+PREVIEWS = {
+    "sid-perm": Preview(tool="Bash", title="Clean the build", kind="command", body="rm -rf build")
+}
 PANES = {"w3:p1": "working on it\n", "w5:p1": PROMPT_TEXT, "w12:p1": ""}
 
 
@@ -116,6 +120,7 @@ def app(tmp_path: Path, keys: KeySender, panes: dict[str, str], static_dir: Path
         relay_mailbox=RELAY,
         key_sender=keys,
         pane_reader=lambda pane_id: panes[pane_id],
+        preview_reader=lambda session_id: PREVIEWS.get(session_id),
         today=lambda: date(2026, 10, 31),
         static_dir=static_dir,
     )
@@ -637,6 +642,21 @@ class TestCollector:
         refresh(app=app, provider=lambda: Snapshot(sessions=[WAITING, IDLE], taken_at=NOW))
 
         assert app.pane_text == {"sid-wait": "working on it\n"}
+
+    def test_refresh_reads_previews_for_waiting_sessions(self, app: SupervisorApp) -> None:
+        refresh(app=app, provider=lambda: Snapshot(sessions=[PERMISSION, IDLE], taken_at=NOW))
+
+        assert app.previews == {"sid-perm": PREVIEWS["sid-perm"]}
+
+    def test_payload_carries_the_preview(self, app: SupervisorApp) -> None:
+        refresh(app=app, provider=lambda: Snapshot(sessions=[PERMISSION, IDLE], taken_at=NOW))
+
+        sessions = {item["session_id"]: item for item in snapshot_payload(app=app)["sessions"]}
+
+        assert (sessions["sid-perm"]["preview"]["body"], sessions["sid-idle"]["preview"]) == (
+            "rm -rf build",
+            None,
+        )
 
     def test_refresh_bumps_the_version(self, app: SupervisorApp) -> None:
         before = app.version

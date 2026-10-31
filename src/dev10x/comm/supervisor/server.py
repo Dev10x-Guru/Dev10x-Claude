@@ -18,6 +18,7 @@ from dev10x.comm.supervisor.decisions import ANSWERED, OPEN, Decision, DecisionS
 from dev10x.comm.supervisor.delivery import deliver_keys, deliver_relay, keys_for_option
 from dev10x.comm.supervisor.lessons import find_lessons, write_lesson
 from dev10x.comm.supervisor.paths import TOKEN_HEADER
+from dev10x.comm.supervisor.pending import Preview, read_preview
 from dev10x.comm.supervisor.probes import ProbeError, Snapshot, read_pane, send_keys
 from dev10x.comm.supervisor.prompts import find_option, parse_prompt
 from dev10x.comm.supervisor.sessions import SessionView
@@ -49,10 +50,12 @@ class SupervisorApp:
     relay_mailbox: str
     key_sender: Callable[..., None] = send_keys
     pane_reader: Callable[..., str] = read_pane
+    preview_reader: Callable[..., Preview | None] = read_preview
     today: Callable[[], date] = date.today
     static_dir: Path = STATIC_DIR
     snapshot: Snapshot = field(default_factory=lambda: Snapshot(sessions=[]))
     pane_text: dict[str, str] = field(default_factory=dict)
+    previews: dict[str, Preview] = field(default_factory=dict)
     version: int = 0
     stopping: threading.Event = field(default_factory=threading.Event)
     changed: threading.Condition = field(default_factory=threading.Condition)
@@ -62,10 +65,17 @@ class SupervisorApp:
             sessions = self.snapshot.sessions
         return next((view for view in sessions if view.session_id == session_id), None)
 
-    def publish(self, *, snapshot: Snapshot, pane_text: dict[str, str]) -> None:
+    def publish(
+        self,
+        *,
+        snapshot: Snapshot,
+        pane_text: dict[str, str],
+        previews: dict[str, Preview] | None = None,
+    ) -> None:
         with self.changed:
             self.snapshot = snapshot
             self.pane_text = pane_text
+            self.previews = previews or {}
             self.version += 1
             self.changed.notify_all()
 
@@ -89,15 +99,18 @@ def _excerpt(*, text: str) -> str:
 def snapshot_payload(*, app: SupervisorApp) -> dict[str, Any]:
     with app.changed:
         snapshot, pane_text, version = app.snapshot, dict(app.pane_text), app.version
+        previews = dict(app.previews)
     open_decisions = [decision for decision in app.store.all() if decision.state == OPEN]
     sessions = []
     for view in snapshot.sessions:
         text = pane_text.get(view.session_id, "")
         prompt = parse_prompt(pane_text=text) if view.status == "waiting" else None
+        preview = previews.get(view.session_id)
         sessions.append(
             {
                 **asdict(view),
                 "prompt": asdict(prompt) if prompt else None,
+                "preview": asdict(preview) if preview else None,
                 "excerpt": _excerpt(text=text),
                 "decisions": [
                     asdict(decision)
@@ -131,7 +144,13 @@ def refresh(*, app: SupervisorApp, provider: Callable[[], Snapshot]) -> None:
         left_waiting = previous.get(decision.session_id) == "waiting" and now != "waiting"
         if decision.state == OPEN and left_waiting:
             app.store.expire_for_session(session_id=decision.session_id)
-    app.publish(snapshot=snapshot, pane_text=pane_text)
+    previews = {
+        view.session_id: preview
+        for view in snapshot.sessions
+        if view.status == "waiting"
+        and (preview := app.preview_reader(session_id=view.session_id)) is not None
+    }
+    app.publish(snapshot=snapshot, pane_text=pane_text, previews=previews)
 
 
 def _delivered(*, channel: str, status: str) -> bool:

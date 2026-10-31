@@ -12,6 +12,14 @@ export interface Prompt {
   options: PromptOption[];
 }
 
+export interface ToolCallPreview {
+  tool: string;
+  title: string;
+  kind: "diff" | "command" | "text";
+  body: string;
+  truncated: boolean;
+}
+
 export interface Decision {
   decision_id: string;
   session_id: string;
@@ -34,6 +42,7 @@ export interface Session {
   board_state: string;
   group: Group;
   prompt: Prompt | null;
+  preview: ToolCallPreview | null;
   excerpt: string;
   decisions: Decision[];
 }
