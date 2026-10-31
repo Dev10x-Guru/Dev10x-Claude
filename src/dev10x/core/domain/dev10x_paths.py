@@ -208,6 +208,16 @@ class Dev10xConfigDir:
         return cls._resolve("accepted-findings.yaml")
 
     @classmethod
+    def skill_prune_yaml(cls) -> Path:
+        """User-owned skill-prune allowlist (GH-1627).
+
+        ``keep:`` lists skill names ``dev10x:skill-prune`` must never
+        propose hiding, in any project. Introduced after the
+        ``~/.config/Dev10x`` move, so there is no legacy path.
+        """
+        return cls._resolve("skill-prune.yaml")
+
+    @classmethod
     def doctor_accepted_findings_yaml(cls) -> Path:
         """User-owned accepted-by-design plugin-doctor findings (GH-1321).
 

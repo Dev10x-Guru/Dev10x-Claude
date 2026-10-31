@@ -90,7 +90,7 @@ That way no MCP tool is ever renamed.
 | skill management (7) | `dev10x-teach` | skill-create, skill-audit, skill-audit-queue, audit-file, skill-index, context-audit, memory-maintenance |
 | task management (7) | `dev10x-tasks` | session-tasks, session-wrap-up, plan-sync, park, park-discover, park-todo, park-remind |
 | tickets + scoping (15) | `dev10x-scoping` | ticket-create, ticket-jtbd, jira, linear, scope, ticket-scope, project-scope, estimate, jtbd, ddd, spec-sync, spec-update, adr, adr-evaluate, project-audit |
-| core (13) | `dev10x` | afk, ask, friction-setup, session-config-seed, upgrade-cleanup, plugin-maintenance, plugin-doctor, onboarding, permission-investigator, diag-friction, playbook, playbook-maintenance, gh-context (moved from coding in Stage A3, GH-1553) |
+| core (15) | `dev10x` | afk, ask, friction-setup, session-config-seed, upgrade-cleanup, plugin-maintenance, plugin-doctor, onboarding, permission-investigator, diag-friction, playbook, playbook-maintenance, gh-context (moved from coding in Stage A3, GH-1553), permission-audit-apply, skill-prune (GH-1631, GH-1627) |
 | coding (37) | `dev10x-coding` | git and git-\* (10, including ticket-branch), gh-pr-\* / gh-review-setup (11), review, review-fix, request-review, slack-review-request, gchat-review-request, work-on, fanout, foreman, verify-acc-dod, py-test, py-test-flaky, py-uv, investigate, qa-scope, release-notes, ide-normalize |
 
 ### Plugin names and the invocation rule

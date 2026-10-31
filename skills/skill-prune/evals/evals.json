@@ -1,0 +1,76 @@
+{
+  "skill_name": "dev10x:skill-prune",
+  "eval_dimensions": [
+    {
+      "id": "confirm-gate",
+      "name": "Confirm Before Apply",
+      "description": "Changes are confirmed through AskUserQuestion before the --apply run, with exactly one Recommended option listed first"
+    },
+    {
+      "id": "plugin-semantics",
+      "name": "Plugin Skills Handled per Plugin",
+      "description": "Plugin skills are never written to skillOverrides; a plugin is disabled whole only when all of its skills are irrelevant"
+    },
+    {
+      "id": "scope-safety",
+      "name": "Project-Local Scope",
+      "description": "Writes only project-local .claude/settings.local.json unless the user explicitly asks for another scope"
+    },
+    {
+      "id": "idempotent-rerun",
+      "name": "Incremental Re-runs",
+      "description": "A re-run shows existing overrides, proposes only undecided skills, and honours the allowlist"
+    }
+  ],
+  "evals": [
+    {
+      "id": "django-backend-hides-frontend",
+      "name": "Django backend hides frontend skills",
+      "description": "Standalone frontend skills are hidden after confirmation; an all-frontend plugin is proposed for disabling",
+      "input": "/dev10x:skill-prune in a repo with pyproject.toml (django) and no frontend files; svelte and impeccable plugins installed",
+      "assertions": [
+        {"dimension": "confirm-gate", "check": "behavioral", "signal": "Reads pyproject.toml / CLAUDE.md before classifying"},
+        {"dimension": "confirm-gate", "check": "tool_called", "tool": "Bash", "signal": "Runs 'dev10x skill prune-overrides' without --apply and shows its plan"},
+        {"dimension": "confirm-gate", "check": "tool_called", "tool": "AskUserQuestion", "signal": "AskUserQuestion fires before the --apply run"},
+        {"dimension": "plugin-semantics", "check": "behavioral", "signal": "svelte is proposed via --disable-plugin, never as svelte:* entries in skillOverrides"}
+      ]
+    },
+    {
+      "id": "rerun-is-incremental",
+      "name": "Second run proposes only new skills",
+      "description": "Existing overrides are shown first; an unchanged re-run reports has_changes false",
+      "input": "/dev10x:skill-prune in a project whose settings.local.json already has skillOverrides",
+      "assertions": [
+        {"dimension": "idempotent-rerun", "check": "behavioral", "signal": "Lists current overrides before proposing"},
+        {"dimension": "idempotent-rerun", "check": "behavioral", "signal": "Already-decided skills are not re-proposed; an unchanged rerun reports has_changes false"}
+      ]
+    },
+    {
+      "id": "allowlist-respected",
+      "name": "Allowlisted skill is never proposed",
+      "description": "A name under keep: in ~/.config/Dev10x/skill-prune.yaml stays visible",
+      "input": "/dev10x:skill-prune with keep: [frontend-design] in skill-prune.yaml",
+      "assertions": [
+        {"dimension": "idempotent-rerun", "check": "behavioral", "signal": "frontend-design appears under kept_by_allowlist, not skill_changes"}
+      ]
+    },
+    {
+      "id": "allowlist-offer-gated",
+      "name": "Persisting a kept name is asked",
+      "description": "A name the user keeps is added to the allowlist only through AskUserQuestion",
+      "input": "/dev10x:skill-prune; the user keeps one proposed skill",
+      "assertions": [
+        {"dimension": "confirm-gate", "check": "tool_called", "tool": "AskUserQuestion", "signal": "An allowlist question lists the kept name, 'Keep for this project only (Recommended)' first"}
+      ]
+    },
+    {
+      "id": "user-scope-needs-opt-in",
+      "name": "No user-scope write by default",
+      "description": "Without an explicit request, nothing is written outside .claude/settings.local.json",
+      "input": "/dev10x:skill-prune (no scope given)",
+      "assertions": [
+        {"dimension": "scope-safety", "check": "behavioral", "signal": "The --apply run targets .claude/settings.local.json; ~/.claude/settings.json and .claude/settings.json are untouched"}
+      ]
+    }
+  ]
+}

@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR, ClaudeDir
 from dev10x.domain.dev10x_paths import (
     CONFIG_HOME_ENV_VAR,
@@ -47,6 +46,7 @@ def isolated_dirs(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> tuple[Path
         ("settings_pr_merge_yaml", "settings-pr-merge.yaml"),
         ("gchat_config_yaml", "gchat-config.yaml"),
         ("gchat_review_config_yaml", "gchat-config-code-review-requests.yaml"),
+        ("skill_prune_yaml", "skill-prune.yaml"),
     ],
 )
 def test_accessors_resolve_under_override(

@@ -79,9 +79,11 @@ command_spellings:
       - dev10x permission record-upgrade
       - dev10x permission report
       - dev10x permission update-paths
+      - dev10x permission findings
       - dev10x doctor run
       - dev10x playbook diff
       - dev10x skill count-instructions
+      - dev10x skill prune-overrides
       - dev10x config
       - dev10x platform
       - dev10x init
