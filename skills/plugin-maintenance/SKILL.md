@@ -333,6 +333,13 @@ every root (for example under `~/.herdr/worktrees/`) is still checked
 and seeded. `catalog-gap` lists those worktrees under
 "Out-of-roots worktrees".
 
+**Remembered grants (GH-1677).** `~/.config/Dev10x/granted-permissions.yaml`
+holds allow rules remembered from a grant. It is Dev10x-owned (written
+only by `granted_catalog.remember_granted_rule`, under a file lock) and
+merged into the userspace catalog, so `ensure-base` and `seed-worktree`
+carry those rules into every checkout, including ones created after the
+grant, and `catalog-diff` lists them as user-only.
+
 **Worktree roots outside the repo (GH-1666).** Set
 `derive_worktree_roots: true` in the userspace `projects.yaml` and
 `ensure-workspace` registers the parent of every linked worktree that

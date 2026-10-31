@@ -14,10 +14,17 @@ from dev10x.commands.permission import seed_worktree as seed_worktree_cmd
 
 @pytest.fixture(autouse=True)
 def _config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    from dev10x.skills.permission.catalog_merge import MergedCatalog
+
     from dev10x.skills.permission import update_paths as paths_mod
 
     monkeypatch.setattr(paths_mod, "find_config", lambda: ok(tmp_path / "config.yaml"))
     monkeypatch.setattr(paths_mod, "load_config", lambda _path: {"base_permissions": []})
+    monkeypatch.setattr(
+        paths_mod,
+        "load_effective_config",
+        lambda _path: MergedCatalog(config={"base_permissions": []}),
+    )
 
 
 def test_provenance_prints_counts(monkeypatch: pytest.MonkeyPatch) -> None:

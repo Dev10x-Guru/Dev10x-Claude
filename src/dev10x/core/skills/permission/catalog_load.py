@@ -30,6 +30,7 @@ from dev10x.skills.permission.catalog_merge import MergedCatalog, merge_catalogs
 from dev10x.skills.permission.catalog_paths import catalog_text, shipped_projects_catalog
 from dev10x.skills.permission.catalog_result import _result
 from dev10x.skills.permission.config import parse_config, resolve_config
+from dev10x.skills.permission.granted_catalog import load_granted_rules, with_granted_rules
 from dev10x.skills.permission.settings_discovery import VENDORED_DIRS, discover_settings
 
 MEMORY_CONFIG = Dev10xConfigDir.projects_yaml()
@@ -96,8 +97,12 @@ def load_effective_config(config_path: Path) -> MergedCatalog:
     When ``config_path`` IS the shipped catalog — the pre-``init`` case
     where no userspace copy exists — there is nothing to merge and the
     file is returned as-is.
+
+    Rules remembered from a grant (GH-1677) join the user layer in both
+    cases, so they surface as user-only drift and reach every checkout
+    ``ensure-base`` or ``seed-worktree`` seeds.
     """
-    user_config = load_config(config_path)
+    user_config = with_granted_rules(config=load_config(config_path), granted=load_granted_rules())
     if PLUGIN_CONFIG is not None and config_path == PLUGIN_CONFIG:
         return MergedCatalog(config=user_config)
     return merge_catalogs(shipped=load_shipped_config(), user=user_config)

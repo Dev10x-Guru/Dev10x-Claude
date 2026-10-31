@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from dev10x.domain.common.result import err, ok
+from dev10x.skills.permission.catalog_merge import MergedCatalog
 
 from dev10x.mcp import server_cli as cli_server
 
@@ -137,7 +138,7 @@ class TestCreateWorktree:
     @pytest.mark.asyncio
     @patch("dev10x.git.create_worktree", new_callable=AsyncMock)
     @patch("dev10x.skills.permission.update_paths.find_config")
-    @patch("dev10x.skills.permission.update_paths.load_config")
+    @patch("dev10x.skills.permission.update_paths.load_effective_config")
     @patch("dev10x.skills.permission.update_paths.seed_worktree")
     async def test_seed_success_adds_seeded_permissions(
         self,
@@ -152,7 +153,7 @@ class TestCreateWorktree:
             {"worktree_path": "/tmp/wt", "branch": "feat", "created": True}
         )
         mock_find.return_value = domain_ok("/fake/config.yaml")
-        mock_load.return_value = {"base_permissions": ["Bash(git)"]}
+        mock_load.return_value = MergedCatalog(config={"base_permissions": ["Bash(git)"]})
         mock_seed.return_value = domain_ok(
             {"added": 3, "path": "/tmp/wt/.claude/settings.local.json"}
         )
@@ -186,7 +187,7 @@ class TestCreateWorktree:
     @pytest.mark.asyncio
     @patch("dev10x.git.create_worktree", new_callable=AsyncMock)
     @patch("dev10x.skills.permission.update_paths.find_config")
-    @patch("dev10x.skills.permission.update_paths.load_config")
+    @patch("dev10x.skills.permission.update_paths.load_effective_config")
     @patch("dev10x.skills.permission.update_paths.seed_worktree")
     async def test_seed_failure_records_seed_error_not_error(
         self,
@@ -202,7 +203,7 @@ class TestCreateWorktree:
             {"worktree_path": "/tmp/wt", "branch": "feat", "created": True}
         )
         mock_find.return_value = domain_ok("/fake/config.yaml")
-        mock_load.return_value = {}
+        mock_load.return_value = MergedCatalog(config={})
         mock_seed.return_value = domain_err("permission denied writing settings")
 
         result = await cli_server.create_worktree(branch="feat")
