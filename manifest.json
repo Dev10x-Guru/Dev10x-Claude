@@ -1,0 +1,35 @@
+{
+  "manifest_version": "0.3",
+  "name": "dev10x",
+  "display_name": "Dev10x",
+  "version": "0.109.0.dev0",
+  "description": "Dev10x MCP tools for GitHub PR lifecycle, issue tracking, git history, CI monitoring and gate policy.",
+  "author": {
+    "name": "Janusz Skonieczny",
+    "email": "Dev10xAI@WooYek.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Dev10x-Guru/dev10x-claude"
+  },
+  "homepage": "https://www.skool.com/Dev10x-1892",
+  "license": "MIT",
+  "keywords": ["git", "github", "pull-requests", "code-review", "workflow", "MCP"],
+  "server": {
+    "type": "python",
+    "entry_point": "servers/cli_server.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": ["run", "--script", "${__dirname}/servers/cli_server.py"],
+      "env": {
+        "PYTHONUNBUFFERED": "1"
+      }
+    }
+  },
+  "compatibility": {
+    "platforms": ["darwin", "linux"],
+    "runtimes": {
+      "python": ">=3.11"
+    }
+  }
+}

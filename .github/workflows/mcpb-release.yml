@@ -1,0 +1,56 @@
+name: Attach MCPB bundle to release
+
+# Packs the cli MCP server as dev10x-<version>.mcpb on every release tag
+# so Claude Desktop and other MCPB hosts can install it in one click
+# (GH-1675). bin/release.sh creates the GitHub release on the same tag
+# push; whichever runs first creates it and the other reuses it.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  MCPB_VERSION: "2.1.2"
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Check the manifest matches the tag
+        run: |
+          tag_version="${GITHUB_REF_NAME#v}"
+          manifest_version="$(jq -r .version manifest.json)"
+          if [ "$manifest_version" != "$tag_version" ]; then
+            echo "::error::manifest.json says $manifest_version but the tag is $GITHUB_REF_NAME — check .bumpversion.toml lists manifest.json"
+            exit 1
+          fi
+
+      - name: Validate manifest
+        run: npx --yes "@anthropic-ai/mcpb@${MCPB_VERSION}" validate manifest.json
+
+      - name: Pack bundle
+        run: npx --yes "@anthropic-ai/mcpb@${MCPB_VERSION}" pack . "dev10x-${GITHUB_REF_NAME#v}.mcpb"
+
+      - name: Attach bundle to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          asset="dev10x-${GITHUB_REF_NAME#v}.mcpb"
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 \
+            || gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes \
+            || gh release view "$GITHUB_REF_NAME" >/dev/null
+          gh release upload "$GITHUB_REF_NAME" "$asset" --clobber

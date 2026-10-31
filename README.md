@@ -246,6 +246,22 @@ in-session `/plugin` slash commands are unreliable for install.
 [Full installation guide →](docs/installation.md) — prerequisites,
 dependencies, manual clone, develop branch, and verification.
 
+### MCP tools only — Claude Desktop and other MCPB hosts
+
+Starting with v0.109.0, every
+[release](https://github.com/Dev10x-Guru/dev10x-claude/releases)
+attaches `dev10x-<version>.mcpb`, an [MCP Bundle](https://github.com/modelcontextprotocol/mcpb)
+of the `cli` MCP server (PR lifecycle, issues, git history, CI
+monitoring, gate policy). Download it and open it in Claude Desktop —
+or any MCPB-aware host — to install the tools in one click, without
+the Claude Code plugin.
+
+The bundle needs [`uv`](https://docs.astral.sh/uv/) on `PATH`, plus
+`git` and an authenticated `gh` for the GitHub tools. Skills, hooks
+and the `db` server are not in it: skills and hooks are Claude Code
+plugin features, and `db` reads local `databases.yaml` and keyring
+credentials that a bundle cannot carry.
+
 ## Why Dev10x?
 
 [Why Dev10x →](docs/why-dev10x.md) — who it's for, what problems
