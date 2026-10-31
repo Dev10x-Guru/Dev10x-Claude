@@ -26,7 +26,7 @@ log = logging.getLogger(__name__)
 # Terminal-task invariant (GH-149 / GH-681). Owned here so the PreToolUse
 # guard asks the Plan rather than re-deriving the rule externally
 # (Tell-Don't-Ask).
-_TERMINAL_SUBJECT = re.compile(r"verify\s+ac", re.IGNORECASE)
+_TERMINAL_SUBJECT = re.compile(r"verify\s+(?:ac\b|acceptance)", re.IGNORECASE)
 _OPEN_STATUSES = (TaskStatus.PENDING, TaskStatus.IN_PROGRESS)
 _CLOSING_STATUSES = ("completed", "deleted")
 

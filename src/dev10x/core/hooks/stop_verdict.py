@@ -1035,8 +1035,8 @@ def _dirty_tree_reason(*, dirty: tuple[str, ...]) -> str:
     """
     listed = "\n".join(f"  - {path}" for path in dirty)
     return (
-        "⛔  Every task on the list is complete, but the working tree is "
-        "not clean. An empty task list says the tracking is done; it "
+        "⛔  Nothing actionable is left on the task list, but the working "
+        "tree is not clean. A finished list says the tracking is done; it "
         "says nothing about the work.\n\n"
         f"Uncommitted changes:\n\n{listed}\n\n"
         "**If these are yours, you are not done.** Commit them via "

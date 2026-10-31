@@ -14,6 +14,7 @@ from dev10x.domain.documents.plan import (
     _extract_task_id,
     _set_nested,
     get_plan_path,
+    is_terminal_task_subject,
 )
 from dev10x.domain.documents.task import Task
 
@@ -707,6 +708,19 @@ class TestWouldViolateTerminalTaskInvariant:
         )
 
         assert violation == TerminalTaskViolation(subject="Implement fix", is_terminal=False)
+
+    @pytest.mark.parametrize(
+        ("subject", "expected"),
+        [
+            ("Verify acceptance criteria", True),
+            ("Verify AC and close session", True),
+            ("Verify AC", True),
+            ("Verify access rules", False),
+            ("Verify active overlays", False),
+        ],
+    )
+    def test_only_the_sign_off_gate_is_terminal(self, subject: str, expected: bool) -> None:
+        assert is_terminal_task_subject(subject=subject) is expected
 
     def test_terminal_task_with_open_siblings_violates(self) -> None:
         plan = Plan(tasks=[OPEN_A, VERIFY])
