@@ -692,6 +692,94 @@ class TestKeys:
         assert (response.status, response.json()["error"]) == (502, "herdr exited 1")
 
 
+class TestIntroduce:
+    def test_mails_each_session_about_the_other(self, port: int, app: SupervisorApp) -> None:
+        response = call(
+            port=port,
+            method="POST",
+            path="/introduce",
+            payload={"session_id": WAITING.session_id, "peer_id": IDLE.session_id},
+        )
+        mail = [
+            read_message(message=path) for path in mailbox_unread(root=app.bus_root, name=RELAY)
+        ]
+        routes = sorted((headers["to-session"], headers["peer-session"]) for headers, _ in mail)
+
+        assert (
+            response.json(),
+            routes,
+            all(body.startswith("Answer from Janusz: ") for _, body in mail),
+        ) == (
+            {"ok": True, "request_id": "sid-wait-sid-idle"},
+            [("kb-84", "mc-updates"), ("mc-updates", "kb-84")],
+            True,
+        )
+
+    def test_describes_the_peer_from_its_workspace(self, port: int, app: SupervisorApp) -> None:
+        app.publish(
+            snapshot=Snapshot(sessions=[WAITING, replace(IDLE, cwd="/kb")], taken_at=NOW),
+            pane_text={},
+            status_lines={"sid-wait": "PR#1730"},
+            workspaces=WORKSPACES,
+        )
+
+        call(
+            port=port,
+            method="POST",
+            path="/introduce",
+            payload={"session_id": IDLE.session_id, "peer_id": WAITING.session_id},
+        )
+        bodies = {
+            headers["to-session"]: body
+            for headers, body in (
+                read_message(message=path)
+                for path in mailbox_unread(root=app.bus_root, name=RELAY)
+            )
+        }
+
+        assert (
+            "on branch janusz/GH-1722/bar, for GH-1722, with PR "
+            "https://github.com/Dev10x-Guru/Dev10x-Claude/pull/1730" in bodies["mc-updates"]
+        )
+
+    def test_same_session_rejected(self, port: int, app: SupervisorApp) -> None:
+        response = call(
+            port=port,
+            method="POST",
+            path="/introduce",
+            payload={"session_id": IDLE.session_id, "peer_id": IDLE.session_id},
+        )
+
+        assert (response.status, (app.bus_root / RELAY).exists()) == (400, False)
+
+    def test_gone_peer_conflicts(self, port: int) -> None:
+        response = call(
+            port=port,
+            method="POST",
+            path="/introduce",
+            payload={"session_id": IDLE.session_id, "peer_id": "gone"},
+        )
+
+        assert response.status == 409
+
+    def test_bus_failure_reported(
+        self, port: int, app: SupervisorApp, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def broken(**kwargs: Any) -> list[Path]:
+            raise OSError("bus is read-only")
+
+        monkeypatch.setattr(server_module, "introduce", broken)
+
+        response = call(
+            port=port,
+            method="POST",
+            path="/introduce",
+            payload={"session_id": WAITING.session_id, "peer_id": IDLE.session_id},
+        )
+
+        assert (response.status, response.json()["error"]) == (502, "bus is read-only")
+
+
 class TestReply:
     def test_relays_text(self, port: int, app: SupervisorApp) -> None:
         response = call(
