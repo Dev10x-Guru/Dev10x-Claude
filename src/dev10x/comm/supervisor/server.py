@@ -20,8 +20,10 @@ from uuid import uuid4
 from dev10x.comm.skills.bus.maildir import InvalidMessageError
 from dev10x.comm.supervisor.decisions import ANSWERED, OPEN, Decision, DecisionStore
 from dev10x.comm.supervisor.delivery import (
+    Peer,
     deliver_keys,
     deliver_relay,
+    introduce,
     keys_for_option,
     request_preapproval,
 )
@@ -337,6 +339,7 @@ class SupervisorHandler(BaseHTTPRequestHandler):
                 "/answer": self._post_answer,
                 "/keys": self._post_keys,
                 "/reply": self._post_reply,
+                "/introduce": self._post_introduce,
                 "/preapprove": self._post_preapprove,
                 "/lessons": self._post_lesson,
             }
@@ -636,6 +639,44 @@ class SupervisorHandler(BaseHTTPRequestHandler):
             log_path=self.app.log_path,
         )
         self._ok()
+
+    def _peer(self, *, view: SessionView) -> Peer:
+        with self.app.changed:
+            workspace = self.app.workspaces.get(view.cwd)
+            status_line = strip_ansi(self.app.status_lines.get(view.session_id, ""))
+        link = _workspace_payload(workspace=workspace, cwd=view.cwd, status_line=status_line)
+        return Peer(
+            name=view.name,
+            session_id=view.session_id,
+            cwd=view.cwd,
+            branch=link["branch"],
+            issue=link["issue"],
+            pr_url=link["pr_url"],
+            summary=view.summary,
+        )
+
+    def _post_introduce(self, params: dict[str, str]) -> None:
+        body = self._body()
+        first = self._listed_session(session_id=str(body.get("session_id", "")))
+        second = self._listed_session(session_id=str(body.get("peer_id", "")))
+        if first.session_id == second.session_id:
+            raise RequestError(
+                status=HTTPStatus.BAD_REQUEST, message="Drop a different session to introduce."
+            )
+        request_id = f"{first.session_id[:8]}-{second.session_id[:8]}"
+        try:
+            introduce(
+                bus_root=self.app.bus_root,
+                relay_mailbox=self.app.relay_mailbox,
+                first=self._peer(view=first),
+                second=self._peer(view=second),
+                request_id=request_id,
+                confirmed_by=CONFIRMED_BY,
+                log_path=self.app.log_path,
+            )
+        except (InvalidMessageError, OSError) as exc:
+            raise RequestError(status=HTTPStatus.BAD_GATEWAY, message=str(exc)) from exc
+        self._ok(request_id=request_id)
 
     def _post_preapprove(self, params: dict[str, str]) -> None:
         body = self._body()

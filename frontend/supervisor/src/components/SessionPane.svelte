@@ -5,6 +5,7 @@
   import StatusMark from "./StatusMark.svelte";
   import { displayName, shortPath } from "../lib/format";
   import { statusLinks } from "../lib/links";
+  import { SESSION_MIME, carriesSession, droppedPeer } from "../lib/drag";
   import { pinned } from "../lib/tail";
   import { markOf } from "../lib/tree";
   import type { ConversationEntry, Session, View } from "../lib/types";
@@ -17,9 +18,42 @@
     onview: (view: View) => void;
     pending: boolean;
     run: (path: string, body: Record<string, unknown>, what: string) => Promise<void>;
+    nameOf: (sessionId: string) => string;
   }
 
-  let { session, conversation, tail, view, onview, pending, run }: Props = $props();
+  let { session, conversation, tail, view, onview, pending, run, nameOf }: Props = $props();
+
+  let dropping = $state(false);
+  let peer = $state("");
+
+  function ondragover(event: DragEvent): void {
+    if (!carriesSession(event.dataTransfer?.types)) return;
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = "link";
+    dropping = true;
+  }
+
+  function ondragleave(event: DragEvent): void {
+    const into = event.relatedTarget as Node | null;
+    if (!into || !(event.currentTarget as HTMLElement).contains(into)) dropping = false;
+  }
+
+  function ondrop(event: DragEvent): void {
+    dropping = false;
+    if (!carriesSession(event.dataTransfer?.types)) return;
+    event.preventDefault();
+    peer = droppedPeer(event.dataTransfer?.getData(SESSION_MIME) ?? "", session.session_id);
+  }
+
+  async function introducePeer(): Promise<void> {
+    const peerId = peer;
+    peer = "";
+    await run(
+      "/introduce",
+      { session_id: session.session_id, peer_id: peerId },
+      `Introduced ${displayName(session)} and ${nameOf(peerId)} to each other through the relay`,
+    );
+  }
 
   const FOLLOW_SLACK_PX = 32;
 
@@ -52,7 +86,13 @@
   }
 </script>
 
-<section class="pane" aria-label={displayName(session)}>
+<section
+  class={["pane", { dropping }]}
+  aria-label={displayName(session)}
+  {ondragover}
+  {ondragleave}
+  {ondrop}
+>
   <header class="head">
     <div class="title">
       <StatusMark mark={markOf(session)} />
@@ -101,7 +141,18 @@
     {/if}
   </div>
 
-  {#if waiting}
+  {#if peer}
+    <section class="introduce" aria-label="Introduce two sessions">
+      <p>
+        Introduce <strong>{displayName(session)}</strong> and <strong>{nameOf(peer)}</strong>? Each gets
+        a message about the other to swap what they are changing, tips and gotchas. Neither leads.
+      </p>
+      <div class="actions">
+        <button class="go" disabled={pending} onclick={introducePeer}>Introduce</button>
+        <button class="cancel" onclick={() => (peer = "")}>Cancel</button>
+      </div>
+    </section>
+  {:else if waiting}
     <AnswerDock {session} {pending} {run} />
   {/if}
 
@@ -185,6 +236,51 @@
   .status {
     padding: 0 var(--space-6) var(--space-3);
     background: var(--paper);
+  }
+
+  .pane.dropping {
+    outline: 2px dashed var(--focus);
+    outline-offset: -6px;
+  }
+
+  .introduce {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2) var(--space-4);
+    padding: var(--space-3) var(--space-6);
+    background: color-mix(in oklch, var(--focus) 10%, var(--paper));
+    border-top: 1px solid var(--focus);
+  }
+
+  .introduce p {
+    margin: 0;
+    max-width: 60ch;
+  }
+
+  .actions {
+    display: flex;
+    gap: var(--space-3);
+  }
+
+  .introduce .go {
+    padding: var(--space-2) var(--space-4);
+    background: var(--ink);
+    color: var(--paper);
+    border: none;
+    border-radius: 3px;
+    font-weight: 650;
+    cursor: pointer;
+  }
+
+  .introduce .cancel {
+    padding: var(--space-2) 0;
+    background: none;
+    border: none;
+    color: var(--ink-soft);
+    font-weight: 600;
+    cursor: pointer;
   }
 
   .well {

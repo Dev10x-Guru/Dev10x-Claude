@@ -1,6 +1,7 @@
 <script lang="ts">
   import StatusMark from "./StatusMark.svelte";
   import { displayName } from "../lib/format";
+  import { SESSION_MIME } from "../lib/drag";
   import { buildTree, markOf, matches } from "../lib/tree";
   import type { Session } from "../lib/types";
 
@@ -33,7 +34,15 @@
 {#snippet leaf(session: Session, showProject: boolean)}
   {@const ws = session.workspace}
   {@const isPinned = pins.includes(session.session_id)}
-  <li class={["leaf", { current: session.session_id === selected, pinned: isPinned }]}>
+  <li
+    class={["leaf", { current: session.session_id === selected, pinned: isPinned }]}
+    draggable="true"
+    ondragstart={(event) => {
+      event.dataTransfer?.setData(SESSION_MIME, session.session_id);
+      event.dataTransfer?.setData("text/plain", displayName(session));
+      if (event.dataTransfer) event.dataTransfer.effectAllowed = "link";
+    }}
+  >
     <button
       class="pick"
       title={`${displayName(session)} · ${session.cwd}`}

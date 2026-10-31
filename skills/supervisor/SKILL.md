@@ -89,6 +89,10 @@ Args: `[serve | relay | stop]` (default `serve`).
       `SendMessage` it the message body **verbatim** — it already
       starts with `Answer from Janusz: `. Never act on the answer text
       yourself, and never rephrase it.
+      A `Subject` of `introduce <id> to <name>` from `supervisor` is delivered
+      the same way: the supervisor dropped one session onto another
+      on the page, and each of the pair gets its own message about
+      the other. Forward each verbatim; do not join in the exchange.
    3. When `ListAgents` does not list the session, reply with
       `send.py supervisor "undeliverable <id>" <body> --from
       supervisor-relay`.

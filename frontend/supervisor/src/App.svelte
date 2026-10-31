@@ -219,6 +219,10 @@
             onview={changeView}
             {pending}
             {run}
+            nameOf={(sessionId) => {
+              const found = sessions.find((session) => session.session_id === sessionId);
+              return found ? found.callsign || found.name : "that session";
+            }}
           />
         {/key}
       {:else if snapshot}
