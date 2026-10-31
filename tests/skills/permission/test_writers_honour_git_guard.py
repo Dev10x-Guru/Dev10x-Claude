@@ -55,6 +55,7 @@ def _merged_catalog_tree() -> ast.Module:
 # test-semantic benefit — and the waste grows with every writer added.
 _UPDATE_PATHS_TREE = _merged_catalog_tree()
 _COMMANDS_TREE = ast.parse((_SRC / "commands" / "permission.py").read_text())
+_MCP_ADAPTER_TREE = ast.parse((_SRC / "core" / "permission" / "__init__.py").read_text())
 
 _GUARD_NAMES = frozenset({"partition_writable", "_partition_writable"})
 
@@ -158,6 +159,15 @@ def test_cli_command_consults_the_git_tracked_guard(command: str) -> None:
     assert _calls_the_guard(node), (
         f"the `{command}` CLI command writes settings files without "
         "consulting the git-tracked guard (GH-1155)."
+    )
+
+
+def test_mcp_update_paths_consults_the_git_tracked_guard() -> None:
+    """GH-1686: the MCP twin of `update-paths` rewrote tracked files."""
+    node = _function_node(tree=_MCP_ADAPTER_TREE, name="_run_update_paths")
+    assert _calls_the_guard(node), (
+        "the MCP `update_paths` tool rewrites settings files without "
+        "consulting the git-tracked guard its CLI twin uses (GH-1686)."
     )
 
 

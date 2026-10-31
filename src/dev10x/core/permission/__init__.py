@@ -348,9 +348,13 @@ def _run_update_paths(
         if dry_run:
             messages.append("(dry run — no files will be modified)")
 
+    writable_files, skip_messages = mod.partition_writable(sorted(settings_files))
+    if not quiet:
+        messages.extend(skip_messages)
+
     total_changes = 0
     files_changed = 0
-    for path in sorted(settings_files):
+    for path in writable_files:
         count, file_messages = mod.update_file(
             path,
             target,

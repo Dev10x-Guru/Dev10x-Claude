@@ -4,11 +4,13 @@ shared git-tracked write guard (GH-1149, GH-1152, GH-1155)."""
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
 
 import pytest
 from dev10x.skills.permission.catalog_paths import load_catalog_document
 
+from dev10x import subprocess_utils
 from dev10x.skills.permission import catalog_rules, enumerate_mcp
 from dev10x.skills.permission import catalog_write as mod
 
@@ -86,7 +88,7 @@ class TestPartitionWritableGitGuard:
         tracked.write_text("{}\n")
         sibling = tmp_path / "settings.local.json"
         sibling.write_text("{}\n")
-        monkeypatch.setattr(mod, "_is_git_tracked", lambda _path: True)
+        monkeypatch.setattr(mod, "_is_git_tracked", lambda path: path == tracked)
 
         writable, messages = mod.partition_writable([tracked], redirect_tracked=True)
 
@@ -161,6 +163,123 @@ class TestPartitionWritableGitGuard:
 
         writable, _messages = mod.partition_writable([untracked], **kwargs)
         assert writable == [untracked]
+
+    @pytest.mark.parametrize(
+        "redirect_tracked",
+        [False, True],
+        ids=["default", "redirect_tracked"],
+    )
+    def test_tracked_settings_local_json_is_skipped(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        redirect_tracked: bool,
+    ) -> None:
+        committed = tmp_path / "settings.local.json"
+        committed.write_text("{}\n")
+        monkeypatch.setattr(mod, "_is_git_tracked", lambda _path: True)
+
+        writable, messages = mod.partition_writable(
+            [committed],
+            redirect_tracked=redirect_tracked,
+        )
+
+        assert writable == []
+        assert messages == [f"  SKIP (git-tracked): {committed}"]
+
+    @pytest.mark.parametrize("sibling_state", [True, None], ids=["tracked", "unknown"])
+    def test_redirect_target_must_be_untracked_too(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        sibling_state: bool | None,
+    ) -> None:
+        tracked = tmp_path / "settings.json"
+        tracked.write_text("{}\n")
+        sibling = tmp_path / "settings.local.json"
+        sibling.write_text("{}\n")
+        states = {tracked: True, sibling: sibling_state}
+        monkeypatch.setattr(mod, "_is_git_tracked", lambda path: states[path])
+
+        writable, messages = mod.partition_writable([tracked], redirect_tracked=True)
+
+        assert writable == []
+        assert any("is tracked or unknown too" in m for m in messages)
+
+    def test_unknown_tracked_state_is_skipped_not_written(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        path = tmp_path / "settings.local.json"
+        path.write_text("{}\n")
+        monkeypatch.setattr(mod, "_is_git_tracked", lambda _path: None)
+
+        writable, messages = mod.partition_writable([path])
+
+        assert writable == []
+        assert messages == [f"  SKIP (git could not report tracked state): {path}"]
+
+    def test_allow_tracked_also_overrides_an_unknown_state(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        path = tmp_path / "settings.local.json"
+        path.write_text("{}\n")
+        monkeypatch.setattr(mod, "_is_git_tracked", lambda _path: None)
+
+        writable, _messages = mod.partition_writable([path], allow_tracked=True)
+
+        assert writable == [path]
+
+
+class TestIsGitTracked:
+    """GH-1686: "could not ask git" must not read as "safe to write"."""
+
+    @pytest.mark.parametrize(
+        ("returncode", "stderr", "expected"),
+        [
+            (0, "", True),
+            (1, "error: pathspec did not match any file(s) known to git", False),
+            (128, "fatal: not a git repository (or any parent)", False),
+            (128, "fatal: detected dubious ownership in repository", None),
+            (129, "", None),
+        ],
+        ids=["tracked", "untracked", "outside-repo", "repo-error", "other-exit"],
+    )
+    def test_maps_git_exit_to_tracked_state(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        returncode: int,
+        stderr: str,
+        expected: bool | None,
+    ) -> None:
+        completed = subprocess.CompletedProcess(
+            args=["git"], returncode=returncode, stdout="", stderr=stderr
+        )
+        monkeypatch.setattr(subprocess_utils, "run", lambda *_args, **_kwargs: completed)
+
+        assert mod._is_git_tracked(tmp_path / "settings.local.json") is expected
+
+    @pytest.mark.parametrize(
+        "error",
+        [FileNotFoundError("git"), subprocess.TimeoutExpired(cmd="git", timeout=10)],
+        ids=["missing-binary", "timeout"],
+    )
+    def test_git_that_cannot_run_answers_unknown(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        error: Exception,
+    ) -> None:
+        def _raise(*_args: object, **_kwargs: object) -> None:
+            raise error
+
+        monkeypatch.setattr(subprocess_utils, "run", _raise)
+
+        assert mod._is_git_tracked(tmp_path / "settings.local.json") is None
 
 
 class TestEveryWriterHonoursTheGuard:

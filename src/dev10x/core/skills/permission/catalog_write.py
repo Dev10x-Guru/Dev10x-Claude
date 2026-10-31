@@ -3,8 +3,8 @@
 Every function here mutates a settings file, and every mutation goes
 through :func:`dev10x.skills.permission.backup.backed_up_write` (GH-1429)
 and — at the operation level — through :func:`partition_writable`, the
-GH-1136/GH-1155 guard that keeps a git-tracked ``settings.json`` out of a
-maintenance run. The rules being written are computed in
+GH-1136/GH-1155/GH-1686 guard that keeps a git-tracked settings file out
+of a maintenance run. The rules being written are computed in
 :mod:`dev10x.skills.permission.catalog_rules`; the catalog they come from
 is loaded by :mod:`dev10x.skills.permission.catalog_load`. Split out of
 ``update_paths.py`` by GH-1432.
@@ -355,15 +355,18 @@ def generalize_permissions(
     return len(replacements), messages
 
 
-def _is_git_tracked(path: Path) -> bool:
-    """True when `path` is tracked by git (GH-1136).
+_NOT_A_REPO_MARKER = "not a git repository"
 
-    A maintenance run must never write a git-tracked
-    `.claude/settings.json`: doing so dirtied 16 working trees at once
-    and rode into unrelated commits. Only `settings.local.json` — which
-    projects gitignore — is a safe write target. An untracked file, a
-    path outside any repo, and a missing `git` binary all answer False,
-    so the check never blocks a legitimate write.
+
+def _is_git_tracked(path: Path) -> bool | None:
+    """Whether git tracks `path`: True, False, or None when git cannot say (GH-1686).
+
+    A maintenance run must never write a git-tracked settings file:
+    doing so dirtied 16 working trees at once and rode into unrelated
+    commits (GH-1136). `--error-unmatch` exits 1 for an untracked file,
+    and a path outside any repo is untracked by definition — both answer
+    False. A missing binary, a timeout or any other git failure answers
+    None, because "could not ask" is not evidence that a write is safe.
     """
     from dev10x import subprocess_utils
 
@@ -376,8 +379,14 @@ def _is_git_tracked(path: Path) -> bool:
             timeout=10,
         )
     except (OSError, subprocess.SubprocessError):
+        return None
+    if completed.returncode == 0:
+        return True
+    if completed.returncode == 1:
         return False
-    return completed.returncode == 0
+    if _NOT_A_REPO_MARKER in (completed.stderr or ""):
+        return False
+    return None
 
 
 def partition_writable(
@@ -404,6 +413,10 @@ def partition_writable(
 
     `allow_tracked` is the escape hatch for a user who genuinely intends
     to commit their settings; it disables the guard entirely and says so.
+
+    A committed `settings.local.json` is skipped too (GH-1686): it has no
+    further sibling to redirect to. A file whose tracked state git cannot
+    report is skipped rather than written.
     """
     if allow_tracked:
         return list(settings_files), ["  (--allow-tracked: git-tracked guard disabled)"]
@@ -411,10 +424,14 @@ def partition_writable(
     writable: list[Path] = []
     messages: list[str] = []
     for path in settings_files:
-        if path.name != "settings.json" or not _is_git_tracked(path):
+        tracked = _is_git_tracked(path)
+        if tracked is False:
             writable.append(path)
             continue
-        if not redirect_tracked:
+        if tracked is None:
+            messages.append(f"  SKIP (git could not report tracked state): {path}")
+            continue
+        if path.name != "settings.json" or not redirect_tracked:
             messages.append(f"  SKIP (git-tracked): {path}")
             continue
         local_sibling = path.with_name("settings.local.json")
@@ -428,6 +445,11 @@ def partition_writable(
             # this reports the gap and writes nothing.
             messages.append(
                 f"  SKIP (git-tracked, no {local_sibling.name} to redirect to): {path}"
+            )
+            continue
+        if _is_git_tracked(local_sibling) is not False:
+            messages.append(
+                f"  SKIP (git-tracked, {local_sibling.name} is tracked or unknown too): {path}"
             )
             continue
         messages.append(f"  REDIRECT (git-tracked): {path} -> {local_sibling.name}")
