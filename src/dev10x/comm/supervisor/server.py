@@ -25,9 +25,11 @@ from dev10x.comm.supervisor.delivery import (
     deliver_relay,
     introduce,
     keys_for_option,
+    rename_session,
     request_preapproval,
 )
 from dev10x.comm.supervisor.lessons import find_lessons, write_lesson
+from dev10x.comm.supervisor.naming import Rename, is_valid_name, plan_renames
 from dev10x.comm.supervisor.paths import TOKEN_HEADER
 from dev10x.comm.supervisor.pending import (
     ConversationEntry,
@@ -59,6 +61,7 @@ log = logging.getLogger(__name__)
 HOST = "127.0.0.1"
 MAX_BODY_BYTES = 64 * 1024
 CONFIRMED_BY = "janusz"
+AUTO_RENAMED_BY = "janusz (daemon start)"
 STATIC_DIR = Path(__file__).parent / "static"
 HEARTBEAT_SECONDS = 15.0
 HOOK_ROUTE = "/decisions"
@@ -92,6 +95,9 @@ class SupervisorApp:
     recent_reader: Callable[..., list[RecentTool]] = read_recent_tools
     conversation_reader: Callable[..., list[ConversationEntry]] = read_conversation
     workspace_reader: Callable[..., Workspace] = read_workspace
+    renamer: Callable[..., None] = rename_session
+    auto_rename: bool = False
+    auto_renamed: bool = False
     today: Callable[[], date] = date.today
     clock: Callable[[], float] = time.monotonic
     static_dir: Path = STATIC_DIR
@@ -302,9 +308,32 @@ def run_collector(
     while not stop.is_set():
         try:
             refresh(app=app, provider=provider)
+            if app.auto_rename and not app.auto_renamed:
+                app.auto_renamed = True
+                rename_defaults(app=app)
         except Exception:
             log.exception("supervisor collector tick failed")
         stop.wait(interval)
+
+
+def rename_defaults(*, app: SupervisorApp) -> list[Rename]:
+    with app.changed:
+        sessions, workspaces = list(app.snapshot.sessions), dict(app.workspaces)
+    done = []
+    for rename in plan_renames(sessions=sessions, workspaces=workspaces):
+        try:
+            app.renamer(
+                pane_id=rename.session.pane_id,
+                session_name=rename.session.name,
+                name=rename.name,
+                confirmed_by=AUTO_RENAMED_BY,
+                log_path=app.log_path,
+            )
+        except ProbeError:
+            log.warning("could not rename %s to %s", rename.session.name, rename.name)
+            continue
+        done.append(rename)
+    return done
 
 
 class SupervisorHandler(BaseHTTPRequestHandler):
@@ -340,6 +369,7 @@ class SupervisorHandler(BaseHTTPRequestHandler):
                 "/keys": self._post_keys,
                 "/reply": self._post_reply,
                 "/introduce": self._post_introduce,
+                "/rename": self._post_rename,
                 "/preapprove": self._post_preapprove,
                 "/lessons": self._post_lesson,
             }
@@ -639,6 +669,37 @@ class SupervisorHandler(BaseHTTPRequestHandler):
             log_path=self.app.log_path,
         )
         self._ok()
+
+    def _post_rename(self, params: dict[str, str]) -> None:
+        body = self._body()
+        view = self._listed_session(session_id=str(body.get("session_id", "")))
+        name = str(body.get("name", "")).strip()
+        if not is_valid_name(name=name):
+            raise RequestError(
+                status=HTTPStatus.BAD_REQUEST,
+                message=(
+                    "Use letters, digits, '.', '_' or '-' (up to 64), "
+                    "starting with a letter or digit."
+                ),
+            )
+        if view.status != "idle" or not view.pane_id:
+            raise RequestError(
+                status=HTTPStatus.CONFLICT,
+                message=(
+                    "Rename once the session is idle in a Herdr pane; it is busy or has no pane."
+                ),
+            )
+        try:
+            self.app.renamer(
+                pane_id=view.pane_id,
+                session_name=view.name,
+                name=name,
+                confirmed_by=CONFIRMED_BY,
+                log_path=self.app.log_path,
+            )
+        except ProbeError as exc:
+            raise RequestError(status=HTTPStatus.BAD_GATEWAY, message=str(exc)) from exc
+        self._ok(name=name)
 
     def _peer(self, *, view: SessionView) -> Peer:
         with self.app.changed:

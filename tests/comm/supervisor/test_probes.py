@@ -16,6 +16,7 @@ from dev10x.comm.supervisor.probes import (
     Snapshot,
     read_pane,
     send_keys,
+    submit_prompt,
     take_snapshot,
 )
 from tests.comm.supervisor.conftest import IDLE_ID, NOW, WAITING_ID
@@ -174,6 +175,13 @@ class TestPaneCommands:
         read_pane(pane_id="w1:p1", ansi=True, runner=runner)
 
         assert runner.calls[0][0][-2:] == ["--format", "ansi"]
+
+    def test_submit_prompt_args(self) -> None:
+        runner = FakeRunner(outputs={"herdr": ""})
+
+        submit_prompt(pane_id="w1:p1", text="/rename x", runner=runner)
+
+        assert runner.calls[0][0] == ["herdr", "agent", "prompt", "w1:p1", "/rename x"]
 
     def test_read_pane_failure_returns_empty(self) -> None:
         runner = FakeRunner(failures={"herdr": FileNotFoundError("herdr")})

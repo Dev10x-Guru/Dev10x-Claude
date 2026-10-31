@@ -109,3 +109,7 @@ def read_pane(
 
 def send_keys(*, pane_id: str, keys: list[str], runner: Runner = run) -> None:
     _call(args=["herdr", "agent", "send-keys", pane_id, *keys], runner=runner)
+
+
+def submit_prompt(*, pane_id: str, text: str, runner: Runner = run) -> None:
+    _call(args=["herdr", "agent", "prompt", pane_id, text], runner=runner)

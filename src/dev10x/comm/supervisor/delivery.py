@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from dev10x.comm.skills.bus.maildir import Envelope, send
-from dev10x.comm.supervisor.probes import send_keys
+from dev10x.comm.supervisor.probes import send_keys, submit_prompt
 from dev10x.domain.file_locks import atomic_append_line
 
 PREAPPROVE_SCOPES = ("worktree", "repo-checkouts", "user-global", "dev10x-catalog")
@@ -46,6 +46,25 @@ def deliver_keys(
         action="keys",
         target=pane_id,
         detail=" ".join(keys),
+        confirmed_by=confirmed_by,
+    )
+
+
+def rename_session(
+    *,
+    pane_id: str,
+    session_name: str,
+    name: str,
+    confirmed_by: str,
+    log_path: Path,
+    submitter: Callable[..., None] = submit_prompt,
+) -> None:
+    submitter(pane_id=pane_id, text=f"/rename {name}")
+    _log(
+        log_path=log_path,
+        action="rename",
+        target=session_name,
+        detail=name,
         confirmed_by=confirmed_by,
     )
 

@@ -17,6 +17,7 @@ from dev10x.comm.supervisor.delivery import (
     introduce,
     introduction,
     keys_for_option,
+    rename_session,
     request_preapproval,
 )
 from dev10x.comm.supervisor.probes import ProbeError
@@ -129,6 +130,28 @@ ALPHA = Peer(
     summary="moving the migrations",
 )
 BETA = Peer(name="beta", session_id="sid-b", cwd="/work/repo-2")
+
+
+class TestRenameSession:
+    def test_submits_the_rename_command_and_logs(self, log_path: Path) -> None:
+        submitter = RecordingSender()
+
+        rename_session(
+            pane_id="w1:p1",
+            session_name="kb-2a",
+            name="GH-1-x",
+            confirmed_by="janusz",
+            log_path=log_path,
+            submitter=submitter,
+        )
+        record = json.loads(log_path.read_text(encoding="utf-8"))
+
+        assert (submitter.calls, record["action"], record["target"], record["detail"]) == (
+            [{"pane_id": "w1:p1", "text": "/rename GH-1-x"}],
+            "rename",
+            "kb-2a",
+            "GH-1-x",
+        )
 
 
 class TestIntroduction:

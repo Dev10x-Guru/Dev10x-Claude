@@ -134,4 +134,22 @@ def test_serve_wires_service(
         on_disk != app.token,  # type: ignore[attr-defined]
         seen["stop"].is_set(),  # type: ignore[attr-defined]
         set(handlers) == {command.signal.SIGTERM, command.signal.SIGINT},
-    ) == (0, 0, True, True, True, True)
+        app.auto_rename,  # type: ignore[attr-defined]
+    ) == (0, 0, True, True, True, True, True)
+
+
+def test_serve_can_skip_the_start_rename(
+    config_home: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: dict[str, object] = {}
+    monkeypatch.setattr(command, "run_service", lambda **kwargs: seen.update(kwargs))
+    monkeypatch.setattr(command.signal, "signal", lambda signum, handler: None)
+
+    CliRunner().invoke(
+        cli,
+        ["supervisor", "serve", "--no-rename", "--port", "0", "--bus-root", str(tmp_path / "bus")],
+    )
+
+    assert seen["app"].auto_rename is False  # type: ignore[attr-defined]

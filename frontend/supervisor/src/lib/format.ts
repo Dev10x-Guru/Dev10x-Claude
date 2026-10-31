@@ -9,7 +9,12 @@ export function bucket(sessions: Session[]): Record<Group, Session[]> {
 }
 
 export function displayName(session: Session): string {
-  return session.callsign || session.name;
+  if (session.callsign) return session.callsign;
+  const issue = session.workspace?.issue;
+  const prefix = issue ? `${issue}-` : "";
+  return prefix && session.name.startsWith(prefix) && session.name.length > prefix.length
+    ? session.name.slice(prefix.length)
+    : session.name;
 }
 
 export function shortPath(path: string, home = "/home/janusz"): string {
