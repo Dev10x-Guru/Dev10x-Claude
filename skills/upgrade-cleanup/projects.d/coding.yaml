@@ -26,6 +26,7 @@ command_spellings:
       - dev10x foreman watch
       - dev10x watchdog probe
       - dev10x watchdog sessions
+      - dev10x ci-review  # GH-1621
 
 base_permissions:
   # --- Dev10x MCP tools: cli server (GH-878) ---

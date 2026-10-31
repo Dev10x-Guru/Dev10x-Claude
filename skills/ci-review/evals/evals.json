@@ -1,0 +1,74 @@
+{
+  "skill_name": "dev10x:ci-review",
+  "description": "Replay the Claude CI code review and hygiene check locally on a PR, recording writes instead of posting",
+  "eval_dimensions": [
+    {
+      "id": "paid-run-gate",
+      "name": "Paid Run Confirmation Gate",
+      "description": "A model run starts only after an AskUserQuestion answer, in every session mode; the free render runs first."
+    },
+    {
+      "id": "no-github-writes",
+      "name": "Nothing Posted",
+      "description": "The skill only calls the dry-run command and never posts, comments, reviews or drafts on GitHub itself."
+    },
+    {
+      "id": "task_tracking",
+      "name": "Task Tracking",
+      "description": "Creates and updates tasks per the orchestration contract"
+    }
+  ],
+  "evals": [
+    {
+      "id": "gate-before-paid-run",
+      "name": "Render first, then ask before the model run",
+      "description": "On a ready PR the skill renders with --render-only, then calls AskUserQuestion before running any workflow.",
+      "input": "/dev10x:ci-review 1650",
+      "assertions": [
+        {
+          "dimension": "paid-run-gate",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "paid_run_gate_uses_tool — AskUserQuestion is called after the render and before `dev10x ci-review` runs without --render-only"
+        },
+        {
+          "dimension": "paid-run-gate",
+          "check": "behavioral",
+          "signal": "render_first — `dev10x ci-review --pr 1650 --workflow all --render-only` runs before the gate"
+        }
+      ]
+    },
+    {
+      "id": "failed-guard-stops",
+      "name": "A failed CI guard stops the replay",
+      "description": "On a draft PR the render reports the draft guard and the skill stops without asking to run.",
+      "input": "/dev10x:ci-review on a draft PR",
+      "assertions": [
+        {
+          "dimension": "paid-run-gate",
+          "check": "behavioral",
+          "signal": "guard_stop — the skill names the failed draft guard and does not offer a model run"
+        }
+      ]
+    },
+    {
+      "id": "report-says-nothing-posted",
+      "name": "The report says nothing was posted",
+      "description": "After a run the skill relays the outbox and usage table and states that no GitHub write happened.",
+      "input": "/dev10x:ci-review 1650, user picks Run both reviews",
+      "assertions": [
+        {
+          "dimension": "no-github-writes",
+          "check": "behavioral",
+          "signal": "nothing_posted — the summary lists outbox entries as would-be writes and says nothing was posted"
+        },
+        {
+          "dimension": "task_tracking",
+          "check": "tool_called",
+          "tool": "TaskCreate",
+          "signal": "task_created — a 'Replay CI review on PR #1650' task is created at invocation"
+        }
+      ]
+    }
+  ]
+}
