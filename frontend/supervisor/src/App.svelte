@@ -201,7 +201,16 @@
     </header>
 
     <div class="index">
-      <Sidebar sessions={listed} selected={current?.session_id ?? ""} {pins} onselect={select} onpin={pin} />
+      <Sidebar
+        sessions={listed}
+        selected={current?.session_id ?? ""}
+        {pins}
+        {token}
+        {pending}
+        onselect={select}
+        onpin={pin}
+        {run}
+      />
     </div>
 
     {@render handle("aside", "session list")}

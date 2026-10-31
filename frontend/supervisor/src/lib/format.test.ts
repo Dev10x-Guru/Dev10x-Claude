@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  ago,
   bucket,
   clockTime,
   diffLineKind,
@@ -34,6 +35,20 @@ describe("displayName", () => {
     ["status-bar", "", "status-bar"],
   ])("name %j with issue %j shows %j", (name, issue, expected) => {
     expect(displayName(session({ name, workspace: makeWorkspace({ issue }) }))).toBe(expected);
+  });
+});
+
+describe("ago", () => {
+  const now = Date.parse("2026-10-31T12:00:00Z");
+
+  it.each([
+    ["2026-10-31T11:58:00Z", "2m ago"],
+    ["2026-10-31T09:00:00Z", "3h ago"],
+    ["2026-10-27T12:00:00Z", "4d ago"],
+    ["2026-10-31T12:05:00Z", "0m ago"],
+    ["nonsense", ""],
+  ])("%s reads %s", (iso, expected) => {
+    expect(ago(iso, now)).toBe(expected);
   });
 });
 

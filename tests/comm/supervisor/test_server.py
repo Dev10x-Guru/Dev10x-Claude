@@ -16,6 +16,8 @@ import pytest
 from dev10x.comm.skills.bus.maildir import mailbox_unread, read_message
 from dev10x.comm.supervisor import server as server_module
 from dev10x.comm.supervisor.decisions import ANSWERED, DELIVERED, OPEN, DecisionStore
+from dev10x.comm.supervisor.history import PastSession
+from dev10x.comm.supervisor.launcher import Checkout, Launched, LaunchError, Project
 from dev10x.comm.supervisor.paths import TOKEN_HEADER
 from dev10x.comm.supervisor.pending import ConversationEntry, Preview, RecentTool
 from dev10x.comm.supervisor.probes import ProbeError, Snapshot
@@ -691,6 +693,157 @@ class TestKeys:
         )
 
         assert (response.status, response.json()["error"]) == (502, "herdr exited 1")
+
+
+PROJECT = Project(
+    root="/kb",
+    name="KB",
+    main_workspace_id="w1",
+    checkouts=[
+        Checkout(path="/kb", branch="main", is_main=True, workspace_id="w1"),
+        Checkout(path="/kb-wt", branch="janusz/GH-1/x", is_main=False),
+    ],
+)
+PAST = [
+    PastSession(
+        session_id="sid-old",
+        cwd="/kb-wt",
+        title="GH-1-x",
+        topic="Fix x",
+        active_at="2026-10-30T10:00:00+00:00",
+        named=True,
+    )
+]
+
+
+class Launcher:
+    def __init__(self, *, error: Exception | None = None) -> None:
+        self.calls: list[dict[str, Any]] = []
+        self.error = error
+
+    def __call__(self, **kwargs: Any) -> Launched:
+        self.calls.append(kwargs)
+        if self.error:
+            raise self.error
+        return Launched(pane_id="w9:p1", agent="x-beef", path=kwargs.get("path", "/wt/new"))
+
+
+class TestProjectActions:
+    @pytest.fixture
+    def launcher(self, app: SupervisorApp) -> Launcher:
+        launcher = Launcher()
+        app.publish(snapshot=Snapshot(sessions=[IDLE]), pane_text={}, workspaces=WORKSPACES)
+        app.project_reader = lambda root: PROJECT
+        app.past_reader = lambda checkouts, running: PAST
+        app.opener = launcher
+        app.worktree_maker = launcher
+        return launcher
+
+    def test_project_lists_checkouts_and_past_sessions(
+        self, port: int, launcher: Launcher
+    ) -> None:
+        response = call(port=port, method="GET", path="/api/project?root=/kb")
+
+        assert response.json() == {
+            "root": "/kb",
+            "name": "KB",
+            "checkouts": [
+                {"path": "/kb", "branch": "main", "is_main": True, "open": True},
+                {"path": "/kb-wt", "branch": "janusz/GH-1/x", "is_main": False, "open": False},
+            ],
+            "past": [
+                {
+                    "session_id": "sid-old",
+                    "cwd": "/kb-wt",
+                    "title": "GH-1-x",
+                    "topic": "Fix x",
+                    "active_at": "2026-10-30T10:00:00+00:00",
+                    "named": True,
+                }
+            ],
+        }
+
+    @pytest.mark.parametrize("root", ["", "/etc"])
+    def test_only_known_projects(self, port: int, launcher: Launcher, root: str) -> None:
+        response = call(port=port, method="GET", path=f"/api/project?root={root}")
+
+        assert response.status == 400
+
+    def test_herdr_failure_reading_the_project(
+        self, port: int, app: SupervisorApp, launcher: Launcher
+    ) -> None:
+        def broken(root: str) -> Project:
+            raise LaunchError("herdr is not installed or not on PATH")
+
+        app.project_reader = broken
+
+        response = call(port=port, method="GET", path="/api/project?root=/kb")
+
+        assert response.status == 502
+
+    @pytest.mark.parametrize(
+        ("body", "expected"),
+        [
+            ({"action": "session"}, {"project": PROJECT, "path": "/kb"}),
+            ({"action": "session", "path": "/kb-wt"}, {"project": PROJECT, "path": "/kb-wt"}),
+            (
+                {"action": "worktree", "branch": " janusz/GH-2/y "},
+                {"project": PROJECT, "branch": "janusz/GH-2/y"},
+            ),
+            (
+                {"action": "resume", "session_id": "sid-old"},
+                {"project": PROJECT, "path": "/kb-wt", "resume": "sid-old"},
+            ),
+        ],
+        ids=["main-folder", "worktree-folder", "new-worktree", "resume"],
+    )
+    def test_launch(
+        self,
+        port: int,
+        app: SupervisorApp,
+        launcher: Launcher,
+        body: dict[str, Any],
+        expected: dict[str, Any],
+    ) -> None:
+        response = call(port=port, method="POST", path="/launch", payload={"root": "/kb", **body})
+        record = json.loads(app.log_path.read_text(encoding="utf-8").splitlines()[-1])
+
+        assert (response.json()["ok"], launcher.calls, record["action"]) == (
+            True,
+            [expected],
+            f"launch-{body['action']}",
+        )
+
+    def test_resume_unknown_session(self, port: int, launcher: Launcher) -> None:
+        response = call(
+            port=port,
+            method="POST",
+            path="/launch",
+            payload={"root": "/kb", "action": "resume", "session_id": "sid-live"},
+        )
+
+        assert (response.status, launcher.calls) == (409, [])
+
+    def test_unknown_action(self, port: int, launcher: Launcher) -> None:
+        response = call(
+            port=port, method="POST", path="/launch", payload={"root": "/kb", "action": "x"}
+        )
+
+        assert response.status == 400
+
+    def test_launch_failure_reported(
+        self, port: int, app: SupervisorApp, launcher: Launcher
+    ) -> None:
+        app.opener = Launcher(error=LaunchError("herdr tab create failed: no shell"))
+
+        response = call(
+            port=port, method="POST", path="/launch", payload={"root": "/kb", "action": "session"}
+        )
+
+        assert (response.status, response.json()["error"]) == (
+            502,
+            "herdr tab create failed: no shell",
+        )
 
 
 class Renamer:
