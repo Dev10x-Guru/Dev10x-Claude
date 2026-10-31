@@ -44,7 +44,34 @@ export interface Session {
   prompt: Prompt | null;
   preview: ToolCallPreview | null;
   excerpt: string;
+  status_line: string;
+  workspace: Workspace;
   decisions: Decision[];
+}
+
+export interface Workspace {
+  project: string;
+  root: string;
+  branch: string;
+  issue: string;
+  repo_url: string;
+  issue_url: string;
+  pr: string;
+  pr_url: string;
+}
+
+export interface RecentTool {
+  tool: string;
+  target: string;
+  outcome: "ran" | "failed" | "rejected" | "pending";
+  command: string;
+}
+
+export interface SessionDetail {
+  session_id: string;
+  tail: string;
+  preview: ToolCallPreview | null;
+  recent: RecentTool[];
 }
 
 export interface Snapshot {

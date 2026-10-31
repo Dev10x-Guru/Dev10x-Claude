@@ -10,27 +10,7 @@ import {
   shortPath,
   waitingLabel,
 } from "./format";
-import type { Session } from "./types";
-
-function session(overrides: Partial<Session> = {}): Session {
-  return {
-    session_id: "s1",
-    name: "kb-84",
-    cwd: "/home/janusz/KB",
-    status: "idle",
-    waiting_for: "",
-    pane_id: "w1:p1",
-    callsign: "",
-    summary: "",
-    board_state: "",
-    group: "done",
-    prompt: null,
-    preview: null,
-    excerpt: "",
-    decisions: [],
-    ...overrides,
-  };
-}
+import { makeSession as session } from "./testing";
 
 describe("bucket", () => {
   it("sorts sessions into their groups", () => {

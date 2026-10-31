@@ -1,4 +1,4 @@
-import type { ActionResult, Snapshot } from "./types";
+import type { ActionResult, SessionDetail, Snapshot } from "./types";
 
 export type Connection = "connecting" | "live" | "lost";
 
@@ -21,6 +21,17 @@ export async function post(
     return response.ok ? { ...payload, ok: true } : { ok: false, error: payload.error ?? `HTTP ${response.status}` };
   } catch {
     return { ok: false, error: "The supervisor daemon is not answering." };
+  }
+}
+
+export async function fetchDetail(sessionId: string, token: string): Promise<SessionDetail | null> {
+  try {
+    const response = await fetch(`/api/session?session_id=${encodeURIComponent(sessionId)}`, {
+      headers: { "X-Supervisor-Token": token },
+    });
+    return response.ok ? ((await response.json()) as SessionDetail) : null;
+  } catch {
+    return null;
   }
 }
 
