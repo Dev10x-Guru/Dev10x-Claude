@@ -151,6 +151,7 @@ def update_paths(
         sys.exit(1)
 
     publisher = mod.extract_cache_publisher(config["plugin_cache"])
+    plugin_dir = mod.extract_cache_plugin_dir(config["plugin_cache"])
     if not quiet:
         click.echo(f"Target version: {target}")
         if publisher:
@@ -179,6 +180,7 @@ def update_paths(
             path,
             target,
             target_publisher=publisher,
+            target_plugin_dir=plugin_dir,
             dry_run=dry_run,
         )
         if count > 0:
