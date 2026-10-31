@@ -91,7 +91,7 @@
         {
           "dimension": "hook-safe-reconstruction",
           "check": "behavioral",
-          "signal": "Partition-completeness check runs (union of commit-spec paths equals git diff --name-only <base>..HEAD) before any commit-tree call; a mismatch aborts the rebuild"
+          "signal": "Partition-completeness check runs (union of commit-spec paths equals git diff --name-only <base> groom-backup-<branch-slug>) before any commit-tree call; a mismatch aborts the rebuild"
         }
       ]
     },
@@ -147,6 +147,30 @@
           "check": "tool_called",
           "tool": "Bash",
           "signal": "'git diff groom-backup-<branch-slug> HEAD' is empty before the force-push"
+        }
+      ]
+    },
+    {
+      "id": "reset-target-pinned-to-fork-point",
+      "name": "Soft reset targets the pinned fork-point SHA, never the base ref",
+      "description": "Strategy B resolves 'git merge-base origin/<base> HEAD' once, checks ancestry, and resets onto that literal SHA; staged paths outside the branch's own file set abort the rebuild (GH-1683)",
+      "input": "/dev10x:git-groom (Strategy B; origin/develop has advanced past the branch's fork point)",
+      "assertions": [
+        {
+          "dimension": "tree-equality-gate",
+          "check": "tool_called",
+          "tool": "Bash",
+          "signal": "'git merge-base origin/<base> HEAD' and 'git merge-base --is-ancestor <sha> HEAD' run before 'git reset --soft'"
+        },
+        {
+          "dimension": "tree-equality-gate",
+          "check": "behavioral",
+          "signal": "'git reset --soft' is given a literal SHA, never 'origin/develop', 'develop', or another branch ref"
+        },
+        {
+          "dimension": "tree-equality-gate",
+          "check": "behavioral",
+          "signal": "'git diff --cached --name-only <sha>' after the reset is compared against the branch's own file set; any extra path triggers 'git reset --hard groom-backup-<branch-slug>' and no rebuild"
         }
       ]
     }
