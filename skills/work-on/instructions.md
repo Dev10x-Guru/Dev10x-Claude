@@ -1388,7 +1388,9 @@ early to measure meaningfully).
 
 | Action | MUST delegate to | Never use directly |
 |--------|-----------------|-------------------|
-| Run tests — EVERY run, incl. narrow ones | `Skill(test)` | `pytest`, `uv run pytest`, `python -m pytest` |
+| Run tests (Python) — EVERY run, incl. narrow ones | `Skill(test)` | `pytest`, `uv run pytest`, `python -m pytest` |
+| Run tests (JS/TS) — EVERY run | `mcp__plugin_dev10x_cli__run_node_tests` (`runner` omitted (auto-detect) or explicit; `script=` for a package script) | `jest`, `vitest`, `yarn test`, `npm test`, `pnpm test` |
+| Lint | `pre-commit run` (Python projects with pre-commit) or `run_node_tests(script="lint")` (JS/TS) | inline `ruff`, `black`, `eslint`, `tsc` |
 | Create a commit | `Skill(dev10x:git-commit)` | `git commit` |
 | Create a PR | `Skill(dev10x:gh-pr-create)` | `gh pr create` |
 | Monitor CI | `Skill(dev10x:gh-pr-monitor)` | `gh pr checks --watch` |
@@ -1446,18 +1448,22 @@ event, verify the routing table is still present by scanning
 for "Skill(dev10x:git-commit)" in the current context. If
 missing, re-read this section before proceeding.
 
-1. run tests → `Skill(test)`
-2. commit → `Skill(dev10x:git-commit)`
-3. create PR → `Skill(dev10x:gh-pr-create)`
-4. monitor CI → `Skill(dev10x:gh-pr-monitor)`
-5. push → `Skill(dev10x:git)`
-6. groom → `Skill(dev10x:git-groom)`
-7. branch → `Skill(dev10x:ticket-branch)`
-8. create skill → `Skill(dev10x:skill-create)`
-9. check PR state → `mcp__plugin_dev10x_cli__pr_detect`
-10. verify PR readiness → `mcp__plugin_dev10x_cli__verify_pr_state`
-11. verify acceptance → `Skill(dev10x:verify-acc-dod)`
-12. merge PR → `Skill(dev10x:gh-pr-merge)`
+1. run tests (Python) → `Skill(test)`
+2. run tests (JS/TS) → `mcp__plugin_dev10x_cli__run_node_tests`
+   (`script=` for a package script)
+3. lint → `pre-commit run` (Python) or `run_node_tests(script="lint")`
+   (JS/TS) — never inline `ruff`/`black`/`eslint`
+4. commit → `Skill(dev10x:git-commit)`
+5. create PR → `Skill(dev10x:gh-pr-create)`
+6. monitor CI → `Skill(dev10x:gh-pr-monitor)`
+7. push → `Skill(dev10x:git)`
+8. groom → `Skill(dev10x:git-groom)`
+9. branch → `Skill(dev10x:ticket-branch)`
+10. create skill → `Skill(dev10x:skill-create)`
+11. check PR state → `mcp__plugin_dev10x_cli__pr_detect`
+12. verify PR readiness → `mcp__plugin_dev10x_cli__verify_pr_state`
+13. verify acceptance → `Skill(dev10x:verify-acc-dod)`
+14. merge PR → `Skill(dev10x:gh-pr-merge)`
 
 ### Groom Step: Always Delegate, Never Self-Assess
 
