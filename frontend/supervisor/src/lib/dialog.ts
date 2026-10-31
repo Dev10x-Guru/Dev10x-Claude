@@ -7,6 +7,7 @@ export interface Dialog {
 
 const DASHED = /^\s*[╌┄-]{8,}\s*$/;
 const GUTTER = /^\s*│\s?/;
+const TAB_MARKS = /^[☐☑☒✓✔]\s*/u;
 
 export function splitDialog(context: string[]): Dialog | null {
   const lines = context.map((line) => line.replace(/\s+$/, ""));
@@ -32,5 +33,5 @@ export function splitDialog(context: string[]): Dialog | null {
           .map((line) => line.trim())
           .filter(Boolean)
       : [];
-  return { title: head[0] ?? "", description: head.slice(1), body, notes };
+  return { title: (head[0] ?? "").replace(TAB_MARKS, ""), description: head.slice(1), body, notes };
 }
