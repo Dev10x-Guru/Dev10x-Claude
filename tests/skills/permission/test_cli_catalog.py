@@ -47,15 +47,15 @@ from pathlib import Path
 
 import click
 import yaml
+
+import dev10x.cli as cli_module
+import dev10x.skills.permission as permission_pkg
+from dev10x.cli import cli
 from dev10x.skills.permission.cli_catalog import (
     catalog_rule_paths,
     enumerate_leaf_commands,
     find_uncovered_commands,
 )
-
-import dev10x.cli as cli_module
-import dev10x.skills.permission as permission_pkg
-from dev10x.cli import cli
 
 _LAZY_GROUP_KEY = re.compile(r'"([\w-]+)":\s*"dev10x\.')
 
