@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   ago,
+  approvedByHand,
   bucket,
   clockTime,
   diffLineKind,
@@ -35,6 +36,18 @@ describe("displayName", () => {
     ["status-bar", "", "status-bar"],
   ])("name %j with issue %j shows %j", (name, issue, expected) => {
     expect(displayName(session({ name, workspace: makeWorkspace({ issue }) }))).toBe(expected);
+  });
+});
+
+describe("approvedByHand", () => {
+  it.each([
+    ["user_temporary", true],
+    ["user_permanent", true],
+    ["config", false],
+    ["hook", false],
+    ["", false],
+  ])("%s → %s", (decided_by, expected) => {
+    expect(approvedByHand({ tool: "Bash", target: "", outcome: "ran", command: "", decided_by })).toBe(expected);
   });
 });
 

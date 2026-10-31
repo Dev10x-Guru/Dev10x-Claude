@@ -14,7 +14,7 @@ MAX_PREVIEW_LINES = 400
 MAX_FILE_BYTES = 256 * 1024
 DIFF_TOOLS = ("Edit", "MultiEdit", "Write")
 MAX_COMMANDS = 60
-MAX_RECENT_TOOLS = 25
+MAX_RECENT_TOOLS = 60
 MAX_CONVERSATION_ENTRIES = 120
 MAX_ENTRY_CHARS = 6000
 MAX_RESULT_CHARS = 400
@@ -33,6 +33,7 @@ class RecentTool:
     target: str
     outcome: str
     command: str = ""
+    decided_by: str = ""
 
 
 @dataclass
@@ -163,12 +164,18 @@ def read_recent_tools(
         return []
     calls: dict[str, PendingTool] = {}
     results: dict[str, dict[str, Any]] = {}
+    decided_by: dict[str, str] = {}
     try:
-        for item in _items(path=path):
-            if item.get("type") == "tool_use" and item.get("id"):
-                calls[str(item["id"])] = _tool(item=item)
-            elif item.get("type") == "tool_result":
-                results[str(item.get("tool_use_id"))] = item
+        for record in _records(path=path):
+            decision = record.get("permissionDecision")
+            for item in _content(record=record):
+                if item.get("type") == "tool_use" and item.get("id"):
+                    calls[str(item["id"])] = _tool(item=item)
+                elif item.get("type") == "tool_result":
+                    tool_id = str(item.get("tool_use_id"))
+                    results[tool_id] = item
+                    if isinstance(decision, dict):
+                        decided_by[tool_id] = str(decision.get("source", ""))
     except OSError:
         return []
     recent = [
@@ -177,6 +184,7 @@ def read_recent_tools(
             target=_target(tool=tool),
             outcome=_outcome(result=results.get(tool_id)),
             command=str(tool.input.get("command", "")).strip() if tool.name == "Bash" else "",
+            decided_by=decided_by.get(tool_id, ""),
         )
         for tool_id, tool in calls.items()
     ]

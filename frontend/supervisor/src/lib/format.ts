@@ -1,4 +1,4 @@
-import type { Group, PromptOption, Session } from "./types";
+import type { Group, PromptOption, RecentTool, Session } from "./types";
 
 const RECOMMENDED = /\s*\(recommended\)\s*$/i;
 
@@ -50,6 +50,10 @@ export function diffLineKind(line: string): DiffLineKind {
   if (line.startsWith("+")) return "add";
   if (line.startsWith("-")) return "del";
   return "same";
+}
+
+export function approvedByHand(tool: RecentTool): boolean {
+  return tool.decided_by.startsWith("user");
 }
 
 export function ago(iso: string, now: number = Date.now()): string {

@@ -294,6 +294,38 @@ class TestReadRecentTools:
             RecentTool(tool="Bash", target="git status", outcome="ran", command="git status"),
         ]
 
+    def test_records_who_decided_each_call(self, projects: Path) -> None:
+        def decided(tool_id: str, source: str | None) -> dict[str, Any]:
+            record = _result(tool_id=tool_id)
+            if source is not None:
+                record["permissionDecision"] = {"decision": "accept", "source": source}
+            return record
+
+        _write(
+            path=projects / "-w" / f"{SESSION}.jsonl",
+            records=[
+                _use(tool_id="a", name="Bash", tool_input={"command": "docker run x"}),
+                decided("a", "user_temporary"),
+                _use(tool_id="b", name="Bash", tool_input={"command": "git status"}),
+                decided("b", "config"),
+                _use(tool_id="c", name="Bash", tool_input={"command": "ls"}),
+                decided("c", None),
+                {
+                    "type": "user",
+                    "permissionDecision": "not a dict",
+                    "message": {"content": [{"type": "tool_result", "tool_use_id": "c"}]},
+                },
+            ],
+        )
+
+        recent = read_recent_tools(session_id=SESSION, projects_root=projects)
+
+        assert [(tool.command, tool.decided_by) for tool in recent] == [
+            ("ls", ""),
+            ("git status", "config"),
+            ("docker run x", "user_temporary"),
+        ]
+
     def test_keeps_the_most_recent(self, projects: Path) -> None:
         _write(
             path=projects / "-w" / f"{SESSION}.jsonl",

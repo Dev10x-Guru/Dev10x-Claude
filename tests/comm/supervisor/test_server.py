@@ -1262,8 +1262,15 @@ class TestSessionDetail:
                     "target": "rm -rf build",
                     "outcome": "pending",
                     "command": "rm -rf build",
+                    "decided_by": "",
                 },
-                {"tool": "Edit", "target": "/kb/a.md", "outcome": "ran", "command": ""},
+                {
+                    "tool": "Edit",
+                    "target": "/kb/a.md",
+                    "outcome": "ran",
+                    "command": "",
+                    "decided_by": "",
+                },
             ],
         }
 
