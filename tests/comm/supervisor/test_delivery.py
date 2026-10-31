@@ -14,7 +14,6 @@ from dev10x.comm.supervisor.delivery import (
     deliver_keys,
     deliver_relay,
     keys_for_option,
-    keys_for_permission,
 )
 from dev10x.comm.supervisor.probes import ProbeError
 
@@ -38,11 +37,6 @@ def log_path(tmp_path: Path) -> Path:
 @pytest.mark.parametrize(("index", "keys"), [(0, ["1"]), (2, ["3"])])
 def test_keys_for_option(index: int, keys: list[str]) -> None:
     assert keys_for_option(index=index) == keys
-
-
-@pytest.mark.parametrize(("allow", "keys"), [(True, ["1"]), (False, ["esc"])])
-def test_keys_for_permission(allow: bool, keys: list[str]) -> None:
-    assert keys_for_permission(allow=allow) == keys
 
 
 class TestDeliverKeys:

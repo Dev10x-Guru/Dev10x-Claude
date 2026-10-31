@@ -18,10 +18,6 @@ def keys_for_option(*, index: int) -> list[str]:
     return [str(index + 1)]
 
 
-def keys_for_permission(*, allow: bool) -> list[str]:
-    return ["1"] if allow else ["esc"]
-
-
 def _log(*, log_path: Path, action: str, target: str, detail: str, confirmed_by: str) -> None:
     record = {
         "at": datetime.now().astimezone().isoformat(timespec="seconds"),

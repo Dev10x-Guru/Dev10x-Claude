@@ -93,7 +93,7 @@ def test_run_service_serves_until_stopped(config_home: Path, tmp_path: Path) -> 
         ready.wait(timeout=5)
         url = urlsplit(announced[0].removeprefix("Supervisor page: "))
         connection = http.client.HTTPConnection("127.0.0.1", url.port, timeout=5)
-        connection.request("GET", f"/?{url.query}")
+        connection.request("GET", f"/api/sessions?{url.query}")
         status = connection.getresponse().status
         connection.close()
     finally:

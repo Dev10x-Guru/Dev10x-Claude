@@ -67,6 +67,7 @@ def run_service(
     try:
         run_collector(app=app, interval=interval, stop=stop, provider=provider)
     finally:
+        app.stop()
         server.shutdown()
         server.server_close()
 
