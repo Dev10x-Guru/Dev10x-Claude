@@ -2,11 +2,17 @@ import { describe, expect, it } from "vitest";
 
 import {
   ASIDE,
+  PROJECT_ORDER_KEY,
+  PROJECT_PINS_KEY,
   SIDE,
   clampWidth,
+  loadList,
   loadPins,
   loadView,
   loadWidth,
+  moveBefore,
+  moveBy,
+  saveList,
   savePins,
   saveView,
   saveWidth,
@@ -99,6 +105,38 @@ describe.each([
 
   it("falls back when the store is blocked", () => {
     expect(loadWidth(panel, broken)).toBe(panel.fallback);
+  });
+});
+
+describe("lists", () => {
+  it("round-trips any key", () => {
+    const store = memory();
+    saveList(PROJECT_ORDER_KEY, ["b", "a"], store);
+    expect(loadList(PROJECT_ORDER_KEY, store)).toEqual(["b", "a"]);
+  });
+
+  it.each([
+    ["c", "a", ["c", "a", "b"]],
+    ["a", "c", ["b", "a", "c"]],
+    ["a", "a", ["a", "b", "c"]],
+    ["new", "b", ["a", "new", "b", "c"]],
+    ["a", "gone", ["b", "c", "a"]],
+  ])("moves %s before %s", (item, before, expected) => {
+    expect(moveBefore(["a", "b", "c"], item, before)).toEqual(expected);
+  });
+
+  it.each([
+    ["b", -1, ["b", "a", "c"]],
+    ["b", 1, ["a", "c", "b"]],
+    ["a", -1, ["a", "b", "c"]],
+    ["c", 5, ["a", "b", "c"]],
+    ["x", 1, ["a", "b", "c"]],
+  ])("moves %s by %d", (item, step, expected) => {
+    expect(moveBy(["a", "b", "c"], item, step)).toEqual(expected);
+  });
+
+  it("keeps project pins and order apart from session pins", () => {
+    expect(new Set([PROJECT_PINS_KEY, PROJECT_ORDER_KEY, "supervisor.pins"]).size).toBe(3);
   });
 });
 

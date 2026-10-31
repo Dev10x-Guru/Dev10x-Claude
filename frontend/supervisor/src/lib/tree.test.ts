@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { pickSession } from "./selection";
 import { makeSession, makeWorkspace } from "./testing";
-import { buildTree, markOf, matches } from "./tree";
+import { arrange, buildTree, markOf, matches } from "./tree";
 
 const DX = "/work/dx/Dev10x-Claude";
 const WT = "/work/.herdr/worktrees/Dev10x-Claude/poc";
@@ -54,6 +54,28 @@ describe("buildTree", () => {
   it("falls back to the folder when the workspace is unknown", () => {
     const [project] = buildTree([makeSession({ cwd: "/x", workspace: makeWorkspace({ project: "", root: "" }) })]);
     expect([project.name, project.folders[0].root]).toEqual(["/x", "/x"]);
+  });
+});
+
+describe("arrange", () => {
+  const projects = buildTree([
+    at("a1", "alpha", "/a"),
+    at("b1", "beta", "/b", "needs-you"),
+    at("c1", "gamma", "/c", "working"),
+    at("d1", "delta", "/d"),
+  ]);
+  const names = (order: string[], pinned: string[]) => arrange(projects, order, pinned).map((p) => p.name);
+
+  it("keeps the natural order with no preferences", () => {
+    expect(names([], [])).toEqual(["beta", "gamma", "alpha", "delta"]);
+  });
+
+  it("puts the remembered order first, the rest after in natural order", () => {
+    expect(names(["delta", "alpha", "gone"], [])).toEqual(["delta", "alpha", "beta", "gamma"]);
+  });
+
+  it("lifts pinned projects above everything", () => {
+    expect(names(["delta", "alpha"], ["gamma"])).toEqual(["gamma", "delta", "alpha", "beta"]);
   });
 });
 
