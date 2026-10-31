@@ -42,6 +42,11 @@
       "description": "Never presents a strict/guided/adaptive picker — adaptive is the sole shipped baseline (ADR-0022 D-1)"
     },
     {
+      "id": "option-consequences",
+      "name": "Options Name Their Consequence",
+      "description": "Every option in the override and skip-step gates states what the agent will do differently, shows current gate values in a preview, and uses no preset wording"
+    },
+    {
       "id": "task-tracking",
       "name": "Self-tracking",
       "description": "Creates a tracking task at invocation and completes it after persistence"
@@ -91,6 +96,18 @@
           "check": "tool_called",
           "tool": "mcp__plugin_dev10x_cli__pin_supervisor_review",
           "signal": "Persists the answer via pin_supervisor_review(value=\"required\")"
+        },
+        {
+          "dimension": "option-consequences",
+          "check": "behavioral",
+          "value": "options-name-consequence",
+          "signal": "Each option of the gate-override and skip-step questions states its consequence (what the agent does differently, what is saved), with current gate values in a preview and no 'preset' wording"
+        },
+        {
+          "dimension": "option-consequences",
+          "check": "behavioral",
+          "value": "no-none-checkbox",
+          "signal": "The skip-step list has no 'None' checkbox; a yes/no question precedes it"
         },
         {
           "dimension": "deviations-only",
