@@ -118,6 +118,9 @@ class TestBreadthProblem:
             "Bash(git push:*)",
             "Bash(uv run:*)",
             "Bash(git * status:*)",
+            "Bash(lua:*)",
+            "Bash(watch *)",
+            "Bash(/usr/local/bin/terraform:*)",
             "Read(//**)",
             "Read(~/**)",
             "Edit(**/*.py)",
@@ -135,6 +138,9 @@ class TestBreadthProblem:
             "Bash(make:*)",
             "Bash(git status:*)",
             "Bash(gh pr view:*)",
+            "Bash(jq:*)",
+            "Bash(lsmod)",
+            "Bash(terraform plan:*)",
             "Read(~/.claude/plugins/**)",
             "Skill(dev10x:git)",
             "mcp__plugin_dev10x_cli__pr_get",
@@ -153,6 +159,42 @@ class TestBreadthProblem:
     )
     def test_bash_prefix(self, rule: str, expected: str | None) -> None:
         assert mod.bash_prefix(rule=rule) == expected
+
+    @pytest.mark.parametrize(
+        "wrapper",
+        [
+            "command",
+            "builtin",
+            "watch",
+            "nice",
+            "nohup",
+            "timeout",
+            "time",
+            "exec",
+            "stdbuf",
+            "ionice",
+            "chrt",
+            "taskset",
+            "doas",
+            "pkexec",
+        ],
+    )
+    @pytest.mark.parametrize("suffix", [":*", " deno:*", " rm -rf:*"])
+    def test_flags_wrapper_grants_at_any_depth(self, wrapper: str, suffix: str) -> None:
+        assert mod.breadth_problem(rule=f"Bash({wrapper}{suffix})") is not None
+
+    @pytest.mark.parametrize(
+        "rule",
+        ["Bash(/tmp/x/cat:*)", "Bash(/usr/bin/wc:*)", "Bash(./cat:*)", "Bash(../bin/rg:*)"],
+    )
+    def test_path_qualified_executable_is_not_treated_as_vetted_basename(self, rule: str) -> None:
+        assert mod.breadth_problem(rule=rule) is not None
+
+    def test_unknown_bare_executable_names_narrower_shape(self) -> None:
+        assert mod.breadth_problem(rule="Bash(lua:*)") == (
+            "`lua` is not known safe to grant whole; it may run code or write. "
+            "Grant Bash(lua <subcommand>:*) instead."
+        )
 
 
 class TestAlternativeAdvice:
@@ -233,6 +275,12 @@ class TestTriageVerdicts:
             ("Bash(gh pr view:*)", Verdict.USE_ALTERNATIVE),
             ("make test", Verdict.GRANT),
             ("mcp__plugin_dev10x_cli__pr_get", Verdict.GRANT),
+            ("mcp__plugin_dev10x_cli__*", Verdict.TOO_BROAD),
+            ("lua script.lua", Verdict.TOO_BROAD),
+            ("Bash(lua:*)", Verdict.TOO_BROAD),
+            ("Bash(terraform plan:*)", Verdict.GRANT),
+            ("wc -l README.md", Verdict.GRANT),
+            ("date +%F", Verdict.GRANT),
         ],
     )
     def test_first_matching_fix_wins(
@@ -250,6 +298,35 @@ class TestTriageVerdicts:
             skill_map=skill_map,
         )
         assert result.verdict is expected
+
+    @pytest.mark.parametrize(
+        ("target", "example"),
+        [
+            ("lua script.lua", "Bash(lua <subcommand>:*)"),
+            ("Bash(/opt/bin/watch:*)", "Bash(/opt/bin/watch <subcommand>:*)"),
+            ("Bash(sudo:*)", "Bash(git status:*)"),
+            ("Bash(de*:*)", "Bash(git status:*)"),
+            ("", "Bash(git status:*)"),
+        ],
+    )
+    def test_too_broad_advice_names_narrower_shape(
+        self,
+        target: str,
+        example: str,
+        settings_files: list[Path],
+        workdir: Path,
+        skill_map: list[MatchingRule],
+    ) -> None:
+        result = _triage(
+            target=target,
+            settings_files=settings_files,
+            workdir=workdir,
+            skill_map=skill_map,
+        )
+        assert result.advice == [
+            "Keep approving it per use, or grant a narrower rule naming the exact "
+            f"subcommand, e.g. {example}."
+        ]
 
     def test_deny_in_any_file_blocks_grant(
         self,
