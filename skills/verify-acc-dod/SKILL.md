@@ -14,6 +14,7 @@ invocation-name: dev10x:verify-acc-dod
 allowed-tools:
   - AskUserQuestion
   - Skill(dev10x:gh-pr-monitor)
+  - Skill(dev10x:git-groom)
   - Bash(gh:*)
   - Bash(git status:*)
   - Bash(git log:*)
@@ -355,6 +356,10 @@ visible:
   #<N> for review / merge"** — do NOT auto-complete.
 - **Go back** (any check fails/pending) → report failures to the
   parent orchestrator for resolution
+- **Go back on "No fixup commits"** → invoke `Skill(dev10x:git-groom)`
+  directly, then re-run this skill. Squashing fixups is the known next
+  action, not a decision, so a hand-off that leaves `fixup!` commits
+  on the branch is never an option here (GH-1656)
 
 ### `effect: skip`
 
