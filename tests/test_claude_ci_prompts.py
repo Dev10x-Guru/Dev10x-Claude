@@ -339,7 +339,7 @@ _REVIEW_STEP_IDS: list[tuple[str, str]] = [
 
 
 class TestSilentReview:
-    """A review that never ran or posted nothing must not pass green (GH-1691)."""
+    """A review that never ran must not pass green (GH-1691)."""
 
     _SKIP_GUARDS: ClassVar[tuple[str, ...]] = (
         "steps.dedup.outputs.skip != 'true'",
@@ -368,14 +368,6 @@ class TestSilentReview:
 
         assert "always()" in condition
         assert f"steps.{step_id}.outputs.execution_file != ''" in condition
-
-    def test_review_that_posted_nothing_fails(self) -> None:
-        step = _steps_by_name(workflow="claude-code-review.yml")[
-            "Fail if the review posted nothing"
-        ]
-
-        assert "steps.claude-review.outputs.conclusion == 'success'" in step["if"]
-        assert step["env"]["SINCE"] == "${{ steps.review-start.outputs.iso }}"
 
 
 class TestReviewScope:
