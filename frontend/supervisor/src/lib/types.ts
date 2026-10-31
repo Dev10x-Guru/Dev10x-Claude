@@ -69,6 +69,7 @@ export interface RecentTool {
   target: string;
   outcome: "ran" | "failed" | "rejected" | "pending";
   command: string;
+  decided_by: string;
 }
 
 export interface ProjectCheckout {

@@ -1,6 +1,6 @@
 <script lang="ts">
   import ToolPreview from "./ToolPreview.svelte";
-  import { displayName } from "../lib/format";
+  import { approvedByHand, displayName } from "../lib/format";
   import type { RecentTool, Session, SessionDetail } from "../lib/types";
 
   interface Props {
@@ -19,8 +19,14 @@
     pending: "waiting",
   };
 
+  let approvedOnly = $state(false);
+
   const preview = $derived(detail?.preview ?? session.preview);
   const commandCount = $derived(detail?.recent.filter((tool) => tool.command).length ?? 0);
+  const approvedCount = $derived(detail?.recent.filter(approvedByHand).length ?? 0);
+  const shownCalls = $derived(
+    approvedOnly ? (detail?.recent.filter(approvedByHand) ?? []) : (detail?.recent ?? []),
+  );
 
   function preapprove(command?: string): void {
     run(
@@ -50,13 +56,20 @@
         <button class="ghost" disabled={pending} onclick={() => preapprove()}>Pre-approve all used</button>
       {/if}
     </header>
+    <label class="only">
+      <input type="checkbox" bind:checked={approvedOnly} />
+      Only ones I approved by hand <span class="n">{approvedCount}</span>
+    </label>
     {#if detail === null}
       <p class="quiet">Reading the transcript…</p>
-    {:else if detail.recent.length}
+    {:else if shownCalls.length}
       <ol>
-        {#each detail.recent as tool, index (index)}
+        {#each shownCalls as tool, index (index)}
           <li class={["call", tool.outcome]}>
-            <span class="tool">{tool.tool}</span>
+            <span class="tool">
+              {tool.tool}
+              {#if approvedByHand(tool)}<span class="by-hand" title={tool.decided_by}>you approved</span>{/if}
+            </span>
             <span class="outcome">{OUTCOMES[tool.outcome]}</span>
             {#if tool.target}<code title={tool.target}>{tool.target}</code>{/if}
             {#if tool.command}
@@ -67,6 +80,8 @@
           </li>
         {/each}
       </ol>
+    {:else if approvedOnly}
+      <p class="quiet">Nothing in the recent calls needed your approval; rules or the mode let them all through.</p>
     {:else}
       <p class="quiet">This session has not called a tool yet, or its transcript is out of reach.</p>
     {/if}
@@ -118,6 +133,35 @@
     text-decoration-color: var(--amber);
     text-underline-offset: 3px;
     cursor: pointer;
+  }
+
+  .only {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin: 0 0 var(--space-2);
+    color: var(--ink-soft);
+    font-size: var(--step--1);
+    cursor: pointer;
+  }
+
+  .only input {
+    accent-color: var(--amber-ink);
+  }
+
+  .n {
+    color: var(--ink-faint);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .by-hand {
+    margin-left: var(--space-1);
+    padding: 0 0.3rem;
+    border-radius: 2px;
+    background: var(--amber-wash);
+    color: var(--amber-ink);
+    font-size: 0.66rem;
+    font-weight: 650;
   }
 
   ol {
