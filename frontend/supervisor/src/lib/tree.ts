@@ -59,11 +59,6 @@ export function buildTree(sessions: Session[]): Project[] {
   return byMarkThenName(built, (project) => project.mark, (project) => project.name);
 }
 
-export function folderLabel(root: string, project: string): string {
-  const leaf = root.split("/").filter(Boolean).pop() ?? root;
-  return leaf === project ? "main checkout" : leaf;
-}
-
 export function matches(session: Session, query: string): boolean {
   const needle = query.trim().toLowerCase();
   if (!needle) return true;

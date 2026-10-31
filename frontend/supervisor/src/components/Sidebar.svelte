@@ -1,7 +1,7 @@
 <script lang="ts">
   import StatusMark from "./StatusMark.svelte";
   import { displayName } from "../lib/format";
-  import { buildTree, folderLabel, markOf, matches } from "../lib/tree";
+  import { buildTree, markOf, matches } from "../lib/tree";
   import type { Session } from "../lib/types";
 
   interface Props {
@@ -91,6 +91,13 @@
     <ul class="projects">
       {#each tree as project (project.name)}
         {@const open = !collapsed[project.name] || !!query}
+        {#if project.count === 1}
+          <li class="project">
+            <ul class="sessions flat">
+              {@render leaf(project.folders[0].sessions[0], true)}
+            </ul>
+          </li>
+        {:else}
         <li class="project">
           <button class="project-head" aria-expanded={open} onclick={() => toggle(project.name)}>
             <span class={["caret", { open }]} aria-hidden="true"></span>
@@ -100,18 +107,14 @@
           </button>
 
           {#if open}
-            {#each project.folders as folder (folder.root)}
-              <ul class="sessions">
-                {#if project.folders.length > 1 || folder.sessions.length > 1}
-                  <li class="folder" title={folder.root}>{folderLabel(folder.root, project.name)}</li>
-                {/if}
-                {#each folder.sessions as session (session.session_id)}
-                  {@render leaf(session, false)}
-                {/each}
-              </ul>
-            {/each}
+            <ul class="sessions">
+              {#each project.folders.flatMap((folder) => folder.sessions) as session (session.session_id)}
+                {@render leaf(session, false)}
+              {/each}
+            </ul>
           {/if}
         </li>
+        {/if}
       {:else}
         {#if !pinned.length}
           <li class="none">{query ? "No session matches that filter." : "No sessions yet."}</li>
@@ -233,17 +236,6 @@
 
   .sessions.flat {
     padding-left: var(--space-2);
-  }
-
-  .folder {
-    padding: var(--space-1) var(--space-4) 0 var(--space-2);
-    color: var(--ink-faint);
-    font-size: 0.68rem;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 
   .leaf {
