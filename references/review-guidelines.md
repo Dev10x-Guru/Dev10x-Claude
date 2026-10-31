@@ -48,7 +48,14 @@ The guard applies to:
    to avoid duplicating feedback
 2. Check for previous summary comments (`gh pr view {PR_NUMBER} --json comments`)
    to identify obsolete summaries
-3. Analyze current diff (`gh pr diff`)
+3. Analyze the current diff one file at a time. In this repo's CI the
+   PR context bundle holds one patch per file; elsewhere list the files
+   with `gh api repos/{REPO}/pulls/{PR_NUMBER}/files --paginate --jq '.[].filename'`
+   and fetch one patch with
+   `gh api repos/{REPO}/pulls/{PR_NUMBER}/files --paginate --jq 'map(select(.filename == "PATH").patch)[]'`.
+   An empty patch means the file is too large or binary: Read it at
+   HEAD. Never pull the whole `gh pr diff` — a large one overflows the
+   output, and in CI the redirect that would work around that is denied
 4. For each previous Claude Code Review thread:
    - Fixed/removed → reply "Addressed" (do NOT resolve — leave for human)
    - Persists in unchanged code → reply "Still applies"; do NOT duplicate
@@ -125,7 +132,9 @@ is an accepted `Fixes:` value.
 When the PR body contains "Stacked on #N" or "Depends on #N":
 1. Note the dependency in the review summary
 2. Focus on files/changes unique to the current PR
-3. Use `gh pr view <base-pr>` to understand base PR scope
+3. Use `gh pr view <base-pr> --json number,title,body,files` to
+   understand base PR scope (a bare `gh pr view` also queries check
+   status, which the CI token cannot read)
 4. Flag interleaved commits from base and current PR
 
 ## Context-Aware Review Depth
