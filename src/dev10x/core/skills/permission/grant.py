@@ -73,9 +73,12 @@ _UNGRANTABLE_EXECUTABLES = frozenset(
     {
         "awk",
         "bash",
+        "builtin",
         "bun",
         "chmod",
         "chown",
+        "chrt",
+        "command",
         "curl",
         "dash",
         "dd",
@@ -86,6 +89,7 @@ _UNGRANTABLE_EXECUTABLES = frozenset(
         "exec",
         "find",
         "fish",
+        "ionice",
         "nc",
         "ncat",
         "nice",
@@ -94,6 +98,7 @@ _UNGRANTABLE_EXECUTABLES = frozenset(
         "npx",
         "perl",
         "php",
+        "pkexec",
         "python",
         "python3",
         "rm",
@@ -103,11 +108,14 @@ _UNGRANTABLE_EXECUTABLES = frozenset(
         "sh",
         "source",
         "ssh",
+        "stdbuf",
         "su",
         "sudo",
+        "taskset",
         "time",
         "timeout",
         "uvx",
+        "watch",
         "wget",
         "xargs",
         "zsh",
@@ -128,6 +136,60 @@ _UNGRANTABLE_PREFIXES = frozenset(
         ("uv", "run"),
         ("yarn", "dlx"),
     }
+)
+# GH-1687: a denylist misses every interpreter nobody thought to list
+# (`deno`, `lua`, `watch`), so a whole-executable grant is refused unless
+# the tool is known safe at that depth. Seeded from the bare rules the
+# catalogs already ship, minus their interpreters, wrappers and egress
+# tools. `make` stays: it runs the repo's own recipes, which the agent can
+# already edit. A sensitive operand is still refused separately (DX014).
+_BARE_GRANTABLE_EXECUTABLES = frozenset(
+    {
+        "actionlint",
+        "basename",
+        "cat",
+        "column",
+        "comm",
+        "cut",
+        "date",
+        "df",
+        "diff",
+        "dirname",
+        "du",
+        "echo",
+        "egrep",
+        "fgrep",
+        "file",
+        "gitlint",
+        "grep",
+        "head",
+        "jq",
+        "ls",
+        "make",
+        "nl",
+        "printf",
+        "pup",
+        "pwd",
+        "readlink",
+        "realpath",
+        "rg",
+        "shellcheck",
+        "sort",
+        "stat",
+        "tail",
+        "tomlq",
+        "tr",
+        "tree",
+        "uniq",
+        "wc",
+        "which",
+        "xq",
+        "yamllint",
+        "yq",
+    }
+)
+_VETTED_EXECUTABLES = (
+    _BARE_GRANTABLE_EXECUTABLES | _UNGRANTABLE_EXECUTABLES | frozenset(_SUBCOMMAND_DEPTH)
 )
 _RULE_WILDCARD_SUFFIX_RE = re.compile(r"(?::\*| \*)$")
 _PATH_ROOT_RE = re.compile(r"^(?://|/|~/|\./)?")
@@ -263,7 +325,35 @@ def breadth_problem(*, rule: str) -> str | None:
         return f"`{' '.join(words[:2])}` can write or run anything; approve each use."
     if len(words) <= _SUBCOMMAND_DEPTH.get(words[0], 0):
         return f"`{prefix}` grants every `{words[0]}` subcommand, destructive ones included."
+    unknown = _unknown_bare_executable(rule=rule)
+    if unknown:
+        return (
+            f"`{unknown}` is not known safe to grant whole; it may run code or write. "
+            f"Grant {_narrower_example(rule=rule)} instead."
+        )
     return None
+
+
+def _unknown_bare_executable(*, rule: str) -> str | None:
+    """The executable a wildcard rule grants whole without being vetted."""
+    if not rule or McpToolName.is_mcp(rule):
+        return None
+    parsed = AllowRule.parse(rule)
+    prefix = bash_prefix(rule=rule)
+    if not prefix or not _RULE_WILDCARD_SUFFIX_RE.search(parsed.inner):
+        return None
+    words = prefix.split()
+    if len(words) != 1 or "*" in prefix or words[0] in _VETTED_EXECUTABLES:
+        return None
+    # A `FOO=1` head is not an executable; triage's normalize advice fixes it.
+    if ANY_CASE_ENV_VAR_RE.match(words[0]):
+        return None
+    return words[0]
+
+
+def _narrower_example(*, rule: str) -> str:
+    unknown = _unknown_bare_executable(rule=rule)
+    return f"Bash({unknown} <subcommand>:*)" if unknown else "Bash(git status:*)"
 
 
 def load_skill_map_rules(*, yaml_path: Path = SKILL_MAP_PATH) -> list[MatchingRule]:
@@ -439,7 +529,7 @@ def triage(
             reason=too_broad,
             advice=[
                 "Keep approving it per use, or grant a narrower rule naming the exact "
-                "subcommand, e.g. Bash(git status:*)."
+                f"subcommand, e.g. {_narrower_example(rule=rule)}."
             ],
         )
 
