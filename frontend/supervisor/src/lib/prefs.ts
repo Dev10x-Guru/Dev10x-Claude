@@ -3,6 +3,15 @@ import type { View } from "./types";
 const PINS_KEY = "supervisor.pins";
 export const PROJECT_PINS_KEY = "supervisor.project-pins";
 export const PROJECT_ORDER_KEY = "supervisor.project-order";
+const HIDE_STOPPED_KEY = "supervisor.hide-stopped";
+
+export function loadHideStopped(store: Store | null = storage()): boolean {
+  return read(HIDE_STOPPED_KEY, store) === "1";
+}
+
+export function saveHideStopped(hide: boolean, store: Store | null = storage()): void {
+  write(HIDE_STOPPED_KEY, hide ? "1" : "0", store);
+}
 const VIEW_KEY = "supervisor.view";
 
 export interface Panel {

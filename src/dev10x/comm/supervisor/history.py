@@ -10,8 +10,8 @@ from typing import Any
 from dev10x.domain.claude_paths import ClaudeDir
 
 HEAD_BYTES = 64 * 1024
-TAIL_BYTES = 256 * 1024
-MAX_PAST_SESSIONS = 30
+TAIL_BYTES = 64 * 1024
+MAX_PAST_SESSIONS = 200
 TOPIC_CHARS = 90
 FOLDER_CHARS = re.compile(r"[/.]")
 COMMAND_NAME = re.compile(r"<command-name>(.*?)</command-name>", re.DOTALL)

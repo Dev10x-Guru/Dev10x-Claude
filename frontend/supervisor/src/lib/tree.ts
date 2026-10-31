@@ -74,6 +74,11 @@ export function arrange(projects: Project[], order: string[], pinned: string[]):
   return indexed.map(({ project }) => project);
 }
 
+export function isActive(session: Session): boolean {
+  const mark = markOf(session);
+  return mark === "blocked" || mark === "working";
+}
+
 export function matches(session: Session, query: string): boolean {
   const needle = query.trim().toLowerCase();
   if (!needle) return true;
