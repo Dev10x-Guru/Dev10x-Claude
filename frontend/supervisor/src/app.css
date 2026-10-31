@@ -18,6 +18,10 @@
   --working: oklch(58% 0.1 160);
   --danger: oklch(55% 0.17 28);
   --focus: oklch(55% 0.16 255);
+  --term: oklch(24% 0.018 255);
+  --term-ink: oklch(90% 0.012 85);
+  --term-faint: oklch(64% 0.014 85);
+  --term-rule: oklch(38% 0.016 255);
 
   --font-display: "Bricolage Grotesque Variable", "Avenir Next Condensed", sans-serif;
   --font-body: "Instrument Sans Variable", "Helvetica Neue", sans-serif;
@@ -53,6 +57,10 @@
     --working: oklch(72% 0.11 160);
     --danger: oklch(70% 0.15 28);
     --focus: oklch(72% 0.13 255);
+    --term: oklch(15.5% 0.01 255);
+    --term-ink: oklch(88% 0.01 85);
+    --term-faint: oklch(58% 0.012 85);
+    --term-rule: oklch(32% 0.014 255);
   }
 }
 
@@ -70,6 +78,10 @@
   --working: oklch(72% 0.11 160);
   --danger: oklch(70% 0.15 28);
   --focus: oklch(72% 0.13 255);
+  --term: oklch(15.5% 0.01 255);
+  --term-ink: oklch(88% 0.01 85);
+  --term-faint: oklch(58% 0.012 85);
+  --term-rule: oklch(32% 0.014 255);
 }
 
 *,
