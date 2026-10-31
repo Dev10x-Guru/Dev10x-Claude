@@ -49,6 +49,16 @@ def extract_cache_publisher(plugin_cache: str) -> str | None:
     return None
 
 
+def extract_cache_plugin_dir(plugin_cache: str) -> str | None:
+    """The ``<plugin>`` segment of ``.../plugins/cache/<publisher>/<plugin>`` (GH-1602)."""
+    parts = list(Path(plugin_cache).expanduser().parts)
+    for i, part in enumerate(parts):
+        if part == "cache" and i >= 2 and parts[i - 1] == "plugins":
+            if i + 2 < len(parts):
+                return parts[i + 2]
+    return None
+
+
 def find_config() -> Result[Path]:
     candidates = [MEMORY_CONFIG, USERSPACE_CONFIG]
     if PLUGIN_CONFIG is not None:

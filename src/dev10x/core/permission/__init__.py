@@ -338,6 +338,7 @@ def _run_update_paths(
         return err(f"No versions found in {cache_dir}")
 
     publisher = mod.extract_cache_publisher(config["plugin_cache"])
+    plugin_dir = mod.extract_cache_plugin_dir(config["plugin_cache"])
 
     messages: list[str] = []
     if not quiet:
@@ -359,6 +360,7 @@ def _run_update_paths(
             path,
             target,
             target_publisher=publisher,
+            target_plugin_dir=plugin_dir,
             dry_run=dry_run,
         )
         if count > 0:

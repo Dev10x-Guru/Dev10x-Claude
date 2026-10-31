@@ -7,6 +7,81 @@ from pathlib import Path
 from dev10x.skills.permission.catalog_version import update_file
 
 
+class TestUpdateFilePluginDir:
+    """GH-1602: a rule pinned under the pre-rename `Dev10x/` dir must move too."""
+
+    def _write(self, path: Path, rules: list[str]) -> None:
+        path.write_text(json.dumps({"permissions": {"allow": rules}}))
+
+    def _allow(self, path: Path) -> list[str]:
+        return json.loads(path.read_text())["permissions"]["allow"]
+
+    def test_moves_uppercase_dir_onto_current_spelling(self, tmp_path: Path) -> None:
+        settings_file = tmp_path / "settings.local.json"
+        self._write(
+            settings_file,
+            ["Bash(~/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.105.0/skills/x.sh:*)"],
+        )
+
+        count, messages = update_file(
+            settings_file,
+            target_version="0.108.0",
+            target_plugin_dir="dev10x",
+        )
+
+        assert count == 1
+        assert self._allow(settings_file) == [
+            "Bash(~/.claude/plugins/cache/Dev10x-Guru/dev10x/0.108.0/skills/x.sh:*)"
+        ]
+        assert "  plugin dir: Dev10x -> dev10x" in messages
+
+    def test_moves_dir_even_when_version_is_already_current(self, tmp_path: Path) -> None:
+        """The 2026-10-12 case: `Dev10x/0.108.0` had been bumped but not renamed."""
+        settings_file = tmp_path / "settings.local.json"
+        self._write(
+            settings_file,
+            ["Read(~/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.108.0/**)"],
+        )
+
+        count, _messages = update_file(
+            settings_file,
+            target_version="0.108.0",
+            target_plugin_dir="dev10x",
+        )
+
+        assert count == 1
+        assert self._allow(settings_file) == [
+            "Read(~/.claude/plugins/cache/Dev10x-Guru/dev10x/0.108.0/**)"
+        ]
+
+    def test_current_spelling_and_version_is_untouched(self, tmp_path: Path) -> None:
+        settings_file = tmp_path / "settings.local.json"
+        rule = "Read(~/.claude/plugins/cache/Dev10x-Guru/dev10x/0.108.0/**)"
+        self._write(settings_file, [rule])
+
+        count, messages = update_file(
+            settings_file,
+            target_version="0.108.0",
+            target_plugin_dir="dev10x",
+        )
+
+        assert (count, messages) == (0, [])
+        assert self._allow(settings_file) == [rule]
+
+    def test_without_target_dir_keeps_the_segment(self, tmp_path: Path) -> None:
+        settings_file = tmp_path / "settings.local.json"
+        self._write(
+            settings_file,
+            ["Read(~/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.105.0/**)"],
+        )
+
+        update_file(settings_file, target_version="0.108.0")
+
+        assert self._allow(settings_file) == [
+            "Read(~/.claude/plugins/cache/Dev10x-Guru/Dev10x/0.108.0/**)"
+        ]
+
+
 class TestUpdateFilePublisher:
     def _write(self, path: Path, rule: str) -> None:
         path.write_text(json.dumps({"permissions": {"allow": [rule]}}))
