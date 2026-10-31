@@ -21,6 +21,7 @@ from dev10x.skills.permission.ignore_session_state import (
     is_already_ignored,
     suggestion_for,
 )
+from dev10x.skills.permission.settings_discovery import vendored_dirs
 
 _TIMEOUT_SECONDS = 30
 
@@ -342,3 +343,38 @@ class TestDiscoverRepoRoots:
         found = discover_repo_roots([container])
 
         assert found == [worktree.resolve()]
+
+    @pytest.mark.parametrize("vendored", ["node_modules", "vendor"])
+    def test_a_git_checkout_under_a_vendored_dir_is_not_a_repo(
+        self,
+        tmp_path: Path,
+        vendored: str,
+    ) -> None:
+        container = tmp_path / "container3"
+        package = container / "app" / vendored / "pkg"
+        package.mkdir(parents=True)
+        (package / ".git").mkdir()
+
+        assert discover_repo_roots([container]) == []
+
+    def test_tilde_root_is_expanded(
+        self,
+        repo: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("HOME", str(repo.parent))
+
+        assert discover_repo_roots([Path(f"~/{repo.name}")]) == [repo.resolve()]
+
+    def test_user_excluded_dir_is_pruned(self, tmp_path: Path) -> None:
+        container = tmp_path / "container4"
+        checkout = container / "third_party" / "lib"
+        checkout.mkdir(parents=True)
+        (checkout / ".git").mkdir()
+
+        found = discover_repo_roots(
+            [container],
+            excluded=vendored_dirs({"exclude_dirs": ["third_party"]}),
+        )
+
+        assert found == []

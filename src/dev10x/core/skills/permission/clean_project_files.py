@@ -54,7 +54,11 @@ from dev10x.skills.permission.legacy_namespace import (
     NamespaceMigration,
     migrate_legacy_namespace,
 )
-from dev10x.skills.permission.settings_discovery import discover_settings
+from dev10x.skills.permission.settings_discovery import (
+    VENDORED_DIRS,
+    discover_settings,
+    vendored_dirs,
+)
 from dev10x.skills.permission.star_prefix import StarPrefixRepair, repair_star_prefix
 
 MEMORY_CONFIG = Dev10xConfigDir.projects_yaml()
@@ -698,8 +702,12 @@ def _format_messages(
     return messages
 
 
-def find_settings_files(roots: list[str]) -> list[Path]:
-    return discover_settings(roots=roots, include_user=False).files
+def find_settings_files(
+    roots: list[str],
+    *,
+    excluded: frozenset[str] = VENDORED_DIRS,
+) -> list[Path]:
+    return discover_settings(roots=roots, include_user=False, excluded=excluded).files
 
 
 @dataclass(frozen=True)
@@ -805,7 +813,10 @@ def _restore(*, config_path: Path) -> int:
     from dev10x.skills.permission.backup import restore_report
 
     config = load_config(config_path)
-    settings_files = find_settings_files(roots=config.get("roots", []))
+    settings_files = find_settings_files(
+        roots=config.get("roots", []),
+        excluded=vendored_dirs(config),
+    )
     code, report = restore_report(paths=settings_files)
     print(report)
     return code

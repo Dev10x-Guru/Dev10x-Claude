@@ -323,7 +323,10 @@ on-disk location does not change with the rename.)
 **How settings files are found (GH-1626).** `ensure-base`,
 `catalog-gap` and `clean` walk each root for
 `.claude/settings.local.json`, skipping `node_modules`, `.venv`,
-`venv`, `.tox`, `.git`, `dist`, `build` and `site-packages`. For every
+`venv`, `vendor`, `.tox`, `.git`, `dist`, `build` and `site-packages`,
+plus any directory names listed under `exclude_dirs` in the userspace
+`projects.yaml` (GH-1600). `ensure-ignored` prunes the same set when it
+looks for repos under a container root. For every
 git repo the walk meets, they also add each worktree from
 `git worktree list`, wherever it lives on disk, so a worktree outside
 every root (for example under `~/.herdr/worktrees/`) is still checked

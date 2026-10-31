@@ -12,6 +12,7 @@ from dev10x.skills.permission.settings_discovery import (
     discover_settings,
     git_registered_worktrees,
     outside_roots,
+    vendored_dirs,
 )
 
 from dev10x import subprocess_utils
@@ -98,6 +99,36 @@ class TestVendoredPruning:
         _settings(project=root / "app" / "node_modules" / ".pnpm" / "thread-stream")
 
         assert discover_settings(roots=[str(root)], include_user=False).files == [kept.resolve()]
+
+    def test_user_excluded_dir_is_pruned(self, root: Path) -> None:
+        _settings(project=root / "app" / "third_party" / "pkg")
+
+        discovery = discover_settings(
+            roots=[str(root)],
+            include_user=False,
+            excluded=vendored_dirs({"exclude_dirs": ["third_party"]}),
+        )
+
+        assert discovery.files == []
+
+
+class TestVendoredDirs:
+    def test_without_exclude_dirs_is_the_builtin_set(self) -> None:
+        assert vendored_dirs({}) == VENDORED_DIRS
+
+    def test_vendor_is_pruned_by_default(self) -> None:
+        assert "vendor" in VENDORED_DIRS
+
+    def test_exclude_dirs_extends_the_builtin_set(self) -> None:
+        assert vendored_dirs({"exclude_dirs": ["third_party"]}) == VENDORED_DIRS | {"third_party"}
+
+    @pytest.mark.parametrize(
+        "value",
+        ["third_party", {"third_party": True}, [3, "", None]],
+        ids=["string", "mapping", "non-string-entries"],
+    )
+    def test_malformed_exclude_dirs_adds_nothing(self, value: object) -> None:
+        assert vendored_dirs({"exclude_dirs": value}) == VENDORED_DIRS
 
 
 class TestGitWorktreeDiscovery:

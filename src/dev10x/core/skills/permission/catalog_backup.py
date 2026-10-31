@@ -10,6 +10,7 @@ settings files the writers target and roll each back. Split out of
 from pathlib import Path
 
 from dev10x.skills.permission.catalog_load import find_settings_files, load_config
+from dev10x.skills.permission.settings_discovery import vendored_dirs
 
 
 def _restore(*, config_path: Path) -> int:
@@ -19,6 +20,7 @@ def _restore(*, config_path: Path) -> int:
     settings_files = find_settings_files(
         roots=config.get("roots", []),
         include_user=config.get("include_user_settings", True),
+        excluded=vendored_dirs(config),
     )
     code, report = restore_report(paths=settings_files)
     print(report)
