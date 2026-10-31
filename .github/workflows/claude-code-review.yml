@@ -246,7 +246,9 @@ jobs:
       # counted with a field `gh pr view` does not have, and the action's
       # classifier held comments back until after the session. Counting
       # here, after the probe cleanup and with the job token, sees exactly
-      # the comments this run left.
+      # the comments this run left. GH-1693: a run that requested changes
+      # is blocking too — an earlier finding that still applies is
+      # answered with a reply, which is not a root comment.
       - name: Convert to draft when the review left findings
         if: ${{ steps.claude-review.outputs.conclusion == 'success' }}
         env:
@@ -259,11 +261,14 @@ jobs:
           count=$(gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/comments?since=${SINCE}" \
             | jq --arg since "$SINCE" '[.[][] | select(.user.login == "claude[bot]"
                 and .created_at >= $since and .in_reply_to_id == null)] | length')
-          if [[ "$count" -gt 0 ]]; then
+          requested=$(gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/reviews" \
+            | jq --arg since "$SINCE" '[.[][] | select(.user.login == "claude[bot]"
+                and (.submitted_at // "") >= $since and .state == "CHANGES_REQUESTED")] | length')
+          if [[ "$count" -gt 0 || "$requested" -gt 0 ]]; then
             gh pr ready "$PR_NUMBER" --undo --repo "$GITHUB_REPOSITORY"
-            echo "::notice title=PR converted to draft::The review left ${count} inline finding(s); mark the PR ready for review when they are addressed."
+            echo "::notice title=PR converted to draft::The review left ${count} inline finding(s) and requested changes ${requested} time(s); mark the PR ready for review when they are addressed."
           else
-            echo "The review left no inline findings; the PR stays ready for review."
+            echo "The review left no inline findings and requested no changes; the PR stays ready for review."
           fi
 
       # GH-1585: cost, turns and cache use of this run in the job summary

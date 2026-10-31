@@ -60,7 +60,9 @@ The guard applies to:
    - Fixed/removed → reply "Addressed" (do NOT resolve — leave for human)
    - Persists in unchanged code → reply "Still applies"; do NOT duplicate
    - Changed but issue remains → reply with update
-5. Use inline comment tools ONLY for NEW issues
+5. Use inline comment tools ONLY for NEW issues; in the Claude CI
+   review only blocking (CRITICAL/WARNING) ones — INFO and
+   suggestions go in the summary
 6. Hide obsolete review summaries before posting the new one:
    a. Query review threads via the `pr_comments` /
       `unresolved_threads` MCP wrappers (never raw `gh api graphql`,
@@ -75,16 +77,27 @@ The guard applies to:
    d. Skip the current review cycle's own review
    e. Thread resolution must come from the human supervisor —
       the reviewer MUST NOT resolve threads to trigger this gate
-7. Create ONE summary review comment (`gh pr review --comment`) with:
+7. When a summary is warranted (§ Summary Comment Strategy), create
+   exactly ONE summary review (`gh pr review`, state per item 8) with:
    - High-level observations and quality assessment
    - Cross-cutting concerns not tied to specific lines
    - Acknowledgment of addressed issues
    - DO NOT repeat inline comment content
-8. Use COMMENT status (not REQUEST_CHANGES or APPROVE)
-9. If inline comments were posted, the PR goes to draft:
+8. Review state. The Claude CI review (`claude-code-review.yml`)
+   submits the state its verdict names: REQUEST_CHANGES when this
+   round posted an inline comment or an earlier blocker still
+   applies, APPROVE otherwise — a findings-free re-review included,
+   with a one-line body, so it replaces its own earlier
+   REQUEST_CHANGES. On a PR `claude[bot]` authored it uses COMMENT,
+   since GitHub refuses self-approval. A bot approval is a hand-off
+   signal, never a sign-off that moves the merge off the author.
+   Interactive reviews keep their own submit-state gate
+9. If inline comments were posted or changes were requested, the PR
+   goes to draft:
    - Prevents noisy re-reviews on fixup commits
    - Author marks "Ready for review" when fixes are complete
-   - Do NOT convert if the review was clean (no inline comments)
+   - Do NOT convert if the review was clean (no inline comments, no
+     blocker still applies)
    - In this repo's CI, a workflow step does the conversion after
      the review — never change the draft state yourself there
      (GH-1618). Elsewhere: `gh pr ready --undo $PR_NUMBER`
@@ -175,9 +188,11 @@ Do NOT re-flag the name in the next review round.
 ## Summary Comment Strategy
 
 - ONE summary per review cycle (not per commit)
-- **Only post if** there are new issues or material changes to review
-- **If there are no new issues, post NO review at all.** An empty-body
-  COMMENTED review adds noise without value.
+- **Only post a summary if** there are new issues, a blocker that
+  still applies, or material changes to review
+- **If there are no new issues and no blocker still applies, post no
+  summary.** The Claude CI review still submits the one-line approval
+  from item 8 (`✅ No new findings`); never a summary-length body.
 - After fixes: post ONE brief acknowledgment, not per-file comments
 - After 3+ summaries saying "looks good": do NOT post another
 
