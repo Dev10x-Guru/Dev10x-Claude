@@ -216,6 +216,7 @@ one session). Use these shapes verbatim:
 | `create_pr` | `title`, `issue_id`, plus either `job_story` or `body`; optional `head`, `milestone`, `repo` | passing a long `job_story` and expecting the extra paragraphs to survive — only `body` is used verbatim (GH-1073); assuming `repo` is rejected — it is accepted since GH-1269 |
 | `merge_pr` | `pr_number`; optional `expected_head_sha`, `use_bot` | omitting `expected_head_sha` after a pre-merge gate read `headRefOid` — the merge then takes whatever the head is *now* (GH-1267); reading `merged_as` as a request rather than a result — it reports which identity actually merged (GH-1272); passing an abbreviated `expected_head_sha` — only the full 40-character `headRefOid` is accepted, refused before any network call (GH-1681) |
 | `run_node_tests` | none; optional `runner` (detected from `cwd` when omitted, GH-1683), `script`, `env` | passing `runner="jest"` in a vitest repo — jest ran zero tests and reported passed 0 / failed 0 with only `returncode: 1` as the signal |
+| `gchat_watch_arm` | `thread` (full name) or `space`; plus `notify` / `notify_roles` (lists) or `route=true` | singular `notify="<mailbox>"`; expecting it to read Chat — only `dev10x skill notify gchat-watch poll` reads (GH-1682) |
 | `update_pr` | `pr_number`, plus at least one of `body` / `title` / `base_branch` / `milestone` | `gh pr edit --milestone` — routed here (GH-1098) |
 | `permission_triage` / `permission_grant` | `target` (the prompted command, or a rule); grant also needs `rule`, the triage rule echoed back so the approval prompt names it; optional `working_dirs` (absolute), and `dry_run` on grant | passing a hand-built rule for a command — pass the command so triage can see its shape (GH-1676); expecting grant to write on a non-`grant` verdict, or with a `rule` triage did not derive — it refuses and returns the triage; relative `working_dirs` — rejected (GH-1264) |
 
@@ -778,6 +779,9 @@ supporting each tool:
 | `permission_catalog_gap` | `cli` | GH-1175 | v0.97.0+ |
 | `permission_triage` | `cli` | GH-1676 | v0.109.0+ |
 | `permission_grant` | `cli` | GH-1676 | v0.109.0+ (write; not seeded) |
+| `gchat_watch_arm` | `cli` | GH-1682 | v0.109.0+ |
+| `gchat_watch_disarm` | `cli` | GH-1682 | v0.109.0+ |
+| `gchat_watch_list` | `cli` | GH-1682 | v0.109.0+ |
 | `query` | `db` | PR #126 | v0.25.0+ |
 
 When adding a new tool, update this table and note any dependencies on

@@ -57,6 +57,13 @@ before talking to a `cowork` mailbox.
   Claude Code mailbox names change on every restart; only `cowork` is
   stable. The **callsign** is the stable spoken name: two or three
   words for the work (`login fix`), never a ticket or PR number.
+  An optional `Domain` header (`short description: keyword, keyword`)
+  lets a dispatcher route chat to the session by area of work.
+- **Dispatching** (`gchat-watch --route`, see `dev10x:gchat`): explicit
+  address (a message naming one Role) first, then a configured
+  space/thread → Role map, then `Domain` keywords matching exactly one
+  Role. Anything else is summarized for the user, never answered by a
+  guess. Code: `dev10x.comm.skills.bus.routing`.
 - **Status board:** `<root>/status/<mailbox>`, one line per session,
   so a voice hub answers "what needs me?" in one read.
 - **Threads:** a pair may talk in `threads/<a>--<b>/` (names sorted).
@@ -112,7 +119,8 @@ Args: `[start [name] [role] | send <to> <subject> | prompt | stop]`.
    for) to the scratchpad, then `send.py registry hello <body>
    --from <name> --reply-to <name> --header Role=<role> --header
    Callsign=<callsign>` (add `--header Supersedes=<old>` after a
-   restart). Then `status.py <name> working <sentence> --callsign
+   restart, and `--header "Domain=<description>: <keywords>"` to
+   receive routed chat). Then `status.py <name> working <sentence> --callsign
    <callsign>`.
 3. Start the watcher: Bash with command
    `${CLAUDE_PLUGIN_ROOT}/skills/bus/scripts/watch.py <name> --once`,

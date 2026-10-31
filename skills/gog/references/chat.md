@@ -13,6 +13,13 @@ cannot read anything.
 The bot cannot read, and it is only a member of spaces it was explicitly
 added to — so a DM or an arbitrary space is reachable only through `gog`.
 
+To be told about **new** messages in a thread or space rather than
+fetching on demand, arm a watch: `dev10x:gchat` § Watching threads and
+spaces ([`../../gchat/references/watch.md`](../../gchat/references/watch.md)).
+It runs this same `messages list` call under your grant, keeps a durable
+cursor, and delivers each new message over `dev10x:bus` — so do not
+hand-roll a polling loop around it.
+
 ## Command surface
 
 ```bash

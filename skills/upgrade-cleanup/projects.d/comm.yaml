@@ -1,0 +1,13 @@
+# Permission-catalog fragment for the comm plugin (ADR-0034 Stage A3,
+# GH-1589). Merged into ../projects.yaml by
+# dev10x.core.skills.permission.catalog_paths; see the base file's
+# header for the catalog itself.
+
+base_permissions:
+  # --- Dev10x MCP tools: Google Chat watches (GH-1682) ---
+  # They write only the local watch store under the Dev10x config home,
+  # so they are seeded rather than listed in WRITE_TOOLS_NOT_SEEDED: a
+  # skill arming a watch after a post must not stop on a prompt.
+  - "mcp__plugin_dev10x_cli__gchat_watch_arm"
+  - "mcp__plugin_dev10x_cli__gchat_watch_disarm"
+  - "mcp__plugin_dev10x_cli__gchat_watch_list"

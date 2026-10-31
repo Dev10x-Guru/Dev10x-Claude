@@ -67,7 +67,7 @@ def merged_lists(merged: dict) -> dict[str, list[str]]:
 
 def test_fragment_plugins_are_pinned(projects_yaml: Path) -> None:
     plugins = [fragment.plugin for fragment in catalog_fragments(catalog_path=projects_yaml)]
-    assert plugins == ["qa", "db", "teach", "tasks", "scoping", "coding"]
+    assert plugins == ["qa", "db", "comm", "teach", "tasks", "scoping", "coding"]
 
 
 def test_every_list_matches_the_pre_split_catalog(merged_lists: dict[str, list[str]]) -> None:

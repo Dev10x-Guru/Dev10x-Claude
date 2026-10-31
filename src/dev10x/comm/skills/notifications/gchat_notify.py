@@ -429,6 +429,18 @@ def qualify_thread_name(thread: str, *, space_id: str) -> str:
     return thread if thread.startswith("spaces/") else f"spaces/{space_id}/threads/{thread}"
 
 
+@dataclass(frozen=True)
+class PostedMessage:
+    """A created message and the thread it landed in (GH-1682).
+
+    ``thread`` is what the API reports, which differs from the requested
+    thread when ``REPLY_MESSAGE_FALLBACK_TO_NEW_THREAD`` started a new one.
+    """
+
+    name: str
+    thread: str | None
+
+
 def post_message(
     *,
     space_id: str,
@@ -438,6 +450,35 @@ def post_message(
     fallback_text: str | None = None,
     thread: str | None = None,
 ) -> Result[str]:
+    result = post_message_detailed(
+        space_id=space_id,
+        token=token,
+        text=text,
+        cards=cards,
+        fallback_text=fallback_text,
+        thread=thread,
+    )
+    if isinstance(result, ErrorResult):
+        return result
+    return ok(result.value.name)
+
+
+def _thread_name_of(response: dict) -> str | None:
+    thread = response.get("thread")
+    if isinstance(thread, dict):
+        return thread.get("name") or None
+    return thread or None
+
+
+def post_message_detailed(
+    *,
+    space_id: str,
+    token: str,
+    text: str | None = None,
+    cards: list[dict] | None = None,
+    fallback_text: str | None = None,
+    thread: str | None = None,
+) -> Result[PostedMessage]:
     qualified_thread = qualify_thread_name(thread, space_id=space_id) if thread else None
     payload_result = build_message_payload(
         text=text, cards=cards, fallback_text=fallback_text, thread=qualified_thread
@@ -455,7 +496,7 @@ def post_message(
     name = result.value.get("name")
     if not name:
         return err(f"Google Chat accepted the POST but returned no message name: {result.value}")
-    return ok(name)
+    return ok(PostedMessage(name=name, thread=_thread_name_of(result.value) or qualified_thread))
 
 
 def _validate_message_name(message_name: str) -> Result[str]:
@@ -548,15 +589,46 @@ def send_gchat_message(
     fallback_text: str | None = None,
     thread: str | None = None,
 ) -> Result[str]:
+    target_result = _space_and_token(space=space)
+    if isinstance(target_result, ErrorResult):
+        return target_result
+    space_id, token = target_result.value
+    return post_message(
+        space_id=space_id,
+        token=token,
+        text=resolve_mentions(message) if message else None,
+        cards=cards,
+        fallback_text=resolve_mentions(fallback_text) if fallback_text else None,
+        thread=thread,
+    )
+
+
+def _space_and_token(*, space: str) -> Result[tuple[str, str]]:
     space_result = resolve_space_id(space)
     if isinstance(space_result, ErrorResult):
         return space_result
     token_result = mint_chat_token()
     if isinstance(token_result, ErrorResult):
         return token_result
-    return post_message(
-        space_id=space_result.value,
-        token=token_result.value,
+    return ok((space_result.value, token_result.value))
+
+
+def send_gchat_message_detailed(
+    *,
+    space: str,
+    message: str | None = None,
+    cards: list[dict] | None = None,
+    fallback_text: str | None = None,
+    thread: str | None = None,
+) -> Result[PostedMessage]:
+    """Like ``send_gchat_message``, but also report the thread (GH-1682)."""
+    target_result = _space_and_token(space=space)
+    if isinstance(target_result, ErrorResult):
+        return target_result
+    space_id, token = target_result.value
+    return post_message_detailed(
+        space_id=space_id,
+        token=token,
         text=resolve_mentions(message) if message else None,
         cards=cards,
         fallback_text=resolve_mentions(fallback_text) if fallback_text else None,
@@ -586,6 +658,33 @@ def notify_gchat(
     is unchanged — the sink is additive and never raises.
     """
     result = send_gchat_message(
+        space=space,
+        message=message,
+        cards=cards,
+        fallback_text=fallback_text,
+        thread=thread,
+    )
+    if isinstance(result, ErrorResult):
+        record_undelivered(
+            channel=space,
+            transport="gchat",
+            error=result.error,
+            body=message or fallback_text,
+            context={"thread": thread},
+        )
+    return result
+
+
+def notify_gchat_detailed(
+    *,
+    space: str,
+    message: str | None = None,
+    cards: list[dict] | None = None,
+    fallback_text: str | None = None,
+    thread: str | None = None,
+) -> Result[PostedMessage]:
+    """``notify_gchat`` that also reports the posted thread, for arming a watch (GH-1682)."""
+    result = send_gchat_message_detailed(
         space=space,
         message=message,
         cards=cards,
