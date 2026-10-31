@@ -1,0 +1,29 @@
+# Files mcpb pack leaves out of dev10x-<version>.mcpb (GH-1675).
+# The cli server resolves its plugin root from its own path, so the
+# bundle keeps src/, servers/, skills/, hooks/, references/ and
+# .claude-plugin/ — everything else here is development-only.
+.git/
+.github/
+.venv/
+.benchmarks/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+**/__pycache__/
+*.pyc
+tests/
+docs/
+dist/
+build/
+*.mcpb
+.claude/
+.herdr/
+.idea/
+*.egg-info/
+agents/
+CHANGELOG.md
+IMPLEMENTATION_*.md
+lessons_learned_*.md
+action.yml
+uv.lock
+skills/scope/bin/

@@ -20,7 +20,7 @@ RED='\033[0;31m'
 BOLD='\033[1m'
 RESET='\033[0m'
 
-VERSION_FILES=(.bumpversion.toml .claude-plugin/plugin.json .claude-plugin/marketplace.json pyproject.toml uv.lock skills/playbook/references/playbook.yaml)
+VERSION_FILES=(.bumpversion.toml .claude-plugin/plugin.json .claude-plugin/marketplace.json manifest.json pyproject.toml uv.lock skills/playbook/references/playbook.yaml)
 
 command -v bump-my-version >/dev/null || {
     echo "bump-my-version not found. Install: pip install bump-my-version" >&2
@@ -107,6 +107,8 @@ function release_notice {
     echo -e "    ${BOLD}•${RESET} reset main to develop HEAD → the marketplace served ref"
     echo -e "      advances; every 'claude plugin update' jumps to ${rc_version}"
     echo -e "    ${BOLD}•${RESET} create a GitHub release for ${tag}"
+    echo -e "    ${BOLD}•${RESET} push tag ${tag} → CI attaches dev10x-${rc_version}.mcpb"
+    echo -e "      (.github/workflows/mcpb-release.yml — one-click MCP install)"
     echo ""
     echo -e "  ${YELLOW}These effects are remote and effectively irreversible.${RESET}"
     echo ""
@@ -169,8 +171,13 @@ function release {
 
     header "Phase 5 · Create GitHub release"
     git checkout main
-    step "Creating release for $tag..."
-    gh release create "$tag" --generate-notes
+    # mcpb-release.yml may create the release first on the same tag
+    # push to attach the .mcpb asset (GH-1675); reuse it if so.
+    step "Creating release for $tag (or reusing mcpb-release.yml's)..."
+    gh release create "$tag" --generate-notes \
+        || gh release view "$tag" >/dev/null
+    step "Check the dev10x-${tag#v}.mcpb asset once mcpb-release.yml finishes:"
+    echo -e "    ${CYAN}gh release view $tag --json assets --jq '.assets[].name'${RESET}"
     git checkout develop
 
     echo ""
