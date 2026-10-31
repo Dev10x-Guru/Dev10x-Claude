@@ -2,11 +2,16 @@ import type { View } from "./types";
 
 const PINS_KEY = "supervisor.pins";
 const VIEW_KEY = "supervisor.view";
-const ASIDE_KEY = "supervisor.aside-width";
 
-export const ASIDE_MIN_PX = 200;
-export const ASIDE_MAX_PX = 560;
-export const ASIDE_DEFAULT_PX = 288;
+export interface Panel {
+  key: string;
+  min: number;
+  max: number;
+  fallback: number;
+}
+
+export const ASIDE: Panel = { key: "supervisor.aside-width", min: 200, max: 560, fallback: 288 };
+export const SIDE: Panel = { key: "supervisor.side-width", min: 240, max: 760, fallback: 384 };
 
 type Store = Pick<Storage, "getItem" | "setItem">;
 
@@ -59,15 +64,15 @@ export function saveView(view: View, store: Store | null = storage()): void {
   write(VIEW_KEY, view, store);
 }
 
-export function clampAside(px: number): number {
-  return Math.round(Math.min(ASIDE_MAX_PX, Math.max(ASIDE_MIN_PX, px)));
+export function clampWidth(panel: Panel, px: number): number {
+  return Math.round(Math.min(panel.max, Math.max(panel.min, px)));
 }
 
-export function loadAsideWidth(store: Store | null = storage()): number {
-  const value = Number(read(ASIDE_KEY, store));
-  return Number.isFinite(value) && value > 0 ? clampAside(value) : ASIDE_DEFAULT_PX;
+export function loadWidth(panel: Panel, store: Store | null = storage()): number {
+  const value = Number(read(panel.key, store));
+  return Number.isFinite(value) && value > 0 ? clampWidth(panel, value) : panel.fallback;
 }
 
-export function saveAsideWidth(px: number, store: Store | null = storage()): void {
-  write(ASIDE_KEY, String(clampAside(px)), store);
+export function saveWidth(panel: Panel, px: number, store: Store | null = storage()): void {
+  write(panel.key, String(clampWidth(panel, px)), store);
 }
