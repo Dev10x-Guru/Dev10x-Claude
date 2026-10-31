@@ -23,8 +23,18 @@
 
   let { session, conversation, tail, view, onview, pending, run, nameOf }: Props = $props();
 
+  const NAME_PATTERN = "[A-Za-z0-9][A-Za-z0-9._\\-]{0,63}";
+
   let dropping = $state(false);
   let peer = $state("");
+  let renaming = $state(false);
+  let newName = $state("");
+
+  async function saveName(): Promise<void> {
+    const name = newName.trim();
+    renaming = false;
+    await run("/rename", { session_id: session.session_id, name }, `Sent /rename ${name} to ${session.name}`);
+  }
 
   function ondragover(event: DragEvent): void {
     if (!carriesSession(event.dataTransfer?.types)) return;
@@ -96,8 +106,42 @@
   <header class="head">
     <div class="title">
       <StatusMark mark={markOf(session)} />
-      <h1>{displayName(session)}</h1>
-      {#if session.callsign}<span class="alias">{session.name}</span>{/if}
+      {#if renaming}
+        <form
+          class="rename"
+          onsubmit={(event) => {
+            event.preventDefault();
+            saveName();
+          }}
+        >
+          <label class="visually-hidden" for="rename-input">New name for {session.name}</label>
+          <input
+            id="rename-input"
+            bind:value={newName}
+            pattern={NAME_PATTERN}
+            maxlength="64"
+            autocomplete="off"
+            onkeydown={(event) => event.key === "Escape" && (renaming = false)}
+            {@attach (node) => node.focus()}
+          />
+          <button type="submit" disabled={pending || !newName.trim() || newName.trim() === session.name}
+            >Rename</button
+          >
+          <button type="button" class="ghost" onclick={() => (renaming = false)}>Cancel</button>
+        </form>
+      {:else}
+        <h1 title={session.name}>{displayName(session)}</h1>
+        {#if session.callsign}<span class="alias">{session.name}</span>{/if}
+        <button
+          class="ghost rename-open"
+          title={session.status === "idle" ? "Rename this session" : "Rename once the session is idle"}
+          disabled={session.status !== "idle" || !session.pane_id}
+          onclick={() => {
+            newName = session.name;
+            renaming = true;
+          }}>Rename</button
+        >
+      {/if}
     </div>
     <p class="where">
       <span title={session.cwd}>{shortPath(session.cwd)}</span>
@@ -217,6 +261,73 @@
   .alias {
     color: var(--ink-faint);
     font-size: var(--step--1);
+  }
+
+  .ghost {
+    padding: 0;
+    background: none;
+    border: none;
+    color: var(--ink-soft);
+    font-size: var(--step--1);
+    font-weight: 600;
+    text-decoration: underline;
+    text-decoration-color: var(--rule-strong);
+    text-underline-offset: 3px;
+    cursor: pointer;
+  }
+
+  .ghost:disabled {
+    color: var(--ink-faint);
+    text-decoration: none;
+    cursor: default;
+  }
+
+  .rename-open {
+    margin-left: auto;
+  }
+
+  .rename {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-width: 0;
+  }
+
+  .rename input {
+    flex: 1;
+    min-width: 0;
+    max-width: 28rem;
+    padding: var(--space-1) 0;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--focus);
+    font-family: var(--font-display);
+    font-size: var(--step-1);
+    font-weight: 700;
+  }
+
+  .rename input:focus-visible {
+    outline: none;
+  }
+
+  .rename input:invalid {
+    border-bottom-color: var(--danger);
+  }
+
+  .rename button[type="submit"] {
+    padding: var(--space-1) var(--space-3);
+    background: var(--ink);
+    color: var(--paper);
+    border: none;
+    border-radius: 3px;
+    font-weight: 650;
+    cursor: pointer;
+  }
+
+  .rename button[type="submit"]:disabled {
+    opacity: 0.35;
+    cursor: default;
   }
 
   .where {

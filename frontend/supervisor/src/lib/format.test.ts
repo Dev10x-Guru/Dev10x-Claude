@@ -10,7 +10,7 @@ import {
   shortPath,
   waitingLabel,
 } from "./format";
-import { makeSession as session } from "./testing";
+import { makeSession as session, makeWorkspace } from "./testing";
 
 describe("bucket", () => {
   it("sorts sessions into their groups", () => {
@@ -25,6 +25,15 @@ describe("displayName", () => {
     ["login fix", "login fix"],
   ])("callsign %j shows %j", (callsign, expected) => {
     expect(displayName(session({ callsign }))).toBe(expected);
+  });
+
+  it.each([
+    ["GH-1722-supervisor-status-bar", "GH-1722", "supervisor-status-bar"],
+    ["GH-1722", "GH-1722", "GH-1722"],
+    ["GH-17220-x", "GH-1722", "GH-17220-x"],
+    ["status-bar", "", "status-bar"],
+  ])("name %j with issue %j shows %j", (name, issue, expected) => {
+    expect(displayName(session({ name, workspace: makeWorkspace({ issue }) }))).toBe(expected);
   });
 });
 

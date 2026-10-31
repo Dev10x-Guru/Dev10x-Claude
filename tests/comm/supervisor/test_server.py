@@ -24,6 +24,7 @@ from dev10x.comm.supervisor.server import (
     SupervisorApp,
     make_server,
     refresh,
+    rename_defaults,
     run_collector,
     snapshot_payload,
 )
@@ -690,6 +691,133 @@ class TestKeys:
         )
 
         assert (response.status, response.json()["error"]) == (502, "herdr exited 1")
+
+
+class Renamer:
+    def __init__(self, *, fail_on: str = "") -> None:
+        self.calls: list[dict[str, Any]] = []
+        self.fail_on = fail_on
+
+    def __call__(self, **kwargs: Any) -> None:
+        self.calls.append(kwargs)
+        if kwargs["session_name"] == self.fail_on:
+            raise ProbeError("herdr refused the prompt")
+
+
+class TestRename:
+    @pytest.fixture
+    def renamer(self, app: SupervisorApp) -> Renamer:
+        renamer = Renamer()
+        app.renamer = renamer
+        return renamer
+
+    def test_submits_rename_to_an_idle_session(self, port: int, renamer: Renamer) -> None:
+        response = call(
+            port=port,
+            method="POST",
+            path="/rename",
+            payload={"session_id": IDLE.session_id, "name": " status-bar "},
+        )
+
+        assert (response.json(), [(c["pane_id"], c["name"]) for c in renamer.calls]) == (
+            {"ok": True, "name": "status-bar"},
+            [("w12:p1", "status-bar")],
+        )
+
+    @pytest.mark.parametrize("name", ["", "has space", "-lead", "x" * 65])
+    def test_rejects_a_bad_name(self, port: int, renamer: Renamer, name: str) -> None:
+        response = call(
+            port=port,
+            method="POST",
+            path="/rename",
+            payload={"session_id": IDLE.session_id, "name": name},
+        )
+
+        assert (response.status, renamer.calls) == (400, [])
+
+    def test_waits_for_an_idle_session(self, port: int, renamer: Renamer) -> None:
+        response = call(
+            port=port,
+            method="POST",
+            path="/rename",
+            payload={"session_id": WAITING.session_id, "name": "ok-name"},
+        )
+
+        assert (response.status, renamer.calls) == (409, [])
+
+    def test_herdr_failure_reported(self, port: int, app: SupervisorApp) -> None:
+        app.renamer = Renamer(fail_on="mc-updates")
+
+        response = call(
+            port=port,
+            method="POST",
+            path="/rename",
+            payload={"session_id": IDLE.session_id, "name": "ok-name"},
+        )
+
+        assert (response.status, response.json()["error"]) == (502, "herdr refused the prompt")
+
+
+class TestRenameDefaults:
+    GENERATED = replace(IDLE, name="kb-2a", cwd="/kb")
+    OTHER = replace(IDLE, session_id="sid-other", name="kb-3b", cwd="/kb", pane_id="w9:p1")
+
+    def test_renames_generated_names_after_the_branch(self, app: SupervisorApp) -> None:
+        app.renamer = renamer = Renamer()
+        app.publish(
+            snapshot=Snapshot(sessions=[self.GENERATED]), pane_text={}, workspaces=WORKSPACES
+        )
+
+        done = rename_defaults(app=app)
+
+        assert ([rename.name for rename in done], renamer.calls[0]["confirmed_by"]) == (
+            ["GH-1722-bar"],
+            "janusz (daemon start)",
+        )
+
+    def test_one_failure_does_not_stop_the_rest(self, app: SupervisorApp) -> None:
+        app.renamer = Renamer(fail_on="kb-2a")
+        workspaces = {
+            "/kb": WORKSPACES["/kb"],
+            "/kb2": replace(WORKSPACES["/kb"], root="/kb2", branch="janusz/GH-9/other"),
+        }
+        app.publish(
+            snapshot=Snapshot(
+                sessions=[self.GENERATED, replace(self.OTHER, name="kb2-3b", cwd="/kb2")]
+            ),
+            pane_text={},
+            workspaces=workspaces,
+        )
+
+        assert [rename.name for rename in rename_defaults(app=app)] == ["GH-9-other"]
+
+    def test_collector_renames_only_once(self, app: SupervisorApp) -> None:
+        app.renamer = renamer = Renamer()
+        app.auto_rename = True
+        stop = threading.Event()
+        ticks: list[int] = []
+
+        def provider() -> Snapshot:
+            ticks.append(1)
+            if len(ticks) == 2:
+                stop.set()
+            return Snapshot(sessions=[self.GENERATED], taken_at=NOW)
+
+        run_collector(app=app, interval=0, stop=stop, provider=provider)
+
+        assert (len(ticks), [call["name"] for call in renamer.calls]) == (2, ["GH-1722-bar"])
+
+    def test_collector_skips_renames_when_off(self, app: SupervisorApp) -> None:
+        app.renamer = renamer = Renamer()
+        stop = threading.Event()
+
+        def provider() -> Snapshot:
+            stop.set()
+            return Snapshot(sessions=[self.GENERATED], taken_at=NOW)
+
+        run_collector(app=app, interval=0, stop=stop, provider=provider)
+
+        assert renamer.calls == []
 
 
 class TestIntroduce:

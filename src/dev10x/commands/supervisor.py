@@ -91,6 +91,13 @@ def supervisor() -> None:
 @click.option("--kb-root", type=click.Path(path_type=Path), default=DEFAULT_KB_ROOT)
 @click.option("--bus-root", type=click.Path(path_type=Path), default=BUS_ROOT)
 @click.option("--relay-mailbox", default=RELAY_MAILBOX, show_default=True)
+@click.option(
+    "--rename/--no-rename",
+    "auto_rename",
+    default=True,
+    show_default=True,
+    help="Once at start, rename idle sessions with a generated name after their branch.",
+)
 def serve(
     *,
     port: int,
@@ -98,6 +105,7 @@ def serve(
     kb_root: Path,
     bus_root: Path,
     relay_mailbox: str,
+    auto_rename: bool,
 ) -> None:
     """Serve the supervisor page on 127.0.0.1 until stopped."""
     hook_token = secrets.token_urlsafe(24)
@@ -109,6 +117,7 @@ def serve(
         token=secrets.token_urlsafe(24),
         hook_token=hook_token,
     )
+    app.auto_rename = auto_rename
     stop = threading.Event()
 
     def _stop(signum: int, frame: FrameType | None) -> None:
