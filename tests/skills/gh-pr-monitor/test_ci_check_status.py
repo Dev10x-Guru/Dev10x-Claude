@@ -29,6 +29,14 @@ def _read(checks: list[dict]) -> _impl.ChecksRead:
     return _impl.ChecksRead(checks=checks, source=_impl.SOURCE_GH_CLI)
 
 
+@pytest.fixture(autouse=True)
+def _nothing_running_at_head(monkeypatch):
+    """Green verdicts are runs-API corroborated (GH-1679); that path has its
+    own tests in tests/monitor/test_green_corroboration.py, so keep these
+    from shelling out to a real `gh`."""
+    monkeypatch.setattr(_impl, "runs_running_at_head", lambda **k: [])
+
+
 class TestComputeVerdict:
     def test_empty_checks_returns_empty(self):
         result = compute_verdict(checks=[])

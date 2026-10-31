@@ -97,6 +97,17 @@ two API calls are paid ONLY on the zero path — never on a call that has
 checks to report — so the common poll costs exactly what it did before.
 A runs-API call that cannot be made degrades to an `undetermined` error,
 never to a zero and never to a green.
+
+Corroborated greens (GH-1679): `gh pr checks` also under-reports a
+*partial* list — right after a force-push it listed 8 of a head's 13
+checks while the CI Gate run for that head was still in progress, and the
+8 it saw were all green. So a `green` verdict is cross-checked against
+the runs API too: any run for the head SHA that has not completed turns
+it into `pending`, with `checks_source: "runs-api-pending"` and the run
+names in `running_runs`. A cross-check that cannot be made leaves the
+green standing — an unreadable second source is not evidence — and says
+so on stderr. `--required-only` reads are exempt for the reason zeros
+are: the runs API cannot say which runs the host requires.
 """
 
 import argparse
@@ -120,6 +131,7 @@ _SUBPROCESS_TIMEOUT_SECONDS = 30
 SOURCE_GH_CLI = "gh-pr-checks"
 SOURCE_RUNS_API = "runs-api"
 SOURCE_CONFIRMED_ZERO = "confirmed-zero"
+SOURCE_RUNS_API_PENDING = "runs-api-pending"
 
 # `gh pr checks` says this on stderr, and exits non-zero, when it sees no
 # checks — the same sentence for a PR that genuinely has none and for one
@@ -294,6 +306,16 @@ def corroborate_zero_checks(
     return ChecksRead(checks=checks_from_runs(at_head), source=SOURCE_RUNS_API)
 
 
+def _run_reader(cmd: list[str]) -> subprocess.CompletedProcess[str] | None:
+    """Run a second-source read; None when it times out (GH-1679)."""
+    try:
+        return subprocess.run(
+            cmd, capture_output=True, text=True, timeout=_SUBPROCESS_TIMEOUT_SECONDS
+        )
+    except subprocess.TimeoutExpired:
+        return None
+
+
 def fetch_head_ref(
     *,
     pr_number: int,
@@ -310,10 +332,8 @@ def fetch_head_ref(
         "--json",
         "headRefName,headRefOid",
     ]
-    result = subprocess.run(
-        cmd, capture_output=True, text=True, timeout=_SUBPROCESS_TIMEOUT_SECONDS
-    )
-    if result.returncode != 0:
+    result = _run_reader(cmd)
+    if result is None or result.returncode != 0:
         return None
     try:
         payload = json.loads(result.stdout)
@@ -342,10 +362,8 @@ def fetch_branch_runs(
         "api",
         f"repos/{repo}/actions/runs?branch={branch}&per_page={_RUNS_PAGE_SIZE}",
     ]
-    result = subprocess.run(
-        cmd, capture_output=True, text=True, timeout=_SUBPROCESS_TIMEOUT_SECONDS
-    )
-    if result.returncode != 0:
+    result = _run_reader(cmd)
+    if result is None or result.returncode != 0:
         return None
     try:
         payload = json.loads(result.stdout)
@@ -353,6 +371,62 @@ def fetch_branch_runs(
         return None
     runs = payload.get("workflow_runs") if isinstance(payload, dict) else None
     return runs if isinstance(runs, list) else None
+
+
+def runs_running_at_head(
+    *,
+    pr_number: int,
+    repo: str,
+) -> list[str] | None:
+    """Names of the head SHA's workflow runs that have not completed.
+
+    None when either read fails, so the caller can tell "nothing is
+    running" from "could not look" (GH-1679).
+    """
+    head = fetch_head_ref(pr_number=pr_number, repo=repo)
+    if head is None:
+        return None
+    branch, head_sha = head
+    runs = fetch_branch_runs(repo=repo, branch=branch)
+    if runs is None:
+        return None
+    running = {
+        run.get("name") or "unknown"
+        for run in runs
+        if run.get("head_sha") == head_sha and run.get("status") != "completed"
+    }
+    return sorted(running)
+
+
+def corroborate_green(
+    *,
+    result: dict,
+    pr_number: int,
+    repo: str,
+) -> dict:
+    """Downgrade a green verdict while a run for the head is still going.
+
+    GH-1679: a green built from a partial check list let an unattended
+    merge ship ahead of the full test suite. The two extra calls are paid
+    only on a green, which is the verdict a caller acts on irreversibly.
+    """
+    running = runs_running_at_head(pr_number=pr_number, repo=repo)
+    if running is None:
+        print(
+            "[runs-api] could not cross-check the green verdict against the "
+            "Actions runs API — reporting it uncorroborated",
+            file=sys.stderr,
+            flush=True,
+        )
+        return result
+    if not running:
+        return result
+    return {
+        **result,
+        "verdict": "pending",
+        "checks_source": SOURCE_RUNS_API_PENDING,
+        "running_runs": running,
+    }
 
 
 def checks_from_runs(runs: list[dict]) -> list[dict]:
@@ -544,6 +618,23 @@ def unsettled_named_checks(*, result: dict, wait_for: list[str]) -> list[str]:
     return [name for name in wait_for if buckets.get(name) not in SETTLED_BUCKETS]
 
 
+def unregistered_named_checks(*, result: dict, wait_for: list[str]) -> list[str]:
+    """Names from ``wait_for`` that no check in the result carries (GH-1679).
+
+    Reported as ``unregistered`` so a caller whose wait ended on the
+    budget can see the leg never appeared, rather than reading it as
+    settled.
+    """
+    names = {check["name"] for check in result["checks"]}
+    return [name for name in wait_for if name not in names]
+
+
+def _report_wait_for(*, result: dict, wait_for: list[str] | None) -> dict:
+    if not wait_for:
+        return result
+    return {**result, "unregistered": unregistered_named_checks(result=result, wait_for=wait_for)}
+
+
 def is_terminal(
     *,
     result: dict,
@@ -552,7 +643,8 @@ def is_terminal(
 ) -> bool:
     """Whether a poll result ends the wait.
 
-    ``green`` and ``conflicting`` always do. ``failing`` is where GH-1065
+    ``conflicting`` always does; ``green`` does once ``wait_for`` is settled.
+    ``failing`` is where GH-1065
     lives: the blended verdict flips the moment ANY check fails, required or
     not, so one red advisory check ended the wait while every other leg was
     still pending. Pending is not green, so that early return gave the caller
@@ -605,7 +697,10 @@ def probe_once(
         required_only=required_only,
     )
     mergeable = fetch_mergeable(pr_number=pr_number, repo=repo)
-    return compute_verdict(checks=read.checks, mergeable=mergeable, checks_source=read.source)
+    result = compute_verdict(checks=read.checks, mergeable=mergeable, checks_source=read.source)
+    if required_only or result["verdict"] != "green":
+        return result
+    return corroborate_green(result=result, pr_number=pr_number, repo=repo)
 
 
 # GH-1420: how many consecutive failed probes the wait absorbs before it
@@ -719,14 +814,19 @@ def poll_until_terminal(
     # otherwise kill the wait before it started, which is the same defect
     # as one at poll 30. A failed fast path simply falls through to the
     # normal wait below.
+    # GH-1679: the fast path must honour `wait_for` too. It used to ask
+    # `is_terminal` without it, so a partial-but-green first probe returned
+    # at once while the named legs had not even registered.
     result = _probe_tolerantly(pr_number=pr_number, repo=repo, required_only=required_only)
-    if result is not None and is_terminal(result=result, wait_out_pending=wait_out_pending):
+    if result is not None and is_terminal(
+        result=result, wait_out_pending=wait_out_pending, wait_for=wait_for
+    ):
         print(
             f"[fast-path] verdict={result['verdict']} already terminal — not waiting",
             file=sys.stderr,
             flush=True,
         )
-        return result
+        return _report_wait_for(result=result, wait_for=wait_for)
 
     print(
         f"Waiting {initial_wait}s for checks to register...",
@@ -784,7 +884,7 @@ def poll_until_terminal(
         )
 
         if is_terminal(result=result, wait_out_pending=wait_out_pending, wait_for=wait_for):
-            return result
+            return _report_wait_for(result=result, wait_for=wait_for)
 
         if attempt < max_polls:
             time.sleep(poll_interval)
@@ -809,7 +909,12 @@ def poll_until_terminal(
         )
     if result["verdict"] == "empty":
         result["verdict"] = "infra_unavailable"
-    return result
+    # GH-1679: a named leg that never registered was never seen to pass.
+    if result["verdict"] == "green" and unsettled_named_checks(
+        result=result, wait_for=wait_for or []
+    ):
+        result["verdict"] = "pending"
+    return _report_wait_for(result=result, wait_for=wait_for)
 
 
 def main() -> None:

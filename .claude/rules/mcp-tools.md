@@ -547,10 +547,26 @@ Behavioral caveats:
   the runs), or `gh-pr-checks`. A runs-API call that cannot be made
   returns `{"error": …, "undetermined": true}` rather than a zero — an
   unreadable second source is not evidence about the first. The two
-  extra calls are paid **only** on the zero path, so a poll with checks
-  to report costs exactly what it did before. `required_only` reads are
-  exempt: an empty required set is normal on an unprotected base
-  (ADR-0024) and the runs API cannot say which runs the host requires.
+  extra calls are paid only on the zero path and on a green (next
+  bullet), so a pending or failing poll costs exactly what it did
+  before. `required_only` reads are exempt: an empty required set is
+  normal on an unprotected base (ADR-0024) and the runs API cannot say
+  which runs the host requires.
+
+- `ci_check_status` corroborates a **green** too (GH-1679). Right after
+  a force-push `gh pr checks` listed 8 of a head's 13 checks, all
+  passing, while the CI Gate run for that head was still `in_progress`
+  — a `wait=true` call returned `green` and an unattended merge would
+  have shipped ahead of the test suite. A green is now checked against
+  the Actions runs for the head SHA: any run not yet `completed` turns
+  it into `pending`, with `checks_source: "runs-api-pending"` and the
+  run names in `running_runs`, and the wait continues. A cross-check
+  that cannot be made leaves the green standing with a stderr note —
+  unlike the zero path, the green was itself observed. Separately, the
+  up-front fast-path probe now honours `wait_for` (it used to ignore
+  it, so a partial green returned before the named legs registered),
+  and a `wait_for` call reports `unregistered`: the named legs no check
+  carried, so a wait that ended on the budget does not read as settled.
 
 - **`required_verdict: "empty"` is a normal merge-time state on this
   repo, not a pending one (GH-1381).** `develop` registers no required
