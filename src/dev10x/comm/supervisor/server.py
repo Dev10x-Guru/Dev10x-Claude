@@ -5,7 +5,9 @@ import json
 import logging
 import mimetypes
 import threading
+import time
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field
 from datetime import date
 from http import HTTPStatus
@@ -25,10 +27,23 @@ from dev10x.comm.supervisor.delivery import (
 )
 from dev10x.comm.supervisor.lessons import find_lessons, write_lesson
 from dev10x.comm.supervisor.paths import TOKEN_HEADER
-from dev10x.comm.supervisor.pending import Preview, read_preview, read_session_commands
+from dev10x.comm.supervisor.pending import (
+    Preview,
+    RecentTool,
+    read_preview,
+    read_recent_tools,
+    read_session_commands,
+)
 from dev10x.comm.supervisor.probes import ProbeError, Snapshot, read_pane, send_keys
-from dev10x.comm.supervisor.prompts import find_option, parse_prompt
+from dev10x.comm.supervisor.prompts import find_option, parse_prompt, parse_status_line
 from dev10x.comm.supervisor.sessions import SessionView
+from dev10x.comm.supervisor.workspace import (
+    Workspace,
+    issue_url,
+    pr_number,
+    pr_url,
+    read_workspace,
+)
 
 log = logging.getLogger(__name__)
 
@@ -39,6 +54,10 @@ STATIC_DIR = Path(__file__).parent / "static"
 HEARTBEAT_SECONDS = 15.0
 HOOK_ROUTE = "/decisions"
 EXCERPT_LINES = 24
+TAIL_LINES = 400
+TAIL_SOURCE = "recent-unwrapped"
+STATUS_LINE_SECONDS = 30.0
+STATUS_LINE_WORKERS = 8
 
 
 class RequestError(Exception):
@@ -61,11 +80,17 @@ class SupervisorApp:
     pane_reader: Callable[..., str] = read_pane
     preview_reader: Callable[..., Preview | None] = read_preview
     commands_reader: Callable[..., list[str]] = read_session_commands
+    recent_reader: Callable[..., list[RecentTool]] = read_recent_tools
+    workspace_reader: Callable[..., Workspace] = read_workspace
     today: Callable[[], date] = date.today
+    clock: Callable[[], float] = time.monotonic
     static_dir: Path = STATIC_DIR
     snapshot: Snapshot = field(default_factory=lambda: Snapshot(sessions=[]))
     pane_text: dict[str, str] = field(default_factory=dict)
     previews: dict[str, Preview] = field(default_factory=dict)
+    status_lines: dict[str, str] = field(default_factory=dict)
+    status_lines_read_at: float | None = None
+    workspaces: dict[str, Workspace] = field(default_factory=dict)
     version: int = 0
     stopping: threading.Event = field(default_factory=threading.Event)
     changed: threading.Condition = field(default_factory=threading.Condition)
@@ -81,11 +106,15 @@ class SupervisorApp:
         snapshot: Snapshot,
         pane_text: dict[str, str],
         previews: dict[str, Preview] | None = None,
+        status_lines: dict[str, str] | None = None,
+        workspaces: dict[str, Workspace] | None = None,
     ) -> None:
         with self.changed:
             self.snapshot = snapshot
             self.pane_text = pane_text
             self.previews = previews or {}
+            self.status_lines = status_lines or {}
+            self.workspaces = workspaces or {}
             self.version += 1
             self.changed.notify_all()
 
@@ -99,29 +128,51 @@ class SupervisorApp:
         self.nudge()
 
 
-def _excerpt(*, text: str) -> str:
-    lines = [line.rstrip() for line in text.splitlines()]
-    while lines and not lines[-1]:
-        lines.pop()
-    return "\n".join(lines[-EXCERPT_LINES:])
+def _excerpt(*, text: str, lines: int = EXCERPT_LINES) -> str:
+    rows = [line.rstrip() for line in text.splitlines()]
+    while rows and not rows[-1]:
+        rows.pop()
+    return "\n".join(rows[-lines:])
+
+
+def _workspace_payload(
+    *,
+    workspace: Workspace | None,
+    cwd: str,
+    status_line: str,
+) -> dict[str, str]:
+    workspace = workspace or Workspace(project=Path(cwd).name or cwd, root=cwd)
+    pr = pr_number(status_line=status_line)
+    return {
+        **asdict(workspace),
+        "issue_url": issue_url(issue=workspace.issue, repo_url=workspace.repo_url),
+        "pr": pr,
+        "pr_url": pr_url(pr=pr, repo_url=workspace.repo_url),
+    }
 
 
 def snapshot_payload(*, app: SupervisorApp) -> dict[str, Any]:
     with app.changed:
         snapshot, pane_text, version = app.snapshot, dict(app.pane_text), app.version
-        previews = dict(app.previews)
+        previews, status_lines = dict(app.previews), dict(app.status_lines)
+        workspaces = dict(app.workspaces)
     open_decisions = [decision for decision in app.store.all() if decision.state == OPEN]
     sessions = []
     for view in snapshot.sessions:
         text = pane_text.get(view.session_id, "")
         prompt = parse_prompt(pane_text=text) if view.status == "waiting" else None
         preview = previews.get(view.session_id)
+        status_line = status_lines.get(view.session_id, "")
         sessions.append(
             {
                 **asdict(view),
                 "prompt": asdict(prompt) if prompt else None,
                 "preview": asdict(preview) if preview else None,
                 "excerpt": _excerpt(text=text),
+                "status_line": status_line,
+                "workspace": _workspace_payload(
+                    workspace=workspaces.get(view.cwd), cwd=view.cwd, status_line=status_line
+                ),
                 "decisions": [
                     asdict(decision)
                     for decision in open_decisions
@@ -137,6 +188,53 @@ def snapshot_payload(*, app: SupervisorApp) -> dict[str, Any]:
     }
 
 
+def _slow_read_due(*, app: SupervisorApp) -> bool:
+    now = app.clock()
+    with app.changed:
+        read_at = app.status_lines_read_at
+        due = read_at is None or now - read_at >= STATUS_LINE_SECONDS
+        if due:
+            app.status_lines_read_at = now
+    return due
+
+
+def _status_lines(
+    *,
+    app: SupervisorApp,
+    sessions: list[SessionView],
+    pane_text: dict[str, str],
+    due: bool,
+) -> dict[str, str]:
+    with app.changed:
+        cached = dict(app.status_lines)
+    texts = dict(pane_text)
+    if due:
+        unread = [view for view in sessions if view.pane_id and view.session_id not in texts]
+        with ThreadPoolExecutor(max_workers=STATUS_LINE_WORKERS) as pool:
+            read = pool.map(lambda view: app.pane_reader(pane_id=view.pane_id), unread)
+            texts.update(zip((view.session_id for view in unread), read, strict=True))
+    lines = {}
+    for view in sessions:
+        line = parse_status_line(pane_text=texts.get(view.session_id, ""))
+        lines[view.session_id] = line or cached.get(view.session_id, "")
+    return lines
+
+
+def _workspaces(
+    *,
+    app: SupervisorApp,
+    sessions: list[SessionView],
+    due: bool,
+) -> dict[str, Workspace]:
+    with app.changed:
+        cached = dict(app.workspaces)
+    cwds = sorted({view.cwd for view in sessions})
+    stale = [cwd for cwd in cwds if due or cwd not in cached]
+    with ThreadPoolExecutor(max_workers=STATUS_LINE_WORKERS) as pool:
+        cached.update(zip(stale, pool.map(lambda cwd: app.workspace_reader(cwd=cwd), stale)))
+    return {cwd: cached[cwd] for cwd in cwds}
+
+
 def refresh(*, app: SupervisorApp, provider: Callable[[], Snapshot]) -> None:
     snapshot = provider()
     with app.changed:
@@ -147,6 +245,9 @@ def refresh(*, app: SupervisorApp, provider: Callable[[], Snapshot]) -> None:
         for view in snapshot.sessions
         if view.group == "needs-you" and view.pane_id
     }
+    due = _slow_read_due(app=app)
+    status_lines = _status_lines(app=app, sessions=snapshot.sessions, pane_text=pane_text, due=due)
+    workspaces = _workspaces(app=app, sessions=snapshot.sessions, due=due)
     status = {view.session_id: view.status for view in snapshot.sessions}
     left_waiting: set[str] = set()
     for decision in app.store.all():
@@ -163,7 +264,13 @@ def refresh(*, app: SupervisorApp, provider: Callable[[], Snapshot]) -> None:
         if view.status == "waiting"
         and (preview := app.preview_reader(session_id=view.session_id)) is not None
     }
-    app.publish(snapshot=snapshot, pane_text=pane_text, previews=previews)
+    app.publish(
+        snapshot=snapshot,
+        pane_text=pane_text,
+        previews=previews,
+        status_lines=status_lines,
+        workspaces=workspaces,
+    )
 
 
 def _delivered(*, channel: str, status: str) -> bool:
@@ -207,6 +314,7 @@ class SupervisorHandler(BaseHTTPRequestHandler):
                 "/": self._page,
                 "/api/sessions": self._api,
                 "/api/events": self._events,
+                "/api/session": self._session_detail,
                 "/lessons": self._lessons,
             }
         )
@@ -385,6 +493,25 @@ class SupervisorHandler(BaseHTTPRequestHandler):
             raise RequestError(status=HTTPStatus.CONFLICT, message="That session is gone.")
         return view
 
+    def _session_detail(self, params: dict[str, str]) -> None:
+        view = self._listed_session(session_id=params.get("session_id", ""))
+        tail = (
+            self.app.pane_reader(pane_id=view.pane_id, lines=TAIL_LINES, source=TAIL_SOURCE)
+            if view.pane_id
+            else ""
+        )
+        preview = self.app.preview_reader(session_id=view.session_id)
+        recent = self.app.recent_reader(session_id=view.session_id)
+        self._json(
+            status=HTTPStatus.OK,
+            payload={
+                "session_id": view.session_id,
+                "tail": _excerpt(text=tail, lines=TAIL_LINES),
+                "preview": asdict(preview) if preview else None,
+                "recent": [asdict(tool) for tool in recent],
+            },
+        )
+
     def _post_answer(self, params: dict[str, str]) -> None:
         body = self._body()
         decision = self.app.store.get(decision_id=str(body.get("decision_id", "")))
@@ -503,6 +630,14 @@ class SupervisorHandler(BaseHTTPRequestHandler):
         with self.app.changed:
             preview = self.app.previews.get(view.session_id)
         commands = self.app.commands_reader(session_id=view.session_id)
+        chosen = str(body.get("command", "")).strip()
+        if chosen:
+            if chosen not in commands:
+                raise RequestError(
+                    status=HTTPStatus.CONFLICT,
+                    message="That command is not among the session's recent commands.",
+                )
+            preview, commands = None, [chosen]
         if preview is None and not commands:
             raise RequestError(
                 status=HTTPStatus.CONFLICT,

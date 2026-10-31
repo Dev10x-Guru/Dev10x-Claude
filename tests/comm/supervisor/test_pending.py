@@ -13,10 +13,12 @@ from dev10x.comm.supervisor import pending
 from dev10x.comm.supervisor.pending import (
     PendingTool,
     Preview,
+    RecentTool,
     build_preview,
     find_transcript,
     read_pending_tool,
     read_preview,
+    read_recent_tools,
     read_session_commands,
 )
 
@@ -257,6 +259,64 @@ class TestReadSessionCommands:
             path.chmod(0o600)
 
         assert commands == []
+
+
+def _outcome(*, tool_id: str, text: Any, is_error: bool) -> dict[str, Any]:
+    item = {"type": "tool_result", "tool_use_id": tool_id, "content": text, "is_error": is_error}
+    return {"type": "user", "message": {"content": [item]}}
+
+
+class TestReadRecentTools:
+    def test_newest_first_with_outcomes(self, projects: Path) -> None:
+        _write(
+            path=projects / "-w" / f"{SESSION}.jsonl",
+            records=[
+                _use(tool_id="a", name="Bash", tool_input={"command": " git status "}),
+                _result(tool_id="a"),
+                _use(tool_id="b", name="Edit", tool_input={"file_path": "/r/a.py"}),
+                _outcome(
+                    tool_id="b",
+                    text="The user doesn't want to proceed with this tool use.",
+                    is_error=True,
+                ),
+                _use(tool_id="c", name="WebFetch", tool_input={"url": "https://x.dev"}),
+                _outcome(tool_id="c", text=[{"type": "text", "text": "404"}], is_error=True),
+                _use(tool_id="d", name="TaskList", tool_input={}),
+            ],
+        )
+
+        assert read_recent_tools(session_id=SESSION, projects_root=projects) == [
+            RecentTool(tool="TaskList", target="", outcome="pending"),
+            RecentTool(tool="WebFetch", target="https://x.dev", outcome="failed"),
+            RecentTool(tool="Edit", target="/r/a.py", outcome="rejected"),
+            RecentTool(tool="Bash", target="git status", outcome="ran", command="git status"),
+        ]
+
+    def test_keeps_the_most_recent(self, projects: Path) -> None:
+        _write(
+            path=projects / "-w" / f"{SESSION}.jsonl",
+            records=[
+                _use(tool_id=str(i), name="Grep", tool_input={"pattern": f"p{i}"})
+                for i in range(4)
+            ],
+        )
+
+        recent = read_recent_tools(session_id=SESSION, projects_root=projects, limit=2)
+
+        assert [tool.target for tool in recent] == ["p3", "p2"]
+
+    def test_no_transcript(self, projects: Path) -> None:
+        assert read_recent_tools(session_id=SESSION, projects_root=projects) == []
+
+    def test_unreadable_transcript(self, projects: Path) -> None:
+        path = _write(path=projects / "-w" / f"{SESSION}.jsonl", records=[])
+        path.chmod(0)
+        try:
+            recent = read_recent_tools(session_id=SESSION, projects_root=projects)
+        finally:
+            path.chmod(0o600)
+
+        assert recent == []
 
 
 class TestReadPreview:
