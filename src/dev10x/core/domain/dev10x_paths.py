@@ -196,6 +196,18 @@ class Dev10xConfigDir:
         return cls._resolve("sensitivity-exceptions.yaml")
 
     @classmethod
+    def granted_permissions_yaml(cls) -> Path:
+        """User-owned rules remembered from a grant, for checkouts made later (GH-1677).
+
+        Written only by ``remember_granted_rule`` and read as one more
+        layer of the userspace catalog. It lives beside ``projects.yaml``
+        rather than in ``projects.d/``, whose fragments must be named after
+        a plugin. Introduced after the ``~/.config/Dev10x`` move, so there
+        is no legacy path.
+        """
+        return cls._resolve("granted-permissions.yaml")
+
+    @classmethod
     def accepted_findings_yaml(cls) -> Path:
         """User-owned accepted-by-design auditor findings (GH-1053).
 

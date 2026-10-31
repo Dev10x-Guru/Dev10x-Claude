@@ -923,7 +923,7 @@ def seed_worktree(*, worktree_path: str, dry_run: bool) -> None:
     """
     from dev10x.core.skills.permission import update_paths as paths_mod
 
-    config = paths_mod.load_config(_require_config(paths_mod))
+    config = paths_mod.load_effective_config(_require_config(paths_mod)).config
     result = paths_mod.seed_worktree(
         worktree_root=Path(worktree_path), config=config, dry_run=dry_run
     )

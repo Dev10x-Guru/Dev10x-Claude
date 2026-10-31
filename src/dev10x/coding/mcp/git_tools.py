@@ -147,7 +147,7 @@ def _seed_worktree_defaults(result: dict) -> None:
         config_path = paths_mod.find_config()
         if not isinstance(config_path, SuccessResult):
             return
-        config = paths_mod.load_config(config_path.value)
+        config = paths_mod.load_effective_config(config_path.value).config
         seeded = paths_mod.seed_worktree(worktree_root=Path(worktree_path), config=config)
         if isinstance(seeded, SuccessResult):
             result["seeded_permissions"] = seeded.value["added"]

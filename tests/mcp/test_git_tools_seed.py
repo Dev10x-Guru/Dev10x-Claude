@@ -10,12 +10,34 @@ from dev10x.mcp.git_tools import _seed_worktree_defaults
 
 @pytest.fixture
 def wired(monkeypatch: pytest.MonkeyPatch):
-    """Wire find_config/load_config to succeed; caller sets seed_worktree."""
+    """Wire find_config/load_effective_config to succeed; caller sets seed_worktree.
+
+    Seeding reads the merged catalog (GH-1677), so a rule remembered from a
+    grant reaches the new worktree.
+    """
+    from dev10x.skills.permission.catalog_merge import MergedCatalog
+
     from dev10x.skills.permission import update_paths as paths_mod
 
     monkeypatch.setattr(paths_mod, "find_config", lambda: ok("/cfg.yaml"))
-    monkeypatch.setattr(paths_mod, "load_config", lambda _path: {"base_permissions": []})
+    monkeypatch.setattr(
+        paths_mod,
+        "load_effective_config",
+        lambda _path: MergedCatalog(config={"base_permissions": []}),
+    )
     return paths_mod
+
+
+def test_seeds_from_the_merged_catalog(wired, monkeypatch: pytest.MonkeyPatch):
+    seen: dict = {}
+
+    def _seed(**kwargs):
+        seen.update(kwargs)
+        return ok({"added": 0})
+
+    monkeypatch.setattr(wired, "seed_worktree", _seed)
+    _seed_worktree_defaults({"worktree_path": "/wt"})
+    assert seen["config"] == {"base_permissions": []}
 
 
 def test_skips_on_error_result(wired):
