@@ -4,11 +4,23 @@
   import Sidebar from "./components/Sidebar.svelte";
   import { fetchDetail, post, readToken, subscribe, type Connection } from "./lib/api";
   import { bucket, clockTime, headline } from "./lib/format";
+  import {
+    ASIDE_DEFAULT_PX,
+    clampAside,
+    loadAsideWidth,
+    loadPins,
+    loadView,
+    saveAsideWidth,
+    savePins,
+    saveView,
+    togglePin,
+  } from "./lib/prefs";
   import { pickSession } from "./lib/selection";
-  import type { ActionResult, SessionDetail, Snapshot } from "./lib/types";
+  import type { ActionResult, SessionDetail, Snapshot, View } from "./lib/types";
 
   const TOAST_MS = 5000;
   const DETAIL_POLL_MS = 2500;
+  const RESIZE_STEP_PX = 16;
 
   const token = readToken();
 
@@ -16,6 +28,10 @@
   let connection = $state<Connection>("connecting");
   let chosen = $state(decodeURIComponent(location.hash.slice(1)));
   let detail = $state<SessionDetail | null>(null);
+  let pins = $state(loadPins());
+  let view = $state<View>(loadView());
+  let asideWidth = $state(loadAsideWidth());
+  let dragging = $state(false);
   let pending = $state(false);
   let toast = $state<{ text: string; ok: boolean } | null>(null);
   let toastTimer: ReturnType<typeof setTimeout> | undefined;
@@ -36,11 +52,12 @@
 
   $effect(() => {
     const sessionId = current?.session_id;
+    const screen = view === "screen";
     void snapshot?.version;
     if (!sessionId) return;
     let live = true;
     const load = async (): Promise<void> => {
-      const next = await fetchDetail(sessionId, token);
+      const next = await fetchDetail(sessionId, token, screen);
       if (live && next?.session_id === sessionId) detail = next;
     };
     load();
@@ -58,6 +75,49 @@
     chosen = sessionId;
     detail = null;
     history.replaceState(null, "", `${location.search}#${encodeURIComponent(sessionId)}`);
+  }
+
+  function pin(sessionId: string): void {
+    pins = togglePin(pins, sessionId);
+    savePins(pins);
+  }
+
+  function changeView(next: View): void {
+    view = next;
+    saveView(next);
+  }
+
+  function setAside(px: number): void {
+    asideWidth = clampAside(px);
+    saveAsideWidth(asideWidth);
+  }
+
+  function startResize(event: PointerEvent): void {
+    const handle = event.currentTarget as HTMLElement;
+    const startX = event.clientX;
+    const startWidth = asideWidth;
+    handle.setPointerCapture(event.pointerId);
+    dragging = true;
+    const move = (moved: PointerEvent): void => {
+      asideWidth = clampAside(startWidth + moved.clientX - startX);
+    };
+    const stop = (): void => {
+      dragging = false;
+      saveAsideWidth(asideWidth);
+      handle.removeEventListener("pointermove", move);
+      handle.removeEventListener("pointerup", stop);
+      handle.removeEventListener("pointercancel", stop);
+    };
+    handle.addEventListener("pointermove", move);
+    handle.addEventListener("pointerup", stop);
+    handle.addEventListener("pointercancel", stop);
+  }
+
+  function resizeByKey(event: KeyboardEvent): void {
+    const delta = { ArrowLeft: -RESIZE_STEP_PX, ArrowRight: RESIZE_STEP_PX }[event.key];
+    if (delta === undefined) return;
+    event.preventDefault();
+    setAside(asideWidth + delta);
   }
 
   async function run(path: string, body: Record<string, unknown>, what: string): Promise<void> {
@@ -80,7 +140,7 @@
     <p>Open the link printed by <code>dev10x supervisor serve</code>; it carries the access token.</p>
   </main>
 {:else}
-  <div class="desk">
+  <div class={["desk", { dragging }]} style="--aside: {asideWidth}px">
     <header class="brand">
       <p class="eyebrow">Session Supervisor</p>
       <p class="headline">{snapshot ? headline(groups) : "Reading sessions…"}</p>
@@ -104,15 +164,29 @@
     </header>
 
     <div class="index">
-      <Sidebar {sessions} selected={current?.session_id ?? ""} onselect={select} />
+      <Sidebar {sessions} selected={current?.session_id ?? ""} {pins} onselect={select} onpin={pin} />
     </div>
+
+    <button
+      type="button"
+      class="resize"
+      aria-label="Resize the session list ({asideWidth} pixels); arrow keys adjust"
+      title="Drag to resize, double-click to reset"
+      onpointerdown={startResize}
+      onkeydown={resizeByKey}
+      ondblclick={() => setAside(ASIDE_DEFAULT_PX)}
+    ></button>
 
     <main class="center">
       {#if current}
+        {@const own = detail?.session_id === current.session_id ? detail : null}
         {#key current.session_id}
           <SessionPane
             session={current}
-            tail={detail?.session_id === current.session_id ? detail.tail : ""}
+            conversation={own?.conversation ?? null}
+            tail={own?.tail ?? ""}
+            {view}
+            onview={changeView}
             {pending}
             {run}
           />
@@ -138,14 +212,56 @@
 
 <style>
   .desk {
+    position: relative;
     display: grid;
-    grid-template-columns: minmax(15rem, 19rem) minmax(0, 1fr) minmax(18rem, 25rem);
+    grid-template-columns: var(--aside) minmax(0, 1fr) minmax(18rem, 25rem);
     grid-template-rows: auto minmax(0, 1fr);
     grid-template-areas:
       "brand center side"
       "index center side";
     height: 100dvh;
     overflow: hidden;
+  }
+
+  .desk.dragging {
+    cursor: col-resize;
+    user-select: none;
+  }
+
+  .resize {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: calc(var(--aside) - 3px);
+    width: 7px;
+    z-index: 2;
+    padding: 0;
+    background: none;
+    border: none;
+    cursor: col-resize;
+    touch-action: none;
+  }
+
+  .resize::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 3px;
+    width: 1px;
+    background: transparent;
+    transition: background 140ms var(--ease-out);
+  }
+
+  .resize:hover::after,
+  .resize:focus-visible::after,
+  .dragging .resize::after {
+    width: 2px;
+    background: var(--focus);
+  }
+
+  .resize:focus-visible {
+    outline: none;
   }
 
   .brand {
@@ -249,7 +365,7 @@
 
   @media (max-width: 80rem) {
     .desk {
-      grid-template-columns: minmax(14rem, 17rem) minmax(0, 1fr);
+      grid-template-columns: var(--aside) minmax(0, 1fr);
       grid-template-rows: auto minmax(0, 1fr) minmax(0, 38dvh);
       grid-template-areas:
         "brand center"
@@ -274,6 +390,10 @@
         "index"
         "center"
         "side";
+    }
+
+    .resize {
+      display: none;
     }
 
     .index {

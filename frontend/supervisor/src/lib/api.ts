@@ -24,9 +24,14 @@ export async function post(
   }
 }
 
-export async function fetchDetail(sessionId: string, token: string): Promise<SessionDetail | null> {
+export async function fetchDetail(
+  sessionId: string,
+  token: string,
+  screen: boolean,
+): Promise<SessionDetail | null> {
+  const query = `session_id=${encodeURIComponent(sessionId)}${screen ? "&screen=1" : ""}`;
   try {
-    const response = await fetch(`/api/session?session_id=${encodeURIComponent(sessionId)}`, {
+    const response = await fetch(`/api/session?${query}`, {
       headers: { "X-Supervisor-Token": token },
     });
     return response.ok ? ((await response.json()) as SessionDetail) : null;

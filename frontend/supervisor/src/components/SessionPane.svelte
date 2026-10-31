@@ -1,19 +1,24 @@
 <script lang="ts">
   import AnswerDock from "./AnswerDock.svelte";
+  import Conversation from "./Conversation.svelte";
+  import StatusBar from "./StatusBar.svelte";
   import StatusMark from "./StatusMark.svelte";
   import { displayName, shortPath } from "../lib/format";
   import { pinned } from "../lib/tail";
   import { markOf } from "../lib/tree";
-  import type { Session } from "../lib/types";
+  import type { ConversationEntry, Session, View } from "../lib/types";
 
   interface Props {
     session: Session;
+    conversation: ConversationEntry[] | null;
     tail: string;
+    view: View;
+    onview: (view: View) => void;
     pending: boolean;
     run: (path: string, body: Record<string, unknown>, what: string) => Promise<void>;
   }
 
-  let { session, tail, pending, run }: Props = $props();
+  let { session, conversation, tail, view, onview, pending, run }: Props = $props();
 
   const FOLLOW_SLACK_PX = 32;
 
@@ -22,6 +27,9 @@
 
   const text = $derived(tail || session.excerpt);
   const waiting = $derived(session.group === "needs-you");
+  const content = $derived(
+    view === "screen" ? text : `${conversation?.length ?? 0}:${conversation?.at(-1)?.outcome ?? ""}`,
+  );
 
   function onscroll(event: Event): void {
     const node = event.currentTarget as HTMLElement;
@@ -54,19 +62,42 @@
       <span title={session.cwd}>{shortPath(session.cwd)}</span>
       {#if session.workspace.branch}<span class="branch">{session.workspace.branch}</span>{/if}
     </p>
-    {#if session.status_line}<pre class="bar">{session.status_line}</pre>{/if}
+    {#if session.status_line_ansi}
+      <StatusBar ansi={session.status_line_ansi} />
+    {/if}
   </header>
 
   <div class="well">
-    {#if text}
-      <pre class="screen" {onscroll} {@attach pinned(text, following)}>{text}</pre>
-    {:else}
-      <p class="blank">
-        {session.pane_id
-          ? "Nothing on this pane's screen yet."
-          : "This session runs outside Herdr, so there is no screen to read."}
-      </p>
-    {/if}
+    <div class="views" role="tablist" aria-label="What to show">
+      {#each [["transcript", "Transcript"], ["screen", "Screen"]] as [key, label] (key)}
+        <button
+          role="tab"
+          aria-selected={view === key}
+          class={{ on: view === key }}
+          onclick={() => {
+            following = true;
+            onview(key as View);
+          }}>{label}</button
+        >
+      {/each}
+    </div>
+    <div class="scroll" {onscroll} {@attach pinned(content, following)}>
+      {#if view === "transcript"}
+        {#if conversation}
+          <Conversation entries={conversation} />
+        {:else}
+          <p class="blank">Reading the transcript…</p>
+        {/if}
+      {:else if text}
+        <pre class="screen">{text}</pre>
+      {:else}
+        <p class="blank">
+          {session.pane_id
+            ? "Reading the screen…"
+            : "This session runs outside Herdr, so there is no screen to read."}
+        </p>
+      {/if}
+    </div>
     {#if !following}
       <button class="jump" onclick={() => (following = true)}>Jump to latest ↓</button>
     {/if}
@@ -147,38 +178,57 @@
     font-size: 0.76rem;
   }
 
-  .bar {
-    margin: var(--space-2) 0 0;
-    padding: var(--space-1) var(--space-2);
-    background: var(--paper-sunk);
-    border-radius: 2px;
-    color: var(--ink-soft);
-    font-family: var(--font-term);
-    font-size: 0.74rem;
-    line-height: 1.5;
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
+  .head :global(.bar) {
+    margin-top: var(--space-2);
   }
 
   .well {
     position: relative;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
     min-height: 0;
     background: var(--term);
   }
 
+  .views {
+    display: flex;
+    gap: var(--space-4);
+    padding: var(--space-2) var(--space-6) 0;
+    border-bottom: 1px solid var(--term-rule);
+  }
+
+  .views button {
+    padding: var(--space-1) 0 var(--space-2);
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--term-faint);
+    font-size: var(--step--1);
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .views button.on {
+    color: var(--term-ink);
+    border-bottom-color: var(--amber);
+  }
+
+  .scroll {
+    min-height: 0;
+    overflow: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--term-rule) transparent;
+  }
+
   .screen {
-    height: 100%;
     margin: 0;
     padding: var(--space-4) var(--space-6);
-    overflow: auto;
     color: var(--term-ink);
     font-family: var(--font-term);
     font-size: 0.8rem;
     line-height: 1.42;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
-    scrollbar-width: thin;
-    scrollbar-color: var(--term-rule) transparent;
   }
 
   .blank {

@@ -1,5 +1,7 @@
 export type Group = "needs-you" | "working" | "done";
 
+export type View = "transcript" | "screen";
+
 export interface PromptOption {
   key: string;
   label: string;
@@ -45,6 +47,7 @@ export interface Session {
   preview: ToolCallPreview | null;
   excerpt: string;
   status_line: string;
+  status_line_ansi: string;
   workspace: Workspace;
   decisions: Decision[];
 }
@@ -67,8 +70,19 @@ export interface RecentTool {
   command: string;
 }
 
+export interface ConversationEntry {
+  role: "user" | "assistant";
+  kind: "text" | "tool";
+  text: string;
+  at: string;
+  tool: string;
+  outcome: "" | RecentTool["outcome"];
+  result: string;
+}
+
 export interface SessionDetail {
   session_id: string;
+  conversation: ConversationEntry[];
   tail: string;
   preview: ToolCallPreview | null;
   recent: RecentTool[];
