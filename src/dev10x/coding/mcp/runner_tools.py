@@ -80,7 +80,7 @@ async def run_tests(
 
 @server.tool()
 async def run_node_tests(
-    runner: str = "jest",
+    runner: str | None = None,
     script: str = "test",
     args: list[str] | None = None,
     coverage: bool = True,
@@ -99,10 +99,14 @@ async def run_node_tests(
     Bash layer would otherwise prompt or hard-block it.
 
     Args:
-        runner: One of ``jest`` (default), ``vitest``, ``yarn``, ``npm``,
-            ``pnpm``. ``jest``/``vitest`` accept ``--coverage`` directly;
-            the package-manager runners delegate to a ``package.json``
-            script.
+        runner: One of ``jest``, ``vitest``, ``yarn``, ``npm``, ``pnpm``.
+            Omit it to detect from ``cwd`` (GH-1683): ``vitest.config.*``
+            → vitest; ``jest.config.*`` or a ``jest`` key in
+            ``package.json`` → jest; a ``test`` script → the lockfile's
+            package manager (pnpm/yarn, else npm); otherwise jest. The
+            resolved name is echoed as ``runner`` in the payload.
+            ``jest``/``vitest`` accept ``--coverage`` directly; the
+            package-manager runners delegate to a ``package.json`` script.
         script: The ``package.json`` script to run (default ``test``). Use
             it to bring a non-test check such as ``lint:tsc`` inside this
             wrapper instead of invoking ``tsc``/``node`` raw on the Bash
@@ -128,17 +132,21 @@ async def run_node_tests(
         todo (int), total (int | None), cwd (str), stdout (str),
         stderr (str). ``cwd`` is the absolute directory the run actually
         happened in, so a green result can be audited against the tree it
-        was meant to cover (GH-1264). A non-zero ``returncode`` is *not*
-        an MCP-level error — callers read ``returncode`` to decide.
+        was meant to cover (GH-1264). A non-zero ``returncode`` with
+        parsed failures is *not* an MCP-level error — callers read
+        ``returncode`` to decide. A non-zero exit of the default ``test``
+        script with no executed test IS an error (``verdict:
+        "no_tests_ran"``, GH-1683): it usually means the wrong runner.
     """
     import os
 
     from dev10x.coding import runner as test_runner
     from dev10x.subprocess_utils import effective_cwd, use_cwd
 
+    label = runner or "node tests"
     if ctx is not None:
-        await ctx.report_progress(progress=0, total=100, message=f"Starting {runner}")
-        await ctx.info(f"run_node_tests: launching {runner}")
+        await ctx.report_progress(progress=0, total=100, message=f"Starting {label}")
+        await ctx.info(f"run_node_tests: launching {label}")
 
     with use_cwd(cwd):
         result = to_wire(
@@ -158,7 +166,8 @@ async def run_node_tests(
     if ctx is not None:
         summary = result.get("summary", "")
         failed = result.get("failed", 0)
-        await ctx.report_progress(progress=100, total=100, message=f"{runner} done: {summary}")
+        resolved = result.get("runner", label)
+        await ctx.report_progress(progress=100, total=100, message=f"{resolved} done: {summary}")
         level = cast(
             Literal["debug", "info", "warning", "error"],
             "warning" if failed else "info",

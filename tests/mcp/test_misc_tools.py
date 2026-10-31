@@ -361,7 +361,7 @@ class TestRunNodeTests:
 
         assert result["returncode"] == 0
         assert result["passed"] == 7
-        assert mock_fn.call_args.kwargs["runner"] == "jest"
+        assert mock_fn.call_args.kwargs["runner"] is None
         assert mock_fn.call_args.kwargs["coverage"] is True
 
     @pytest.mark.asyncio
