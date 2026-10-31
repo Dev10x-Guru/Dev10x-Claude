@@ -24,6 +24,8 @@ Everything it writes stays on disk under paths you control:
 | Hook timing & outcome audit records | `/tmp/Dev10x/logs/hooks-YYYY-MM-DD.jsonl` | Debug and performance analysis of hook execution |
 | Temporary working files | `/tmp/Dev10x/` | Short-lived scratch files (commit messages, etc.) |
 | Per-project config (playbooks, session settings) | `.claude/Dev10x/` in your repos | Project-scoped workflow overrides |
+| Supervisor page state (open questions, answers sent, hook token) | `~/.config/Dev10x/supervisor/` | Answer local sessions from `dev10x supervisor serve`; only while you run it |
+| Supervisor lessons | the KB folder you pass to `dev10x supervisor serve` (`wiki/lessons/`) | Notes you or your sessions chose to keep |
 
 Audit log records contain: tool name, event phase, duration,
 exit code, and a span identifier.
@@ -46,6 +48,10 @@ Audit collection can be disabled by exporting
   calls other than those you explicitly invoke (for example,
   `git push`, `gh pr create`, or an authenticated MCP tool
   request).
+- The `AskUserQuestion` hook sends a session's open questions to
+  the local supervisor page at `127.0.0.1` and nowhere else, and
+  only while you run `dev10x supervisor serve`. The page itself
+  listens on `127.0.0.1` only and loads nothing remote.
 - Some **skill scripts** (e.g., `qa-self/upload-screenshots.py`)
   call documented integrations directly via HTTP libraries when
   you invoke the skill. The targeted services are listed in the

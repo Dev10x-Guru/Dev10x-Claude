@@ -7,7 +7,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-PROJECTS_ROOT = Path.home() / ".claude" / "projects"
+from dev10x.domain.claude_paths import ClaudeDir
+
 TAIL_BYTES = 512 * 1024
 MAX_PREVIEW_LINES = 400
 MAX_FILE_BYTES = 256 * 1024
@@ -30,8 +31,9 @@ class Preview:
     truncated: bool = False
 
 
-def find_transcript(*, session_id: str, projects_root: Path = PROJECTS_ROOT) -> Path | None:
-    return next(iter(sorted(projects_root.glob(f"*/{session_id}.jsonl"))), None)
+def find_transcript(*, session_id: str, projects_root: Path | None = None) -> Path | None:
+    root = projects_root if projects_root is not None else ClaudeDir.projects_dir()
+    return next(iter(sorted(root.glob(f"*/{session_id}.jsonl"))), None)
 
 
 def _tail_lines(*, path: Path) -> list[str]:
@@ -84,7 +86,7 @@ def read_pending_tool(*, path: Path) -> PendingTool | None:
 def read_session_commands(
     *,
     session_id: str,
-    projects_root: Path = PROJECTS_ROOT,
+    projects_root: Path | None = None,
     limit: int = MAX_COMMANDS,
 ) -> list[str]:
     path = find_transcript(session_id=session_id, projects_root=projects_root)
@@ -163,7 +165,7 @@ def build_preview(*, tool: PendingTool) -> Preview:
     return Preview(tool=tool.name, title=title, kind=kind, body=capped, truncated=truncated)
 
 
-def read_preview(*, session_id: str, projects_root: Path = PROJECTS_ROOT) -> Preview | None:
+def read_preview(*, session_id: str, projects_root: Path | None = None) -> Preview | None:
     path = find_transcript(session_id=session_id, projects_root=projects_root)
     if path is None:
         return None

@@ -5,7 +5,7 @@
   "ask": 28,
   "audit-file": 37,
   "aws-vault": 15,
-  "bus": 16,
+  "bus": 20,
   "cli": 7,
   "context-audit": 5,
   "db": 9,
@@ -112,7 +112,7 @@
   "tts": 23,
   "upgrade-cleanup": 30,
   "verify-acc-dod": 54,
-  "voice-supervisor": 7,
+  "voice-supervisor": 9,
   "work-on": 168,
   "yt-upload": 41
 }

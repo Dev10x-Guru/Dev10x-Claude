@@ -171,6 +171,11 @@ _NET_IMPORT_EXEMPT_PATHS: tuple[str, ...] = (
     # distribution names from this repo's own dependency declarations.
     # Covered by the PyPI JSON API row in PRIVACY_POLICY.md (GH-937).
     "src/dev10x/dependency_sweep.py",
+    # Supervisor decision hook: POSTs a session's open questions to the
+    # local `dev10x supervisor serve` daemon. The host is fixed to
+    # 127.0.0.1, so nothing leaves the machine. Covered by the
+    # AskUserQuestion-hook bullet in PRIVACY_POLICY.md (GH-1692).
+    "src/dev10x/comm/hooks/supervisor_decision.py",
 )
 
 # Files exempt from service detection. The scanner defines the
