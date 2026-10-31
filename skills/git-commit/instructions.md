@@ -874,6 +874,18 @@ Never use `git reset HEAD <path>` or `git rm --cached <path>`
 as exclusion shortcuts — they create the same selective-staging
 anti-pattern the hard rule prohibits.
 
+**Carve-out — projects that forbid `git add -A` (GH-1681).**
+When the project's `CLAUDE.md` or rules forbid `git add -A` / `git
+add .` and require staging by path, the project rule wins.
+Stage by explicit path every path in `git status --porcelain` that
+belongs to the change; leave out only paths that clearly belong to
+other work (another agent's files, incidental config).
+The hard rule's intent still holds: never pick a subset of the
+intended change.
+Attended, route this through the "Use existing staging" gate above.
+Unattended, log the project rule and the staged path list, and
+name any left-out paths in the commit body.
+
 **Unattended mode:** Auto-stage all changes (`git add -A`)
 without prompting. The orchestrator's approved plan implies
 all current changes are intended for this commit. If the
@@ -985,6 +997,8 @@ What would you like to do? (1/2/3/done)
   `git add && git rebase --continue`. Each call must stand alone.
 - **Never stage individual files**: Use `git add -A` or `git add .`
   exclusively. Selective staging bypasses the skill contract.
+  Exception: a project rule forbidding `git add -A` — stage every
+  path of the change by name (see Step 10 carve-out, GH-1681).
 - **Mandatory mktmp usage**: ALL temp files for commit messages
   MUST be created via mktmp (MCP tool or script fallback).
   Hardcoded paths are rejected by hooks and cause commit failure.

@@ -416,13 +416,40 @@ Use when commits need complete reorganization. The target-shape gate
 (Phase 2b) and backup tag (Phase 2c) MUST both complete before the
 soft reset below runs:
 
+**Pin the reset target once, as a SHA (GH-1683).**
+The target is the branch's fork point, `git merge-base origin/<base> HEAD`,
+recorded as a literal SHA and reused for every later step.
+Never reset onto the branch ref itself (`origin/<base>`, `develop`):
+when the base has advanced past the fork point, `reset --soft` keeps
+HEAD's tree, so the rebuilt commit silently reverts every base-branch
+PR merged since — and the tree-equality check cannot see it, because
+the tree never changed.
+
 ```bash
 # Phase 2c: tag the pre-rebuild tip first
 git tag -f groom-backup-<branch-slug> HEAD
 
-# Soft reset to base, keeping all changes staged
-git reset --soft <base-commit>
+# Pin the target: copy the printed SHA, use it literally below
+git merge-base origin/<base> HEAD
+
+# Precondition: the target must be an ancestor of HEAD (abort otherwise)
+git merge-base --is-ancestor <target-sha> HEAD
+
+# Record the branch's own file set (files its own commits touch)
+git log --format= --name-only --no-merges <target-sha>..groom-backup-<branch-slug>
+
+# Soft reset to the pinned SHA, keeping all changes staged
+git reset --soft <target-sha>
+
+# Post-reset check: staged paths must equal the file set above
+git diff --cached --name-only <target-sha>
 ```
+
+Any staged path absent from the branch's own file set means the
+target is not the fork point — base-branch work (or a merge from the
+base) sits between the target and the tip.
+Abort and restore with `git reset --hard groom-backup-<branch-slug>`;
+do not rebuild on top of it.
 
 **Execute the rebuild via the documented plumbing recipe**, not ad
 hoc `git commit -m` calls — see
@@ -604,6 +631,23 @@ inline before falling back to abort + Strategy B:
 4. If conflicts recur, repeat (max 3 rounds)
 5. If resolution fails after 3 rounds or conflicts are too complex,
    abort and fall back to Strategy B (soft reset)
+
+**Keeping a pick that became empty (GH-1680).**
+When the resolution leaves the pick with no changes (the base already
+carries them), a plain `git rebase --continue` **drops the commit
+silently** — verified on git 2.53, with no prompt and no warning.
+To keep it (e.g. its message records intent the history needs):
+
+1. Take `<sha>` from the `Could not apply <sha>...` line
+2. Get a path from `mcp__plugin_dev10x_cli__mktmp(namespace="git")`,
+   read the message with `git log -1 --format=%B <sha>`, and Write it
+   there
+3. `git commit --allow-empty -F <that path>` — commits on the detached
+   rebase HEAD with the original title and body
+4. `git rebase --continue` — the kept commit stays in the history and
+   the remaining picks apply on top
+
+Never `git rebase --skip` for this — it drops the pick the same way.
 
 **MCP tool callers:** When `rebase_groom` or `mass_rewrite` returns
 `{"conflict": true}`, the rebase is paused — not aborted. Use the
@@ -821,6 +865,9 @@ info (conflicted files, rebase HEAD). MCP tools return
 6. Continue: `git rebase --continue`
 7. If new conflicts arise, repeat from step 1
 
+If a resolution leaves the pick empty, `--continue` drops it silently;
+see "Keeping a pick that became empty" under § Conflict Resolution.
+
 **When to abort instead of resolving:**
 - Conflicts span 5+ files with complex semantic changes
 - The conflict indicates a fundamental structural divergence
@@ -828,13 +875,12 @@ info (conflicted files, rebase HEAD). MCP tools return
 - After 3 resolution rounds with recurring conflicts
 
 In abort cases, run `git rebase --abort` and fall back to
-Strategy B (soft reset) as documented below.
+Strategy B, including its pinned-SHA reset target and file-set
+check (GH-1683):
 
 ```bash
 git rebase --abort
-git reset --soft $(git merge-base develop HEAD)
-git reset HEAD
-# Recommit in clean atomic chunks
+# then follow Strategy B: tag, pin <target-sha>, check, reset --soft
 ```
 
 ### Autosquash Fails on Cross-Commit Fixups
@@ -847,13 +893,12 @@ at that point in history.
 
 **Symptom:** Rebase conflict immediately after autosquash reorders commits.
 
-**Fix:** Abort and use Strategy B (soft reset) instead:
+**Fix:** Abort and use Strategy B (soft reset onto the pinned
+fork-point SHA) instead:
 
 ```bash
 git rebase --abort
-git reset --soft $(git merge-base develop HEAD)
-git reset HEAD
-# Recommit in clean atomic chunks
+# then follow Strategy B: tag, pin <target-sha>, check, reset --soft
 ```
 
 *Why?* Example: a fixup touching both `service.py` (commit 1)

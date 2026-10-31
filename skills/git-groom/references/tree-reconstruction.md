@@ -33,8 +33,11 @@ list (drafted from the target-shape gate's confirmed axes) is a
 complete partition of the changed files:
 
 ```bash
-git diff --name-only <base>..HEAD
+git diff --name-only <base> groom-backup-<branch-slug>
 ```
+
+Compare against the backup tag, not `HEAD`: after the soft reset
+`HEAD` equals `<base>`, so `<base>..HEAD` lists nothing.
 
 Take the union of every commit spec's path list and diff it against
 this full changed-file set:
@@ -52,8 +55,9 @@ full set exactly.
 
 ## Reconstruction Loop
 
-Inputs: `base` (the pre-groom base commit, e.g. `origin/develop` fork
-point), and an ordered list of commit specs, each with a `paths` list
+Inputs: `base` (the fork-point SHA pinned by Strategy B from
+`git merge-base origin/<base> HEAD` — never the `origin/develop` ref
+itself, which may have advanced past the fork point; GH-1683), and an ordered list of commit specs, each with a `paths` list
 and a `msgfile` (written via the Write tool, one message per commit,
 JTBD-style title per `references/git-commits.md`).
 
@@ -126,3 +130,9 @@ This check is the hard gate between "commits were reorganized" and
 "content silently changed" — the two are indistinguishable from a
 `git log --stat` skim, but `git diff <tag> HEAD` catches both a
 missing hunk and an accidental double-apply in one command.
+
+It cannot catch a wrong reset target: `reset --soft` keeps HEAD's
+tree, so a base that advanced past the fork point yields an empty
+diff here while the rebuilt commit reverts base-branch work.
+That failure is caught earlier, by the pinned-SHA precondition and
+the post-reset file-set check in Strategy B (GH-1683).
