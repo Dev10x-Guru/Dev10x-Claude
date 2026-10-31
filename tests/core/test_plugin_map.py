@@ -17,7 +17,7 @@ ADR_0034_COUNTS = {
     "qa": 6,
     "infra": 2,
     "db": 3,
-    "comm": 6,
+    "comm": 7,
     "teach": 7,
     "tasks": 7,
     "scoping": 15,
