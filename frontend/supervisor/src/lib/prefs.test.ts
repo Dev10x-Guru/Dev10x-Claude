@@ -6,12 +6,14 @@ import {
   PROJECT_PINS_KEY,
   SIDE,
   clampWidth,
+  loadHideStopped,
   loadList,
   loadPins,
   loadView,
   loadWidth,
   moveBefore,
   moveBy,
+  saveHideStopped,
   saveList,
   savePins,
   saveView,
@@ -137,6 +139,18 @@ describe("lists", () => {
 
   it("keeps project pins and order apart from session pins", () => {
     expect(new Set([PROJECT_PINS_KEY, PROJECT_ORDER_KEY, "supervisor.pins"]).size).toBe(3);
+  });
+});
+
+describe("hide stopped", () => {
+  it.each([true, false])("round-trips %s", (hide) => {
+    const store = memory();
+    saveHideStopped(hide, store);
+    expect(loadHideStopped(store)).toBe(hide);
+  });
+
+  it("defaults to showing everything", () => {
+    expect([loadHideStopped(memory()), loadHideStopped(broken)]).toEqual([false, false]);
   });
 });
 

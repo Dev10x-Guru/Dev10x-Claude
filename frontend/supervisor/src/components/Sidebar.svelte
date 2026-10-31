@@ -6,13 +6,15 @@
   import {
     PROJECT_ORDER_KEY,
     PROJECT_PINS_KEY,
+    loadHideStopped,
     loadList,
     moveBefore,
     moveBy,
+    saveHideStopped,
     saveList,
     togglePin,
   } from "../lib/prefs";
-  import { arrange, buildTree, markOf, matches } from "../lib/tree";
+  import { arrange, buildTree, isActive, markOf, matches } from "../lib/tree";
   import type { Session } from "../lib/types";
 
   interface Props {
@@ -30,12 +32,17 @@
 
   let query = $state("");
   let collapsed = $state<Record<string, boolean>>({});
-  let acting = $state("");
+  let acting = $state<{ name: string; root: string } | null>(null);
   let projectPins = $state(loadList(PROJECT_PINS_KEY));
   let projectOrder = $state(loadList(PROJECT_ORDER_KEY));
   let dropTarget = $state("");
 
-  const visible = $derived(sessions.filter((session) => matches(session, query)));
+  let hideStopped = $state(loadHideStopped());
+
+  const stoppedCount = $derived(sessions.filter((session) => !isActive(session)).length);
+  const visible = $derived(
+    sessions.filter((session) => matches(session, query) && (!hideStopped || isActive(session))),
+  );
   const pinned = $derived(
     pins
       .map((id) => visible.find((session) => session.session_id === id))
@@ -95,7 +102,7 @@
   }
 </script>
 
-{#snippet plus(name: string)}
+{#snippet plus(name: string, root: string)}
   <button
     class={["project-pin", { on: projectPins.includes(name) }]}
     aria-pressed={projectPins.includes(name)}
@@ -104,11 +111,11 @@
     onclick={() => pinProject(name)}>{projectPins.includes(name) ? "★" : "☆"}</button
   >
   <button
-    class={["plus", { on: acting === name }]}
-    aria-expanded={acting === name}
+    class={["plus", { on: acting?.name === name }]}
+    aria-haspopup="dialog"
     aria-label="New session, worktree or resume in {name}"
     title="New session, worktree or resume"
-    onclick={() => (acting = acting === name ? "" : name)}>+</button
+    onclick={() => (acting = { name, root })}>+</button
   >
 {/snippet}
 
@@ -165,6 +172,14 @@
     <span class="visually-hidden">Filter sessions</span>
     <input bind:value={query} type="search" placeholder="Filter by name, branch, issue" autocomplete="off" />
   </label>
+  <label class="stopped">
+    <input
+      type="checkbox"
+      bind:checked={hideStopped}
+      onchange={() => saveHideStopped(hideStopped)}
+    />
+    Hide idle and done <span class="count">{stoppedCount}</span>
+  </label>
 
   <div class="scroll">
     {#if pinned.length}
@@ -198,11 +213,8 @@
               <ul class="sessions flat">
                 {@render leaf(project.folders[0].sessions[0], true)}
               </ul>
-              {@render plus(project.name)}
+              {@render plus(project.name, root)}
             </div>
-            {#if acting === project.name}
-              <ProjectActions {root} {token} {pending} {run} onclose={() => (acting = "")} />
-            {/if}
           </li>
         {:else}
         <li
@@ -229,11 +241,8 @@
               <span class="project-name">{project.name}</span>
               <span class="count">{project.count}</span>
             </button>
-            {@render plus(project.name)}
+            {@render plus(project.name, root)}
           </div>
-          {#if acting === project.name}
-            <ProjectActions {root} {token} {pending} {run} onclose={() => (acting = "")} />
-          {/if}
 
           {#if open}
             <ul class="sessions">
@@ -251,6 +260,19 @@
       {/each}
     </ul>
   </div>
+
+  {#if acting}
+    {#key acting.root}
+      <ProjectActions
+        root={acting.root}
+        name={acting.name}
+        {token}
+        {pending}
+        {run}
+        onclose={() => (acting = null)}
+      />
+    {/key}
+  {/if}
 </nav>
 
 <style>
@@ -273,6 +295,20 @@
     border: none;
     border-bottom: 1px solid var(--rule-strong);
     font-size: var(--step--1);
+  }
+
+  .stopped {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 0 var(--space-4) var(--space-2);
+    color: var(--ink-soft);
+    font-size: 0.74rem;
+    cursor: pointer;
+  }
+
+  .stopped input {
+    accent-color: var(--amber-ink);
   }
 
   .search input:focus-visible {
