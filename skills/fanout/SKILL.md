@@ -69,3 +69,9 @@ NOT fit in one `Read`.** The first call returns a truncated
 the teardown decision tree and the Phase 5 comment-resolution
 gate, and a truncated read drops both while looking complete.
 If you did not see the last line, you have not read the contract.
+
+**Under Herdr (`HERDR_ENV=1`):** swarm children still run as
+background `Agent(isolation="worktree")` calls, because the
+orchestrator needs their status lines back. A single item the
+supervisor wants to follow in its own Herdr workspace goes through
+`dev10x:git-worktree` Path C instead (GH-1617).

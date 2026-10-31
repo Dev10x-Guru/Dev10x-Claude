@@ -4,7 +4,12 @@
     {
       "id": "mode_selection",
       "name": "Mode Selection Gate",
-      "description": "Presents Same Session vs External+New Session via AskUserQuestion; does NOT auto-select a mode without user input"
+      "description": "Outside Herdr, presents Same Session vs External+New Session via AskUserQuestion and does NOT auto-select a mode without user input. With HERDR_ENV=1 it takes Path C without asking (GH-1617)"
+    },
+    {
+      "id": "path_c_execution",
+      "name": "Path C — Herdr",
+      "description": "With HERDR_ENV=1: creates the worktree via herdr worktree create --no-focus, always starts a Claude agent, briefs it through a file, and never sends keys to clear input it did not write"
     },
     {
       "id": "branch_naming",
@@ -168,6 +173,50 @@
           "text": "Branch name follows username/TICKET-ID/slug pattern",
           "check": "output_matches_pattern",
           "pattern": "[a-z]+/GH-100/[a-z0-9-]+"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "herdr-path-c-starts-briefed-agent",
+      "prompt": "/dev10x:git-worktree GH-300 enable-retries",
+      "description": "Session runs inside Herdr (HERDR_ENV=1). Skill must take Path C without a mode gate, create the worktree through herdr, start a Claude agent named after the ticket, and brief it through a file.",
+      "setup": {
+        "repo": "example-org/app-pos",
+        "env": {"HERDR_ENV": "1"},
+        "ticket": "GH-300"
+      },
+      "dimensions": ["mode_selection", "path_c_execution", "branch_naming"],
+      "assertions": [
+        {
+          "id": "no-mode-gate-under-herdr",
+          "text": "Does NOT call AskUserQuestion to choose a worktree mode or to ask whether to start an agent",
+          "check": "behavioral",
+          "signals": ["printenv HERDR_ENV", "Path C"]
+        },
+        {
+          "id": "creates-worktree-via-herdr",
+          "text": "Creates the worktree with herdr worktree create --no-focus from origin/<base>",
+          "check": "command_contains",
+          "signals": ["herdr worktree create", "--no-focus", "--base origin/"]
+        },
+        {
+          "id": "starts-claude-agent",
+          "text": "Starts a Claude agent named after the ticket in the new pane",
+          "check": "command_contains",
+          "signals": ["herdr agent start", "--kind claude", "GH-300"]
+        },
+        {
+          "id": "briefs-through-a-file",
+          "text": "Writes the brief to a mktmp path and prompts with a short line pointing at it, not the brief text itself",
+          "check": "command_contains",
+          "signals": ["herdr agent prompt", "Carry out the brief at"]
+        },
+        {
+          "id": "never-clears-foreign-input",
+          "text": "Never sends Esc or Ctrl+U to the pane",
+          "check": "output_absent",
+          "signals": ["send-keys Escape", "send-keys C-u"]
         }
       ]
     }

@@ -4,6 +4,8 @@ description: >
   Create git worktrees for clean workspace isolation.
   Offers two modes: native EnterWorktree (switches CWD in current session)
   or external worktree (IDE-isolated, requires restarting claude in new dir).
+  Inside Herdr (HERDR_ENV=1) a third mode is chosen automatically: Herdr
+  creates the worktree in its own workspace and a briefed agent starts there.
   TRIGGER when: starting feature work needing isolation, or executing
   implementation plans with independent tasks.
   DO NOT TRIGGER when: work can be done on the current branch without
@@ -17,6 +19,15 @@ allowed-tools:
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/git-worktree/scripts/:*)
   - Bash(git worktree list:*)
   - Bash(git worktree remove:*)
+  - Bash(printenv HERDR_ENV)
+  - Bash(git fetch origin:*)
+  - Bash(herdr worktree create:*)
+  - Bash(herdr agent start:*)
+  - Bash(herdr agent get:*)
+  - Bash(herdr agent read:*)
+  - Bash(herdr agent prompt:*)
+  - Bash(herdr agent wait:*)
+  - mcp__plugin_dev10x_cli__mktmp
 ---
 
 # Git Worktree
@@ -48,7 +59,15 @@ The branch name is needed by both paths. Follow project naming conventions:
 
 ### Step 2: Choose Worktree Mode
 
-Present the two options with AskUserQuestion:
+**Herdr first (GH-1617).** Run `printenv HERDR_ENV`. When it prints
+`1`, the session runs inside Herdr: take **Path C** without asking —
+read [`references/herdr-path.md`](references/herdr-path.md) and follow
+it end-to-end. Path C always starts and briefs an agent, never sends
+keys to clear input it did not write, and hands the brief over through
+a file rather than as prompt text. Skipping the mode gate is
+deliberate: inside Herdr the workspace is the isolation (GH-1617).
+
+Otherwise, present the two options with AskUserQuestion:
 
 - **Same session** (Recommended) — native `EnterWorktree` tool switches CWD
   immediately; all subsequent git commands and skills (`commit`, `dev10x:gh-pr-create`,
@@ -224,6 +243,17 @@ Close this session and open a new one in the worktree:
 Copy the command above, close this session, then paste it in your terminal.
 The new session will have the correct CWD and all skills will work normally.
 ```
+
+---
+
+## Path C — Herdr (HERDR_ENV=1)
+
+Chosen automatically in Step 2, never offered as a choice. Create the
+worktree with `herdr worktree create --no-focus`, confirm the
+post-checkout setup ran, start a Claude agent named after the ticket,
+and send it a short prompt that points at a brief file. Full steps,
+the read-before-prompt rule, and why the brief goes through a file:
+[`references/herdr-path.md`](references/herdr-path.md).
 
 ---
 
