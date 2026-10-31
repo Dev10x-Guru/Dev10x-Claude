@@ -7,9 +7,36 @@ from dev10x.domain.common.bash_tokens import (
     GIT_C_DIR_RE,
     GIT_C_PREFIX_RE,
     split_tokens,
+    strip_command_wrappers,
     strip_line_continuations,
     strip_quoted_spans,
 )
+
+
+class TestStripCommandWrappers:
+    """GH-1630 review: guards must judge the program, not its wrapper."""
+
+    @pytest.mark.parametrize(
+        ("command", "expected"),
+        [
+            ("python -c x", ["python", "-c", "x"]),
+            ("FOO=1 bar=2 python -c x", ["python", "-c", "x"]),
+            ("env python -c x", ["python", "-c", "x"]),
+            ("env -i -u HOME FOO=1 python -c x", ["python", "-c", "x"]),
+            ("timeout 30 uv run python", ["uv", "run", "python"]),
+            ("timeout -s KILL -k 5 30s bq query", ["bq", "query"]),
+            ("nice -n 10 nohup python3 x.py", ["python3", "x.py"]),
+            ("/usr/bin/env -- python3", ["python3"]),
+            ("exec -a name bash -c x", ["bash", "-c", "x"]),
+            ("command python -c x", ["python", "-c", "x"]),
+            ("stdbuf -o L time -f %e python -c x", ["python", "-c", "x"]),
+            ("timeout", []),
+            ("env", []),
+            ("git status", ["git", "status"]),
+        ],
+    )
+    def test_returns_the_program_actually_run(self, command: str, expected: list[str]) -> None:
+        assert strip_command_wrappers(parts=command.split()) == expected
 
 
 class TestEnvVarRe:
