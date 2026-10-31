@@ -4,6 +4,12 @@ Ported from validate-sql.py.
 
 Validates that db.sh / psql commands contain only read-only SQL.
 Blocks direct psycopg2 / postgres:// connections.
+
+``bq query`` gets the same read-only contract (GH-1633): a blanket
+``Bash(bq query:*)`` allow auto-approved ``DELETE``/``MERGE`` against
+BigQuery while every Postgres path was guarded. This closes that hole at
+the hook; a schema-first ``bq`` wrapper skill, after which the raw
+command moves to deny, is the remaining scope on GH-1633.
 """
 
 from __future__ import annotations
@@ -16,6 +22,7 @@ from pathlib import Path
 from typing import Any, ClassVar
 
 from dev10x.domain import HookInput, HookResult
+from dev10x.domain.common.bash_tokens import strip_command_wrappers
 from dev10x.domain.common.result import ErrorResult, Result, err, ok
 from dev10x.domain.profile_tier import ProfileTier
 from dev10x.validators.base import ValidatorBase
@@ -59,6 +66,78 @@ DIRECT_CONN_MSG = (
     f"{DB_SH_PATH}.\n"
     "If database writes are needed, provide the SQL to the user to run manually."
 )
+
+# BigQuery statements the Postgres denylist does not name. `CALL` runs a
+# stored procedure whose body this hook cannot see.
+BQ_BLOCKED_KEYWORDS = re.compile(
+    r"\b(MERGE|EXPORT\s+DATA|LOAD\s+DATA|EXECUTE\s+IMMEDIATE|CALL)\b",
+    re.IGNORECASE,
+)
+
+# `bq query` flags that make even a SELECT write: its result lands in a
+# table, or it is registered to run again later.
+_BQ_WRITE_FLAGS = frozenset({"--destination_table", "--replace", "--append_table", "--schedule"})
+
+# `bq` flags that take their value as the NEXT token, so the value is not
+# mistaken for query text. `--flag=value` is one token and needs no entry.
+# An unknown spaced flag leaks its value into the SQL, which then fails
+# the SELECT-prefix check: the fail-closed direction.
+_BQ_VALUE_FLAGS = frozenset(
+    {
+        "--format",
+        "--max_rows",
+        "-n",
+        "--project_id",
+        "--dataset_id",
+        "--location",
+        "--parameter",
+        "--label",
+        "--job_id",
+        "--maximum_bytes_billed",
+        "--max_statement_results",
+        "--job_timeout_ms",
+        "--session_id",
+        "--connection_property",
+        "--reservation_id",
+        "--api",
+        "--api_version",
+        "--bigqueryrc",
+        "--service_account",
+        "--credential_file",
+        "--destination_table",
+        "--destination_kms_key",
+        "--schedule",
+        "--display_name",
+        "--target_dataset",
+        "--udf_resource",
+        "--external_table_definition",
+    }
+)
+
+_COMMAND_SEPARATORS = frozenset({"&&", "||", ";"})
+
+# shlex keeps redirections as ordinary tokens, so `bq query < q.sql`
+# would otherwise read the filename as query text. A spaced operator
+# consumes the next token; an attached one (`<q.sql`, `2>/dev/null`) is
+# a single token.
+_REDIRECT_OPERATORS = frozenset({"<", "<<", "<<<", ">", ">>", "2>", "2>>", "&>"})
+_FD_REDIRECT_PREFIXES = frozenset({"1>", "2>", "&>"})
+
+BQ_STDIN_MSG = (
+    "BLOCKED: `bq query` without inline SQL reads the query from stdin, "
+    "which the read-only check cannot inspect.\n"
+    "Pass the SELECT as the final argument instead: "
+    "bq query --nouse_legacy_sql 'SELECT …'"
+)
+
+
+def _bq_write_message(*, detail: str) -> str:
+    return (
+        f"BLOCKED by db safety hook: {detail}\n\n"
+        "BigQuery access is read-only (GH-1633). Print the statement for the "
+        "user to run manually. Pass flag values as --flag=value."
+    )
+
 
 DIRECT_PSQL_MSG = (
     "BLOCKED: Direct psql calls are not allowed. "
@@ -293,6 +372,91 @@ def _validate_sql(sql: str) -> Result[dict[str, Any]]:
     return ok({})
 
 
+def _simple_commands(*, command: str) -> list[list[str]]:
+    """Token lists for each simple command in ``command``.
+
+    Splits on pipes (quote-aware) and on spaced ``&&``/``||``/``;``
+    tokens, so ``cd x && bq query …`` still exposes the ``bq`` call.
+    An unparseable segment yields nothing; the other validators on
+    the chain judge it.
+    """
+    commands: list[list[str]] = []
+    for segment in _split_pipe_segments(command):
+        try:
+            tokens = shlex.split(segment)
+        except ValueError:
+            continue
+        current: list[str] = []
+        for token in tokens:
+            if token in _COMMAND_SEPARATORS:
+                commands.append(current)
+                current = []
+                continue
+            current.append(token)
+        commands.append(current)
+    return [parts for parts in commands if parts]
+
+
+def _bq_query_args(parts: list[str]) -> list[str] | None:
+    """Everything after ``query`` when ``parts`` runs ``bq query``, else ``None``.
+
+    Env assignments and process wrappers are stripped first, so
+    ``CLOUDSDK_CORE_PROJECT=p bq query …`` or ``timeout 60 bq query …``
+    is judged as the ``bq`` call it is.
+    """
+    parts = strip_command_wrappers(parts=parts)
+    if not parts or Path(parts[0]).name != "bq" or "query" not in parts[1:]:
+        return None
+    return parts[parts.index("query", 1) + 1 :]
+
+
+def _bq_flag_name(token: str) -> str:
+    """``token``'s flag name in ``--long`` form.
+
+    bq parses flags with absl, which accepts a long flag behind one dash
+    (``-destination_table=t``) as readily as two, so lookups against the
+    ``--`` spelling alone are an evasion.
+    """
+    name = token.partition("=")[0]
+    if name.startswith("-") and not name.startswith("--") and len(name) > 2:
+        return f"-{name}"
+    return name
+
+
+def _check_bq_query(*, args: list[str]) -> HookResult | None:
+    sql_tokens: list[str] = []
+    remaining = iter(args)
+    for token in remaining:
+        flag = _bq_flag_name(token)
+        if flag in _BQ_WRITE_FLAGS:
+            return HookResult(message=_bq_write_message(detail=f"{flag} writes a table."))
+        takes_next_value = "=" not in token and flag in _BQ_VALUE_FLAGS
+        if takes_next_value or token in _REDIRECT_OPERATORS:
+            next(remaining, None)
+            continue
+        if token.startswith(("-", "<", ">")) or token[:2] in _FD_REDIRECT_PREFIXES:
+            continue
+        sql_tokens.append(token)
+
+    if not sql_tokens:
+        return HookResult(message=BQ_STDIN_MSG)
+
+    sql = " ".join(sql_tokens)
+    result = _validate_sql(sql)
+    if isinstance(result, ErrorResult):
+        return HookResult(message=_bq_write_message(detail=result.error))
+    match = BQ_BLOCKED_KEYWORDS.search(sql)
+    if match:
+        keyword = " ".join(match.group(0).upper().split())
+        return HookResult(
+            message=_bq_write_message(detail=f"Query contains blocked keyword: {keyword}")
+        )
+    return None
+
+
+_BQ_WORD_RE = re.compile(r"\bbq\b")
+
+
 @dataclass
 class SqlSafetyValidator(ValidatorBase):
     name: ClassVar[str] = "sql-safety"
@@ -307,6 +471,7 @@ class SqlSafetyValidator(ValidatorBase):
             or "psycopg2" in cmd
             or "postgres://" in cmd
             or "postgresql://" in cmd
+            or _BQ_WORD_RE.search(cmd) is not None
         )
 
     def validate(self, inp: HookInput) -> HookResult | None:
@@ -324,7 +489,21 @@ class SqlSafetyValidator(ValidatorBase):
         if result:
             return result
 
+        result = self._check_bq(command=command)
+        if result:
+            return result
+
         return self._check_sql_content(command=command)
+
+    def _check_bq(self, *, command: str) -> HookResult | None:
+        for parts in _simple_commands(command=command):
+            args = _bq_query_args(parts)
+            if args is None:
+                continue
+            result = _check_bq_query(args=args)
+            if result:
+                return result
+        return None
 
     def _check_direct_connection(self, *, command: str) -> HookResult | None:
         if "psycopg2" in command or (
