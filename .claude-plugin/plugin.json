@@ -1,6 +1,6 @@
 {
   "name": "dev10x",
-  "description": "v0.109.0.dev0 — 100 skills for structured commits, PR lifecycle, branch hygiene, ticket management, task tracking, code review, scoping, and QA automation in Claude Code.",
+  "description": "v0.109.0.dev0 — 101 skills for structured commits, PR lifecycle, branch hygiene, ticket management, task tracking, code review, scoping, and QA automation in Claude Code.",
   "version": "0.109.0.dev0",
   "author": {
     "name": "Janusz Skonieczny",
@@ -10,7 +10,7 @@
   "repository": "https://github.com/Dev10x-Guru/dev10x-claude",
   "license": "MIT",
   "keywords": ["git", "commits", "pull-requests", "code-review", "workflow", "tasks"],
-  "hooks": ["./hooks/hooks.d/tasks.json", "./hooks/hooks.d/coding.json"],
+  "hooks": ["./hooks/hooks.d/comm.json", "./hooks/hooks.d/tasks.json", "./hooks/hooks.d/coding.json"],
   "mcpServers": {
     "cli": {
       "command": "${CLAUDE_PLUGIN_ROOT}/servers/cli_server.py",

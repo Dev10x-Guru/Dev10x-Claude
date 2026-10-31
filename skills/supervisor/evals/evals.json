@@ -79,7 +79,7 @@
           "dimension": "serve-in-background",
           "check": "tool_parameters",
           "tool": "Bash",
-          "signal": "Bash runs 'dev10x supervisor serve' with run_in_background true"
+          "signal": "Bash runs 'uvx dev10x supervisor serve' with run_in_background true"
         },
         {
           "dimension": "serve-in-background",

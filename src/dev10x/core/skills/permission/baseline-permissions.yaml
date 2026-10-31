@@ -298,6 +298,9 @@ groups:
       # GH-1627 — dry-run by default; `--apply` runs only after the
       # dev10x:skill-prune AskUserQuestion confirmation
       - Bash(uvx dev10x skill prune-overrides:*)
+      # GH-1692 — binds 127.0.0.1 only; `unit` prints and installs nothing
+      - Bash(uvx dev10x supervisor serve:*)
+      - Bash(uvx dev10x supervisor unit:*)
 
   # ─── TIER 2 ─────────────────────────────────────────────────────────
 

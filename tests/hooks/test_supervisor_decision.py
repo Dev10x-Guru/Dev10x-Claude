@@ -148,8 +148,8 @@ class TestSilence:
         assert len(opener.requests) == 1
 
 
-def test_hooks_json_registers_ask_user_question() -> None:
-    hooks = json.loads((Path(__file__).parents[2] / "hooks" / "hooks.json").read_text())
+def test_comm_hooks_register_ask_user_question() -> None:
+    hooks = json.loads((Path(__file__).parents[2] / "hooks" / "hooks.d" / "comm.json").read_text())
     [entry] = [e for e in hooks["hooks"]["PreToolUse"] if e["matcher"] == "AskUserQuestion"]
     [hook] = entry["hooks"]
 
