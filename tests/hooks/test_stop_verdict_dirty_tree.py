@@ -127,6 +127,35 @@ class TestOpenWorkIsNeverGatedOnTheTree:
         assert verdict.signal == StopSignal.NO_TASK_LIST
 
 
+class TestTheSteerNeverClaimsAnOpenTaskIsDone:
+    """GH-1603: the steer fired with a task still open and said otherwise."""
+
+    def test_an_open_sign_off_gate_is_not_called_complete(
+        self, tmp_path: Path, isolated_markers: Path
+    ) -> None:
+        verdict = decide(
+            data={"session_id": "d9", "transcript_path": _transcript(tmp_path=tmp_path)},
+            plan={"tasks": [{"subject": "Verify acceptance criteria", "status": "pending"}]},
+            dirty=_DIRTY,
+        )
+
+        assert verdict.signal == StopSignal.DIRTY_TREE
+        assert "Every task on the list is complete" not in verdict.reason
+
+    def test_an_in_progress_verify_step_is_still_open_work(
+        self, tmp_path: Path, isolated_markers: Path
+    ) -> None:
+        """Only the sign-off gate is terminal, not every subject saying "verify ac…"."""
+        verdict = decide(
+            data={"session_id": "d10", "transcript_path": _transcript(tmp_path=tmp_path)},
+            plan={"tasks": [{"subject": "Verify access rules", "status": "in_progress"}]},
+            dirty=_DIRTY,
+        )
+
+        assert verdict.block is False
+        assert verdict.signal == StopSignal.OPEN_WORK
+
+
 class TestACleanTreeIsUnchanged:
     def test_a_depleted_list_with_a_clean_tree_asks_to_stand_down(
         self, tmp_path: Path, isolated_markers: Path
