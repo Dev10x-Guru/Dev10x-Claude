@@ -126,6 +126,30 @@ these jobs.
     workflow step. `tests/test_claude_ci_prompts.py` fails on a `${{` in
     those files, an inline prompt, or a drifted prefix.
 
+## Review Trigger Cadence (GH-1694)
+
+The paid review runs once per ready-for-review flip, never once per
+push: `claude-code-review.yml` triggers on `opened` and
+`ready_for_review` only, and both review jobs skip drafts. Three
+things keep a merged head reviewed:
+
+1. A blocking round drafts the PR (the review's draft step); the
+   author's flip back to ready runs the next round.
+2. `pr-draft-on-push.yml` drafts a ready PR on every push, so a commit
+   pushed after a clean round is re-reviewed on the next flip. It acts
+   as a GitHub App (`PR_DRAFT_APP_ID` variable,
+   `PR_DRAFT_APP_PRIVATE_KEY` secret), because the workflow token cannot
+   convert a PR to draft, and fails loudly until both are set.
+3. The review checklist in the PR body stamps the reviewed `sha`;
+   `references/pr-merge-policy.md` § Reading Review Signals compares it
+   with HEAD before a merge.
+
+A draft suppresses CI here, so after a push the PR shows no checks
+until it is marked ready again: an agent that pushes a fixup marks the
+PR ready (`pr_ready`) to get CI and the next round. A push made with
+the workflow `GITHUB_TOKEN` fires no `pull_request` event, and a fork
+PR's run gets no secrets, so neither is drafted — flip those by hand.
+
 ## Where each file comes from (GH-1620)
 
 A review runs the PR's code under the base branch's instructions: the

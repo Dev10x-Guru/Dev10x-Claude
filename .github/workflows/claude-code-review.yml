@@ -6,7 +6,11 @@ concurrency:
 
 on:
   pull_request:
-    types: [opened, ready_for_review, synchronize]
+    # GH-1694: no `synchronize` — a push to a ready PR is not re-reviewed.
+    # A blocking round drafts the PR, pr-draft-on-push.yml drafts it on
+    # any later push, and the author's flip back to ready is what starts
+    # the next review. Ported from tt-pos PAY-1689.
+    types: [opened, ready_for_review]
     paths:
       - "**/*.py"
       - "**/*.sh"
