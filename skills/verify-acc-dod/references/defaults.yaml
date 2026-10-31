@@ -39,6 +39,12 @@
 #                     separate field, NOT a `modes:` entry — the posture
 #                     is a project fact, not a mode name, and must not be
 #                     smuggled into that map.
+#   skip_when_merged: Optional boolean (GH-1665 F2/F4). When true and the
+#                     PR state is MERGED, remove this check from scope and
+#                     report it as "skipped (PR merged)" — not passed. A
+#                     merged PR clears its review requests and may never
+#                     re-run CI, so these checks can never settle there.
+#                     Read the state via mcp__plugin_dev10x_cli__pr_get.
 #
 # Only one expect_* field per check. First match wins.
 
@@ -51,6 +57,7 @@ defaults:
       - name: CI passing
         check: gh pr checks {pr_number} --repo {repo}  # cli-friction: allow raw-gh-pr — DoD runner executes this shell template directly
         expect_contains: "All checks were successful"
+        skip_when_merged: true
       - name: PR not draft
         check: gh pr view {pr_number} --repo {repo} --json isDraft -q .isDraft  # cli-friction: allow raw-gh-pr — DoD runner executes this shell template directly
         expect: "false"
@@ -61,8 +68,10 @@ defaults:
         check: prompt
         prompt: >
           Review the session for skill routing violations: were all
-          test runs delegated to the test skill (not raw pytest/uv
-          run pytest)? Were all commits created via dev10x:git-commit
+          test runs delegated to the test skill (Python) or
+          mcp__plugin_dev10x_cli__run_node_tests (JS/TS) — not raw
+          pytest/uv run pytest/jest/vitest/yarn test? Were all
+          commits created via dev10x:git-commit
           (not raw git commit)? Were all pushes via dev10x:git (not
           raw git push)? Check iterative loops especially — the first
           iteration often uses the skill but subsequent iterations
@@ -99,6 +108,7 @@ defaults:
           --json reviewRequests -q '.reviewRequests | length'  # cli-friction: allow raw-gh-pr — DoD runner executes this shell template directly
         expect_gt: 0
         requires_human_review: true
+        skip_when_merged: true
         modes:
           solo-maintainer:
             skip: true
@@ -113,6 +123,7 @@ defaults:
       - name: CI passing
         check: gh pr checks {pr_number} --repo {repo}  # cli-friction: allow raw-gh-pr — DoD runner executes this shell template directly
         expect_contains: "All checks were successful"
+        skip_when_merged: true
       - name: PR not draft
         check: gh pr view {pr_number} --repo {repo} --json isDraft -q .isDraft  # cli-friction: allow raw-gh-pr — DoD runner executes this shell template directly
         expect: "false"
@@ -126,8 +137,10 @@ defaults:
         check: prompt
         prompt: >
           Review the session for skill routing violations: were all
-          test runs delegated to the test skill (not raw pytest/uv
-          run pytest)? Were all commits via dev10x:git-commit? Were
+          test runs delegated to the test skill (Python) or
+          mcp__plugin_dev10x_cli__run_node_tests (JS/TS) — not raw
+          pytest/uv run pytest/jest/vitest/yarn test? Were all
+          commits via dev10x:git-commit? Were
           all pushes via dev10x:git? Check iterative loops especially.
       - name: Fixes-linked issue scope delivered
         check: prompt
@@ -161,6 +174,7 @@ defaults:
           --json reviewRequests -q '.reviewRequests | length'  # cli-friction: allow raw-gh-pr — DoD runner executes this shell template directly
         expect_gt: 0
         requires_human_review: true
+        skip_when_merged: true
         modes:
           solo-maintainer:
             skip: true
@@ -175,6 +189,7 @@ defaults:
       - name: CI passing
         check: gh pr checks {pr_number} --repo {repo}  # cli-friction: allow raw-gh-pr — DoD runner executes this shell template directly
         expect_contains: "All checks were successful"
+        skip_when_merged: true
       - name: PR not draft
         check: gh pr view {pr_number} --repo {repo} --json isDraft -q .isDraft  # cli-friction: allow raw-gh-pr — DoD runner executes this shell template directly
         expect: "false"
@@ -186,7 +201,8 @@ defaults:
         prompt: >
           Review the session for skill routing violations in
           iterative fix-test loops: did all test runs use the test
-          skill? Did all commits use dev10x:git-commit?
+          skill (Python) or mcp__plugin_dev10x_cli__run_node_tests
+          (JS/TS)? Did all commits use dev10x:git-commit?
       - name: Fixes-linked issue scope delivered
         check: prompt
         prompt: >
@@ -219,6 +235,7 @@ defaults:
           --json reviewRequests -q '.reviewRequests | length'  # cli-friction: allow raw-gh-pr — DoD runner executes this shell template directly
         expect_gt: 0
         requires_human_review: true
+        skip_when_merged: true
         modes:
           solo-maintainer:
             skip: true

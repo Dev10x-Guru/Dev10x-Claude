@@ -16,6 +16,8 @@ allowed-tools:
   - mcp__plugin_dev10x_cli__pr_detect
   - mcp__plugin_dev10x_cli__pr_issue_comment
   - mcp__plugin_dev10x_cli__resolve_gate
+  - mcp__plugin_dev10x_cli__unresolved_threads
+  - mcp__plugin_dev10x_cli__check_top_level_comments
   - Bash(gh pr ready:*)
   - Bash(gh api graphql:*)
   - Bash(gh api repos/:*)
@@ -36,6 +38,26 @@ the full pipeline: collect comments, triage each one, implement
 fixes, reply, and resolve threads. Do not call
 `dev10x:gh-pr-fixup` or `dev10x:gh-pr-triage` directly unless
 you are handling the full pipeline yourself.
+
+## Pre-read short-circuit (GH-1665 F3)
+
+Before reading `instructions.md`, resolve the PR (from the input, or
+`mcp__plugin_dev10x_cli__pr_detect`) and issue all three calls in one
+turn — they are independent:
+
+1. `mcp__plugin_dev10x_cli__unresolved_threads(repo=…, pr_number=…)`
+2. `mcp__plugin_dev10x_cli__check_top_level_comments(repo=…, pr_number=…)`
+   — this counts bot findings only, so it cannot see a human comment
+3. `mcp__plugin_dev10x_cli__pr_comments(action="list", pr_number=…)`
+   — confirm no unaddressed human top-level comments remain
+
+When calls 1 and 2 return `count: 0` and call 3 shows no unaddressed
+human top-level comment, say "nothing to respond to" and
+return without reading `instructions.md`.
+When any call reports an item, or any call errors, continue below —
+an unreadable count is not evidence that nothing is open.
+Skip this check when the input is a single comment URL: the comment
+itself is the work.
 
 ## Instructions
 

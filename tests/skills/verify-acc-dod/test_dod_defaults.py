@@ -187,6 +187,45 @@ def test_resolver_recommendation_boundary_documented(skill_body: str) -> None:
         assert effect in skill_body
 
 
+@pytest.mark.parametrize(
+    "work_type,check_name",
+    [
+        ("feature", "Review requested"),
+        ("bugfix", "Review requested"),
+        ("pr-continuation", "Re-review requested"),
+        ("feature", "CI passing"),
+        ("bugfix", "CI passing"),
+        ("pr-continuation", "CI passing"),
+    ],
+)
+def test_unsettleable_checks_skip_when_merged(
+    defaults: dict, work_type: str, check_name: str
+) -> None:
+    # GH-1665 F2/F4: review requests are cleared and CI may never re-run
+    # on a merged PR, so these checks leave scope rather than fail forever.
+    check = _check_by_name(defaults[work_type]["checks"], check_name)
+    assert check["skip_when_merged"] is True
+
+
+@pytest.mark.parametrize("work_type", REVIEW_WORK_TYPES)
+def test_unresolved_threads_still_runs_when_merged(defaults: dict, work_type: str) -> None:
+    # A thread left open on a merged PR is still a real, settleable finding.
+    check = _check_by_name(defaults[work_type]["checks"], "No unresolved review threads")
+    assert "skip_when_merged" not in check
+
+
+def test_skip_when_merged_is_documented(skill_body: str) -> None:
+    assert "skip_when_merged" in DEFAULTS.read_text().split("defaults:")[0]
+    assert "skip_when_merged" in skill_body
+    assert "skipped (PR merged)" in skill_body
+
+
+@pytest.mark.parametrize("work_type", REVIEW_WORK_TYPES)
+def test_skill_routing_accepts_node_test_runner(defaults: dict, work_type: str) -> None:
+    check = _check_by_name(defaults[work_type]["checks"], "Skill routing compliance")
+    assert "run_node_tests" in check["prompt"]
+
+
 @pytest.mark.parametrize("work_type", REVIEW_WORK_TYPES)
 def test_solo_maintainer_still_skips_only_review_request(defaults: dict, work_type: str) -> None:
     # solo-maintainer defers reviewer assignment but NOT thread resolution —

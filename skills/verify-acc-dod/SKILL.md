@@ -20,6 +20,8 @@ allowed-tools:
   - Bash(git log:*)
   - Bash(git diff:*)
   - mcp__plugin_dev10x_cli__pr_detect
+  - mcp__plugin_dev10x_cli__pr_get
+  - mcp__plugin_dev10x_cli__unresolved_threads
   - mcp__plugin_dev10x_cli__verify_pr_state
   - mcp__plugin_dev10x_cli__supervisor_review_status
   - mcp__plugin_dev10x_cli__resolve_gate
@@ -207,6 +209,13 @@ If no PR exists (e.g., `local-only`), skip checks that reference
 
 For each check in the merged list:
 
+0. **If `skip_when_merged: true` and the PR is merged** — read the
+   state once via `mcp__plugin_dev10x_cli__pr_get(number=…)`; when
+   `state` is `MERGED`, do not run the check.
+   Report it as "skipped (PR merged)" — out of scope, NOT passed, and
+   not counted toward the pass total.
+   A merged PR clears its review requests and may never re-run CI, so
+   these checks could otherwise never settle (GH-1665 F2/F4).
 1. **If `check: manual`** — treat it as a `prompt` check and evaluate
    its `prompt` contextually (see Manual Checks below)
 2. **If `check: prompt`** — evaluate the `prompt` contextually

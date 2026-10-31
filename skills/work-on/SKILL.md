@@ -29,6 +29,7 @@ allowed-tools:
   - Skill(dev10x:ticket-branch)
   - Skill(dev10x:verify-acc-dod)
   - Skill(test)
+  - Bash(pre-commit run:*)
   - Read(.claude/Dev10x/playbooks/work-on.yaml)
   - Read(~/.config/Dev10x/playbooks/work-on.yaml)
   - Read(~/.claude/memory/Dev10x/playbooks/work-on.yaml)

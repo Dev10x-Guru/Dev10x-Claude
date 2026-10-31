@@ -61,30 +61,47 @@ fragments:
       type: detailed
       prompt: >
         Watch CI checks on the draft PR. Fix any failures
-        with fixup commits and push. NOTE (GH-779): if the repo's
-        CI skips draft PRs (no checks ever register on a draft),
-        mark the PR ready BEFORE this step via the `pr_ready` MCP
-        wrapper — otherwise the monitor polls a PR that never
-        produces a verdict.
+        with fixup commits and push. NOTE (GH-779, GH-1609 F3): if
+        the repo's CI skips draft PRs (no checks ever register on a
+        draft), read mcp__plugin_dev10x_cli__supervisor_review_status
+        first. When it is `none`, mark the PR ready BEFORE this step
+        via the `pr_ready` MCP wrapper — otherwise the monitor polls
+        a PR that never produces a verdict. When it is `required`,
+        do NOT call `pr_ready` (CODEOWNERS would auto-request
+        reviewers before the supervisor has read it): keep the
+        draft and record in the Verify-AC task that CI has not run
+        on the draft.
       skills: [dev10x:gh-pr-monitor]
     - subject: Apply fixups to review comments
       type: epic
       prompt: >
         Address each review comment with a fixup commit. Validate
-        before replying. Do not auto-resolve threads.
+        before replying. Do not auto-resolve threads. Short-circuit
+        first: when unresolved_threads and check_top_level_comments
+        both report zero, mark this step done with "nothing to
+        respond to".
       skills: [dev10x:gh-pr-respond]
     - subject: Groom commit history
       type: detailed
       prompt: >
         Squash fixups, reorder for logical flow, ensure each
         commit message follows gitmoji + JTBD conventions.
+        Mid-review guard (GH-1609 F2): when
+        mcp__plugin_dev10x_cli__supervisor_review_status is
+        `required`, OR the PR is published and any non-bot review
+        or reply references a fixup SHA, defer grooming until the
+        PR is approved — keep the fixups so reviewers can follow
+        them, and leave this step pending. Solo / `none` posture
+        grooms as before.
       skills: [dev10x:git-groom]
     - subject: Update PR description
       type: detailed
       prompt: >
         Update the draft PR title and body with the final Job
-        Story, linked commit list, and checklist. Mark as ready
-        for review if all checks pass.
+        Story, linked commit list, and checklist. When all checks
+        pass and `supervisor_review_status` reports `none`, mark
+        the PR ready (`pr_ready`). Under `required` leave the PR
+        as a draft — readiness waits for the supervisor.
       skills: [dev10x:gh-pr-create]
     - subject: Request review
       type: detailed
@@ -177,7 +194,12 @@ fragments:
         Squash fixups into their parent commits. Choose the best
         grooming option and auto-advance. No strategy gate —
         select fixup autosquash if fixup commits exist, mass
-        rewrite otherwise.
+        rewrite otherwise. Mid-review guard (GH-1609 F2): when
+        mcp__plugin_dev10x_cli__supervisor_review_status is
+        `required`, OR the PR is published and any non-bot review
+        or reply references a fixup SHA, defer grooming until the
+        PR is approved — keep the fixups and leave this step
+        pending. Solo / `none` posture grooms as before.
       skills: [dev10x:git-groom]
     - subject: Update PR description
       type: detailed
@@ -329,11 +351,16 @@ defaults:
         steps:
           - subject: Run tests
             type: detailed
-            prompt: Run via Skill(dev10x:py-test) with coverage. Fix failures.
+            prompt: >
+              Run with coverage — Python via Skill(test), JS/TS via
+              mcp__plugin_dev10x_cli__run_node_tests. Fix failures.
             skills: [test]
           - subject: Run lint
             type: detailed
-            prompt: Run ruff check and black. Fix violations.
+            prompt: >
+              Python: `pre-commit run` when the project has a
+              pre-commit config. JS/TS: run_node_tests(script="lint").
+              Never inline ruff/black/eslint. Fix violations.
       - fragment: shipping-pipeline
 
   bugfix:
@@ -390,7 +417,10 @@ defaults:
         steps:
           - subject: Run existing tests
             type: detailed
-            prompt: Run via Skill(dev10x:py-test) with coverage. Ensure no regressions.
+            prompt: >
+              Run with coverage — Python via Skill(test), JS/TS via
+              mcp__plugin_dev10x_cli__run_node_tests. Ensure no
+              regressions.
             skills: [test]
           - subject: Add regression test
             type: detailed
@@ -422,7 +452,10 @@ defaults:
         type: epic
         prompt: >
           Batch-process remaining unaddressed comments using
-          the gh-pr-respond skill.
+          the gh-pr-respond skill. Short-circuit first: when
+          unresolved_threads and check_top_level_comments both
+          report zero, mark this step done with "nothing to
+          respond to".
         skills: [dev10x:gh-pr-respond]
       - fragment: shipping-pipeline-continuation
 
@@ -460,11 +493,16 @@ defaults:
         steps:
           - subject: Run tests
             type: detailed
-            prompt: Run via Skill(dev10x:py-test) with coverage. Fix failures.
+            prompt: >
+              Run with coverage — Python via Skill(test), JS/TS via
+              mcp__plugin_dev10x_cli__run_node_tests. Fix failures.
             skills: [test]
           - subject: Run lint
             type: detailed
-            prompt: Run ruff check and black. Fix violations.
+            prompt: >
+              Python: `pre-commit run` when the project has a
+              pre-commit config. JS/TS: run_node_tests(script="lint").
+              Never inline ruff/black/eslint. Fix violations.
       - subject: "Decide: create ticket, create PR, or done"
         type: detailed
         prompt: >
