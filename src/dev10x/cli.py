@@ -56,6 +56,7 @@ class LazyGroup(click.Group):
         "validate": "dev10x.commands.validate.validate",
         "skill": "dev10x.commands.skill.skill",
         "spec": "dev10x.commands.spec.spec",
+        "supervisor": "dev10x.commands.supervisor.supervisor",
         "usage": "dev10x.commands.usage.usage",
         "watchdog": "dev10x.commands.watchdog.watchdog",
     },
