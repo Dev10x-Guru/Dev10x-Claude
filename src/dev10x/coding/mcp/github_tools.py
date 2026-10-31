@@ -852,6 +852,8 @@ async def merge_pr(
             (GH-1267). Pass the ``headRefOid`` the pre-merge checks
             verified: without it the merge takes whatever the head is
             *now*, so a push landing mid-gate ships unreviewed code.
+            Must be the full 40-character SHA; an abbreviated one is
+            refused before any network call (GH-1681).
         use_bot: Execute the merge under the GitHub App identity so
             ``merged_by`` names the bot and an out-of-gate merge
             becomes visible (GH-1272). Omit to read the durable
@@ -1464,14 +1466,14 @@ async def resolve_review_thread(
 @github_tool
 async def check_top_level_comments(
     pr_number: int,
-    repo: str,
+    repo: str | None = None,
     cwd: str | None = None,
 ) -> Result[dict]:
     """Check for unaddressed automated review comments on a PR.
 
     Args:
         pr_number: PR number to scan
-        repo: Repository in owner/repo format
+        repo: Repository in owner/repo format. Auto-detected from cwd if omitted.
         cwd: Effective working directory (GH-979).
 
     Returns:
@@ -1482,7 +1484,7 @@ async def check_top_level_comments(
 
 @github_tool
 async def unresolved_threads(
-    repo: str,
+    repo: str | None = None,
     pr_number: int | None = None,
     limit: int = 200,
     cwd: str | None = None,
@@ -1490,7 +1492,7 @@ async def unresolved_threads(
     """Fetch unresolved review comment threads.
 
     Args:
-        repo: Repository in owner/repo format
+        repo: Repository in owner/repo format. Auto-detected from cwd if omitted.
         pr_number: When set, check only this PR via a single fast
             GraphQL query — returns {"unresolved_threads": [...],
             "count": N}. When omitted, sweep up to `limit` merged

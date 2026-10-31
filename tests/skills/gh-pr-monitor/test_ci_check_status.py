@@ -387,7 +387,7 @@ class TestPollUntilTerminal:
     def test_persisting_empty_becomes_infra_unavailable(self, monkeypatch):
         self._no_sleep(monkeypatch)
         monkeypatch.setattr(_impl, "get_annotated_checks", lambda **k: _read([]))
-        monkeypatch.setattr(_impl, "fetch_mergeable", lambda **k: "UNKNOWN")
+        monkeypatch.setattr(_impl, "get_pr_state", lambda **k: _impl.PrState(mergeable="UNKNOWN"))
         result = _impl.poll_until_terminal(
             pr_number=1, repo="o/r", initial_wait=0, poll_interval=0, max_polls=3
         )
@@ -400,7 +400,7 @@ class TestPollUntilTerminal:
             "get_annotated_checks",
             lambda **k: _read([{"name": "build", "bucket": "pending"}]),
         )
-        monkeypatch.setattr(_impl, "fetch_mergeable", lambda **k: "UNKNOWN")
+        monkeypatch.setattr(_impl, "get_pr_state", lambda **k: _impl.PrState(mergeable="UNKNOWN"))
         result = _impl.poll_until_terminal(
             pr_number=1, repo="o/r", initial_wait=0, poll_interval=0, max_polls=3
         )
@@ -413,7 +413,9 @@ class TestPollUntilTerminal:
             "get_annotated_checks",
             lambda **k: _read([{"name": "build", "bucket": "pass"}]),
         )
-        monkeypatch.setattr(_impl, "fetch_mergeable", lambda **k: "MERGEABLE")
+        monkeypatch.setattr(
+            _impl, "get_pr_state", lambda **k: _impl.PrState(mergeable="MERGEABLE")
+        )
         result = _impl.poll_until_terminal(
             pr_number=1, repo="o/r", initial_wait=0, poll_interval=0, max_polls=3
         )
@@ -469,7 +471,9 @@ class TestPollSurvivesTransientProbeFailures:
                 calls,
             ),
         )
-        monkeypatch.setattr(_impl, "fetch_mergeable", lambda **k: "MERGEABLE")
+        monkeypatch.setattr(
+            _impl, "get_pr_state", lambda **k: _impl.PrState(mergeable="MERGEABLE")
+        )
 
         result = _impl.poll_until_terminal(
             pr_number=1, repo="o/r", initial_wait=0, poll_interval=0, max_polls=5
@@ -478,7 +482,7 @@ class TestPollSurvivesTransientProbeFailures:
         assert result["verdict"] == "green"
 
     def test_a_timed_out_mergeable_read_does_not_end_the_wait(self, monkeypatch):
-        """`fetch_mergeable` shares the probe, so its timeout is tolerated too."""
+        """`get_pr_state` shares the probe, so its timeout is tolerated too."""
         self._no_sleep(monkeypatch)
         reads = iter(["timeout", "MERGEABLE", "MERGEABLE"])
 
@@ -486,14 +490,14 @@ class TestPollSurvivesTransientProbeFailures:
             outcome = next(reads)
             if outcome == "timeout":
                 raise subprocess.TimeoutExpired(cmd=["gh", "pr", "view"], timeout=30)
-            return outcome
+            return _impl.PrState(mergeable=outcome)
 
         monkeypatch.setattr(
             _impl,
             "get_annotated_checks",
             lambda **k: _read([{"name": "build", "bucket": "pass"}]),
         )
-        monkeypatch.setattr(_impl, "fetch_mergeable", mergeable)
+        monkeypatch.setattr(_impl, "get_pr_state", mergeable)
 
         result = _impl.poll_until_terminal(
             pr_number=1, repo="o/r", initial_wait=0, poll_interval=0, max_polls=5
@@ -527,7 +531,9 @@ class TestPollSurvivesTransientProbeFailures:
                 calls,
             ),
         )
-        monkeypatch.setattr(_impl, "fetch_mergeable", lambda **k: "MERGEABLE")
+        monkeypatch.setattr(
+            _impl, "get_pr_state", lambda **k: _impl.PrState(mergeable="MERGEABLE")
+        )
 
         result = _impl.poll_until_terminal(
             pr_number=1, repo="o/r", initial_wait=0, poll_interval=30, max_polls=5
@@ -548,7 +554,7 @@ class TestPollSurvivesTransientProbeFailures:
                 [subprocess.TimeoutExpired(cmd=["gh", "pr", "checks"], timeout=30)], calls
             ),
         )
-        monkeypatch.setattr(_impl, "fetch_mergeable", lambda **k: "UNKNOWN")
+        monkeypatch.setattr(_impl, "get_pr_state", lambda **k: _impl.PrState(mergeable="UNKNOWN"))
 
         with pytest.raises(SystemExit):
             _impl.poll_until_terminal(
@@ -572,7 +578,9 @@ class TestPollSurvivesTransientProbeFailures:
                 calls,
             ),
         )
-        monkeypatch.setattr(_impl, "fetch_mergeable", lambda **k: "MERGEABLE")
+        monkeypatch.setattr(
+            _impl, "get_pr_state", lambda **k: _impl.PrState(mergeable="MERGEABLE")
+        )
 
         result = _impl.poll_until_terminal(
             pr_number=1, repo="o/r", initial_wait=0, poll_interval=0, max_polls=5
@@ -596,7 +604,9 @@ class TestPollSurvivesTransientProbeFailures:
                 calls,
             ),
         )
-        monkeypatch.setattr(_impl, "fetch_mergeable", lambda **k: "MERGEABLE")
+        monkeypatch.setattr(
+            _impl, "get_pr_state", lambda **k: _impl.PrState(mergeable="MERGEABLE")
+        )
 
         _impl.poll_until_terminal(
             pr_number=1, repo="o/r", initial_wait=0, poll_interval=0, max_polls=5
@@ -613,7 +623,7 @@ class TestPollSurvivesTransientProbeFailures:
             "get_annotated_checks",
             self._scripted(["gh pr checks failed (exit 1): down"], calls),
         )
-        monkeypatch.setattr(_impl, "fetch_mergeable", lambda **k: "UNKNOWN")
+        monkeypatch.setattr(_impl, "get_pr_state", lambda **k: _impl.PrState(mergeable="UNKNOWN"))
 
         with pytest.raises(SystemExit):
             _impl.poll_until_terminal(
@@ -643,7 +653,9 @@ class TestPollSurvivesTransientProbeFailures:
                 calls,
             ),
         )
-        monkeypatch.setattr(_impl, "fetch_mergeable", lambda **k: "MERGEABLE")
+        monkeypatch.setattr(
+            _impl, "get_pr_state", lambda **k: _impl.PrState(mergeable="MERGEABLE")
+        )
 
         result = _impl.poll_until_terminal(
             pr_number=1, repo="o/r", initial_wait=0, poll_interval=0, max_polls=10
@@ -660,7 +672,9 @@ class TestPollSurvivesTransientProbeFailures:
             "get_annotated_checks",
             self._scripted(["blip", [{"name": "build", "bucket": "pass"}]], calls),
         )
-        monkeypatch.setattr(_impl, "fetch_mergeable", lambda **k: "MERGEABLE")
+        monkeypatch.setattr(
+            _impl, "get_pr_state", lambda **k: _impl.PrState(mergeable="MERGEABLE")
+        )
 
         result = _impl.poll_until_terminal(
             pr_number=1, repo="o/r", initial_wait=0, poll_interval=0, max_polls=5
@@ -677,7 +691,7 @@ class TestPollSurvivesTransientProbeFailures:
             "get_annotated_checks",
             self._scripted(["blip"], calls),
         )
-        monkeypatch.setattr(_impl, "fetch_mergeable", lambda **k: "UNKNOWN")
+        monkeypatch.setattr(_impl, "get_pr_state", lambda **k: _impl.PrState(mergeable="UNKNOWN"))
 
         with pytest.raises(SystemExit):
             _impl.poll_until_terminal(
@@ -713,7 +727,9 @@ class TestTerminalAtCallTimeFastPath:
             return _read(rounds[index])
 
         monkeypatch.setattr(_impl, "get_annotated_checks", _next)
-        monkeypatch.setattr(_impl, "fetch_mergeable", lambda **k: "MERGEABLE")
+        monkeypatch.setattr(
+            _impl, "get_pr_state", lambda **k: _impl.PrState(mergeable="MERGEABLE")
+        )
         return calls
 
     def test_green_at_call_time_returns_without_sleeping(self, monkeypatch):
@@ -750,7 +766,9 @@ class TestTerminalAtCallTimeFastPath:
             "get_annotated_checks",
             lambda **k: _read([{"name": "build", "bucket": "pass"}]),
         )
-        monkeypatch.setattr(_impl, "fetch_mergeable", lambda **k: "CONFLICTING")
+        monkeypatch.setattr(
+            _impl, "get_pr_state", lambda **k: _impl.PrState(mergeable="CONFLICTING")
+        )
         result = _impl.poll_until_terminal(
             pr_number=1, repo="o/r", initial_wait=60, poll_interval=30, max_polls=40
         )
@@ -787,7 +805,9 @@ class TestTerminalAtCallTimeFastPath:
             "get_annotated_checks",
             lambda **k: _read([{"name": "build", "bucket": "pass", "required": True}]),
         )
-        monkeypatch.setattr(_impl, "fetch_mergeable", lambda **k: "MERGEABLE")
+        monkeypatch.setattr(
+            _impl, "get_pr_state", lambda **k: _impl.PrState(mergeable="MERGEABLE")
+        )
         result = _impl.probe_once(pr_number=1, repo="o/r")
         assert result["verdict"] == "green"
         assert result["mergeable"] == "MERGEABLE"
@@ -822,7 +842,9 @@ class TestWaitOutsPendingLegs:
 
         self._no_sleep(monkeypatch)
         monkeypatch.setattr(_impl, "get_annotated_checks", _next)
-        monkeypatch.setattr(_impl, "fetch_mergeable", lambda **k: "MERGEABLE")
+        monkeypatch.setattr(
+            _impl, "get_pr_state", lambda **k: _impl.PrState(mergeable="MERGEABLE")
+        )
         return calls
 
     ADVISORY_RED_OTHERS_PENDING = [
@@ -904,7 +926,9 @@ class TestWaitOutsPendingLegs:
             "get_annotated_checks",
             lambda **k: _read([{"name": "test", "bucket": "pending", "required": True}]),
         )
-        monkeypatch.setattr(_impl, "fetch_mergeable", lambda **k: "CONFLICTING")
+        monkeypatch.setattr(
+            _impl, "get_pr_state", lambda **k: _impl.PrState(mergeable="CONFLICTING")
+        )
         result = _impl.poll_until_terminal(
             pr_number=1, repo="o/r", initial_wait=0, poll_interval=0, max_polls=5
         )
@@ -940,7 +964,7 @@ class TestDefaultBudgetUnderIdleTimeout:
             "get_annotated_checks",
             lambda **k: _read([{"name": "build", "bucket": "pending"}]),
         )
-        monkeypatch.setattr(_impl, "fetch_mergeable", lambda **k: "UNKNOWN")
+        monkeypatch.setattr(_impl, "get_pr_state", lambda **k: _impl.PrState(mergeable="UNKNOWN"))
 
         _impl.poll_until_terminal(pr_number=1, repo="o/r")
 
@@ -1036,14 +1060,18 @@ class TestCorroboratedZeroChecks:
                 runs=(0, json.dumps({"workflow_runs": [_HYGIENE_RUN]})),
             ),
         )
-        monkeypatch.setattr(_impl, "fetch_mergeable", lambda **k: "MERGEABLE")
+        monkeypatch.setattr(
+            _impl, "get_pr_state", lambda **k: _impl.PrState(mergeable="MERGEABLE")
+        )
         result = _impl.probe_once(pr_number=1, repo="o/r")
         assert result["verdict"] == "green"
         assert result["checks_source"] == _impl.SOURCE_RUNS_API
 
     def test_confirmed_zero_reaches_the_verdict_as_empty(self, monkeypatch):
         self._install(monkeypatch, _GhStub(checks=_NO_CHECKS))
-        monkeypatch.setattr(_impl, "fetch_mergeable", lambda **k: "MERGEABLE")
+        monkeypatch.setattr(
+            _impl, "get_pr_state", lambda **k: _impl.PrState(mergeable="MERGEABLE")
+        )
         result = _impl.probe_once(pr_number=1, repo="o/r")
         assert result["verdict"] == "empty"
         assert result["checks_source"] == _impl.SOURCE_CONFIRMED_ZERO

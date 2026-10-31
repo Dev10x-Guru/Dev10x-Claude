@@ -14,6 +14,7 @@ from dev10x.skills.monitor.ci_check_status import (
 
 from dev10x.core.config.hook_fragments import merged_hook_entries
 from dev10x.core.config.loader import load_document
+from dev10x.skills.monitor import ci_check_status as ci_check_status_module
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 _MAP = _REPO_ROOT / "src" / "dev10x" / "core" / "validators" / "command-skill-map.yaml"
@@ -87,6 +88,52 @@ def test_green_run_with_wait_for_still_waits_for_an_unregistered_leg():
     assert result["verdict"] == "green"
     assert is_terminal(result=result) is True
     assert is_terminal(result=result, wait_for=_BOT_LEGS) is False
+
+
+@pytest.fixture
+def fast_path_probes(monkeypatch: pytest.MonkeyPatch) -> list[dict]:
+    """GH-1609: required red on the first probe, bot legs settling on the third."""
+    probes = [
+        _result(
+            _check("git-history-linting", "fail", required=True),
+            _check("claude-review", "pending"),
+            _check("hygiene-review", "pending"),
+        ),
+        _result(
+            _check("git-history-linting", "fail", required=True),
+            _check("claude-review", "pass"),
+            _check("hygiene-review", "pending"),
+        ),
+        _result(
+            _check("git-history-linting", "fail", required=True),
+            _check("claude-review", "pass"),
+            _check("hygiene-review", "pass"),
+        ),
+    ]
+    served: list[dict] = []
+
+    def probe(**_kwargs: Any) -> dict:
+        result = probes[min(len(served), len(probes) - 1)]
+        served.append(result)
+        return result
+
+    monkeypatch.setattr(ci_check_status_module, "probe_once", probe)
+    monkeypatch.setattr(ci_check_status_module.time, "sleep", lambda *_a, **_k: None)
+    return served
+
+
+def test_fast_path_honours_wait_for_past_a_red_required_check(fast_path_probes: list[dict]):
+    result = ci_check_status_module.poll_until_terminal(
+        pr_number=1,
+        repo="o/r",
+        initial_wait=0,
+        poll_interval=0,
+        max_polls=5,
+        wait_for=_BOT_LEGS,
+    )
+
+    assert len(fast_path_probes) == 3
+    assert unsettled_named_checks(result=result, wait_for=_BOT_LEGS) == []
 
 
 def test_monitor_is_on_the_bash_validator_chain():

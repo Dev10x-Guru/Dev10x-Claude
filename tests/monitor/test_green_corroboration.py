@@ -52,7 +52,7 @@ def _serve_checks(
         "get_annotated_checks",
         lambda **_k: ChecksRead(checks=checks, source=SOURCE_GH_CLI),
     )
-    monkeypatch.setattr(_impl, "fetch_mergeable", lambda **_k: "MERGEABLE")
+    monkeypatch.setattr(_impl, "get_pr_state", lambda **_k: _impl.PrState(mergeable="MERGEABLE"))
 
 
 _PARTIAL_GREEN = [{"name": "lint", "bucket": "pass", "required": False}]

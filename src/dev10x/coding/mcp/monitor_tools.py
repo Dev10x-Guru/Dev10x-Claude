@@ -9,7 +9,7 @@ from dev10x.mcp._app import server
 @server.tool()
 async def ci_check_status(
     pr_number: int,
-    repo: str,
+    repo: str | None = None,
     required_only: bool = False,
     wait: bool = False,
     poll_interval: int = 30,
@@ -23,7 +23,7 @@ async def ci_check_status(
 
     Args:
         pr_number: PR number
-        repo: Repository in owner/repo format
+        repo: Repository in owner/repo format. Auto-detected from cwd if omitted.
         required_only: Only check required status checks
         wait: Poll until terminal verdict (green/failing/conflicting)
         poll_interval: Seconds between polls (default 30)
@@ -71,6 +71,9 @@ async def ci_check_status(
         with ``checks_source: "runs-api-pending"`` and the run names in
         ``running_runs``, because ``gh pr checks`` lists a partial set
         right after a push.
+        ``is_draft`` is read alongside ``mergeable``; on a draft with
+        skipped checks a ``verdict_caveat`` says the verdict is not real
+        (GH-1604).
     """
     from dev10x import monitor as mon
     from dev10x.subprocess_utils import use_cwd
