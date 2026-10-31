@@ -257,6 +257,10 @@ base_permissions:
   # (`gh issue edit --add-label`/`--remove-label`)  # cli-friction: allow raw-gh-issue — names the CLI it replaces
   # is routed/blocked, so this wrapper is the only sanctioned route.
   - "mcp__plugin_dev10x_cli__issue_labels"
+  # ci_rerun (GH-1674): the only sanctioned route for re-running a check;
+  # its raw form (a REST POST to `.../rerequest`) is on an ask rule,
+  # and `gh run rerun` covers Actions only. Repo-bound with a retry cap.
+  - "mcp__plugin_dev10x_cli__ci_rerun"
   # The milestone create/bulk writes are scoping's, milestone_close is
   # coding's, the park family's task_index_* writes are tasks', and the
   # db server's `query` is db's — each in its projects.d fragment.

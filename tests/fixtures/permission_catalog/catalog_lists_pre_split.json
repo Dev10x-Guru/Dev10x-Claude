@@ -8,7 +8,7 @@
   ],
   "command_spellings": [
     "{\"commands\": [\"dev10x foreman escalate\", \"dev10x foreman probe\", \"dev10x foreman retire\", \"dev10x foreman watch\", \"dev10x watchdog probe\", \"dev10x watchdog sessions\"], \"prefixes\": [\"\", \"uvx \", \"uv run \", \"uv run --project $CLAUDE_PLUGIN_ROOT \"]}",
-    "{\"commands\": [\"dev10x permission clean\", \"dev10x permission doctor\", \"dev10x permission ensure-base\", \"dev10x permission ensure-reads\", \"dev10x permission ensure-scripts\", \"dev10x permission ensure-workspace\", \"dev10x permission enumerate-mcp\", \"dev10x permission generalize\", \"dev10x permission init\", \"dev10x permission investigate\", \"dev10x permission merge-worktree\", \"dev10x permission ensure-ignored\", \"dev10x permission record-upgrade\", \"dev10x permission report\", \"dev10x permission update-paths\", \"dev10x permission findings\", \"dev10x doctor run\", \"dev10x playbook diff\", \"dev10x skill count-instructions\", \"dev10x skill prune-overrides\", \"dev10x config\", \"dev10x platform\", \"dev10x init\", \"dev10x github-app\"], \"prefixes\": [\"\", \"uvx \", \"uv run \"]}"
+    "{\"commands\": [\"dev10x permission clean\", \"dev10x permission doctor\", \"dev10x permission ensure-base\", \"dev10x permission ensure-reads\", \"dev10x permission ensure-scripts\", \"dev10x permission ensure-workspace\", \"dev10x permission enumerate-mcp\", \"dev10x permission generalize\", \"dev10x permission init\", \"dev10x permission investigate\", \"dev10x permission merge-worktree\", \"dev10x permission ensure-ignored\", \"dev10x permission record-upgrade\", \"dev10x permission report\", \"dev10x permission triage\", \"dev10x permission update-paths\", \"dev10x permission findings\", \"dev10x doctor run\", \"dev10x playbook diff\", \"dev10x skill count-instructions\", \"dev10x skill prune-overrides\", \"dev10x config\", \"dev10x platform\", \"dev10x init\", \"dev10x github-app\"], \"prefixes\": [\"\", \"uvx \", \"uv run \"]}"
   ],
   "base_permissions": [
     "Bash(/tmp/Dev10x/bin/mktmp.sh:*)",
@@ -226,6 +226,7 @@
     "mcp__plugin_dev10x_cli__candidate_rules_report",
     "mcp__plugin_dev10x_cli__check_top_level_comments",
     "mcp__plugin_dev10x_cli__ci_check_status",
+    "mcp__plugin_dev10x_cli__ci_rerun",
     "mcp__plugin_dev10x_cli__cluster_review_comments",
     "mcp__plugin_dev10x_cli__collect_prs",
     "mcp__plugin_dev10x_cli__create_pr",
@@ -255,6 +256,7 @@
     "mcp__plugin_dev10x_cli__mktmp",
     "mcp__plugin_dev10x_cli__next_worktree_name",
     "mcp__plugin_dev10x_cli__permission_catalog_gap",
+    "mcp__plugin_dev10x_cli__permission_triage",
     "mcp__plugin_dev10x_cli__plan_sync_archive",
     "mcp__plugin_dev10x_cli__plan_sync_json_summary",
     "mcp__plugin_dev10x_cli__plan_sync_set_context",
