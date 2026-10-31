@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from dev10x.validators.execution_safety import (
     INPLACE_EDIT_MSG,
@@ -389,6 +391,105 @@ class TestShellInterpreter:
         inp = _make_input(command="python3 /tmp/Dev10x/x.py")
         result = validator.validate(inp=inp)
         assert result is not None
+
+
+class TestScriptInsideWorkingTree:
+    """GH-1683: an absolute path into the caller's own tree is not untrusted."""
+
+    @pytest.fixture()
+    def validator(self) -> ExecutionSafetyValidator:
+        return ExecutionSafetyValidator()
+
+    @pytest.fixture()
+    def worktree(self, tmp_path):
+        tree = tmp_path / "worktree"
+        (tree / "scripts").mkdir(parents=True)
+        return tree
+
+    @pytest.mark.parametrize(
+        "template",
+        [
+            "bash {tree}/scripts/x.sh",
+            "sh {tree}/scripts/x.sh",
+            "python3 {tree}/scripts/x.py",
+            "bash {tree}/scripts/../scripts/x.sh",
+        ],
+    )
+    def test_allows_absolute_script_inside_cwd(
+        self,
+        validator: ExecutionSafetyValidator,
+        worktree,
+        template: str,
+    ) -> None:
+        inp = BashHookInputFaker.build(command=template.format(tree=worktree), cwd=str(worktree))
+
+        assert validator.validate(inp=inp) is None
+
+    @pytest.mark.parametrize(
+        "template",
+        [
+            "bash {tree}/../outside.sh",
+            "bash {tree}/scripts/../../outside.sh",
+            "bash {tree}-sibling/x.sh",
+            "bash /tmp/x.sh",
+        ],
+    )
+    def test_blocks_escape_out_of_cwd(
+        self,
+        validator: ExecutionSafetyValidator,
+        worktree,
+        template: str,
+    ) -> None:
+        inp = BashHookInputFaker.build(command=template.format(tree=worktree), cwd=str(worktree))
+
+        result = validator.validate(inp=inp)
+
+        assert result is not None
+        assert result.message == SHELL_INTERP_MSG
+
+    def test_symlink_out_of_cwd_is_blocked(
+        self,
+        validator: ExecutionSafetyValidator,
+        worktree,
+        tmp_path,
+    ) -> None:
+        outside = tmp_path / "outside.sh"
+        outside.write_text("")
+        (worktree / "scripts" / "link.sh").symlink_to(outside)
+        inp = BashHookInputFaker.build(
+            command=f"bash {worktree}/scripts/link.sh",
+            cwd=str(worktree),
+        )
+
+        assert validator.validate(inp=inp) is not None
+
+    def test_unresolvable_path_fails_closed(
+        self,
+        validator: ExecutionSafetyValidator,
+        worktree,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        def _raise(*_args: object, **_kwargs: object) -> None:
+            raise OSError("loop")
+
+        monkeypatch.setattr(Path, "resolve", _raise)
+        inp = BashHookInputFaker.build(
+            command=f"bash {worktree}/scripts/x.sh",
+            cwd=str(worktree),
+        )
+
+        assert validator.validate(inp=inp) is not None
+
+    @pytest.mark.parametrize("cwd", ["", "/"])
+    def test_abstains_without_a_meaningful_cwd(
+        self,
+        validator: ExecutionSafetyValidator,
+        worktree,
+        cwd: str,
+    ) -> None:
+        inp = BashHookInputFaker.build(command=f"bash {worktree}/scripts/x.sh", cwd=cwd)
+
+        assert validator.validate(inp=inp) is not None
 
 
 class TestInterpreterStdinBypass:

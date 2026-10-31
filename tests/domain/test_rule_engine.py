@@ -507,6 +507,26 @@ class TestIsSearchCommandQuoting:
     def test_real_pipeline_or_exec_drops_exemption(self, command: str) -> None:
         assert is_search_command(command=command) is False
 
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "git grep foo && git push --force",
+            "rg x; gh pr create",
+            "rg x\ngh pr create",
+            "rg x `git push`",
+            "rg x $(git push)",
+        ],
+    )
+    def test_chained_command_drops_exemption(self, command: str) -> None:
+        assert is_search_command(command=command) is False
+
+    @pytest.mark.parametrize(
+        "command",
+        ["git grep -n foo", "rg -n 'a|b' src/"],
+    )
+    def test_plain_search_keeps_exemption(self, command: str) -> None:
+        assert is_search_command(command=command) is True
+
     def test_backslash_is_literal_inside_single_quotes(self) -> None:
         # POSIX: no escapes inside '...', so the closing quote is the
         # first one — and the trailing | is then a real operator.
@@ -514,3 +534,39 @@ class TestIsSearchCommandQuoting:
 
     def test_non_search_executable_is_never_exempt(self) -> None:
         assert is_search_command(command="git push origin main") is False
+
+
+class TestGitGrepIsASearchCommand:
+    """GH-1609: `git grep` resolves to `git`, so it lost the rg/grep exemption."""
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "git grep -n pytest",
+            '/usr/bin/git grep -n "def \\|@pytest" HEAD -- tests/a.py',
+            'git -C /x grep -n "def \\|@pytest" HEAD -- tests/a.py',
+            "git --no-pager -C /x grep pytest -- tests/",
+            "git -c color.ui=never grep pytest",
+            "git --git-dir=/x/.git grep pytest",
+        ],
+    )
+    def test_git_grep_is_exempt(self, command: str) -> None:
+        assert is_search_command(command=command) is True
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "git log --grep pytest",
+            "git -C /x",
+            "git -C",
+            "git grep -O pytest tests/",
+            "git grep --open-files-in-pager=pytest foo",
+            "git -c core.pager=pytest grep foo",
+            "git -c pager.grep=pytest grep foo",
+            "git grep foo | xargs pytest",
+            "git grep 'unbalanced",
+            "gh grep pytest",
+        ],
+    )
+    def test_non_search_or_executing_spellings_are_not_exempt(self, command: str) -> None:
+        assert is_search_command(command=command) is False
