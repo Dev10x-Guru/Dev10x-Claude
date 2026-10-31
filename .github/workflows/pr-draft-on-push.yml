@@ -1,0 +1,64 @@
+name: Draft PR on push
+
+# GH-1694: converts a ready PR back to draft on every push, so the
+# author's next ready flip re-runs the reviewers on the new head; the
+# code review no longer runs on `synchronize`. Any push drafts — the job
+# does not judge whether the push changed anything. Drafting also turns
+# off GitHub auto-merge on the PR, which is intended. Ported from tt-pos
+# PAY-1743. See .claude/rules/claude-ci-cost.md § Review Trigger
+# Cadence.
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    types: [synchronize]
+
+jobs:
+  draft:
+    # A push to a PR that is already draft needs nothing: the ready flip
+    # is still ahead and reviews whatever head it finds. A fork PR's run
+    # gets no secrets, so the App token could not be minted; skip rather
+    # than leave a red job on every push.
+    if: ${{ !github.event.pull_request.draft && github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+
+    steps:
+      # The workflow GITHUB_TOKEN cannot call convertPullRequestToDraft
+      # ("Resource not accessible by integration"), so the job acts as a
+      # GitHub App holding contents and pull_requests write.
+      - name: Refuse to run without the App credentials
+        env:
+          APP_ID: ${{ vars.PR_DRAFT_APP_ID }}
+          PRIVATE_KEY: ${{ secrets.PR_DRAFT_APP_PRIVATE_KEY }}
+        run: |
+          if [ -z "$APP_ID" ] || [ -z "$PRIVATE_KEY" ]; then
+            echo "::error title=App credentials missing::Set the PR_DRAFT_APP_ID repository variable and the PR_DRAFT_APP_PRIVATE_KEY secret to a GitHub App with contents and pull_requests write. The job cannot draft the PR without them."
+            exit 1
+          fi
+
+      - name: Mint the App token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ vars.PR_DRAFT_APP_ID }}
+          private-key: ${{ secrets.PR_DRAFT_APP_PRIVATE_KEY }}
+          # convertPullRequestToDraft needs both: a token holding only
+          # pull_requests: write is refused.
+          permission-contents: write
+          permission-pull-requests: write
+
+      # `gh pr ready --undo` warns and exits 0 when the PR is already a
+      # draft, so a race with the review's own draft step is harmless.
+      - name: Convert the PR to draft
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          gh pr ready --undo "$PR_NUMBER" --repo "$GITHUB_REPOSITORY"
+          echo "::notice title=PR drafted after push::Head ${HEAD_SHA} has not been reviewed. Mark the PR ready for review once the branch is final to run CI and the reviewers on it."

@@ -18,6 +18,10 @@ This repository uses four Claude-powered workflows:
 4. **claude-pr-hygiene.yml** - PR metadata quality check on
    `opened` / `ready_for_review`
 
+The reviews run once per ready-for-review flip, and
+`pr-draft-on-push.yml` drafts a ready PR on every push:
+`.claude/rules/claude-ci-cost.md` § Review Trigger Cadence (GH-1694).
+
 ## Multi-Agent Architecture
 
 The code review workflow (`claude-code-review.yml`) uses a

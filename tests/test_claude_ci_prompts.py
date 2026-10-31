@@ -449,3 +449,30 @@ class TestMentionDiffReads:
 
     def test_prompt_reads_patches_from_the_files_endpoint(self, step: dict[str, Any]) -> None:
         assert "gh api repos/<REPO>/pulls/<PR>/files --paginate" in step["with"]["prompt"]
+
+
+def _trigger_types(*, workflow: str) -> list[str]:
+    # PyYAML reads the bare `on:` key as the boolean True.
+    return _load_workflow(workflow=workflow)[True]["pull_request"]["types"]
+
+
+class TestReviewCadence:
+    """The review runs once per ready flip; a push drafts the PR (GH-1694)."""
+
+    def test_review_does_not_run_on_every_push(self) -> None:
+        assert _trigger_types(workflow="claude-code-review.yml") == ["opened", "ready_for_review"]
+
+    def test_a_push_drafts_the_pr(self) -> None:
+        assert _trigger_types(workflow="pr-draft-on-push.yml") == ["synchronize"]
+
+    def test_draft_on_push_skips_drafts_and_forks(self) -> None:
+        condition = _load_workflow(workflow="pr-draft-on-push.yml")["jobs"]["draft"]["if"]
+
+        assert "!github.event.pull_request.draft" in condition
+        assert "head.repo.full_name == github.repository" in condition
+
+    def test_draft_on_push_fails_loudly_without_app_credentials(self) -> None:
+        steps = _steps_by_name(workflow="pr-draft-on-push.yml")
+        guard = steps["Refuse to run without the App credentials"]["run"]
+
+        assert "exit 1" in guard
