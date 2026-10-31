@@ -21,6 +21,8 @@ allowed-tools:
   - ListAgents
   - SendMessage
   - AskUserQuestion
+  - Agent
+  - Edit
   - Read
   - TaskCreate
   - TaskUpdate
@@ -89,10 +91,23 @@ Args: `[serve | relay | stop]` (default `serve`).
    3. When `ListAgents` does not list the session, reply with
       `send.py supervisor "undeliverable <id>" <body> --from
       supervisor-relay`.
-   4. Any other message: **REQUIRED: Call `AskUserQuestion`** (do NOT
+   4. If its `Subject` is `preapprove <id>` and its `From` is
+      `supervisor`, the supervisor pressed **Pre-approve** on the page.
+      The JSON body names the session, its pending call and the Bash
+      commands it ran. Dispatch one subagent with the brief in
+      [`references/preapprove.md`](references/preapprove.md), passing
+      the body inline. It returns proposed rules; it writes nothing.
+      Then **REQUIRED: Call `AskUserQuestion`** (do NOT use plain
+      text) listing every proposed rule and target file, with options
+      **Write them (Recommended)** / **Narrower** / **Cancel**.
+      Recommend Write only when no rule contains a bare `*` or
+      `Bash(*)`; otherwise lead with **Narrower**. On Write, apply
+      exactly the listed rules (see the reference's § Writing); on
+      Narrower, re-dispatch with the supervisor's note.
+   5. Any other message: **REQUIRED: Call `AskUserQuestion`** (do NOT
       use plain text), quoting the subject, with options
       **Ignore it (Recommended)** / **Show it to me**.
-   5. `done.py <path>`, then re-arm the watcher.
+   6. `done.py <path>`, then re-arm the watcher.
 3. Re-arm quietly: an empty watcher exit is not news.
 
 ### `stop`

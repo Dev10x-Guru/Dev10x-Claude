@@ -59,4 +59,5 @@ export interface ActionResult {
   error?: string;
   sent?: string;
   channel?: string;
+  commands?: number;
 }

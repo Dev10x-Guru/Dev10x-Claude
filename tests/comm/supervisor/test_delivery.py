@@ -14,6 +14,7 @@ from dev10x.comm.supervisor.delivery import (
     deliver_keys,
     deliver_relay,
     keys_for_option,
+    request_preapproval,
 )
 from dev10x.comm.supervisor.probes import ProbeError
 
@@ -72,6 +73,47 @@ class TestDeliverKeys:
             )
 
         assert not log_path.exists()
+
+
+class TestRequestPreapproval:
+    @pytest.fixture
+    def message(self, tmp_path: Path, log_path: Path) -> tuple[dict[str, str], str]:
+        path = request_preapproval(
+            bus_root=tmp_path / "bus",
+            relay_mailbox="supervisor-relay",
+            session_name="kb-84",
+            session_id="sid-1",
+            cwd="/home/janusz/KB",
+            request_id="sid-1-pre1",
+            pending={"tool": "Bash", "body": "herdr agent list"},
+            commands=["git status", "herdr agent list"],
+            confirmed_by="janusz",
+            log_path=log_path,
+        )
+        return read_message(message=path)
+
+    def test_subject_and_headers(self, message: tuple[dict[str, str], str]) -> None:
+        headers = message[0]
+
+        assert (headers["subject"], headers["to-session"], headers["request-id"]) == (
+            "preapprove sid-1-pre1",
+            "kb-84",
+            "sid-1-pre1",
+        )
+
+    def test_body_lists_commands_and_scopes(self, message: tuple[dict[str, str], str]) -> None:
+        body = json.loads(message[1])
+
+        assert (body["session"]["cwd"], body["commands"], body["scopes"]) == (
+            "/home/janusz/KB",
+            ["git status", "herdr agent list"],
+            ["worktree", "repo-checkouts", "user-global", "dev10x-catalog"],
+        )
+
+    def test_logged(self, message: tuple[dict[str, str], str], log_path: Path) -> None:
+        record = json.loads(log_path.read_text(encoding="utf-8"))
+
+        assert (record["action"], record["detail"]) == ("preapprove", "sid-1-pre1: 2 commands")
 
 
 class TestDeliverRelay:
