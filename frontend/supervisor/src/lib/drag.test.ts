@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { SESSION_MIME, carriesSession, droppedPeer } from "./drag";
+import { PROJECT_MIME, SESSION_MIME, carriesProject, carriesSession, droppedPeer } from "./drag";
 
 describe("carriesSession", () => {
   it.each([
@@ -9,6 +9,16 @@ describe("carriesSession", () => {
     [undefined, false],
   ])("reads %j", (types, expected) => {
     expect(carriesSession(types)).toBe(expected);
+  });
+});
+
+describe("carriesProject", () => {
+  it.each([
+    [[PROJECT_MIME], true],
+    [[SESSION_MIME], false],
+    [undefined, false],
+  ])("reads %j", (types, expected) => {
+    expect(carriesProject(types)).toBe(expected);
   });
 });
 

@@ -59,6 +59,21 @@ export function buildTree(sessions: Session[]): Project[] {
   return byMarkThenName(built, (project) => project.mark, (project) => project.name);
 }
 
+export function arrange(projects: Project[], order: string[], pinned: string[]): Project[] {
+  const rank = (project: Project): number => {
+    const at = order.indexOf(project.name);
+    return at < 0 ? order.length : at;
+  };
+  const indexed = projects.map((project, natural) => ({ project, natural }));
+  indexed.sort(
+    (a, b) =>
+      Number(!pinned.includes(a.project.name)) - Number(!pinned.includes(b.project.name)) ||
+      rank(a.project) - rank(b.project) ||
+      a.natural - b.natural,
+  );
+  return indexed.map(({ project }) => project);
+}
+
 export function matches(session: Session, query: string): boolean {
   const needle = query.trim().toLowerCase();
   if (!needle) return true;

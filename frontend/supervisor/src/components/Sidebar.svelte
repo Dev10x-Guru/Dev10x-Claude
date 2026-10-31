@@ -2,8 +2,17 @@
   import ProjectActions from "./ProjectActions.svelte";
   import StatusMark from "./StatusMark.svelte";
   import { displayName } from "../lib/format";
-  import { SESSION_MIME } from "../lib/drag";
-  import { buildTree, markOf, matches } from "../lib/tree";
+  import { PROJECT_MIME, SESSION_MIME, carriesProject } from "../lib/drag";
+  import {
+    PROJECT_ORDER_KEY,
+    PROJECT_PINS_KEY,
+    loadList,
+    moveBefore,
+    moveBy,
+    saveList,
+    togglePin,
+  } from "../lib/prefs";
+  import { arrange, buildTree, markOf, matches } from "../lib/tree";
   import type { Session } from "../lib/types";
 
   interface Props {
@@ -22,6 +31,9 @@
   let query = $state("");
   let collapsed = $state<Record<string, boolean>>({});
   let acting = $state("");
+  let projectPins = $state(loadList(PROJECT_PINS_KEY));
+  let projectOrder = $state(loadList(PROJECT_ORDER_KEY));
+  let dropTarget = $state("");
 
   const visible = $derived(sessions.filter((session) => matches(session, query)));
   const pinned = $derived(
@@ -29,14 +41,68 @@
       .map((id) => visible.find((session) => session.session_id === id))
       .filter((session): session is Session => !!session),
   );
-  const tree = $derived(buildTree(visible.filter((session) => !pins.includes(session.session_id))));
+  const tree = $derived(
+    arrange(
+      buildTree(visible.filter((session) => !pins.includes(session.session_id))),
+      projectOrder,
+      projectPins,
+    ),
+  );
 
   function toggle(name: string): void {
     collapsed = { ...collapsed, [name]: !collapsed[name] };
   }
+
+  function pinProject(name: string): void {
+    projectPins = togglePin(projectPins, name);
+    saveList(PROJECT_PINS_KEY, projectPins);
+  }
+
+  function reorder(next: string[]): void {
+    projectOrder = next;
+    saveList(PROJECT_ORDER_KEY, projectOrder);
+  }
+
+  function shown(): string[] {
+    return tree.map((project) => project.name);
+  }
+
+  function dragProject(event: DragEvent, name: string): void {
+    event.dataTransfer?.setData(PROJECT_MIME, name);
+    if (event.dataTransfer) event.dataTransfer.effectAllowed = "linkMove";
+  }
+
+  function overProject(event: DragEvent, name: string): void {
+    if (!carriesProject(event.dataTransfer?.types)) return;
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+    dropTarget = name;
+  }
+
+  function dropProject(event: DragEvent, name: string): void {
+    dropTarget = "";
+    const dragged = event.dataTransfer?.getData(PROJECT_MIME) ?? "";
+    if (!dragged) return;
+    event.preventDefault();
+    reorder(moveBefore(shown(), dragged, name));
+  }
+
+  function nudge(event: KeyboardEvent, name: string): void {
+    const step = { ArrowUp: -1, ArrowDown: 1 }[event.key];
+    if (!event.altKey || step === undefined) return;
+    event.preventDefault();
+    reorder(moveBy(shown(), name, step));
+  }
 </script>
 
 {#snippet plus(name: string)}
+  <button
+    class={["project-pin", { on: projectPins.includes(name) }]}
+    aria-pressed={projectPins.includes(name)}
+    aria-label={projectPins.includes(name) ? `Unpin project ${name}` : `Pin project ${name} to the top`}
+    title={projectPins.includes(name) ? "Unpin project" : "Pin project to the top (drag or Alt+↑/↓ to reorder)"}
+    onclick={() => pinProject(name)}>{projectPins.includes(name) ? "★" : "☆"}</button
+  >
   <button
     class={["plus", { on: acting === name }]}
     aria-expanded={acting === name}
@@ -117,8 +183,18 @@
         {@const open = !collapsed[project.name] || !!query}
         {@const root = project.folders[0].sessions[0].workspace.root || project.folders[0].root}
         {#if project.count === 1}
-          <li class="project">
-            <div class="project-row">
+          <li
+            class={["project", { target: dropTarget === project.name }]}
+            ondragover={(event) => overProject(event, project.name)}
+            ondragleave={() => (dropTarget = "")}
+            ondrop={(event) => dropProject(event, project.name)}
+          >
+            <div
+              class="project-row"
+              role="group"
+              aria-label="Project {project.name}"
+              ondragstartcapture={(event) => dragProject(event, project.name)}
+            >
               <ul class="sessions flat">
                 {@render leaf(project.folders[0].sessions[0], true)}
               </ul>
@@ -129,9 +205,25 @@
             {/if}
           </li>
         {:else}
-        <li class="project">
-          <div class="project-row">
-            <button class="project-head" aria-expanded={open} onclick={() => toggle(project.name)}>
+        <li
+          class={["project", { target: dropTarget === project.name }]}
+          ondragover={(event) => overProject(event, project.name)}
+          ondragleave={() => (dropTarget = "")}
+          ondrop={(event) => dropProject(event, project.name)}
+        >
+          <div
+            class="project-row"
+            role="group"
+            aria-label="Project {project.name}; drag to reorder"
+            draggable="true"
+            ondragstart={(event) => dragProject(event, project.name)}
+          >
+            <button
+              class="project-head"
+              aria-expanded={open}
+              onclick={() => toggle(project.name)}
+              onkeydown={(event) => nudge(event, project.name)}
+            >
               <span class={["caret", { open }]} aria-hidden="true"></span>
               <StatusMark mark={project.mark} />
               <span class="project-name">{project.name}</span>
@@ -231,6 +323,44 @@
   .project-row > :first-child {
     flex: 1;
     min-width: 0;
+  }
+
+  .project.target {
+    box-shadow: inset 0 2px 0 var(--focus);
+  }
+
+  .project-row[draggable="true"] {
+    cursor: grab;
+  }
+
+  .project-pin {
+    flex: none;
+    width: 1.2rem;
+    padding: 0;
+    background: none;
+    border: none;
+    color: var(--ink-faint);
+    font-size: 0.8rem;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 140ms var(--ease-out);
+  }
+
+  .project-row:hover .project-pin,
+  .project-pin:focus-visible,
+  .project-pin.on {
+    opacity: 1;
+  }
+
+  .project-pin.on {
+    color: var(--amber-ink);
+  }
+
+  @media (hover: none) {
+    .project-pin {
+      opacity: 1;
+    }
   }
 
   .plus {
