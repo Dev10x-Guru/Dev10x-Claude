@@ -65,6 +65,43 @@ Feedback is re-evaluated in these scenarios:
 Feedback is **not** automatically re-checked after simple file edits or
 approvals — it requires a commit push to re-trigger.
 
+## Reading Review Signals
+
+What an agent reports before a merge rests on reading these signals
+correctly. Each one is about what to report, not a new merge gate.
+
+- **A new HEAD is not a fix by itself.** A finding stays open until a
+  change between the reviewed commit and HEAD addresses it — in any
+  file, including commits a rebase brought in — or a thread reply
+  answers it. A newer SHA alone answers nothing.
+- **A "just a rebase" claim does not carry the review forward.** A PR
+  body or reply saying the new head only rebased reviewed work is
+  prose. Report the review as not run on HEAD unless
+  `git range-diff <reviewed-base>..<reviewed-sha> <new-base>..HEAD`
+  shows every patch unchanged.
+- **A base retarget changes what was reviewed without moving HEAD.**
+  When a stacked PR is retargeted onto `develop` after its dependency
+  merges, the PR's diff can cover content no round saw. A retarget
+  fires `pull_request: edited`, which the code review does not run on.
+  Compare the changed files against the old and the new base; if they
+  differ, report the review as not run on the current diff.
+- **A later review supersedes an earlier all-clear.** A wrap-up comment
+  saying a PR is ready, or that the bots found nothing, is a snapshot.
+  A request for changes or a CRITICAL finding that lands after it is
+  what gets reported.
+- **A workflow-file PR cannot be reviewed by the Claude bots.** A PR
+  editing `.github/workflows/claude*.yml` runs those workflows from its
+  own copy, and `claude-code-action` refuses a copy that differs from
+  the default branch, so no Claude review runs. With GH-1691's "Fail if
+  the review never ran" step, `claude-review` and `hygiene-review` go
+  red; without it they read green with nothing behind them. The red is
+  the expected signal, not a defect, and no commit can clear it before
+  merge. Such a
+  PR uses the two-PR convention: its body says the change cannot be
+  exercised pre-merge and names where the behaviour will first be
+  observed after merge. Say plainly that no bot reviewed it; whether to
+  wait for a human read is the author's call.
+
 ## Merge Configuration (Fanout / Work-On)
 
 When `dev10x:fanout` or `dev10x:work-on` orchestrate PR merges,
