@@ -46,6 +46,7 @@ def isolated_dirs(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> tuple[Path
         ("settings_pr_merge_yaml", "settings-pr-merge.yaml"),
         ("gchat_config_yaml", "gchat-config.yaml"),
         ("gchat_review_config_yaml", "gchat-config-code-review-requests.yaml"),
+        ("skill_prune_yaml", "skill-prune.yaml"),
     ],
 )
 def test_accessors_resolve_under_override(

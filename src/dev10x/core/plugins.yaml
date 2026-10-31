@@ -110,6 +110,7 @@ plugins:
     - plugin-doctor
     - plugin-maintenance
     - session-config-seed
+    - skill-prune
     - upgrade-cleanup
   coding:
     - fanout

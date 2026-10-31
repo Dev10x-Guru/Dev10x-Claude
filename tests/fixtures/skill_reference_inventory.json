@@ -91,6 +91,7 @@
   "skill-audit-queue": 15,
   "skill-create": 12,
   "skill-index": 7,
+  "skill-prune": 10,
   "skill-reinforcement": 4,
   "slack": 35,
   "slack-review-request": 37,

@@ -404,6 +404,120 @@ def rename(*, old: str, new: str, apply_changes: bool, root: Path) -> None:
     click.echo(f"Dry run, nothing written. Would rewrite {summary}. Pass --apply to write.")
 
 
+@skill.command(name="prune-overrides")
+@click.option(
+    "--settings",
+    "settings_path",
+    type=click.Path(dir_okay=False, path_type=Path),
+    default=Path(".claude/settings.local.json"),
+    show_default=True,
+    help="Settings file to plan against (project-local scope by default).",
+)
+@click.option(
+    "--set",
+    "assignments",
+    multiple=True,
+    metavar="NAME=VISIBILITY",
+    help="Proposed visibility: off, name-only, user-invocable-only, or on. Repeatable.",
+)
+@click.option(
+    "--disable-plugin",
+    "plugin_disables",
+    multiple=True,
+    metavar="PLUGIN@MARKETPLACE",
+    help="Plugin to switch off for this project via enabledPlugins. Repeatable.",
+)
+@click.option("--keep", "keeps", multiple=True, help="Never change this name. Repeatable.")
+@click.option(
+    "--allowlist",
+    "allowlist_path",
+    type=click.Path(dir_okay=False, path_type=Path),
+    default=None,
+    help="YAML with a `keep:` list (default ~/.config/Dev10x/skill-prune.yaml).",
+)
+@click.option(
+    "--apply",
+    "apply_changes",
+    is_flag=True,
+    default=False,
+    help="Write the plan to the settings file. Without it, only the plan is printed.",
+)
+def prune_overrides(
+    *,
+    settings_path: Path,
+    assignments: tuple[str, ...],
+    plugin_disables: tuple[str, ...],
+    keeps: tuple[str, ...],
+    allowlist_path: Path | None,
+    apply_changes: bool,
+) -> None:
+    """Plan (and with --apply, write) per-project skill pruning (GH-1627).
+
+    Prints one JSON object: the planned `skillOverrides` changes, plugins
+    to switch off, and what was left alone and why. Re-running on an
+    already-pruned file reports `has_changes: false`.
+    """
+    import json
+
+    from dev10x.commands.json_output import fail_json
+    from dev10x.core.domain.common.skill_overrides import (
+        PrunePlan,
+        Visibility,
+        apply_prune,
+        load_allowlist,
+        parse_settings,
+        plan_prune,
+    )
+    from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
+    from dev10x.core.domain.file_locks import locked_json_update
+
+    proposed: dict[str, Visibility] = {}
+    for assignment in assignments:
+        name, _, value = assignment.partition("=")
+        try:
+            proposed[name.strip()] = Visibility(value.strip())
+        except ValueError:
+            fail_json(error=f"invalid --set '{assignment}'")
+    loaded = load_allowlist(
+        path=allowlist_path or Dev10xConfigDir.skill_prune_yaml(),
+        required=allowlist_path is not None,
+    )
+    if isinstance(loaded, ErrorResult):
+        fail_json(error=loaded)
+    allowlist = loaded.value | frozenset(keeps)
+    settings: dict = {}
+    if settings_path.exists():
+        try:
+            text = settings_path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            fail_json(error=f"cannot read {settings_path}: {exc}")
+        parsed = parse_settings(text=text, source=str(settings_path))
+        if isinstance(parsed, ErrorResult):
+            fail_json(error=parsed)
+        settings = parsed.value
+
+    def plan_against(*, current: dict) -> PrunePlan:
+        return plan_prune(
+            settings=current,
+            proposed=proposed,
+            plugin_disables=plugin_disables,
+            allowlist=allowlist,
+        )
+
+    plan = plan_against(current=settings)
+    written = apply_changes and plan.has_changes
+    if written:
+        with locked_json_update(settings_path) as data:
+            plan = plan_against(current=data)
+            merged = apply_prune(settings=data, plan=plan)
+            data.clear()
+            data.update(merged)
+    report = plan.to_dict()
+    if written:
+        report["written"] = str(settings_path)
+    click.echo(json.dumps(report, indent=2))
+
+
 @skill.command(name="count-instructions")
 @click.argument(
     "paths",
