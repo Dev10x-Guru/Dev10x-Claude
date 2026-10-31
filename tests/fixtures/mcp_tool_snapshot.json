@@ -264,13 +264,20 @@
           "type": "integer"
         },
         "repo": {
-          "title": "Repo",
-          "type": "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repo"
         }
       },
       "required": [
-        "pr_number",
-        "repo"
+        "pr_number"
       ],
       "title": "check_top_level_commentsArguments",
       "type": "object"
@@ -309,8 +316,16 @@
           "type": "integer"
         },
         "repo": {
-          "title": "Repo",
-          "type": "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repo"
         },
         "required_only": {
           "default": false,
@@ -344,8 +359,7 @@
         }
       },
       "required": [
-        "pr_number",
-        "repo"
+        "pr_number"
       ],
       "title": "ci_check_statusArguments",
       "type": "object"
@@ -3587,9 +3601,16 @@
           "title": "Env"
         },
         "runner": {
-          "default": "jest",
-          "title": "Runner",
-          "type": "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Runner"
         },
         "script": {
           "default": "test",
@@ -3927,13 +3948,18 @@
           "title": "Pr Number"
         },
         "repo": {
-          "title": "Repo",
-          "type": "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repo"
         }
       },
-      "required": [
-        "repo"
-      ],
       "title": "unresolved_threadsArguments",
       "type": "object"
     },

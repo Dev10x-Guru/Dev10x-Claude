@@ -10,8 +10,9 @@ import json
 import subprocess
 from typing import Any
 
+from dev10x.core.github import _gateway
 from dev10x.core.paths import skill_script
-from dev10x.domain.common.result import Result, err, ok
+from dev10x.domain.common.result import ErrorResult, Result, err, ok
 from dev10x.domain.transport_budget import clamp_tool_timeout, polls_within_budget
 from dev10x.subprocess_utils import async_run, get_plugin_root
 
@@ -23,7 +24,7 @@ _WAIT_OVERHEAD_SECONDS = 60
 async def ci_check_status(
     *,
     pr_number: int,
-    repo: str,
+    repo: str | None = None,
     required_only: bool = False,
     wait: bool = False,
     poll_interval: int = 30,
@@ -32,13 +33,16 @@ async def ci_check_status(
     wait_out_pending: bool = True,
     wait_for: list[str] | None = None,
 ) -> Result[dict[str, Any]]:
+    repo_result = await _gateway._resolve_repo(repo)
+    if isinstance(repo_result, ErrorResult):
+        return err(repo_result.error)
     script = get_plugin_root() / skill_script(skill="gh-pr-monitor", rel="ci-check-status.py")
     args: list[str] = [
         str(script),
         "--pr",
         str(pr_number),
         "--repo",
-        repo,
+        str(repo_result.value),
     ]
     if required_only:
         args.append("--required-only")

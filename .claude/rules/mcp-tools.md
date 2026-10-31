@@ -192,8 +192,8 @@ one session). Use these shapes verbatim:
 | `issue_get` | `number` | `issue_id` |
 | `pr_get` | `number` | `pr_number` |
 | `pr_comments` | `pr_number`, `action` (no default) | omitting `action` |
-| `unresolved_threads` | `repo` (no CWD default); pass `pr_number` for a single PR | omitting `repo`; omitting `pr_number` for a per-PR check |
-| `check_top_level_comments` | `repo` (no CWD default), `pr_number` | omitting either; expecting `unresolved_threads`'s sweep-all-PRs mode — this tool has none (GH-1285) |
+| `unresolved_threads` | none; optional `repo` (defaults from `cwd`, GH-1683); pass `pr_number` for a single PR | omitting `pr_number` for a per-PR check |
+| `check_top_level_comments` | `pr_number`; optional `repo` (defaults from `cwd`, GH-1683) | expecting `unresolved_threads`'s sweep-all-PRs mode — this tool has none (GH-1285) |
 | `push_safe` | `args` list, e.g. `["-u", "origin", "<branch>"]` | bare call; passing `protected_branches=[]` expecting protection off — an empty list reads as "no override" (GH-1031) |
 | `resolve_review_thread` | `thread_ids` (list) | singular `thread_id` |
 | `resolve_gate` | `gate` (toggle name); optional `context` dict of gate facts | passing preset/friction values — the tool reads session policy itself (ADR-0016 D-2); passing `human_review` on `gate="merge"` — durable policy, read unconditionally and echoed back in `ignored_context_fields` (GH-1000) |
@@ -212,9 +212,10 @@ one session). Use these shapes verbatim:
 | `ci_rerun` | exactly one of `pr_number` / `head_sha`; optional `checks` (names), `failed_only` (default `true`), `repo` | passing both targets or neither — an error; expecting a retry counter on a third-party suite — only Actions runs carry `run_attempt`, so only they are capped at 3 (GH-1674); raw `gh api --method POST .../rerequest` — routed here |
 | `task_index_get` | none (optional `cwd`) | `Read`ing `.claude/Dev10x/session.yaml` — retired by ADR-0018 D5; the tool probes it as a fallback |
 | `pr_ready` | `pr_number`; optional `undo` (bool) | assuming it only publishes — `undo=true` returns a PR to draft |
-| `ci_check_status` | `pr_number`, `repo`; optional `wait`, `wait_out_pending` (default `true`), `wait_for` (list of check names) | reading a `wait=true` `failing` as "every leg finished" — check `pending` (GH-1065); expecting `wait_out_pending` to cover a failed REQUIRED leg — it does not, use `wait_for` (GH-1138); raising `max_polls` to cover a slow PR — the grant is capped by the transport budget, so ask twice rather than once for longer (GH-1288) |
+| `ci_check_status` | `pr_number`; optional `repo` (defaults from `cwd`, GH-1683), `wait`, `wait_out_pending` (default `true`), `wait_for` (list of check names) | reading a `wait=true` `failing` as "every leg finished" — check `pending` (GH-1065); expecting `wait_out_pending` to cover a failed REQUIRED leg — it does not, use `wait_for` (GH-1138); raising `max_polls` to cover a slow PR — the grant is capped by the transport budget, so ask twice rather than once for longer (GH-1288) |
 | `create_pr` | `title`, `issue_id`, plus either `job_story` or `body`; optional `head`, `milestone`, `repo` | passing a long `job_story` and expecting the extra paragraphs to survive — only `body` is used verbatim (GH-1073); assuming `repo` is rejected — it is accepted since GH-1269 |
-| `merge_pr` | `pr_number`; optional `expected_head_sha`, `use_bot` | omitting `expected_head_sha` after a pre-merge gate read `headRefOid` — the merge then takes whatever the head is *now* (GH-1267); reading `merged_as` as a request rather than a result — it reports which identity actually merged (GH-1272) |
+| `merge_pr` | `pr_number`; optional `expected_head_sha`, `use_bot` | omitting `expected_head_sha` after a pre-merge gate read `headRefOid` — the merge then takes whatever the head is *now* (GH-1267); reading `merged_as` as a request rather than a result — it reports which identity actually merged (GH-1272); passing an abbreviated `expected_head_sha` — only the full 40-character `headRefOid` is accepted, refused before any network call (GH-1681) |
+| `run_node_tests` | none; optional `runner` (detected from `cwd` when omitted, GH-1683), `script`, `env` | passing `runner="jest"` in a vitest repo — jest ran zero tests and reported passed 0 / failed 0 with only `returncode: 1` as the signal |
 | `update_pr` | `pr_number`, plus at least one of `body` / `title` / `base_branch` / `milestone` | `gh pr edit --milestone` — routed here (GH-1098) |
 | `permission_triage` / `permission_grant` | `target` (the prompted command, or a rule); grant also needs `rule`, the triage rule echoed back so the approval prompt names it; optional `working_dirs` (absolute), and `dry_run` on grant | passing a hand-built rule for a command — pass the command so triage can see its shape (GH-1676); expecting grant to write on a non-`grant` verdict, or with a `rule` triage did not derive — it refuses and returns the triage; relative `working_dirs` — rejected (GH-1264) |
 
@@ -387,6 +388,22 @@ Behavioral caveats:
   endpoint has no milestone field — so `gh pr edit --milestone` stays
   routed to `update_pr`. Clearing a milestone is not supported.
 
+- For a PR that delivers only part of issue #N (GH-1604), pass
+  `fixes_url="none — part of #N"` (or end `body=` with that line).
+  The trailer is present, so the GH-1274 read-back passes.
+  It carries no closing reference, so #N stays open on merge.
+  Add `Part of #N` and the remaining steps to the body.
+
+- `run_node_tests` detects its runner when `runner` is omitted (GH-1683):
+  `vitest.config.*` → vitest; `jest.config.*` or a `jest` key in
+  `package.json` → jest; a `test` script → the lockfile's package manager;
+  otherwise jest.
+  The payload's `runner` reports what actually ran.
+  A non-zero exit of the default `test` script with no executed test is an
+  `ErrorResult` with `verdict: "no_tests_ran"` — a run that executed
+  nothing must not look clean.
+  Parsed test failures and a failing named script stay ordinary results.
+
 - `create_pr(closes=[...])` is NON-CLOSING (GH-958). The parameter
   emits `Closes #N` lines into the PR body *above* the `Fixes:`
   trailer, and GitHub's auto-close automation never fires on them on a
@@ -526,8 +543,18 @@ Behavioral caveats:
   plus 60s grace, still under the 1080s cap), so alternating timeouts
   end the wait on time instead of outliving the transport.
 
+- `ci_check_status(wait=true)`'s up-front probe honors `wait_for`
+  (GH-1609).
+  A required red on the first probe no longer ends the wait while a
+  named leg is unsettled.
+  The payload also carries `is_draft`.
+  A draft with skipped checks adds `verdict_caveat` (GH-1604).
+  The `verdict` itself is unchanged, so a draft can still read
+  `green` — check the caveat.
+
 - `ci_check_status(wait=true)` probes once before sleeping and returns
-  straight away when the verdict is already terminal (GH-1088). A call
+  straight away when the verdict is already terminal (GH-1088; see the
+  GH-1609 `wait_for` exception above). A call
   that lands after CI finished costs one API round trip instead of the
   60s `initial_wait` it used to pay unconditionally, so a worker that
   reaches the check late is no longer parked behind a wait for a
@@ -656,8 +683,10 @@ Behavioral caveats:
   `.dev10x/gate-policy.yaml` (legacy `.claude/Dev10x/gate-policy.yaml`
   still read as a fallback, #752).
 
-Parameter normalization (accepting aliases, defaulting `repo` from
-CWD, richer `push_safe` diagnostics) is tracked as follow-up work;
+Defaulting `repo` from CWD has landed for `unresolved_threads`,
+`check_top_level_comments` and `ci_check_status` (GH-1683). Parameter
+normalization for aliases, `repo` defaulting on the remaining tools
+and richer `push_safe` diagnostics is tracked as follow-up work;
 until it lands, the table above is the contract.
 
 ## Tool Availability by Plugin Version
@@ -948,9 +977,10 @@ no allow-rule can suppress (GH-703).
 | `pytest` / `uv run pytest` | `dev10x:py-test` (wraps `run_tests`) |
 | `jest` / `yarn … test` / `npm test` / `pnpm test` / `vitest` | `mcp__plugin_dev10x_cli__run_node_tests` |
 
-`run_node_tests` accepts a `runner` arg (`jest` default, plus
-`vitest`/`yarn`/`npm`/`pnpm`); `jest`/`vitest` get `--coverage` when
-`coverage=true`.
+`run_node_tests` accepts a `runner` arg (`jest`, `vitest`, `yarn`,
+`npm`, `pnpm`). When omitted, the runner is detected from `cwd`, with
+`jest` only as the final fallback (see the runner-detection caveat
+above); `jest`/`vitest` get `--coverage` when `coverage=true`.
 
 Its `cwd` — like every tool's — must be **absolute** (GH-1264). A
 relative path is now rejected at the `use_cwd` seam rather than

@@ -39,6 +39,9 @@ Output (JSON):
                                        # from, so an "empty" verdict says
                                        # whether the zero was corroborated
         "mergeable": "MERGEABLE",      # "MERGEABLE", "CONFLICTING", "UNKNOWN"
+        "is_draft": False,             # read alongside mergeable (GH-1604)
+        "verdict_caveat": "...",       # only on a draft with skipped checks —
+                                       # "green" there is not a real verdict
         "total": 5,
         "pass": 3,
         "fail": 0,
@@ -167,11 +170,17 @@ class ChecksRead:
     source: str
 
 
-def fetch_mergeable(
+@dataclass(frozen=True)
+class PrState:
+    mergeable: str = "UNKNOWN"
+    is_draft: bool = False
+
+
+def get_pr_state(
     *,
     pr_number: int,
     repo: str,
-) -> str:
+) -> PrState:
     cmd = [
         "gh",
         "pr",
@@ -180,16 +189,21 @@ def fetch_mergeable(
         "--repo",
         repo,
         "--json",
-        "mergeable",
-        "-q",
-        ".mergeable",
+        "mergeable,isDraft",
     ]
     result = subprocess.run(
         cmd, capture_output=True, text=True, timeout=_SUBPROCESS_TIMEOUT_SECONDS
     )
     if result.returncode != 0:
-        return "UNKNOWN"
-    return result.stdout.strip() or "UNKNOWN"
+        return PrState()
+    try:
+        payload = json.loads(result.stdout or "{}")
+    except json.JSONDecodeError:
+        return PrState()
+    return PrState(
+        mergeable=payload.get("mergeable") or "UNKNOWN",
+        is_draft=bool(payload.get("isDraft", False)),
+    )
 
 
 def read_checks(
@@ -574,6 +588,7 @@ def compute_verdict(
     checks: list[dict],
     mergeable: str = "UNKNOWN",
     checks_source: str = SOURCE_GH_CLI,
+    is_draft: bool = False,
 ) -> dict:
     verdict, counts = _summarize(checks)
     required_verdict, _ = _summarize([c for c in checks if c.get("required")])
@@ -582,11 +597,21 @@ def compute_verdict(
         verdict = "conflicting"
         required_verdict = "conflicting"
 
+    # GH-1604: drafts skip test/coverage jobs, so "green" there is not a real verdict.
+    caveat: dict[str, str] = {}
+    if is_draft and counts["skipping"] > 0:
+        caveat["verdict_caveat"] = (
+            f"draft PR: {counts['skipping']} checks skipped — CI has not run them; "
+            "mark ready to get a real verdict"
+        )
+
     return {
         "verdict": verdict,
         "required_verdict": required_verdict,
+        **caveat,
         "checks_source": checks_source,
         "mergeable": mergeable,
+        "is_draft": is_draft,
         "total": len(checks),
         **counts,
         "skipping_checks": [
@@ -696,8 +721,13 @@ def probe_once(
         repo=repo,
         required_only=required_only,
     )
-    mergeable = fetch_mergeable(pr_number=pr_number, repo=repo)
-    result = compute_verdict(checks=read.checks, mergeable=mergeable, checks_source=read.source)
+    state = get_pr_state(pr_number=pr_number, repo=repo)
+    result = compute_verdict(
+        checks=read.checks,
+        mergeable=state.mergeable,
+        checks_source=read.source,
+        is_draft=state.is_draft,
+    )
     if required_only or result["verdict"] != "green":
         return result
     return corroborate_green(result=result, pr_number=pr_number, repo=repo)
@@ -725,7 +755,7 @@ def _probe_tolerantly(
     which is right for a single-shot read and wrong mid-poll: one rate
     limit at poll 30 of 40 discarded ``initial_wait`` plus thirty
     intervals and handed the caller a hard infrastructure failure for a
-    transient condition. Returning None mirrors ``fetch_mergeable``'s
+    transient condition. Returning None mirrors ``get_pr_state``'s
     existing ``UNKNOWN`` convention rather than inventing a second one.
 
     The abort's stdout blob is swallowed deliberately: this script's

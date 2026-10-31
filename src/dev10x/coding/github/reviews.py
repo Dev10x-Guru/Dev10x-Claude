@@ -613,12 +613,12 @@ async def request_review(
 async def check_top_level_comments(
     *,
     pr_number: int,
-    repo: str,
+    repo: str | None = None,
 ) -> Result[dict[str, Any]]:
-    try:
-        ref = RepositoryRef.parse(repo)
-    except ValueError as exc:
-        return err(str(exc))
+    repo_result = await _gateway._resolve_repo(repo)
+    if isinstance(repo_result, ErrorResult):
+        return repo_result
+    ref = repo_result.value
     result = await _gateway.async_run_script(
         skill_script(skill="gh-pr-merge", rel="check-top-level-comments.sh"),
         ref.owner,
@@ -651,22 +651,26 @@ async def check_top_level_comments(
 
 async def unresolved_threads(
     *,
-    repo: str,
+    repo: str | None = None,
     pr_number: int | None = None,
     limit: int = 200,
 ) -> Result[dict[str, Any]]:
+    repo_result = await _gateway._resolve_repo(repo)
+    if isinstance(repo_result, ErrorResult):
+        return repo_result
+    resolved_repo = str(repo_result.value)
     # A single-PR check delegates to the per-PR GraphQL path (one
     # query, sub-2s). The repo-wide sweep below fans out to ~2 gh
     # subprocesses per merged PR and times out at scale (GH-710).
     if pr_number is not None:
         return await _list_unresolved_threads(
-            resolved_repo=repo,
+            resolved_repo=resolved_repo,
             pr_number=pr_number,
         )
     result = await _gateway.async_run_script(
         skill_script(skill="gh-pr-doctor", rel="gh-unresolved-threads.py"),
         "--repo",
-        repo,
+        resolved_repo,
         "--limit",
         str(limit),
     )
