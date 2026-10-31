@@ -16,7 +16,8 @@ description: >
 user-invocable: true
 allowed-tools:
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/bus/scripts/:*)
-  - Bash(dev10x supervisor:*)
+  - Bash(uvx dev10x supervisor serve:*)
+  - Bash(uvx dev10x supervisor unit:*)
   - ListAgents
   - SendMessage
   - AskUserQuestion
@@ -66,10 +67,10 @@ Args: `[serve | relay | stop]` (default `serve`).
 
 ### `serve`
 
-1. Run `dev10x supervisor serve` under Bash `run_in_background: true`.
+1. Run `uvx dev10x supervisor serve` under Bash `run_in_background: true`.
 2. Read its output and print the `Supervisor page: …` URL. The token
    in the URL is the only credential; do not paste it anywhere else.
-3. To keep it running across reboots, run `dev10x supervisor unit`
+3. To keep it running across reboots, run `uvx dev10x supervisor unit`
    and show the unit text; installing it under `~/.config/systemd/user/`
    is the user's step.
 

@@ -39,6 +39,12 @@ def pre_split_entries() -> set[HookEntry]:
             5,
         ),
         ("PreToolUse", "TaskUpdate", _wrapped(name="task-guard", script="task-guard.py"), 5),
+        (
+            "PreToolUse",
+            "AskUserQuestion",
+            _wrapped(name="supervisor-decision", script="supervisor-decision.py"),
+            3,
+        ),
         ("Stop", "*", _wrapped(name="session-stop", script="session-stop.py"), 10),
         (
             "PreCompact",
