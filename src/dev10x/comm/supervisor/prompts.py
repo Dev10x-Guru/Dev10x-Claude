@@ -6,6 +6,9 @@ from dataclasses import dataclass, field
 OPTION_LINE = re.compile(r"^\s*(?:[❯>]\s*)?(\d{1,2})\.\s+(\S.*?)\s*$")
 CURSOR = re.compile(r"^\s*[❯>]")
 RULE_LINE = re.compile(r"^\s*[─╌━-]{8,}\s*$")
+DIALOG_EDGE = re.compile(r"^\s*[─━]{8,}\s*$")
+MAX_CONTEXT_LINES = 40
+GUTTER = re.compile(r"^\s*│\s?")
 INPUT_LINE = re.compile(r"^\s*[❯>](?!\s*\d{1,2}\.)")
 HINT_LINE = re.compile(r"^\s*(?:⏵|\?\s+for shortcuts\b|esc to interrupt\b)")
 ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;:?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)")
@@ -27,6 +30,7 @@ class PromptOption:
 class Prompt:
     question: str
     options: list[PromptOption] = field(default_factory=list)
+    context: list[str] = field(default_factory=list)
 
 
 def _runs(*, lines: list[str]) -> list[list[int]]:
@@ -46,12 +50,27 @@ def _runs(*, lines: list[str]) -> list[list[int]]:
     return [run for run in runs if len(run) >= 2]
 
 
-def _question(*, lines: list[str], first: int) -> str:
-    for line in reversed(lines[:first]):
-        text = line.strip()
-        if text and not RULE_LINE.match(line):
-            return text
-    return ""
+def _question_at(*, lines: list[str], first: int) -> int | None:
+    for index in range(first - 1, -1, -1):
+        if lines[index].strip() and not RULE_LINE.match(lines[index]):
+            return index
+    return None
+
+
+def _context(*, lines: list[str], question: int) -> list[str]:
+    floor = max(0, question - MAX_CONTEXT_LINES)
+    edge = next(
+        (index for index in range(question - 1, floor - 1, -1) if DIALOG_EDGE.match(lines[index])),
+        None,
+    )
+    if edge is None:
+        return []
+    block = [line.rstrip() for line in lines[edge + 1 : question]]
+    while block and not block[0].strip():
+        block.pop(0)
+    while block and not block[-1].strip():
+        block.pop()
+    return block
 
 
 def _detail(*, lines: list[str], start: int, stop: int) -> str:
@@ -83,7 +102,14 @@ def parse_prompt(*, pane_text: str) -> Prompt | None:
                 selected=bool(CURSOR.match(lines[index])),
             )
         )
-    return Prompt(question=_question(lines=lines, first=run[0]), options=options)
+    question = _question_at(lines=lines, first=run[0])
+    if question is None:
+        return Prompt(question="", options=options)
+    return Prompt(
+        question=GUTTER.sub("", lines[question]).strip(),
+        options=options,
+        context=_context(lines=lines, question=question),
+    )
 
 
 def _status_rows(*, lines: list[str]) -> list[int]:

@@ -161,7 +161,7 @@ class TestPaneCommands:
                 "--source",
                 "visible",
                 "--lines",
-                "20",
+                "60",
                 "--format",
                 "text",
             ],
