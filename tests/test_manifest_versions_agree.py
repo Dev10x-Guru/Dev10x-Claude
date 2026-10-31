@@ -14,9 +14,12 @@ fix adds the key and the bumpversion entry; this guard is what stops the
 pair drifting apart again, because nothing about editing one manifest
 hints that a second one exists.
 
-The duplicated ``description`` is deliberately gone from
-``marketplace.json`` rather than kept in sync by a second bumpversion
-entry — one source of truth beats two a tool has to reconcile.
+``marketplace.json`` carries its own copy of the ``description``
+(GH-1355). Neither Plugins pane renders ``version``, so the
+``v{version} —`` prefix is the only way an available update becomes
+visible. That deliberately reverses GH-1310's no-duplication rule for
+this one field; the guards below keep the copy honest instead of
+forbidding it.
 """
 
 from __future__ import annotations
@@ -140,13 +143,48 @@ def test_the_release_script_stages_every_versioned_file() -> None:
     )
 
 
-def test_the_description_is_not_duplicated_across_manifests() -> None:
-    """Two descriptions is the drift that exposed GH-1310 in the first place."""
+def test_the_marketplace_description_leads_with_the_manifest_version() -> None:
+    """The Discover pane's only version-bearing string (GH-1355).
+
+    Two descriptions is the drift that exposed GH-1310, so the copy is
+    allowed back only with its prefix pinned to the release version.
+    """
     entry = _marketplace_entry(name=_load_json(_PLUGIN_MANIFEST)["name"])
-    assert "description" not in entry, (
-        "marketplace.json's plugins[] entry should not carry its own "
-        "'description' — plugin.json owns it, and the copy here went stale "
-        "because no release step updated it"
+    assert entry["description"].startswith(f"v{entry['version']} — "), (
+        f"marketplace.json's description {entry['description']!r} must start "
+        f"with 'v{entry['version']} — ' — the Discover pane renders no "
+        "version field, so this prefix is how an available update shows up"
+    )
+
+
+def test_both_manifests_carry_the_same_description() -> None:
+    """The second copy may not drift in the half bumpversion does not own.
+
+    The prefix is rewritten on every release; the skill count beside it
+    is not (GH-1356), so the two strings are held equal rather than
+    trusting each to be edited by hand.
+    """
+    plugin = _load_json(_PLUGIN_MANIFEST)
+    entry = _marketplace_entry(name=plugin["name"])
+    assert entry["description"] == plugin["description"], (
+        "marketplace.json's plugins[] description differs from plugin.json's "
+        "— edit both, the Installed and Discover panes each render one"
+    )
+
+
+def test_bumpversion_moves_the_marketplace_description_prefix() -> None:
+    """The guard above only bites after a release; this one bites before it."""
+    entries = tomllib.loads(_BUMPVERSION.read_text())["tool"]["bumpversion"]["files"]
+    prefix_entries = [
+        entry
+        for entry in entries
+        if entry["filename"] == ".claude-plugin/marketplace.json"
+        and entry["search"] == '"v{current_version} —'
+    ]
+    assert prefix_entries, (
+        ".bumpversion.toml has no search/replace block for the "
+        "'v{current_version} —' prefix in .claude-plugin/marketplace.json — "
+        "the Discover pane would freeze on the old version at the next bump"
     )
 
 
