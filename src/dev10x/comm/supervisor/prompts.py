@@ -8,6 +8,11 @@ CURSOR = re.compile(r"^\s*[❯>]")
 RULE_LINE = re.compile(r"^\s*[─╌━-]{8,}\s*$")
 INPUT_LINE = re.compile(r"^\s*[❯>](?!\s*\d{1,2}\.)")
 HINT_LINE = re.compile(r"^\s*(?:⏵|\?\s+for shortcuts\b|esc to interrupt\b)")
+ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;:?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)")
+
+
+def strip_ansi(text: str) -> str:
+    return ANSI_ESCAPE.sub("", text)
 
 
 @dataclass(frozen=True)
@@ -81,16 +86,26 @@ def parse_prompt(*, pane_text: str) -> Prompt | None:
     return Prompt(question=_question(lines=lines, first=run[0]), options=options)
 
 
-def parse_status_line(*, pane_text: str) -> str:
-    lines = pane_text.splitlines()
+def _status_rows(*, lines: list[str]) -> list[int]:
     rules = [index for index, line in enumerate(lines) if RULE_LINE.match(line)]
     if len(rules) < 2 or not INPUT_LINE.match(lines[rules[-2] + 1]):
-        return ""
-    return "\n".join(
-        line.strip()
-        for line in lines[rules[-1] + 1 :]
-        if line.strip() and not HINT_LINE.match(line)
-    )
+        return []
+    return [
+        index
+        for index in range(rules[-1] + 1, len(lines))
+        if lines[index].strip() and not HINT_LINE.match(lines[index])
+    ]
+
+
+def parse_status_line(*, pane_text: str) -> str:
+    plain = strip_ansi(pane_text).splitlines()
+    return "\n".join(plain[index].strip() for index in _status_rows(lines=plain))
+
+
+def parse_status_line_ansi(*, pane_ansi: str) -> str:
+    raw = pane_ansi.splitlines()
+    plain = [strip_ansi(line) for line in raw]
+    return "\n".join(raw[index].strip() for index in _status_rows(lines=plain))
 
 
 def find_option(*, prompt: Prompt | None, key: str, label: str) -> PromptOption | None:

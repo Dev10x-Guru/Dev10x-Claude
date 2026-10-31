@@ -10,6 +10,8 @@ from dev10x.comm.supervisor.prompts import (
     find_option,
     parse_prompt,
     parse_status_line,
+    parse_status_line_ansi,
+    strip_ansi,
 )
 
 PERMISSION = """\
@@ -161,3 +163,35 @@ class TestParseStatusLine:
     )
     def test_no_input_box_means_no_bar(self, text: str) -> None:
         assert parse_status_line(pane_text=text) == ""
+
+
+GREY = "\x1b[0m\x1b[38;2;136;136;136m"
+SEGMENT = "\x1b[38;2;251;241;199m\x1b[48;2;177;98;134m wt poc \x1b[0m"
+COLOURED_PANE = (
+    f"{GREY}{RULE}\x1b[0m\n❯ \n{GREY}{RULE}\x1b[0m\n"
+    f"  {SEGMENT}\n  \x1b[38;2;175;135;255m⏵⏵ accept edits on\x1b[0m\n"
+)
+
+
+class TestColouredStatusLine:
+    def test_keeps_the_escape_codes_of_the_bar_rows(self) -> None:
+        assert parse_status_line_ansi(pane_ansi=COLOURED_PANE) == SEGMENT
+
+    def test_plain_parse_ignores_the_codes(self) -> None:
+        assert parse_status_line(pane_text=COLOURED_PANE) == "wt poc"
+
+    def test_no_bar(self) -> None:
+        assert parse_status_line_ansi(pane_ansi="plain output\n") == ""
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            ("\x1b[1;31mred\x1b[0m", "red"),
+            ("\x1b]8;;https://x.dev\x07link\x1b]8;;\x07", "link"),
+            ("\x1b[?25lhidden cursor", "hidden cursor"),
+            ("no codes", "no codes"),
+        ],
+        ids=["sgr", "osc-link", "private-mode", "plain"],
+    )
+    def test_strip_ansi(self, text: str, expected: str) -> None:
+        assert strip_ansi(text) == expected
