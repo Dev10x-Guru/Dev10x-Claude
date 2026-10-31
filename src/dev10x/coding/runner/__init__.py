@@ -10,6 +10,7 @@ not apply (GH-238, mirrors the GH-232 ``merge_pr`` pattern).
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import subprocess
@@ -289,6 +290,46 @@ _NODE_TESTS_RE = re.compile(r"^Tests:\s+(?P<body>.+)$", re.MULTILINE)
 _NODE_COUNT_RE = re.compile(r"(\d+)\s+(passed|failed|skipped|todo|pending)")
 _NODE_TOTAL_RE = re.compile(r"(\d+)\s+total")
 
+# GH-1683: vitest prints `      Tests  2 failed | 554 passed (556)` — no
+# colon, a pipe separator, and the total in parentheses.
+_VITEST_TESTS_RE = re.compile(r"^\s*Tests\s{2,}(?P<body>\d.*)$", re.MULTILINE)
+_VITEST_TOTAL_RE = re.compile(r"\((\d+)\)\s*$")
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+# GH-1683: defaulting to jest ran zero tests in a vitest repo and returned
+# passed 0 / failed 0. Detection reads only fixed config filenames and
+# package.json, so the same checkout always resolves to the same runner.
+_CONFIG_EXTENSIONS = ("ts", "mts", "cts", "js", "mjs", "cjs")
+_VITEST_CONFIGS = tuple(f"vitest.config.{ext}" for ext in _CONFIG_EXTENSIONS)
+_JEST_CONFIGS = (*(f"jest.config.{ext}" for ext in _CONFIG_EXTENSIONS), "jest.config.json")
+_LOCKFILE_MANAGERS = (("pnpm-lock.yaml", "pnpm"), ("yarn.lock", "yarn"))
+_PACKAGE_JSON = "package.json"
+_FALLBACK_NODE_RUNNER = "jest"
+
+
+def _read_package_json(*, root: Path) -> dict[str, Any]:
+    try:
+        parsed = json.loads((root / _PACKAGE_JSON).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def detect_node_runner(*, cwd: str) -> str:
+    root = Path(cwd)
+    if any((root / name).is_file() for name in _VITEST_CONFIGS):
+        return "vitest"
+    package = _read_package_json(root=root)
+    if any((root / name).is_file() for name in _JEST_CONFIGS) or "jest" in package:
+        return "jest"
+    scripts = package.get("scripts")
+    if isinstance(scripts, dict) and _NODE_DEFAULT_SCRIPT in scripts:
+        for lockfile, manager in _LOCKFILE_MANAGERS:
+            if (root / lockfile).is_file():
+                return manager
+        return "npm"
+    return _FALLBACK_NODE_RUNNER
+
 
 def _overlay_env(extra: dict[str, str] | None) -> dict[str, str] | None:
     """Overlay ``extra`` on the inherited environment, or ``None`` when empty.
@@ -306,7 +347,7 @@ def _overlay_env(extra: dict[str, str] | None) -> dict[str, str] | None:
 
 async def run_node_tests(
     *,
-    runner: str = "jest",
+    runner: str | None = None,
     script: str = _NODE_DEFAULT_SCRIPT,
     args: list[str] | None = None,
     coverage: bool = True,
@@ -323,6 +364,11 @@ async def run_node_tests(
 
     Args:
         runner: One of ``jest``, ``vitest``, ``yarn``, ``npm``, ``pnpm``.
+            ``None`` (default) detects it from the working directory
+            (GH-1683): a ``vitest.config.*`` selects vitest, a
+            ``jest.config.*`` or a ``jest`` key in ``package.json``
+            selects jest, a ``test`` script selects the lockfile's
+            package manager, and jest is the last resort.
         script: The ``package.json`` script to run (default ``test``), so a
             check like ``lint:tsc`` reaches the same structured wrapper
             instead of falling back to a raw ``node``/``tsc`` invocation
@@ -346,11 +392,15 @@ async def run_node_tests(
         ``summary_parsed`` is False when no summary line was found, in
         which case the counts below it are not evidence of anything.
 
-        err(...) only when the runner binary is missing, the runner name
-        is unknown, ``script`` is unsupported by the runner, or the
-        subprocess times out. A non-zero runner returncode is *not* an
-        MCP-level error.
+        err(...) when the runner binary is missing, the runner name is
+        unknown, ``script`` is unsupported by the runner, the subprocess
+        times out, or the default test script exited non-zero without
+        reporting any executed test (GH-1683) — a run that executed
+        nothing must not read as clean. A non-zero returncode with parsed
+        failures is *not* an MCP-level error.
     """
+    if runner is None:
+        runner = detect_node_runner(cwd=effective_cwd() or os.getcwd())
     base = _NODE_RUNNERS.get(runner)
     if base is None:
         return err(
@@ -400,6 +450,17 @@ async def run_node_tests(
 
     # jest/vitest write their summary to stderr; scan both streams.
     parsed = _parse_node(f"{proc.stdout}\n{proc.stderr}")
+    if _ran_nothing(returncode=proc.returncode, script=script, parsed=parsed):
+        return err(
+            f"{runner} exited {proc.returncode} without reporting any executed "
+            f"test — the runner may not match this project. Pass runner= "
+            f"explicitly (one of: {', '.join(sorted(_NODE_RUNNERS))}).",
+            verdict="no_tests_ran",
+            runner=runner,
+            returncode=proc.returncode,
+            stdout=proc.stdout,
+            stderr=proc.stderr,
+        )
     payload: dict[str, Any] = {
         "returncode": proc.returncode,
         "runner": runner,
@@ -411,19 +472,33 @@ async def run_node_tests(
     return ok(payload)
 
 
+def _ran_nothing(*, returncode: int, script: str, parsed: dict[str, Any]) -> bool:
+    # A named non-test script (``lint:tsc``) never prints a test summary, so
+    # its non-zero exit is an ordinary result rather than a silent no-op.
+    if returncode == 0 or script != _NODE_DEFAULT_SCRIPT:
+        return False
+    if not parsed["summary_parsed"]:
+        return True
+    total = parsed["total"]
+    if total is None:
+        total = sum(parsed[key] for key in ("passed", "failed", "skipped", "todo"))
+    return total == 0
+
+
 def _parse_node(output: str) -> dict[str, Any]:
-    """Extract structured results from a jest/vitest-style ``Tests:`` line."""
+    """Extract structured results from a jest ``Tests:`` or vitest ``Tests`` line."""
+    output = _ANSI_RE.sub("", output)
     counts = {"passed": 0, "failed": 0, "skipped": 0, "todo": 0}
     summary = ""
     total: int | None = None
 
-    match = _NODE_TESTS_RE.search(output)
+    match = _NODE_TESTS_RE.search(output) or _VITEST_TESTS_RE.search(output)
     if match:
         summary = match.group("body").strip()
         for count, label in _NODE_COUNT_RE.findall(summary):
             key = "skipped" if label == "pending" else label
             counts[key] = int(count)
-        total_match = _NODE_TOTAL_RE.search(summary)
+        total_match = _NODE_TOTAL_RE.search(summary) or _VITEST_TOTAL_RE.search(summary)
         total = int(total_match.group(1)) if total_match else None
 
     return {

@@ -7,11 +7,14 @@ capabilities through ``pulls.pr_get`` / ``labels._loads_or_empty``
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from dev10x.coding.github import labels, pulls
 from dev10x.core.github import _gateway
 from dev10x.domain.common.result import ErrorResult, Result, SuccessResult, err, ok
+
+_FULL_SHA_RE = re.compile(r"[0-9a-f]{40}")
 
 
 async def _resolve_merge_bot(
@@ -167,7 +170,9 @@ async def merge_pr(
             specific head; without pinning it, a push landing between
             that verification and this call ships code no gate saw.
             Passed as ``--match-head-commit``, so a moved head fails
-            the merge instead of silently widening it.
+            the merge instead of silently widening it. Must be the full
+            40-character SHA (``pr_get().headRefOid``); an abbreviated
+            one is refused before any network call (GH-1681).
         use_bot: Execute the merge under the GitHub App identity so
             ``merged_by`` names the bot (GH-1272). ``None`` reads the
             durable ``github_app.merge_bot`` preference; ``True`` /
@@ -183,6 +188,16 @@ async def merge_pr(
     """
     if strategy not in {"rebase", "squash", "merge"}:
         return err(f"Invalid merge strategy: {strategy!r}. Use rebase, squash, or merge.")
+
+    # GH-1681: GitHub rejects an abbreviated SHA only after the round trip.
+    if expected_head_sha:
+        normalized_sha = expected_head_sha.strip().lower()
+        if not _FULL_SHA_RE.fullmatch(normalized_sha):
+            return err(
+                "expected_head_sha must be the full 40-character SHA — pass "
+                f"pr_get().headRefOid; got {expected_head_sha!r}"
+            )
+        expected_head_sha = normalized_sha
 
     repo_result = await _gateway._resolve_repo(repo)
     if isinstance(repo_result, ErrorResult):

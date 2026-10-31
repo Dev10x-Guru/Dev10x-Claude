@@ -22,9 +22,11 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from dev10x.domain.common.repository_ref import RepositoryRef
-from dev10x.domain.common.result import SuccessResult, ok
+from dev10x.domain.common.result import ErrorResult, SuccessResult, ok
 
 gh = pytest.importorskip("dev10x.github", reason="dev10x not installed")
+
+_FULL_SHA = "0123456789abcdef0123456789abcdef01234567"
 
 _JOB_STORY = (
     "**When** a PR is opened, **the maintainer wants to** ship it, **so the crew can** move on."
@@ -132,12 +134,12 @@ class TestMergePrPinsTheVerifiedHead:
     ) -> None:
         mock_run.return_value = _completed(stdout="merged\n")
 
-        result = await gh.merge_pr(pr_number=42, expected_head_sha="deadbeef")
+        result = await gh.merge_pr(pr_number=42, expected_head_sha=_FULL_SHA)
 
         assert isinstance(result, SuccessResult)
         called_args = mock_run.call_args.kwargs["args"]
         assert "--match-head-commit" in called_args
-        assert called_args[called_args.index("--match-head-commit") + 1] == "deadbeef"
+        assert called_args[called_args.index("--match-head-commit") + 1] == _FULL_SHA
 
     @pytest.mark.asyncio
     @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
@@ -161,10 +163,46 @@ class TestMergePrPinsTheVerifiedHead:
     ) -> None:
         mock_run.return_value = _completed(stdout="merged\n")
 
-        result = await gh.merge_pr(pr_number=42, expected_head_sha="deadbeef")
+        result = await gh.merge_pr(pr_number=42, expected_head_sha=_FULL_SHA)
 
         assert isinstance(result, SuccessResult)
-        assert result.value["expected_head_sha"] == "deadbeef"
+        assert result.value["expected_head_sha"] == _FULL_SHA
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "sha",
+        ["deadbeef", "deadbee", _FULL_SHA + "0", "g" * 40, "dead beef" * 5],
+    )
+    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    async def test_abbreviated_sha_is_refused_before_any_call(
+        self,
+        mock_run: AsyncMock,
+        mock_resolve_repo,
+        sha: str,
+    ) -> None:
+        """GH-1681: GitHub rejected short SHAs only after the round trip."""
+        result = await gh.merge_pr(pr_number=42, expected_head_sha=sha)
+
+        assert isinstance(result, ErrorResult)
+        assert "full 40-character SHA" in result.error
+        assert "headRefOid" in result.error
+        assert repr(sha) in result.error
+        mock_run.assert_not_awaited()
+        mock_resolve_repo.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    async def test_uppercase_sha_is_normalized(
+        self,
+        mock_run: AsyncMock,
+        mock_resolve_repo,
+    ) -> None:
+        mock_run.return_value = _completed(stdout="merged\n")
+
+        result = await gh.merge_pr(pr_number=42, expected_head_sha=_FULL_SHA.upper())
+
+        assert isinstance(result, SuccessResult)
+        assert result.value["expected_head_sha"] == _FULL_SHA
 
 
 @pytest.mark.usefixtures("stub_fixes_trailer_readback")

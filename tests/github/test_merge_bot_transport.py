@@ -120,10 +120,10 @@ class TestBotTransportSelected:
         mock_api.return_value = _completed(stdout='{"merged": true}')
 
         await gh.merge_pr(
-            pr_number=42, use_bot=True, delete_branch=False, expected_head_sha="deadbeef"
+            pr_number=42, use_bot=True, delete_branch=False, expected_head_sha="deadbeef" * 5
         )
 
-        assert mock_api.call_args.kwargs["fields"]["sha"] == "deadbeef"
+        assert mock_api.call_args.kwargs["fields"]["sha"] == "deadbeef" * 5
 
     @pytest.mark.asyncio
     @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)

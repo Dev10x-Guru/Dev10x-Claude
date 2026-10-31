@@ -38,6 +38,27 @@ JEST_FAIL_STDERR = (
     "Time:        2.10 s\n"
 )
 
+VITEST_PASS_STDOUT = (
+    " Test Files  16 passed (16)\n"
+    "      Tests  556 passed (556)\n"
+    "   Start at  10:00:00\n"
+    "   Duration  4.21s\n"
+)
+
+VITEST_FAIL_STDOUT = (
+    " Test Files  1 failed | 15 passed (16)\n      Tests  2 failed | 554 passed (556)\n"
+)
+
+VITEST_COLORED_STDOUT = "\x1b[2m      Tests \x1b[22m \x1b[1m\x1b[32m3 passed\x1b[39m\x1b[22m (3)\n"
+
+JEST_NO_TESTS_STDOUT = "No tests found, exiting with code 1\n"
+
+
+@pytest.fixture(autouse=True)
+def project_root(tmp_path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(runner, "effective_cwd", lambda: str(tmp_path))
+    return tmp_path
+
 
 class TestSummaryParsing:
     """GH-1285: zero counts must not stand in for an unparsed summary."""
@@ -285,3 +306,140 @@ class TestEnvOverlay:
         passed_env = mock_run.call_args.kwargs["env"]
         assert passed_env["TZ"] == "America/New_York"
         assert passed_env["PATH"] == "/usr/bin"
+
+
+class TestRunnerDetection:
+    """GH-1683: an omitted runner is detected from the project, not assumed."""
+
+    @pytest.mark.parametrize(
+        ("files", "expected"),
+        [
+            ({}, "jest"),
+            ({"vitest.config.mts": ""}, "vitest"),
+            ({"vitest.config.ts": "", "jest.config.js": ""}, "vitest"),
+            ({"jest.config.cjs": ""}, "jest"),
+            ({"package.json": '{"jest": {}}'}, "jest"),
+            ({"package.json": '{"scripts": {"test": "x"}}', "pnpm-lock.yaml": ""}, "pnpm"),
+            ({"package.json": '{"scripts": {"test": "x"}}', "yarn.lock": ""}, "yarn"),
+            ({"package.json": '{"scripts": {"test": "x"}}'}, "npm"),
+            ({"package.json": '{"scripts": {"lint": "x"}}'}, "jest"),
+            ({"package.json": "not json"}, "jest"),
+            ({"package.json": "[]"}, "jest"),
+        ],
+    )
+    def test_detects_runner(self, project_root, files: dict[str, str], expected: str) -> None:
+        for name, content in files.items():
+            (project_root / name).write_text(content)
+
+        assert runner.detect_node_runner(cwd=str(project_root)) == expected
+
+    @pytest.mark.asyncio
+    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    async def test_omitted_runner_uses_detected_vitest(
+        self,
+        mock_run: AsyncMock,
+        project_root,
+    ) -> None:
+        (project_root / "vitest.config.mts").write_text("")
+        mock_run.return_value = _completed(stdout=VITEST_PASS_STDOUT)
+
+        result = await runner.run_node_tests(coverage=False)
+
+        assert isinstance(result, SuccessResult)
+        assert mock_run.call_args.kwargs["args"] == ["npx", "vitest", "run"]
+        assert result.value["runner"] == "vitest"
+
+    @pytest.mark.asyncio
+    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    async def test_explicit_runner_skips_detection(
+        self,
+        mock_run: AsyncMock,
+        project_root,
+    ) -> None:
+        (project_root / "vitest.config.mts").write_text("")
+        mock_run.return_value = _completed(stderr=JEST_PASS_STDERR)
+
+        result = await runner.run_node_tests(runner="jest", coverage=False)
+
+        assert isinstance(result, SuccessResult)
+        assert mock_run.call_args.kwargs["args"] == ["npx", "jest"]
+
+
+class TestVitestSummary:
+    @pytest.mark.parametrize(
+        ("stdout", "passed", "failed", "total"),
+        [
+            (VITEST_PASS_STDOUT, 556, 0, 556),
+            (VITEST_FAIL_STDOUT, 554, 2, 556),
+            (VITEST_COLORED_STDOUT, 3, 0, 3),
+        ],
+    )
+    def test_parses_vitest_summary(
+        self,
+        stdout: str,
+        passed: int,
+        failed: int,
+        total: int,
+    ) -> None:
+        parsed = runner._parse_node(stdout)
+
+        assert parsed["summary_parsed"] is True
+        assert (parsed["passed"], parsed["failed"], parsed["total"]) == (passed, failed, total)
+
+    def test_test_files_line_is_not_the_test_count(self) -> None:
+        parsed = runner._parse_node(" Test Files  16 passed (16)\n")
+
+        assert parsed["summary_parsed"] is False
+
+    @pytest.mark.asyncio
+    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    async def test_failing_vitest_run_is_a_result_not_an_error(self, mock_run: AsyncMock) -> None:
+        mock_run.return_value = _completed(returncode=1, stdout=VITEST_FAIL_STDOUT)
+
+        result = await runner.run_node_tests(runner="vitest")
+
+        assert isinstance(result, SuccessResult)
+        assert result.value["failed"] == 2
+
+
+class TestNoTestsRan:
+    """GH-1683: a non-zero exit with nothing executed must not read as clean."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "stderr",
+        [JEST_NO_TESTS_STDOUT, "Tests:       0 total\n", "Tests:       nothing\n"],
+    )
+    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    async def test_nonzero_exit_without_executed_tests_is_error(
+        self,
+        mock_run: AsyncMock,
+        stderr: str,
+    ) -> None:
+        mock_run.return_value = _completed(returncode=1, stderr=stderr)
+
+        result = await runner.run_node_tests(runner="jest")
+
+        assert isinstance(result, ErrorResult)
+        assert "jest exited 1" in result.error
+        assert "runner=" in result.error
+        assert result.to_dict()["verdict"] == "no_tests_ran"
+
+    @pytest.mark.asyncio
+    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    async def test_named_script_failure_stays_a_result(self, mock_run: AsyncMock) -> None:
+        mock_run.return_value = _completed(returncode=2, stderr="error TS2304\n")
+
+        result = await runner.run_node_tests(runner="npm", script="lint:tsc")
+
+        assert isinstance(result, SuccessResult)
+        assert result.value["returncode"] == 2
+
+    @pytest.mark.asyncio
+    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    async def test_zero_exit_without_summary_stays_a_result(self, mock_run: AsyncMock) -> None:
+        mock_run.return_value = _completed(returncode=0, stderr="")
+
+        result = await runner.run_node_tests(runner="jest")
+
+        assert isinstance(result, SuccessResult)
