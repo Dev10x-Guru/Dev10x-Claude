@@ -178,6 +178,33 @@ jobs:
             | "::notice title=Claude usage::$\(.total_cost_usd // 0) · \(.num_turns // 0) turns · cache read \($m | map(.cacheReadInputTokens // 0) | add // 0) · cache write \($m | map(.cacheCreationInputTokens // 0) | add // 0) · uncached input \($m | map(.inputTokens // 0) | add // 0)"' \
             "$EXECUTION_FILE" || true
 
+      # GH-1691: see claude-code-review.yml — no conclusion means the
+      # review never started, and the job would otherwise pass green.
+      - name: Fail if the review never ran
+        if: steps.dedup.outputs.skip != 'true' && steps.pr-state.outputs.skip != 'true' && steps.stage.outputs.skip != 'true' && steps.hygiene-review.outputs.conclusion == ''
+        run: |
+          echo "::error title=Hygiene review did not run::claude-code-action produced no conclusion, so the review never started — a green check here would NOT be evidence of a review. The usual cause is this workflow file differing from the default branch's copy (claude-ci-cost.md § Verifying a change)."
+          exit 1
+
+      # GH-1691: see claude-code-review.yml. The hygiene job calls few
+      # tools, so denials and tool errors are the whole report.
+      - name: Report permission denials
+        if: ${{ always() && steps.hygiene-review.outputs.execution_file != '' }}
+        env:
+          EXECUTION_FILE: ${{ steps.hygiene-review.outputs.execution_file }}
+        run: |
+          jq -r '
+            [.[] | select(.type == "result")] | last | (.permission_denials // [])[]
+            | "::warning title=Hygiene review permission denied::" + .tool_name + " "
+              + ((.tool_input.command // .tool_input.file_path // (.tool_input | tostring)) | gsub("[\r\n]+"; " ") | .[0:200])
+          ' "$EXECUTION_FILE" || echo "::warning::Could not read permission denials from $EXECUTION_FILE"
+          jq -r '
+            .[] | select(.type == "user") | .message.content[]?
+            | select(type == "object" and .type == "tool_result" and .is_error == true)
+            | .content | (if type == "array" then map(.text // "") | join(" ") else tostring end)
+            | "::warning title=Hygiene review tool error::" + (gsub("[\r\n]+"; " ") | .[0:200])
+          ' "$EXECUTION_FILE" || echo "::warning::Could not read tool errors from $EXECUTION_FILE"
+
       # GH-1585: posting is deterministic — one comment per PR, edited in
       # place. The job token posts as github-actions[bot], and events it
       # causes start no workflows, so the edit cannot re-trigger this check.

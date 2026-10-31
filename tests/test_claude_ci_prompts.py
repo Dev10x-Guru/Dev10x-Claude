@@ -16,6 +16,7 @@ The build script is exercised directly, as the workflow runs it.
 
 from __future__ import annotations
 
+import functools
 import re
 import shlex
 import subprocess
@@ -61,8 +62,13 @@ _INLINE_ARGS_WORKFLOWS: tuple[str, ...] = ("claude.yml", "claude-memory-review.y
 _ACTION: str = "anthropics/claude-code-action"
 
 
+@functools.cache
+def _load_workflow(*, workflow: str) -> dict[str, Any]:
+    return yaml.safe_load((_WORKFLOWS / workflow).read_text(encoding="utf-8"))
+
+
 def _claude_steps(*, workflow: str) -> list[dict[str, Any]]:
-    document = yaml.safe_load((_WORKFLOWS / workflow).read_text(encoding="utf-8"))
+    document = _load_workflow(workflow=workflow)
     return [
         step
         for job in document["jobs"].values()
@@ -318,3 +324,55 @@ class TestDraftConversion:
         assert step_names.index("Convert to draft when the review left findings") > (
             step_names.index("Delete probe inline comments")
         )
+
+
+def _steps_by_name(*, workflow: str) -> dict[str, dict[str, Any]]:
+    document = _load_workflow(workflow=workflow)
+    return {step["name"]: step for job in document["jobs"].values() for step in job["steps"]}
+
+
+#: Each file-driven review workflow and the id of its Claude step.
+_REVIEW_STEP_IDS: list[tuple[str, str]] = [
+    ("claude-code-review.yml", "claude-review"),
+    ("claude-pr-hygiene.yml", "hygiene-review"),
+]
+
+
+class TestSilentReview:
+    """A review that never ran or posted nothing must not pass green (GH-1691)."""
+
+    _SKIP_GUARDS: ClassVar[tuple[str, ...]] = (
+        "steps.dedup.outputs.skip != 'true'",
+        "steps.pr-state.outputs.skip != 'true'",
+        "steps.stage.outputs.skip != 'true'",
+    )
+
+    @pytest.mark.parametrize(("workflow", "step_id"), _REVIEW_STEP_IDS)
+    def test_never_ran_guard_fails_on_a_missing_conclusion(
+        self, workflow: str, step_id: str
+    ) -> None:
+        condition = _steps_by_name(workflow=workflow)["Fail if the review never ran"]["if"]
+
+        assert f"steps.{step_id}.outputs.conclusion == ''" in condition
+
+    @pytest.mark.parametrize("workflow", _FILE_DRIVEN_WORKFLOWS)
+    @pytest.mark.parametrize("guard", _SKIP_GUARDS)
+    def test_never_ran_guard_spares_a_deliberate_skip(self, workflow: str, guard: str) -> None:
+        condition = _steps_by_name(workflow=workflow)["Fail if the review never ran"]["if"]
+
+        assert guard in condition
+
+    @pytest.mark.parametrize(("workflow", "step_id"), _REVIEW_STEP_IDS)
+    def test_denial_report_runs_after_any_attempt(self, workflow: str, step_id: str) -> None:
+        condition = _steps_by_name(workflow=workflow)["Report permission denials"]["if"]
+
+        assert "always()" in condition
+        assert f"steps.{step_id}.outputs.execution_file != ''" in condition
+
+    def test_review_that_posted_nothing_fails(self) -> None:
+        step = _steps_by_name(workflow="claude-code-review.yml")[
+            "Fail if the review posted nothing"
+        ]
+
+        assert "steps.claude-review.outputs.conclusion == 'success'" in step["if"]
+        assert step["env"]["SINCE"] == "${{ steps.review-start.outputs.iso }}"

@@ -282,3 +282,74 @@ jobs:
           jq -r '[.[] | select(.type == "result")] | last | [(.modelUsage // {})[]] as $m
             | "::notice title=Claude usage::$\(.total_cost_usd // 0) · \(.num_turns // 0) turns · cache read \($m | map(.cacheReadInputTokens // 0) | add // 0) · cache write \($m | map(.cacheCreationInputTokens // 0) | add // 0) · uncached input \($m | map(.inputTokens // 0) | add // 0)"' \
             "$EXECUTION_FILE" || true
+
+      # GH-1691: the action exits 0 without setting `conclusion` when it
+      # never starts the review — most often because this workflow file
+      # differs from the default branch's copy — so the job would pass
+      # green with no review behind it. The skip guards above leave the
+      # review out on purpose and are not failures. Ported from tt-pos
+      # PAY-1627.
+      - name: Fail if the review never ran
+        if: steps.dedup.outputs.skip != 'true' && steps.pr-state.outputs.skip != 'true' && steps.stage.outputs.skip != 'true' && steps.claude-review.outputs.conclusion == ''
+        run: |
+          echo "::error title=Claude review did not run::claude-code-action produced no conclusion, so the review never started — a green check here would NOT be evidence of a review. The usual cause is this workflow file differing from the default branch's copy (claude-ci-cost.md § Verifying a change)."
+          exit 1
+
+      # GH-1691: the action logs only how many tool calls were denied, and
+      # the transcript is hidden, so a review that stopped early left
+      # nothing to diagnose it from. The execution file holds the rest:
+      # each denied call, each errored tool result (a hook block is one of
+      # those, not a denial), a tally of tool calls, any subagent sent to
+      # the background, and the final message. Inputs are truncated: a
+      # prefix shows which allow rule is missing. Ported from tt-pos
+      # PAY-1627.
+      - name: Report permission denials
+        if: ${{ always() && steps.claude-review.outputs.execution_file != '' }}
+        env:
+          EXECUTION_FILE: ${{ steps.claude-review.outputs.execution_file }}
+        run: |
+          jq -r '
+            [.[] | select(.type == "result")] | last | (.permission_denials // [])[]
+            | "::warning title=Claude review permission denied::" + .tool_name + " "
+              + ((.tool_input.command // .tool_input.file_path // (.tool_input | tostring)) | gsub("[\r\n]+"; " ") | .[0:200])
+          ' "$EXECUTION_FILE" || echo "::warning::Could not read permission denials from $EXECUTION_FILE"
+          jq -r '
+            .[] | select(.type == "user") | .message.content[]?
+            | select(type == "object" and .type == "tool_result" and .is_error == true)
+            | .content | (if type == "array" then map(.text // "") | join(" ") else tostring end)
+            | "::warning title=Claude review tool error::" + (gsub("[\r\n]+"; " ") | .[0:200])
+          ' "$EXECUTION_FILE" || echo "::warning::Could not read tool errors from $EXECUTION_FILE"
+          jq -r '
+            [.[] | select(.type == "assistant") | .message.content[]?
+              | select(type == "object" and .type == "tool_use")] as $calls
+            | ($calls | map(.name) | group_by(.) | map(.[0] + " x" + (length | tostring)) | join(", ")
+                | "::notice title=Claude review tool calls::" + .),
+              ($calls[] | select((.name == "Task" or .name == "Agent") and .input.run_in_background == true)
+                | "::warning title=Claude review backgrounded a subagent::" + (.input.subagent_type // "?") + " " + (.input.description // "")),
+              ([.[] | select(.type == "result")] | last | (.result // "") | tostring
+                | "::notice title=Claude review final message::" + (gsub("[\r\n]+"; " ") | .[0:500]))
+          ' "$EXECUTION_FILE" || echo "::warning::Could not read tool calls from $EXECUTION_FILE"
+
+      # GH-1691: a review that runs but posts nothing still concludes
+      # 'success'. STEP 5 submits one summary review on every run, clean
+      # ones included, so a working review always leaves a claude[bot]
+      # review dated after this run started. An @claude reply that submits
+      # a review inside the same window would also pass; that is accepted
+      # as narrow. Ported from tt-pos PAY-1627, which checks a checklist
+      # block in the PR body instead (GH-1694).
+      - name: Fail if the review posted nothing
+        if: ${{ steps.claude-review.outputs.conclusion == 'success' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          SINCE: ${{ steps.review-start.outputs.iso }}
+        run: |
+          set -euo pipefail
+          count=$(gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/reviews" \
+            | jq --arg since "$SINCE" '[.[][] | select(.user.login == "claude[bot]"
+                and (.submitted_at // "") >= $since)] | length')
+          if [[ "$count" -eq 0 ]]; then
+            echo "::error title=Claude review posted nothing::The review concluded but submitted no review on PR #${PR_NUMBER} after ${SINCE} — a green check here would NOT be evidence of a review. See the permission-denial warnings above."
+            exit 1
+          fi
+          echo "The review submitted ${count} review(s) on PR #${PR_NUMBER}."
