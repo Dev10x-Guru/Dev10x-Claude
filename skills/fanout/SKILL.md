@@ -23,6 +23,8 @@ allowed-tools:
   - Skill(dev10x:git-branch-prune)
   - Skill(dev10x:git-groom)
   - Skill(dev10x:py-test)
+  - Skill(dev10x:review)
+  - Skill(dev10x:review-fix)
   - Skill(dev10x:skill-audit)
   - Skill(dev10x:ticket-branch)
   - Skill(dev10x:work-on)

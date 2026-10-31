@@ -52,6 +52,46 @@
           "signals": ["no Write", "set-friction", "no .claude write"]
         }
       ]
+    },
+    {
+      "id": 2,
+      "name": "per-item-template-follows-posture",
+      "prompt": "/dev10x:fanout GH-200 GH-201",
+      "setup": {
+        "supervisor_review": "required",
+        "playbook": "work-on.yaml",
+        "playbook_merge_mode": "draft",
+        "note": "Requires the user's work-on.yaml playbook to set merge_mode: draft and supervisor_review pinned to required"
+      },
+      "description": "Tests that the per-item prompt is filled from the orchestrator's resolved posture and merge mode, includes the self-review step, and that a child report without a Review line is not accepted as DONE (GH-1609 F1, GH-1604 F1/F2).",
+      "expected_output": "Each child prompt carries an overlay list without solo-maintainer and MERGE MODE: draft; children stop at a draft PR with a CI result, run dev10x:review + dev10x:review-fix, and report a Review line. A report missing it is treated as NEEDS_CONTEXT.",
+      "dimensions": ["parallel-dispatch"],
+      "assertions": [
+        {
+          "id": "overlay-args-omit-solo-maintainer-when-required",
+          "text": "The set-friction bootstrap in each child prompt does not pass --overlay solo-maintainer when supervisor_review is required",
+          "check": "behavioral",
+          "signals": ["overlay_args", "no solo-maintainer", "supervisor_review required"]
+        },
+        {
+          "id": "merge-mode-threaded-into-template",
+          "text": "Each child prompt names the resolved merge mode, and under draft the child neither calls pr_ready nor merges",
+          "check": "behavioral",
+          "signals": ["MERGE MODE: draft", "no pr_ready", "no merge_pr"]
+        },
+        {
+          "id": "child-runs-self-review",
+          "text": "Each child invokes dev10x:review --unattended and dev10x:review-fix before opening the PR",
+          "check": "tool_called",
+          "signals": ["Skill", "dev10x:review"]
+        },
+        {
+          "id": "missing-review-line-is-needs-context",
+          "text": "A child report without a 'Review:' line is treated as NEEDS_CONTEXT, and 'Review: skipped' downgrades DONE to DONE_WITH_CONCERNS",
+          "check": "behavioral",
+          "signals": ["Review:", "NEEDS_CONTEXT", "skipped", "DONE_WITH_CONCERNS"]
+        }
+      ]
     }
   ]
 }
