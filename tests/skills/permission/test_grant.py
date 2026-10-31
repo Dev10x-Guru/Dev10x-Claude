@@ -384,6 +384,43 @@ class TestTriageVerdicts:
         )
         assert result.verdict is expected
 
+    def test_shipped_map_steers_leading_gog_flags_to_reordering(
+        self,
+        settings_files: list[Path],
+        workdir: Path,
+    ) -> None:
+        result = _triage(
+            target="gog -a me@example.com --readonly chat messages list spaces/X "
+            "--thread spaces/X/threads/T --json --wrap-untrusted",
+            settings_files=settings_files,
+            workdir=workdir,
+            skill_map=mod.load_skill_map_rules(),
+        )
+        assert (result.verdict, "gog-global-flags-first" in result.reason) == (
+            Verdict.USE_ALTERNATIVE,
+            True,
+        )
+
+    def test_route_wins_over_a_too_broad_derivation(
+        self,
+        settings_files: list[Path],
+        workdir: Path,
+    ) -> None:
+        routed = [
+            MatchingRule(
+                name="reorder",
+                patterns=[r"^lua\s+-e\b"],
+                compensations=[Compensation(type="use-alternative", description="Reorder.")],
+            )
+        ]
+        result = _triage(
+            target="lua -e x script.lua",
+            settings_files=settings_files,
+            workdir=workdir,
+            skill_map=routed,
+        )
+        assert (result.verdict, result.advice) == (Verdict.USE_ALTERNATIVE, ["Reorder."])
+
     def test_route_without_compensation_does_not_shadow_a_later_route(
         self,
         settings_files: list[Path],
