@@ -134,9 +134,13 @@ jobs:
         if: steps.dedup.outputs.skip != 'true' && steps.pr-state.outputs.skip != 'true' && steps.stage.outputs.skip != 'true'
         id: inputs
         env:
+          # GH-1694: RUN_ID and SHA stamp the review checklist, which the
+          # "fresh checklist" guard below checks for.
           RUN_CONTEXT: |
             - REPO: ${{ github.repository }}
             - PR: ${{ github.event.pull_request.number }}
+            - RUN_ID: ${{ github.run_id }}
+            - SHA: ${{ github.event.pull_request.head.sha }}
         run: >-
           "$RUNNER_TEMP/scripts/build-claude-inputs.sh" args/code-review.txt
           prompts/code-review.core.md prompts/code-review.output-ci.md
@@ -280,8 +284,8 @@ jobs:
       # re-review included, as a one-line approval — so a working run
       # always leaves a claude[bot] review dated after it started. An
       # @claude reply that submits a review in the same window would also
-      # pass; that is accepted as narrow. Ported from tt-pos PAY-1627,
-      # which checks a run-stamped checklist block instead (GH-1694).
+      # pass; that is accepted as narrow. Ported from tt-pos PAY-1627;
+      # the checklist guard below proves the run refreshed the body too.
       - name: Fail if the review posted nothing
         if: ${{ steps.claude-review.outputs.conclusion == 'success' }}
         env:
@@ -298,6 +302,44 @@ jobs:
             exit 1
           fi
           echo "The review submitted ${count} review(s) on PR #${PR_NUMBER}."
+
+      # GH-1694: STEP 7 refreshes the checklist block in the PR body on
+      # every run, clean ones included, and stamps it with this run's id,
+      # which only this run's prompt carries — an earlier run, an author
+      # edit or an @claude edit cannot produce it. The block must also
+      # carry the head the triggering event named. A push that lands
+      # while this run is queued or running only warns: no review runs on
+      # a push, so references/pr-merge-policy.md § Reading Review Signals
+      # (reviewed sha vs HEAD) is the control. Ported from tt-pos
+      # PAY-1627 / PAY-1689.
+      - name: Fail if the review left no fresh checklist
+        if: ${{ steps.claude-review.outputs.conclusion == 'success' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REVIEWED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          pr=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}")
+          body=$(jq -r '.body // ""' <<< "$pr")
+          head_sha=$(jq -r '.head.sha' <<< "$pr")
+          if [[ "$head_sha" != "$REVIEWED_SHA" ]]; then
+            echo "::warning title=Review is behind the PR head::This run reviewed ${REVIEWED_SHA}, but the PR head is now ${head_sha}, and no review runs on a push. Mark the PR ready for review again to review the new commits."
+          fi
+          block=$(sed -n '/<!-- BEGIN claude-review-checklist -->/,/<!-- END claude-review-checklist -->/p' <<< "$body")
+          if [[ -z "$block" ]]; then
+            echo "::error title=Claude review left no checklist::The review concluded but the PR body has no claude-review-checklist block, so STEP 7 never ran — a green check here would NOT be evidence of a review."
+            exit 1
+          fi
+          if ! grep -qE "run ${GITHUB_RUN_ID}([^0-9]|\$)" <<< "$block"; then
+            echo "::error title=Claude review left no fresh checklist::The claude-review-checklist block does not carry run ${GITHUB_RUN_ID}, so this run did not refresh it."
+            exit 1
+          fi
+          if ! grep -qF "sha ${REVIEWED_SHA}" <<< "$block"; then
+            echo "::error title=Claude review stamped the wrong commit::The claude-review-checklist block does not carry sha ${REVIEWED_SHA}, the commit this run reviewed."
+            exit 1
+          fi
+          echo "Checklist refreshed by run ${GITHUB_RUN_ID} for ${REVIEWED_SHA}."
 
       # GH-1585: cost, turns and cache use of this run in the job summary
       # and as a notice, so a prompt or model change can be compared before
