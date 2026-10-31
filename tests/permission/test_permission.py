@@ -11,6 +11,7 @@ perm_mod = pytest.importorskip("dev10x.permission", reason="dev10x not installed
 MOD_PATH = "dev10x.skills.permission.update_paths"
 # load_effective_config resolves load_config inside catalog_load (GH-1432).
 LOAD_PATH = "dev10x.skills.permission.catalog_load"
+GUARD_PATH = "dev10x.skills.permission.catalog_write"
 
 
 class TestUpdatePathsInProcessRoute:
@@ -21,6 +22,10 @@ class TestUpdatePathsInProcessRoute:
     patch the underlying ``update_paths`` module functions instead.
     """
 
+    @pytest.fixture(autouse=True)
+    def _untracked(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(f"{GUARD_PATH}._is_git_tracked", lambda _path: False)
+
     @staticmethod
     def _stub_config():
         return {
@@ -28,6 +33,23 @@ class TestUpdatePathsInProcessRoute:
             "include_user_settings": True,
             "plugin_cache": "/fake/cache",
         }
+
+    @pytest.mark.asyncio
+    async def test_skips_a_tracked_settings_file(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """GH-1686: the MCP twin of update-paths honours the git-tracked guard."""
+        monkeypatch.setattr(f"{GUARD_PATH}._is_git_tracked", lambda _path: True)
+        with (
+            patch(f"{MOD_PATH}.find_config", return_value=ok(Path("/fake/config.yaml"))),
+            patch(f"{LOAD_PATH}.load_config", return_value=self._stub_config()),
+            patch(f"{MOD_PATH}.find_settings_files", return_value=[Path("/fake/settings.json")]),
+            patch(f"{MOD_PATH}.detect_latest_version", return_value="1.0.0"),
+            patch(f"{MOD_PATH}.update_file", return_value=(3, [])) as mock_update,
+        ):
+            result = await perm_mod.update_paths()
+
+        assert isinstance(result, SuccessResult)
+        mock_update.assert_not_called()
+        assert "SKIP (git-tracked): /fake/settings.json" in result.value["output"]
 
     @pytest.mark.asyncio
     async def test_returns_success_with_change_summary(self) -> None:
