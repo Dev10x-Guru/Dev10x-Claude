@@ -1,11 +1,13 @@
 <script lang="ts">
   import { runLines, type Run } from "../lib/ansi";
+  import { linkify, type Link } from "../lib/links";
 
   interface Props {
     ansi: string;
+    links: Link[];
   }
 
-  let { ansi }: Props = $props();
+  let { ansi, links }: Props = $props();
 
   const lines = $derived(runLines(ansi));
 
@@ -21,7 +23,12 @@
         {#each line as run, index (index)}
           <span
             class={["run", { chip: !!run.bg, bold: run.bold, dim: run.dim, italic: run.italic, underline: run.underline }]}
-            style={style(run)}>{run.text.trim() || run.text}</span
+            style={style(run)}
+            >{#each linkify(run.text.trim() || run.text, links) as piece, at (at)}{#if piece.href}<a
+                  href={piece.href}
+                  target="_blank"
+                  rel="noreferrer">{piece.text}</a
+                >{:else}{piece.text}{/if}{/each}</span
           >
         {/each}
       </p>
@@ -84,5 +91,17 @@
 
   .underline {
     text-decoration: underline;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-decoration-color: color-mix(in oklch, currentColor 45%, transparent);
+    text-underline-offset: 2px;
+  }
+
+  a:hover {
+    text-decoration-color: currentColor;
   }
 </style>
