@@ -11,11 +11,13 @@ from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR, ClaudeDir
 
 from dev10x.comm.supervisor import pending
 from dev10x.comm.supervisor.pending import (
+    ConversationEntry,
     PendingTool,
     Preview,
     RecentTool,
     build_preview,
     find_transcript,
+    read_conversation,
     read_pending_tool,
     read_preview,
     read_recent_tools,
@@ -317,6 +319,107 @@ class TestReadRecentTools:
             path.chmod(0o600)
 
         assert recent == []
+
+
+def _said(*, role: str, content: Any, at: str = "t1", **extra: Any) -> dict[str, Any]:
+    return {"type": role, "timestamp": at, "message": {"content": content}, **extra}
+
+
+class TestReadConversation:
+    def test_text_and_tool_calls_in_order(self, projects: Path) -> None:
+        _write(
+            path=projects / "-w" / f"{SESSION}.jsonl",
+            records=[
+                {"type": "summary", "summary": "x"},
+                _said(role="user", content="Fix the build", at="t0"),
+                _said(role="user", content=[{"type": "text", "text": "hook"}], isMeta=True),
+                _said(role="user", content="<system-reminder>skip</system-reminder>"),
+                _said(
+                    role="assistant",
+                    content=[
+                        {"type": "thinking", "thinking": "hmm"},
+                        {"type": "text", "text": "Running the tests."},
+                        {
+                            "type": "tool_use",
+                            "id": "a",
+                            "name": "Bash",
+                            "input": {"command": "pytest"},
+                        },
+                    ],
+                ),
+                _outcome(tool_id="a", text=[{"type": "text", "text": "3 passed"}], is_error=False),
+                _use(tool_id="b", name="Edit", tool_input={"file_path": "/r/a.py"}),
+                _outcome(tool_id="zz", text="orphan", is_error=False),
+                _said(role="assistant", content=[{"type": "text", "text": "   "}]),
+            ],
+        )
+
+        assert read_conversation(session_id=SESSION, projects_root=projects) == [
+            ConversationEntry(role="user", kind="text", text="Fix the build", at="t0"),
+            ConversationEntry(role="assistant", kind="text", text="Running the tests.", at="t1"),
+            ConversationEntry(
+                role="assistant",
+                kind="tool",
+                text="pytest",
+                at="t1",
+                tool="Bash",
+                outcome="ran",
+                result="3 passed",
+            ),
+            ConversationEntry(
+                role="assistant", kind="tool", text="/r/a.py", tool="Edit", outcome="pending"
+            ),
+        ]
+
+    def test_long_text_and_results_are_clipped(
+        self, projects: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(pending, "MAX_ENTRY_CHARS", 5)
+        monkeypatch.setattr(pending, "MAX_RESULT_CHARS", 3)
+        _write(
+            path=projects / "-w" / f"{SESSION}.jsonl",
+            records=[
+                _said(role="user", content="abcdefgh"),
+                _use(tool_id="a", name="Bash", tool_input={"command": "ls"}),
+                _outcome(tool_id="a", text="12345", is_error=False),
+                _use(tool_id="b", name="Read", tool_input={"file_path": "x"}),
+                {
+                    "type": "user",
+                    "message": {"content": [{"type": "tool_result", "tool_use_id": "b"}]},
+                },
+            ],
+        )
+
+        entries = read_conversation(session_id=SESSION, projects_root=projects)
+
+        assert [(entry.text, entry.result) for entry in entries] == [
+            ("abcde…", ""),
+            ("ls", "123…"),
+            ("x", ""),
+        ]
+
+    def test_keeps_the_most_recent(self, projects: Path) -> None:
+        _write(
+            path=projects / "-w" / f"{SESSION}.jsonl",
+            records=[_said(role="user", content=f"m{i}") for i in range(4)],
+        )
+
+        entries = read_conversation(session_id=SESSION, projects_root=projects, limit=2)
+
+        assert [entry.text for entry in entries] == ["m2", "m3"]
+
+    def test_no_transcript(self, projects: Path) -> None:
+        assert read_conversation(session_id=SESSION, projects_root=projects) == []
+
+    def test_unreadable_transcript(self, projects: Path) -> None:
+        path = _write(path=projects / "-w" / f"{SESSION}.jsonl", records=[])
+        path.chmod(0)
+        try:
+            entries = read_conversation(session_id=SESSION, projects_root=projects)
+        finally:
+            path.chmod(0o600)
+
+        assert entries == []
 
 
 class TestReadPreview:

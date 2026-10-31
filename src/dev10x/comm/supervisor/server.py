@@ -28,14 +28,21 @@ from dev10x.comm.supervisor.delivery import (
 from dev10x.comm.supervisor.lessons import find_lessons, write_lesson
 from dev10x.comm.supervisor.paths import TOKEN_HEADER
 from dev10x.comm.supervisor.pending import (
+    ConversationEntry,
     Preview,
     RecentTool,
+    read_conversation,
     read_preview,
     read_recent_tools,
     read_session_commands,
 )
 from dev10x.comm.supervisor.probes import ProbeError, Snapshot, read_pane, send_keys
-from dev10x.comm.supervisor.prompts import find_option, parse_prompt, parse_status_line
+from dev10x.comm.supervisor.prompts import (
+    find_option,
+    parse_prompt,
+    parse_status_line_ansi,
+    strip_ansi,
+)
 from dev10x.comm.supervisor.sessions import SessionView
 from dev10x.comm.supervisor.workspace import (
     Workspace,
@@ -81,6 +88,7 @@ class SupervisorApp:
     preview_reader: Callable[..., Preview | None] = read_preview
     commands_reader: Callable[..., list[str]] = read_session_commands
     recent_reader: Callable[..., list[RecentTool]] = read_recent_tools
+    conversation_reader: Callable[..., list[ConversationEntry]] = read_conversation
     workspace_reader: Callable[..., Workspace] = read_workspace
     today: Callable[[], date] = date.today
     clock: Callable[[], float] = time.monotonic
@@ -162,7 +170,8 @@ def snapshot_payload(*, app: SupervisorApp) -> dict[str, Any]:
         text = pane_text.get(view.session_id, "")
         prompt = parse_prompt(pane_text=text) if view.status == "waiting" else None
         preview = previews.get(view.session_id)
-        status_line = status_lines.get(view.session_id, "")
+        status_line_ansi = status_lines.get(view.session_id, "")
+        status_line = strip_ansi(status_line_ansi)
         sessions.append(
             {
                 **asdict(view),
@@ -170,6 +179,7 @@ def snapshot_payload(*, app: SupervisorApp) -> dict[str, Any]:
                 "preview": asdict(preview) if preview else None,
                 "excerpt": _excerpt(text=text),
                 "status_line": status_line,
+                "status_line_ansi": status_line_ansi,
                 "workspace": _workspace_payload(
                     workspace=workspaces.get(view.cwd), cwd=view.cwd, status_line=status_line
                 ),
@@ -202,20 +212,20 @@ def _status_lines(
     *,
     app: SupervisorApp,
     sessions: list[SessionView],
-    pane_text: dict[str, str],
+    pane_ansi: dict[str, str],
     due: bool,
 ) -> dict[str, str]:
     with app.changed:
         cached = dict(app.status_lines)
-    texts = dict(pane_text)
+    screens = dict(pane_ansi)
     if due:
-        unread = [view for view in sessions if view.pane_id and view.session_id not in texts]
+        unread = [view for view in sessions if view.pane_id and view.session_id not in screens]
         with ThreadPoolExecutor(max_workers=STATUS_LINE_WORKERS) as pool:
-            read = pool.map(lambda view: app.pane_reader(pane_id=view.pane_id), unread)
-            texts.update(zip((view.session_id for view in unread), read, strict=True))
+            read = pool.map(lambda view: app.pane_reader(pane_id=view.pane_id, ansi=True), unread)
+            screens.update(zip((view.session_id for view in unread), read, strict=True))
     lines = {}
     for view in sessions:
-        line = parse_status_line(pane_text=texts.get(view.session_id, ""))
+        line = parse_status_line_ansi(pane_ansi=screens.get(view.session_id, ""))
         lines[view.session_id] = line or cached.get(view.session_id, "")
     return lines
 
@@ -240,13 +250,14 @@ def refresh(*, app: SupervisorApp, provider: Callable[[], Snapshot]) -> None:
     with app.changed:
         previous = {view.session_id: view.status for view in app.snapshot.sessions}
         previous_taken_at = app.snapshot.taken_at
-    pane_text = {
-        view.session_id: app.pane_reader(pane_id=view.pane_id)
+    pane_ansi = {
+        view.session_id: app.pane_reader(pane_id=view.pane_id, ansi=True)
         for view in snapshot.sessions
         if view.group == "needs-you" and view.pane_id
     }
+    pane_text = {session_id: strip_ansi(text) for session_id, text in pane_ansi.items()}
     due = _slow_read_due(app=app)
-    status_lines = _status_lines(app=app, sessions=snapshot.sessions, pane_text=pane_text, due=due)
+    status_lines = _status_lines(app=app, sessions=snapshot.sessions, pane_ansi=pane_ansi, due=due)
     workspaces = _workspaces(app=app, sessions=snapshot.sessions, due=due)
     status = {view.session_id: view.status for view in snapshot.sessions}
     left_waiting: set[str] = set()
@@ -497,15 +508,17 @@ class SupervisorHandler(BaseHTTPRequestHandler):
         view = self._listed_session(session_id=params.get("session_id", ""))
         tail = (
             self.app.pane_reader(pane_id=view.pane_id, lines=TAIL_LINES, source=TAIL_SOURCE)
-            if view.pane_id
+            if view.pane_id and params.get("screen") == "1"
             else ""
         )
         preview = self.app.preview_reader(session_id=view.session_id)
         recent = self.app.recent_reader(session_id=view.session_id)
+        conversation = self.app.conversation_reader(session_id=view.session_id)
         self._json(
             status=HTTPStatus.OK,
             payload={
                 "session_id": view.session_id,
+                "conversation": [asdict(entry) for entry in conversation],
                 "tail": _excerpt(text=tail, lines=TAIL_LINES),
                 "preview": asdict(preview) if preview else None,
                 "recent": [asdict(tool) for tool in recent],

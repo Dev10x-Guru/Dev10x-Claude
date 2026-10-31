@@ -17,7 +17,7 @@ from dev10x.comm.skills.bus.maildir import mailbox_unread, read_message
 from dev10x.comm.supervisor import server as server_module
 from dev10x.comm.supervisor.decisions import ANSWERED, DELIVERED, OPEN, DecisionStore
 from dev10x.comm.supervisor.paths import TOKEN_HEADER
-from dev10x.comm.supervisor.pending import Preview, RecentTool
+from dev10x.comm.supervisor.pending import ConversationEntry, Preview, RecentTool
 from dev10x.comm.supervisor.probes import ProbeError, Snapshot
 from dev10x.comm.supervisor.server import (
     MAX_BODY_BYTES,
@@ -72,6 +72,11 @@ RECENT = {
     "sid-perm": [
         RecentTool(tool="Bash", target="rm -rf build", outcome="pending", command="rm -rf build"),
         RecentTool(tool="Edit", target="/kb/a.md", outcome="ran"),
+    ]
+}
+CONVERSATION = {
+    "sid-perm": [
+        ConversationEntry(role="user", kind="text", text="Clean up", at="2026-10-31T20:00:00Z")
     ]
 }
 WORKSPACES = {
@@ -140,10 +145,11 @@ def app(tmp_path: Path, keys: KeySender, panes: dict[str, str], static_dir: Path
         hook_token=HOOK_TOKEN,
         relay_mailbox=RELAY,
         key_sender=keys,
-        pane_reader=lambda pane_id, lines=0, source="": panes[pane_id],
+        pane_reader=lambda pane_id, lines=0, source="", ansi=False: panes[pane_id],
         preview_reader=lambda session_id: PREVIEWS.get(session_id),
         commands_reader=lambda session_id: COMMANDS.get(session_id, []),
         recent_reader=lambda session_id: RECENT.get(session_id, []),
+        conversation_reader=lambda session_id: CONVERSATION.get(session_id, []),
         workspace_reader=lambda cwd: WORKSPACES.get(cwd, Workspace(project=cwd, root=cwd)),
         today=lambda: date(2026, 10, 31),
         static_dir=static_dir,
@@ -798,12 +804,23 @@ class TestPreapprove:
 
 
 class TestSessionDetail:
-    def test_returns_tail_preview_and_recent_calls(self, port: int) -> None:
+    def test_returns_conversation_preview_and_recent_calls(self, port: int) -> None:
         response = call(port=port, method="GET", path="/api/session?session_id=sid-perm")
 
         assert response.json() == {
             "session_id": "sid-perm",
-            "tail": PROMPT_TEXT.rstrip("\n"),
+            "conversation": [
+                {
+                    "role": "user",
+                    "kind": "text",
+                    "text": "Clean up",
+                    "at": "2026-10-31T20:00:00Z",
+                    "tool": "",
+                    "outcome": "",
+                    "result": "",
+                }
+            ],
+            "tail": "",
             "preview": {
                 "tool": "Bash",
                 "title": "Clean the build",
@@ -826,9 +843,20 @@ class TestSessionDetail:
         asked: list[dict[str, Any]] = []
         app.pane_reader = lambda **kwargs: asked.append(kwargs) or "line"
 
+        response = call(port=port, method="GET", path="/api/session?session_id=sid-perm&screen=1")
+
+        assert (asked, response.json()["tail"]) == (
+            [{"pane_id": "w5:p1", "lines": 400, "source": "recent-unwrapped"}],
+            "line",
+        )
+
+    def test_screen_is_read_only_on_request(self, port: int, app: SupervisorApp) -> None:
+        asked: list[dict[str, Any]] = []
+        app.pane_reader = lambda **kwargs: asked.append(kwargs) or "line"
+
         call(port=port, method="GET", path="/api/session?session_id=sid-perm")
 
-        assert asked == [{"pane_id": "w5:p1", "lines": 400, "source": "recent-unwrapped"}]
+        assert asked == []
 
     def test_session_without_a_pane_has_no_tail(self, port: int, app: SupervisorApp) -> None:
         app.publish(snapshot=Snapshot(sessions=[replace(IDLE, pane_id="")]), pane_text={})
@@ -1041,7 +1069,7 @@ class TestStatusLines:
         calls: list[str] = []
         panes["w12:p1"] = IDLE_PANE
 
-        def reader(*, pane_id: str) -> str:
+        def reader(*, pane_id: str, ansi: bool) -> str:
             calls.append(pane_id)
             return panes[pane_id]
 
@@ -1092,6 +1120,30 @@ class TestStatusLines:
         refresh(app=app, provider=lambda: Snapshot(sessions=[IDLE], taken_at=NOW))
 
         assert self.lines(app)["sid-idle"] == BAR.replace("PR#1730", "PR#1731")
+
+    def test_colours_survive_for_the_page(
+        self, app: SupervisorApp, reads: list[str], clock: Clock, panes: dict[str, str]
+    ) -> None:
+        coloured = "\x1b[38;2;251;241;199m\x1b[48;2;177;98;134m wt poc \x1b[0m PR#9"
+        panes["w12:p1"] = f"{RULE}\n❯ \n{RULE}\n  {coloured}\n"
+
+        refresh(app=app, provider=lambda: Snapshot(sessions=[IDLE], taken_at=NOW))
+        [session] = snapshot_payload(app=app)["sessions"]
+
+        assert (
+            session["status_line"],
+            session["status_line_ansi"],
+            session["workspace"]["pr"],
+        ) == (" wt poc  PR#9", coloured, "9")
+
+    def test_waiting_prompt_text_is_read_without_colour_codes(
+        self, app: SupervisorApp, panes: dict[str, str]
+    ) -> None:
+        panes["w3:p1"] = "\x1b[1mWhich hub?\x1b[0m\n❯ 1. Relay\n  2. mc\n"
+
+        refresh(app=app, provider=lambda: Snapshot(sessions=[WAITING], taken_at=NOW))
+
+        assert app.pane_text == {"sid-wait": WIDGET_TEXT}
 
     def test_prompt_keeps_the_last_known_bar(
         self, app: SupervisorApp, reads: list[str], clock: Clock, panes: dict[str, str]

@@ -15,6 +15,9 @@ MAX_FILE_BYTES = 256 * 1024
 DIFF_TOOLS = ("Edit", "MultiEdit", "Write")
 MAX_COMMANDS = 60
 MAX_RECENT_TOOLS = 25
+MAX_CONVERSATION_ENTRIES = 120
+MAX_ENTRY_CHARS = 6000
+MAX_RESULT_CHARS = 400
 REJECTED_MARKERS = ("doesn't want to proceed", "was rejected", "Permission to use")
 
 
@@ -30,6 +33,17 @@ class RecentTool:
     target: str
     outcome: str
     command: str = ""
+
+
+@dataclass
+class ConversationEntry:
+    role: str
+    kind: str
+    text: str
+    at: str = ""
+    tool: str = ""
+    outcome: str = ""
+    result: str = ""
 
 
 @dataclass(frozen=True)
@@ -62,14 +76,19 @@ def _content(*, record: dict[str, Any]) -> list[dict[str, Any]]:
     )
 
 
-def _items(*, path: Path) -> Iterator[dict[str, Any]]:
+def _records(*, path: Path) -> Iterator[dict[str, Any]]:
     for line in _tail_lines(path=path):
         try:
             record = json.loads(line)
         except json.JSONDecodeError:
             continue
         if isinstance(record, dict):
-            yield from _content(record=record)
+            yield record
+
+
+def _items(*, path: Path) -> Iterator[dict[str, Any]]:
+    for record in _records(path=path):
+        yield from _content(record=record)
 
 
 def _tool(*, item: dict[str, Any]) -> PendingTool:
@@ -162,6 +181,82 @@ def read_recent_tools(
         for tool_id, tool in calls.items()
     ]
     return list(reversed(recent[-limit:]))
+
+
+def _clip(*, text: str, limit: int) -> str:
+    text = text.strip()
+    return text if len(text) <= limit else f"{text[:limit].rstrip()}…"
+
+
+def _result_text(*, item: dict[str, Any]) -> str:
+    content = item.get("content")
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "\n".join(
+            str(part.get("text", ""))
+            for part in content
+            if isinstance(part, dict) and part.get("type") == "text"
+        )
+    return ""
+
+
+def _said(*, record: dict[str, Any]) -> list[str]:
+    content = (record.get("message") or {}).get("content")
+    if isinstance(content, str):
+        return [content]
+    return [
+        str(item.get("text", "")) for item in _content(record=record) if item.get("type") == "text"
+    ]
+
+
+def read_conversation(
+    *,
+    session_id: str,
+    projects_root: Path | None = None,
+    limit: int = MAX_CONVERSATION_ENTRIES,
+) -> list[ConversationEntry]:
+    path = find_transcript(session_id=session_id, projects_root=projects_root)
+    if path is None:
+        return []
+    entries: list[ConversationEntry] = []
+    calls: dict[str, ConversationEntry] = {}
+    try:
+        for record in _records(path=path):
+            role, at = record.get("type"), str(record.get("timestamp", ""))
+            if role not in ("user", "assistant") or record.get("isMeta"):
+                continue
+            for text in _said(record=record):
+                if text.strip() and not text.lstrip().startswith("<"):
+                    entries.append(
+                        ConversationEntry(
+                            role=str(role),
+                            kind="text",
+                            text=_clip(text=text, limit=MAX_ENTRY_CHARS),
+                            at=at,
+                        )
+                    )
+            for item in _content(record=record):
+                if item.get("type") == "tool_use" and item.get("id"):
+                    tool = _tool(item=item)
+                    entry = ConversationEntry(
+                        role="assistant",
+                        kind="tool",
+                        text=_clip(text=_target(tool=tool), limit=MAX_ENTRY_CHARS),
+                        at=at,
+                        tool=tool.name,
+                        outcome="pending",
+                    )
+                    calls[str(item["id"])] = entry
+                    entries.append(entry)
+                elif item.get("type") == "tool_result":
+                    call = calls.get(str(item.get("tool_use_id")))
+                    if call is not None:
+                        call.outcome = _outcome(result=item)
+                        call.result = _clip(text=_result_text(item=item), limit=MAX_RESULT_CHARS)
+    except OSError:
+        return []
+    return entries[-limit:]
 
 
 def _diff(*, path: str, before: str, after: str) -> str:

@@ -168,6 +168,13 @@ class TestPaneCommands:
             "line\n",
         )
 
+    def test_read_pane_can_keep_colours(self) -> None:
+        runner = FakeRunner(outputs={"herdr": "line\n"})
+
+        read_pane(pane_id="w1:p1", ansi=True, runner=runner)
+
+        assert runner.calls[0][0][-2:] == ["--format", "ansi"]
+
     def test_read_pane_failure_returns_empty(self) -> None:
         runner = FakeRunner(failures={"herdr": FileNotFoundError("herdr")})
 

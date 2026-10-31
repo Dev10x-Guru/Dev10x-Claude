@@ -86,6 +86,7 @@ def read_pane(
     pane_id: str,
     lines: int = PANE_LINES,
     source: str = "visible",
+    ansi: bool = False,
     runner: Runner = run,
 ) -> str:
     args = [
@@ -98,7 +99,7 @@ def read_pane(
         "--lines",
         str(lines),
         "--format",
-        "text",
+        "ansi" if ansi else "text",
     ]
     try:
         return _call(args=args, runner=runner)
