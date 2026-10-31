@@ -1,16 +1,15 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  ASIDE_DEFAULT_PX,
-  ASIDE_MAX_PX,
-  ASIDE_MIN_PX,
-  clampAside,
-  loadAsideWidth,
+  ASIDE,
+  SIDE,
+  clampWidth,
   loadPins,
   loadView,
-  saveAsideWidth,
+  loadWidth,
   savePins,
   saveView,
+  saveWidth,
   togglePin,
 } from "./prefs";
 
@@ -73,29 +72,36 @@ describe("view", () => {
   });
 });
 
-describe("aside width", () => {
+describe.each([
+  ["session list", ASIDE],
+  ["detail panel", SIDE],
+])("%s width", (_name, panel) => {
   it.each([
-    [50, ASIDE_MIN_PX],
-    [9999, ASIDE_MAX_PX],
+    [50, panel.min],
+    [9999, panel.max],
     [300.4, 300],
   ])("clamps %d", (px, expected) => {
-    expect(clampAside(px)).toBe(expected);
+    expect(clampWidth(panel, px)).toBe(expected);
   });
 
   it("round-trips through the store, clamped", () => {
     const store = memory();
-    saveAsideWidth(1200, store);
-    expect(loadAsideWidth(store)).toBe(ASIDE_MAX_PX);
+    saveWidth(panel, 1200, store);
+    expect([store.items.has(panel.key), loadWidth(panel, store)]).toEqual([true, panel.max]);
   });
 
-  it.each<Record<string, string>>([{}, { "supervisor.aside-width": "wide" }, { "supervisor.aside-width": "0" }])(
+  it.each<Record<string, string>>([{}, { [panel.key]: "wide" }, { [panel.key]: "0" }])(
     "falls back to the default for %j",
     (initial) => {
-      expect(loadAsideWidth(memory(initial))).toBe(ASIDE_DEFAULT_PX);
+      expect(loadWidth(panel, memory(initial))).toBe(panel.fallback);
     },
   );
 
   it("falls back when the store is blocked", () => {
-    expect(loadAsideWidth(broken)).toBe(ASIDE_DEFAULT_PX);
+    expect(loadWidth(panel, broken)).toBe(panel.fallback);
   });
+});
+
+it("keeps the two panel widths under separate keys", () => {
+  expect(ASIDE.key).not.toBe(SIDE.key);
 });
