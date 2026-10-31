@@ -114,7 +114,11 @@ class TestTrackerInventory:
     def test_reports_every_tracker(self) -> None:
         inventory = tracker_inventory(config=CATALOG)
         assert set(inventory) == set(Tracker)
-        assert inventory[Tracker.LINEAR].deny == ("mcp__claude_ai_Linear__delete_comment",)
+        assert inventory[Tracker.LINEAR].deny == (
+            "mcp__claude_ai_Linear__delete_comment",
+            "mcp__linear-server__delete_comment",
+            "mcp__linear__delete_comment",
+        )
 
     def test_absent_block_is_falsy(self) -> None:
         assert not tracker_inventory(config={})[Tracker.JIRA]

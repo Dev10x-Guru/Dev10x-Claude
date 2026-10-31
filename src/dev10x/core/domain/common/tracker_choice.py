@@ -76,6 +76,39 @@ def parse_tracker(value: object) -> Tracker | None:
         return None
 
 
+#: MCP server names a tracker's tools are reachable under (GH-1668).
+#: Server names are a user-scope fact — the same names recur in every
+#: repo — so the table is code, not a catalog key: a user catalog that
+#: predates a key would silently drop it on merge, and a dropped alias
+#: is a dropped deny. Every catalogued rule is rendered under each name.
+TRACKER_SERVER_ALIASES: dict[Tracker, tuple[str, ...]] = {
+    Tracker.LINEAR: ("claude_ai_Linear", "linear-server", "linear"),
+    Tracker.JIRA: ("claude_ai_Atlassian_Rovo", "claude_ai_Atlassian", "atlassian"),
+}
+
+_MCP_PREFIX = "mcp__"
+
+
+def expand_aliases(*, rule: str, aliases: tuple[str, ...]) -> tuple[str, ...]:
+    """Render ``rule`` under every alias when it names one of them.
+
+    A rule on any other server (``mcp__plugin_dev10x_cli__*``, a Bash
+    rule) passes through unchanged.
+    """
+    for alias in aliases:
+        head = f"{_MCP_PREFIX}{alias}__"
+        if rule.startswith(head):
+            tool = rule.removeprefix(head)
+            return tuple(f"{_MCP_PREFIX}{other}__{tool}" for other in aliases)
+    return (rule,)
+
+
+def _expanded(*, rules: tuple[str, ...], tracker: Tracker) -> tuple[str, ...]:
+    aliases = TRACKER_SERVER_ALIASES.get(tracker, ())
+    rendered = (item for rule in rules for item in expand_aliases(rule=rule, aliases=aliases))
+    return tuple(dict.fromkeys(rendered))
+
+
 def _rules_for(*, config: dict, tracker: Tracker) -> TrackerRules:
     def entries(key: str) -> tuple[str, ...]:
         block = config.get(key)
@@ -84,7 +117,10 @@ def _rules_for(*, config: dict, tracker: Tracker) -> TrackerRules:
         rules = block.get(tracker.value)
         if not isinstance(rules, list):
             return ()
-        return tuple(rule for rule in rules if isinstance(rule, str))
+        return _expanded(
+            rules=tuple(rule for rule in rules if isinstance(rule, str)),
+            tracker=tracker,
+        )
 
     return TrackerRules(allow=entries(TRACKER_ALLOW_KEY), deny=entries(TRACKER_DENY_KEY))
 
@@ -136,9 +172,11 @@ __all__ = [
     "DENY_KEY",
     "TRACKER_ALLOW_KEY",
     "TRACKER_DENY_KEY",
+    "TRACKER_SERVER_ALIASES",
     "Tracker",
     "TrackerRules",
     "apply_tracker_selection",
+    "expand_aliases",
     "parse_tracker",
     "prunable_rules",
     "tracker_inventory",
