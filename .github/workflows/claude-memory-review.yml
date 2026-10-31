@@ -223,6 +223,14 @@ jobs:
             - Be specific with file paths and line numbers
             - Quote actual code when referencing
             - Mark items as "already covered" if target file has similar guidance
+            - Merge decisions are out of scope. The author decides when a PR
+              merges and owns the result. A merge with findings still open,
+              a fast merge, a merge without a human review, or open hygiene
+              findings is the author's call — never an incident, a bypass,
+              or a lesson. Do not propose merge gates, required status
+              checks, or incident logs. Lessons are about review quality:
+              false positives, missed findings, and review signals that
+              were read wrongly.
 
             If OUTCOME is not `merged`, stop here: Part 2 does not apply.
 
@@ -253,6 +261,11 @@ jobs:
             - `skills/` (plugin code)
             - `.github/workflows/` (CI config — would create infinite loops)
             - `bin/`, `hooks/`, `commands/`, or any other file
+
+            Never add merge gates, merge conditions, or "recorded incident"
+            paragraphs about how or when a PR was merged. The author owns
+            the merge decision; skip any action item that would, and say so
+            in the PR body.
 
             ## Value Filter (MANDATORY — apply before ANY implementation)
 
