@@ -124,11 +124,14 @@ def test_serve_wires_service(
         ["supervisor", "serve", "--port", "0", "--bus-root", str(tmp_path / "bus")],
     )
     handlers[command.signal.SIGTERM](command.signal.SIGTERM, None)  # type: ignore[operator]
+    app = seen["app"]
+    on_disk = paths.token_path().read_text().strip()
 
     assert (
         result.exit_code,
         seen["port"],
-        paths.token_path().exists(),
+        on_disk == app.hook_token,  # type: ignore[attr-defined]
+        on_disk != app.token,  # type: ignore[attr-defined]
         seen["stop"].is_set(),  # type: ignore[attr-defined]
         set(handlers) == {command.signal.SIGTERM, command.signal.SIGINT},
-    ) == (0, 0, True, True, True)
+    ) == (0, 0, True, True, True, True)

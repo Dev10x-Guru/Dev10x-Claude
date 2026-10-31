@@ -15,6 +15,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlsplit
 from uuid import uuid4
 
+from dev10x.comm.skills.bus.maildir import InvalidMessageError
 from dev10x.comm.supervisor.decisions import ANSWERED, OPEN, Decision, DecisionStore
 from dev10x.comm.supervisor.delivery import (
     deliver_keys,
@@ -36,6 +37,7 @@ MAX_BODY_BYTES = 64 * 1024
 CONFIRMED_BY = "janusz"
 STATIC_DIR = Path(__file__).parent / "static"
 HEARTBEAT_SECONDS = 15.0
+HOOK_ROUTE = "/decisions"
 EXCERPT_LINES = 24
 
 
@@ -54,6 +56,7 @@ class SupervisorApp:
     log_path: Path
     token: str
     relay_mailbox: str
+    hook_token: str = ""
     key_sender: Callable[..., None] = send_keys
     pane_reader: Callable[..., str] = read_pane
     preview_reader: Callable[..., Preview | None] = read_preview
@@ -138,19 +141,22 @@ def refresh(*, app: SupervisorApp, provider: Callable[[], Snapshot]) -> None:
     snapshot = provider()
     with app.changed:
         previous = {view.session_id: view.status for view in app.snapshot.sessions}
+        previous_taken_at = app.snapshot.taken_at
     pane_text = {
         view.session_id: app.pane_reader(pane_id=view.pane_id)
         for view in snapshot.sessions
         if view.group == "needs-you" and view.pane_id
     }
     status = {view.session_id: view.status for view in snapshot.sessions}
+    left_waiting: set[str] = set()
     for decision in app.store.all():
         now = status.get(decision.session_id, "gone")
         if decision.state == ANSWERED and _delivered(channel=decision.channel, status=now):
             app.store.mark_delivered(decision_id=decision.decision_id)
-        left_waiting = previous.get(decision.session_id) == "waiting" and now != "waiting"
-        if decision.state == OPEN and left_waiting:
-            app.store.expire_for_session(session_id=decision.session_id)
+        if previous.get(decision.session_id) == "waiting" and now != "waiting":
+            left_waiting.add(decision.session_id)
+    for session_id in left_waiting:
+        app.store.expire_for_session(session_id=session_id, created_before=previous_taken_at)
     previews = {
         view.session_id: preview
         for view in snapshot.sessions
@@ -223,21 +229,38 @@ class SupervisorHandler(BaseHTTPRequestHandler):
         try:
             if handler is None:
                 raise RequestError(status=HTTPStatus.NOT_FOUND, message="no such route")
-            params = self._params(query=url.query)
-            self._check_token(params=params)
-            handler(params)
+            query = {key: values[-1] for key, values in parse_qs(url.query).items()}
+            self._check_token(params=query, path=url.path)
+            handler(self._params(query=query))
         except RequestError as exc:
             self._json(status=exc.status, payload={"error": exc.message})
+        except Exception:
+            log.exception("supervisor request failed: %s %s", self.command, url.path)
+            self._json(
+                status=HTTPStatus.INTERNAL_SERVER_ERROR,
+                payload={"error": "The supervisor hit an internal error; see its log."},
+            )
 
-    def _params(self, *, query: str) -> dict[str, str]:
-        params = {key: values[-1] for key, values in parse_qs(query).items()}
-        if self.command != "POST":
-            return params
-        length = int(self.headers.get("Content-Length") or 0)
+    def _content_length(self) -> int:
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError as exc:
+            raise RequestError(
+                status=HTTPStatus.BAD_REQUEST, message="bad Content-Length"
+            ) from exc
+        if length < 0:
+            raise RequestError(status=HTTPStatus.BAD_REQUEST, message="bad Content-Length")
         if length > MAX_BODY_BYTES:
             raise RequestError(
                 status=HTTPStatus.REQUEST_ENTITY_TOO_LARGE, message="body too large"
             )
+        return length
+
+    def _params(self, *, query: dict[str, str]) -> dict[str, str]:
+        params = dict(query)
+        if self.command != "POST":
+            return params
+        length = self._content_length()
         raw = self.rfile.read(length).decode("utf-8", errors="replace")
         if not self.headers.get("Content-Type", "").startswith("application/json"):
             return params
@@ -250,9 +273,12 @@ class SupervisorHandler(BaseHTTPRequestHandler):
         self.json_body = payload
         return params
 
-    def _check_token(self, *, params: dict[str, str]) -> None:
-        offered = self.headers.get(TOKEN_HEADER) or params.get("token", "")
-        if not hmac.compare_digest(offered.encode(), self.app.token.encode()):
+    def _check_token(self, *, params: dict[str, str], path: str) -> None:
+        offered = (self.headers.get(TOKEN_HEADER) or params.get("token", "")).encode()
+        accepted = [self.app.token]
+        if path == HOOK_ROUTE and self.app.hook_token:
+            accepted.append(self.app.hook_token)
+        if not any(hmac.compare_digest(offered, token.encode()) for token in accepted):
             raise RequestError(status=HTTPStatus.FORBIDDEN, message="missing or wrong token")
 
     def _send(self, *, status: HTTPStatus, body: bytes, content_type: str) -> None:
@@ -383,6 +409,12 @@ class SupervisorHandler(BaseHTTPRequestHandler):
         index: int,
         answer: str,
     ) -> None:
+        live = parse_prompt(pane_text=self.app.pane_reader(pane_id=view.pane_id))
+        if find_option(prompt=live, key=str(index + 1), label=answer) is None:
+            raise RequestError(
+                status=HTTPStatus.CONFLICT,
+                message="The question on screen is not this one. Nothing was sent.",
+            )
         if (
             self.app.store.answer(decision_id=decision.decision_id, answer=answer, channel="keys")
             is None
@@ -406,16 +438,20 @@ class SupervisorHandler(BaseHTTPRequestHandler):
             is None
         ):
             raise RequestError(status=HTTPStatus.CONFLICT, message="Already answered.")
-        deliver_relay(
-            bus_root=self.app.bus_root,
-            relay_mailbox=self.app.relay_mailbox,
-            session_name=view.name,
-            session_id=view.session_id,
-            decision_id=decision.decision_id,
-            answer=answer,
-            confirmed_by=CONFIRMED_BY,
-            log_path=self.app.log_path,
-        )
+        try:
+            deliver_relay(
+                bus_root=self.app.bus_root,
+                relay_mailbox=self.app.relay_mailbox,
+                session_name=view.name,
+                session_id=view.session_id,
+                decision_id=decision.decision_id,
+                answer=answer,
+                confirmed_by=CONFIRMED_BY,
+                log_path=self.app.log_path,
+            )
+        except (InvalidMessageError, OSError) as exc:
+            self.app.store.reopen(decision_id=decision.decision_id)
+            raise RequestError(status=HTTPStatus.BAD_GATEWAY, message=str(exc)) from exc
 
     def _post_keys(self, params: dict[str, str]) -> None:
         body = self._body()

@@ -7,7 +7,7 @@ import json
 import threading
 from collections.abc import Iterator
 from dataclasses import dataclass, replace
-from datetime import date
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -31,6 +31,7 @@ from dev10x.comm.supervisor.sessions import SessionView
 from tests.comm.supervisor.conftest import NOW
 
 TOKEN = "tok-123"
+HOOK_TOKEN = "hook-456"
 RELAY = "supervisor-relay"
 WAITING = SessionView(
     session_id="sid-wait",
@@ -66,7 +67,9 @@ PREVIEWS = {
     "sid-perm": Preview(tool="Bash", title="Clean the build", kind="command", body="rm -rf build")
 }
 COMMANDS = {"sid-perm": ["git status", "rm -rf build"], "sid-idle": ["ls"]}
-PANES = {"w3:p1": "working on it\n", "w5:p1": PROMPT_TEXT, "w12:p1": ""}
+WIDGET_TEXT = "Which hub?\n❯ 1. Relay\n  2. mc\n"
+PANES = {"w3:p1": WIDGET_TEXT, "w5:p1": PROMPT_TEXT, "w12:p1": ""}
+SOON = datetime.now().astimezone() + timedelta(minutes=5)
 
 
 class KeySender:
@@ -118,6 +121,7 @@ def app(tmp_path: Path, keys: KeySender, panes: dict[str, str], static_dir: Path
         kb_root=tmp_path / "kb",
         log_path=tmp_path / "actions.jsonl",
         token=TOKEN,
+        hook_token=HOOK_TOKEN,
         relay_mailbox=RELAY,
         key_sender=keys,
         pane_reader=lambda pane_id: panes[pane_id],
@@ -193,6 +197,26 @@ class TestAuth:
     def test_token_in_query(self, port: int) -> None:
         assert call(port=port, method="GET", path=f"/?token={TOKEN}", token=None).status == 200
 
+    def test_hook_token_may_post_decisions(self, port: int) -> None:
+        response = call(
+            port=port,
+            method="POST",
+            path="/decisions",
+            payload={"session_id": "s", "questions": [QUESTION]},
+            token=HOOK_TOKEN,
+        )
+
+        assert response.status == 201
+
+    @pytest.mark.parametrize(
+        ("method", "path"),
+        [("GET", "/"), ("GET", "/api/sessions"), ("POST", "/keys"), ("POST", "/answer")],
+    )
+    def test_hook_token_opens_nothing_else(self, port: int, method: str, path: str) -> None:
+        response = call(port=port, method=method, path=path, payload={}, token=HOOK_TOKEN)
+
+        assert response.status == 403
+
     def test_unknown_route(self, port: int) -> None:
         assert call(port=port, method="GET", path="/nope").status == 404
 
@@ -239,8 +263,11 @@ class TestSnapshotPayload:
             for option in sessions["sid-perm"]["prompt"]["options"]
         ] == [("1", "Yes"), ("2", "Yes, and don't ask again"), ("3", "No")]
 
-    def test_no_prompt_without_a_list(self, sessions: dict[str, dict[str, Any]]) -> None:
-        assert (sessions["sid-wait"]["prompt"], sessions["sid-idle"]["prompt"]) == (None, None)
+    def test_no_prompt_for_a_session_that_is_not_waiting(
+        self,
+        sessions: dict[str, dict[str, Any]],
+    ) -> None:
+        assert sessions["sid-idle"]["prompt"] is None
 
     def test_decisions_attached_to_their_session(
         self,
@@ -369,12 +396,76 @@ class TestDecisions:
     def test_post_bad_json(self, port: int, raw: bytes) -> None:
         assert call(port=port, method="POST", path="/decisions", raw=raw).status == 400
 
+    @pytest.mark.parametrize("length", ["-1", "lots"])
+    def test_bad_content_length(self, port: int, length: str) -> None:
+        connection = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+        connection.putrequest("POST", "/decisions")
+        connection.putheader(TOKEN_HEADER, TOKEN)
+        connection.putheader("Content-Type", "application/json")
+        connection.putheader("Content-Length", length)
+        connection.endheaders()
+        status = connection.getresponse().status
+        connection.close()
+
+        assert status == 400
+
+    def test_internal_error_answers_500(
+        self,
+        port: int,
+        app: SupervisorApp,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        def broken() -> list[Any]:
+            raise RuntimeError("store exploded")
+
+        monkeypatch.setattr(app.store, "all", broken)
+
+        response = call(port=port, method="GET", path="/api/sessions")
+
+        assert (response.status, "internal error" in response.json()["error"]) == (500, True)
+
     def test_body_too_large(self, port: int) -> None:
         response = call(
             port=port, method="POST", path="/decisions", raw=b"x" * (MAX_BODY_BYTES + 1)
         )
 
         assert response.status == 413
+
+
+class TestAnswerSafety:
+    def test_refuses_when_another_question_is_on_screen(
+        self,
+        port: int,
+        app: SupervisorApp,
+        keys: KeySender,
+        panes: dict[str, str],
+    ) -> None:
+        panes["w3:p1"] = "Ship it?\n❯ 1. Yes\n  2. Not yet\n"
+        decision_id = add_decision(app=app, session_id=WAITING.session_id)
+
+        response = call(
+            port=port,
+            method="POST",
+            path="/answer",
+            payload={"decision_id": decision_id, "option_index": 0},
+        )
+        stored = app.store.get(decision_id=decision_id)
+
+        assert (response.status, keys.calls, stored and stored.state) == (409, [], OPEN)
+
+    def test_relay_failure_reopens_the_decision(self, port: int, app: SupervisorApp) -> None:
+        app.relay_mailbox = "not a mailbox!"
+        decision_id = add_decision(app=app, session_id=IDLE.session_id)
+
+        response = call(
+            port=port,
+            method="POST",
+            path="/answer",
+            payload={"decision_id": decision_id, "option_index": 0},
+        )
+        stored = app.store.get(decision_id=decision_id)
+
+        assert (response.status, stored and stored.state) == (502, OPEN)
 
 
 class TestAnswer:
@@ -695,7 +786,7 @@ class TestCollector:
     def test_refresh_reads_pane_for_needs_you(self, app: SupervisorApp) -> None:
         refresh(app=app, provider=lambda: Snapshot(sessions=[WAITING, IDLE], taken_at=NOW))
 
-        assert app.pane_text == {"sid-wait": "working on it\n"}
+        assert app.pane_text == {"sid-wait": WIDGET_TEXT}
 
     def test_refresh_reads_previews_for_waiting_sessions(self, app: SupervisorApp) -> None:
         refresh(app=app, provider=lambda: Snapshot(sessions=[PERMISSION, IDLE], taken_at=NOW))
@@ -749,6 +840,7 @@ class TestCollector:
 
     def test_open_decision_expires_when_answered_in_terminal(self, app: SupervisorApp) -> None:
         decision_id = add_decision(app=app, session_id=WAITING.session_id)
+        app.publish(snapshot=Snapshot(sessions=[WAITING], taken_at=SOON), pane_text={})
 
         refresh(
             app=app,
@@ -756,6 +848,17 @@ class TestCollector:
         )
 
         assert app.store.get(decision_id=decision_id).state == DELIVERED  # type: ignore[union-attr]
+
+    def test_decision_asked_after_the_last_snapshot_survives(self, app: SupervisorApp) -> None:
+        app.publish(snapshot=Snapshot(sessions=[WAITING], taken_at=NOW), pane_text={})
+        decision_id = add_decision(app=app, session_id=WAITING.session_id)
+
+        refresh(
+            app=app,
+            provider=lambda: Snapshot(sessions=[replace(WAITING, status="busy")], taken_at=NOW),
+        )
+
+        assert app.store.get(decision_id=decision_id).state == OPEN  # type: ignore[union-attr]
 
     def test_open_decision_kept_before_widget_shows(self, app: SupervisorApp) -> None:
         busy = replace(WAITING, status="busy")

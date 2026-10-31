@@ -40,13 +40,21 @@ def write_token(*, token: str, path: Path) -> None:
     os.chmod(path, 0o600)
 
 
-def build_app(*, kb_root: Path, bus_root: Path, relay_mailbox: str, token: str) -> SupervisorApp:
+def build_app(
+    *,
+    kb_root: Path,
+    bus_root: Path,
+    relay_mailbox: str,
+    token: str,
+    hook_token: str = "",
+) -> SupervisorApp:
     return SupervisorApp(
         store=DecisionStore(path=paths.decisions_path()),
         bus_root=bus_root,
         kb_root=kb_root,
         log_path=paths.actions_log_path(),
         token=token,
+        hook_token=hook_token,
         relay_mailbox=relay_mailbox,
     )
 
@@ -92,9 +100,15 @@ def serve(
     relay_mailbox: str,
 ) -> None:
     """Serve the supervisor page on 127.0.0.1 until stopped."""
-    token = secrets.token_urlsafe(24)
-    write_token(token=token, path=paths.token_path())
-    app = build_app(kb_root=kb_root, bus_root=bus_root, relay_mailbox=relay_mailbox, token=token)
+    hook_token = secrets.token_urlsafe(24)
+    write_token(token=hook_token, path=paths.token_path())
+    app = build_app(
+        kb_root=kb_root,
+        bus_root=bus_root,
+        relay_mailbox=relay_mailbox,
+        token=secrets.token_urlsafe(24),
+        hook_token=hook_token,
+    )
     stop = threading.Event()
 
     def _stop(signum: int, frame: FrameType | None) -> None:
