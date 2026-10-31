@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import http.client
 import io
 import json
 import urllib.error
@@ -98,8 +99,13 @@ class TestPosts:
 class TestSilence:
     @pytest.mark.parametrize(
         "error",
-        [urllib.error.URLError("refused"), TimeoutError("slow"), ValueError("bad")],
-        ids=["refused", "timeout", "value"],
+        [
+            urllib.error.URLError("refused"),
+            TimeoutError("slow"),
+            ValueError("bad"),
+            http.client.BadStatusLine("garbage"),
+        ],
+        ids=["refused", "timeout", "value", "not-http"],
     )
     def test_silent_when_daemon_down(
         self,
@@ -125,10 +131,19 @@ class TestSilence:
             {**PAYLOAD, "tool_input": {"questions": []}},
             {**PAYLOAD, "session_id": ""},
             {"session_id": "sid-1"},
+            {"session_id": "sid-1", "tool_input": ["questions"]},
+            ["not", "a", "dict"],
         ],
-        ids=["no-questions", "empty-questions", "no-session", "no-tool-input"],
+        ids=[
+            "no-questions",
+            "empty-questions",
+            "no-session",
+            "no-tool-input",
+            "tool-input-not-dict",
+            "payload-not-dict",
+        ],
     )
-    def test_ignores_payload_without_questions(self, token: str, payload: dict[str, Any]) -> None:
+    def test_ignores_payload_without_questions(self, token: str, payload: Any) -> None:
         opener = FakeOpener()
 
         supervisor_decision(payload, opener=opener)

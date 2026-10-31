@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +18,8 @@ from dev10x.comm.supervisor.decisions import (
 )
 
 SESSION = "4f603efb-db56-4360-8539-e8520155ef1e"
+LATER = datetime.now().astimezone() + timedelta(days=1)
+EARLIER = datetime.now().astimezone() - timedelta(days=1)
 QUESTIONS: list[dict[str, Any]] = [
     {
         "question": "Which hub?",
@@ -102,13 +105,22 @@ class TestExpire:
     def test_closes_only_that_session(self, store: DecisionStore, added: list[Decision]) -> None:
         other = store.add_from_hook(session_id="other-session", cwd="/o", questions=QUESTIONS[:1])
 
-        store.expire_for_session(session_id=SESSION)
+        store.expire_for_session(session_id=SESSION, created_before=LATER)
 
         assert {decision.decision_id: decision.state for decision in store.all()} == {
             added[0].decision_id: DELIVERED,
             added[1].decision_id: DELIVERED,
             other[0].decision_id: OPEN,
         }
+
+    def test_keeps_decisions_newer_than_the_cutoff(
+        self,
+        store: DecisionStore,
+        added: list[Decision],
+    ) -> None:
+        store.expire_for_session(session_id=SESSION, created_before=EARLIER)
+
+        assert {decision.state for decision in store.all()} == {OPEN}
 
 
 class TestPaths:

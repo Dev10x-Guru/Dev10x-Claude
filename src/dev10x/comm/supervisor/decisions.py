@@ -53,7 +53,7 @@ class DecisionStore:
         cwd: str,
         questions: list[dict[str, Any]],
     ) -> list[Decision]:
-        created = datetime.now().astimezone().isoformat(timespec="seconds")
+        created = datetime.now().astimezone().isoformat()
         added = [
             Decision(
                 decision_id=f"{session_id[:8]}-{uuid4().hex[:8]}",
@@ -114,11 +114,15 @@ class DecisionStore:
     def mark_delivered(self, *, decision_id: str) -> None:
         self._set_state(ids={decision_id}, from_states={ANSWERED}, to_state=DELIVERED)
 
-    def expire_for_session(self, *, session_id: str) -> None:
+    def expire_for_session(self, *, session_id: str, created_before: datetime) -> None:
         with locked_json_update(self._path) as data:
             decisions = self._load(data=data)
             for decision in decisions:
-                if decision.session_id == session_id and decision.state == OPEN:
+                if (
+                    decision.session_id == session_id
+                    and decision.state == OPEN
+                    and datetime.fromisoformat(decision.created) <= created_before
+                ):
                     decision.state = DELIVERED
             self._save(data=data, decisions=decisions)
 

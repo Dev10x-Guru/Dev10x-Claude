@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import http.client
 import json
 import os
 import urllib.request
@@ -29,7 +30,10 @@ def supervisor_decision(
     opener: Opener = urllib.request.urlopen,
 ) -> None:
     payload = data if data is not None else load_hook_stdin()
-    questions = (payload.get("tool_input") or {}).get("questions")
+    if not isinstance(payload, dict):
+        return
+    tool_input = payload.get("tool_input")
+    questions = tool_input.get("questions") if isinstance(tool_input, dict) else None
     if not payload.get("session_id") or not isinstance(questions, list) or not questions:
         return
     try:
@@ -51,5 +55,5 @@ def supervisor_decision(
     try:
         with opener(request, timeout=timeout):
             pass
-    except (OSError, ValueError):
+    except (OSError, ValueError, http.client.HTTPException):
         return
