@@ -1,10 +1,12 @@
 ---
 name: dev10x:diag-friction
 description: >
-  Diagnose permission friction. Guide the agent toward pre-approved
-  commands, simplify complex command chains, and (when no safe local
-  rule fits) file an upstream issue to improve the permission
-  friction hooks. Replaces the former dev10x:skill-reinforcement
+  Diagnose permission friction and end in a fix: a rewrite, a
+  wrapper, a backfill, or a pre-approval written everywhere through
+  dev10x:permission-grant, so the same prompt does not come back next
+  session. Guides the agent toward pre-approved commands, simplifies
+  complex command chains, and (when no safe local rule fits) files an
+  upstream issue to improve the permission friction hooks. Replaces the former dev10x:skill-reinforcement
   skill — reinforcement of skill usage is still part of the job,
   but the broader goal is reducing the friction supervisors see.
   Reads conversation context to identify the offending command,
@@ -40,14 +42,18 @@ allowed-tools:
   - Bash(dev10x permission seed-worktree:*)
   - mcp__plugin_dev10x_cli__audit_analyze_permissions
   - mcp__plugin_dev10x_cli__permission_catalog_gap
+  - mcp__plugin_dev10x_cli__permission_triage
+  - Skill(dev10x:permission-grant)
 ---
 
 # dev10x:diag-friction
 
-Diagnose and reduce permission friction. Guides the agent toward
+Diagnose and remove permission friction. Guides the agent toward
 pre-approved commands, simplifies command chains that defeat
 allow-rule matching, and points to upstream issue filing when the
-friction is structural (the hook itself needs updating).
+friction is structural (the hook itself needs updating). The skill
+ends in a fix (Step 3h), not a coaching note: a reinforcement alone
+leaves the same prompt waiting for the next session (GH-1669).
 
 > Formerly `dev10x:skill-reinforcement`. The skill-reinforcement
 > behavior (firm nudge toward the right Dev10x skill or MCP tool)
@@ -68,7 +74,7 @@ Invoke this skill when:
 
 **REQUIRED: Create a task at invocation.** Execute at startup:
 
-1. `TaskCreate(subject="Reinforce skill usage", activeForm="Reinforcing")`
+1. `TaskCreate(subject="Diagnose and fix permission friction", activeForm="Fixing friction")`
 
 Mark completed when done: `TaskUpdate(taskId, status="completed")`
 
@@ -166,14 +172,9 @@ mcp__plugin_dev10x_cli__permission_catalog_gap()
 uvx dev10x permission catalog-gap
 ```
 
-   The Bash form was primary until GH-1175, which made the *first*
-   diagnostic step of the friction-diagnosis skill a source of
-   permission friction: without a `Bash(uvx:*)` rule it prompts, and
-   in an unattended background agent a pending prompt is neither a
-   block nor a denial — so the coverage check silently never ran and
-   the three-outcome routing below was unreachable. `uvx` also
-   re-resolves from the network on every call even though the plugin
-   is installed locally.
+   Prefer the MCP form (GH-1175): without a `Bash(uvx:*)` rule the
+   Bash form prompts, and in a background agent that prompt silently
+   skips the coverage check.
 
 3. If the offending command's generalized rule (Step 3d) is in the
    catalog but absent from the effective file, say so **first**:
@@ -198,8 +199,8 @@ hiding the propagation defect:
 | Outcome | Condition | Fix |
 |---------|-----------|-----|
 | (a) propagation gap | rule in catalog, missing from effective file | backfill (gate above) |
-| (b) missing default | rule absent from catalog, generally safe | propose a plugin-default addition (upstream issue, Step 3c) |
-| (c) project-specific | safe only for this project | user-private synced catalog entry |
+| (b) missing default | rule absent from catalog, generally safe | upstream issue (Step 3c), plus the Step 3h grant now |
+| (c) project-specific | safe only for this project | Step 3h: triage, then `dev10x:permission-grant` |
 
 See [`references/audit-procedure.md`](references/audit-procedure.md)
 § Effective-file coverage for the resolution order and the two
@@ -290,7 +291,13 @@ remedy is to fix the **dispatcher**, not to silence prompts:
    prompt (fetch via `mcp__plugin_dev10x_cli__background_preamble`).
 2. Pre-seed the subagent's `allowed_tools` with the wrappers it needs
    (`Read`, `Grep`, `Glob`, `mktmp`, `push_safe`, `create_pr`, …) so
-   the preferred tool surface is actually available.
+   the preferred tool surface is actually available. When the child
+   was refused a project script, add that script's rule to the list
+   too, naming the dispatcher and the exact entry.
+3. When Step 3h triage returns `grant`, also write the rule through
+   `dev10x:permission-grant`: a pre-seeded list never reaches the
+   settings files, and an unattended child has nobody to answer the
+   next prompt.
 
 Surface this as the primary recommendation whenever the offending
 command came from a background dispatch path. See
@@ -300,30 +307,12 @@ Preamble.
 
 ### Step 3g: Check the recommended tool exists here (GH-1087)
 
-A `use-tool` compensation names a tool the map assumes is present —
-but the tool surface varies per session. A `find -name` rejection
-routed to `Glob`, and the `Glob` call answered "No such tool available:
-Glob — find files with `find` via the Bash tool instead": the map and
-the harness contradicting each other, producing a friction diagnosis
-that could not be executed. That is the failure mode this skill exists
-to prevent.
-
-Before recommending a `use-tool` compensation:
-
-1. Confirm the named tool is in this session's tool surface (it appears
-   in the available-tools listing, or in the deferred-tool list
-   loadable via `ToolSearch`).
-2. If it is absent, recommend the compensation's `fallback:` instead —
-   for `find-search` that is `rg --files -g '<glob>'` (name discovery)
-   or `rg -l <pattern> -g '<glob>'` (content), both covered by
-   `Bash(rg:*)`.
-3. Never fall back to the offending command itself. The harness's own
-   "use `find` via the Bash tool" suggestion reinstates exactly the
-   friction the rule removes — a pre-approved `rg` shape is available
-   in every session.
-
-State the substitution you verified, so the supervisor can see the
-recommendation was checked rather than recited.
+Before recommending a `use-tool` compensation, confirm the named tool
+is in this session's tool surface (listed, or loadable via
+`ToolSearch`). If it is absent, recommend the compensation's
+`fallback:` (for `find-search`, an `rg --files -g` shape), never the
+offending command itself, and state the substitution you verified. See
+[`references/tool-presence.md`](references/tool-presence.md).
 
 ### Step 3f: Approved in-session, denied by a rule (GH-972)
 
@@ -340,12 +329,41 @@ See
 for the full procedure, the substitution anti-patterns, and the
 unattended-run variant.
 
+### Step 3h: Classify and fix (GH-1669)
+
+**REQUIRED: triage before any grant.** Explaining the prompt is not
+the goal; removing it is. Call, with the offending command verbatim
+and every working directory as an absolute path:
+
+1. `mcp__plugin_dev10x_cli__permission_triage(target=<command>, working_dirs=[...], cwd=<primary working dir>)`
+
+Route on the verdict and the Step 3a outcome:
+
+| Class | Signal | Fix |
+|-------|--------|-----|
+| Deliberate deny | `denied`, or Step 3f | Explain the rule; **never grant** (GH-972) |
+| Propagation gap | Step 3a outcome (a) | Step 3a backfill gate |
+| Source / normalize | `use-alternative`, `normalize`, `outside-workdir`, `too-broad`, `refuse-sensitive` | State the rewrite from `advice`; **no grant** |
+| Real gap (plugin default or project-specific) | `grant` | `Skill(skill="dev10x:permission-grant", args="<command>")` |
+
+When the shape can never match a rule (an env-var prefix plus a
+redirect, as hooks emit: `VAR=… bash script.sh < payload.json`),
+propose a wrapper script or an MCP tool instead of a rule.
+
+`dev10x:permission-grant` owns the single gate that names every
+target settings file and the fan-out write. Do not list files or
+write settings here. See
+[`references/fix-routing.md`](references/fix-routing.md) for the
+full verdict table, the wrapper/MCP proposal, and the
+background-dispatch variant.
+
 ### Step 4: Output reinforcement message
 
 Output a firm, concise reinforcement message with seven sections:
-command detected, use instead, why, how to invoke, pre-approved
-alternatives (from Step 3b), upstream issue (from Step 3c when
-friction is structural), related skills.
+command detected, use instead, why, how to invoke, fix applied
+(from Step 3h: class, triage verdict, and what was rewritten or
+granted), upstream issue (from Step 3c when friction is
+structural), related skills.
 
 See [`references/audit-output.md`](references/audit-output.md)
 for the per-section schema, MCP invocation example, and ranking
@@ -376,11 +394,17 @@ End with a brief reminder:
 > no pre-approved form fits, propose a narrow targeted allow-rule
 > rather than crafting a more elaborate command.
 
-### Step 6: Offer follow-up action (REQUIRED when command was rejected)
+### Step 6: Retry to verify the fix (REQUIRED when command was rejected)
+
+The retry runs **after** Step 3h has written its fix, and it is the
+verification of that fix, not a substitute for it. After a grant,
+retry the original command; after a rewrite, retry via the new form
+or skill. Settings are read at session start, so a grant may still
+prompt in this session; say so rather than reporting failure. After
+a deliberate deny there is no retry: the human runs the command.
 
 If the triggering command was **rejected** by the user (denied
-the Bash tool call), the reinforcement must actively offer to
-retry the intended action via the recommended skill. Plain text
+the Bash tool call), actively offer the retry. Plain text
 offers ("Want me to invoke X?") do NOT block execution and break
 the structured decision flow used across Dev10x skills.
 

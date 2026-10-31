@@ -26,14 +26,24 @@ never shell executables. Example:
 prefix='commit-msg', ext='.txt')` — not
 `mcp__plugin_dev10x_cli__mktmp git commit-msg .txt`."
 
-## 5. Pre-approved alternatives
+## 5. Fix applied
 
-From Step 3b audit. If a simpler form of the command matches an
-existing allow-rule, show that form and the rule that covers it.
-If no rule matches, show the proposed targeted allow-rule snippet
-and the settings file it should land in. Omit this section when
-the audit found no friction (the command was already simple and
-pre-approved, or no Bash command was involved).
+From Step 3b audit and Step 3h. If a simpler form of the command
+matches an existing allow-rule, show that form and the rule that
+covers it. Otherwise name the friction class and the triage verdict,
+then what was done:
+
+- deliberate deny: the rule that holds, and that the human runs it;
+- source / normalize: the rewrite, or the wrapper script / MCP tool
+  proposed for a shape no rule can match;
+- propagation gap: the backfill choice and its result;
+- real gap: the rule `dev10x:permission-grant` wrote and the files
+  it reported, or that the supervisor cancelled.
+
+Never list a hand-picked settings file here; the grant skill computes
+the targets. Omit this section when the audit found no friction (the
+command was already simple and pre-approved, or no Bash command was
+involved).
 
 ## 6. Upstream issue (optional)
 
