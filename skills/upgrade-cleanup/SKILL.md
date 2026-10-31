@@ -99,7 +99,9 @@ The maintenance skill creates its own task list and runs
 steps 1–14 sequentially (update paths → migrate configs
 including playbook overrides → ensure base perms → generalize →
 enumerate MCP → script coverage → worktree merge → permission
-audit → clean project files → diff playbooks).
+audit → clean project files → diff playbooks). The permission
+audit hands its findings to `dev10x:permission-audit-apply`, which
+applies them one approved fix at a time (GH-1631).
 
 The "Migrate config files" step (step 3) includes two sub-migrations:
 

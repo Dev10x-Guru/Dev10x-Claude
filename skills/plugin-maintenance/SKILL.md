@@ -17,6 +17,7 @@ user-invocable: true
 invocation-name: dev10x:plugin-maintenance
 allowed-tools:
   - Skill(dev10x:onboarding)
+  - Skill(dev10x:permission-audit-apply)
   # GH-269: Plugin maintenance now runs through the version-stable
   # `uvx dev10x` CLI. Each subcommand is enumerated explicitly (no
   # `Bash(uvx dev10x:*)` wildcard) for user trust and transparency —
@@ -800,7 +801,21 @@ Agent(subagent_type="dev10x:permission-auditor",
 ```
 
 The agent produces a severity-categorized report with specific
-fix proposals. Review and apply selectively.
+fix proposals, ending in a machine-readable findings block. Hand
+that block to the apply skill rather than editing settings by hand
+(GH-1631) — it asks once per finding, so nothing outside the
+approved scope is applied:
+
+```
+Skill(skill="dev10x:permission-audit-apply", args="")
+```
+
+Only when the user has already approved applying every CRITICAL and
+HIGH finding unattended:
+
+```
+Skill(skill="dev10x:permission-audit-apply", args="--severity-max=HIGH")
+```
 
 ### 11. Clean project files *(full only)*
 
