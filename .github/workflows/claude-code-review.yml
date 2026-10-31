@@ -271,6 +271,30 @@ jobs:
             echo "The review left no inline findings and requested no changes; the PR stays ready for review."
           fi
 
+      # GH-1693: a review that runs but posts nothing still concludes
+      # 'success'. Every run submits its verdict as a review — a clean
+      # re-review included, as a one-line approval — so a working run
+      # always leaves a claude[bot] review dated after it started. An
+      # @claude reply that submits a review in the same window would also
+      # pass; that is accepted as narrow. Ported from tt-pos PAY-1627,
+      # which checks a run-stamped checklist block instead (GH-1694).
+      - name: Fail if the review posted nothing
+        if: ${{ steps.claude-review.outputs.conclusion == 'success' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          SINCE: ${{ steps.review-start.outputs.iso }}
+        run: |
+          set -euo pipefail
+          count=$(gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/reviews" \
+            | jq --arg since "$SINCE" '[.[][] | select(.user.login == "claude[bot]"
+                and (.submitted_at // "") >= $since)] | length')
+          if [[ "$count" -eq 0 ]]; then
+            echo "::error title=Claude review posted nothing::The review concluded but submitted no verdict review on PR #${PR_NUMBER} after ${SINCE} — a green check here would NOT be evidence of a review."
+            exit 1
+          fi
+          echo "The review submitted ${count} review(s) on PR #${PR_NUMBER}."
+
       # GH-1585: cost, turns and cache use of this run in the job summary
       # and as a notice, so a prompt or model change can be compared before
       # and after. A healthy run reads far more cache than it writes.

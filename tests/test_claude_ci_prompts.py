@@ -341,6 +341,19 @@ class TestReviewVerdict:
 
         assert '.state == "CHANGES_REQUESTED"' in step["run"]
 
+    def test_review_that_posted_nothing_fails(self) -> None:
+        document = yaml.safe_load(
+            (_WORKFLOWS / "claude-code-review.yml").read_text(encoding="utf-8")
+        )
+        (step,) = [
+            step
+            for step in document["jobs"]["claude-review"]["steps"]
+            if step["name"] == "Fail if the review posted nothing"
+        ]
+
+        assert "steps.claude-review.outputs.conclusion == 'success'" in step["if"]
+        assert step["env"]["SINCE"] == "${{ steps.review-start.outputs.iso }}"
+
 
 class TestDraftConversion:
     """A shell step, not the model, drafts a PR with findings (GH-1618)."""
