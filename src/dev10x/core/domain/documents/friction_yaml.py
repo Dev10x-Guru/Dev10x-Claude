@@ -58,6 +58,11 @@ _DURABLE_KEYS = (
     # have no IDE server at all.
     "ide",
     "walk_away",
+    # Per-rule validator config (GH-1493). DX017 reads
+    # `dx017.blocked_extensions.{add,remove}` so a repo can guard a text
+    # format it authors (e.g. `.ipynb`) once, for every session and
+    # worktree, instead of every caller exporting an env var.
+    "dx017",
 )
 
 # Public alias for cross-module callers (e.g. the GH-812 R4 migration) that
@@ -119,6 +124,25 @@ def match_globs(toplevel: str, patterns: Any) -> bool:
     return False
 
 
+def _durable_subset(*, mapping: dict[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in mapping.items() if key in _DURABLE_KEYS}
+
+
+def _defaults_of(*, doc: dict[str, Any]) -> dict[str, Any]:
+    defaults = doc.get("defaults")
+    return _durable_subset(mapping=defaults) if isinstance(defaults, dict) else {}
+
+
+def _matched_in(*, doc: dict[str, Any], toplevel: str) -> dict[str, Any] | None:
+    projects = doc.get("projects")
+    if not isinstance(projects, list):
+        return None
+    for entry in projects:
+        if isinstance(entry, dict) and match_globs(toplevel, entry.get("match")):
+            return _durable_subset(mapping=entry)
+    return None
+
+
 @dataclass(frozen=True)
 class FrictionYamlDocument:
     """Global durable prefs keyed by project dir-path globs (GH-812, ADR-0018).
@@ -153,10 +177,7 @@ class FrictionYamlDocument:
 
     def defaults(self) -> dict[str, Any]:
         """Return the ``defaults:`` durable prefs, filtered to known keys."""
-        defaults = self._doc().get("defaults")
-        if not isinstance(defaults, dict):
-            return {}
-        return {key: value for key, value in defaults.items() if key in _DURABLE_KEYS}
+        return _defaults_of(doc=self._doc())
 
     def matched(self) -> dict[str, Any] | None:
         """Return the first matching project entry's durable prefs, or ``None``.
@@ -165,13 +186,25 @@ class FrictionYamlDocument:
         durable seam to fall back to the legacy per-repo ``config.yaml`` before
         applying ``defaults()`` (ADR-0018 D4 one-cycle migration).
         """
-        projects = self._doc().get("projects")
-        if not isinstance(projects, list):
-            return None
-        for entry in projects:
-            if isinstance(entry, dict) and match_globs(self.toplevel, entry.get("match")):
-                return {key: value for key, value in entry.items() if key in _DURABLE_KEYS}
-        return None
+        return _matched_in(doc=self._doc(), toplevel=self.toplevel)
+
+    def effective(self, *, fallback_toplevels: tuple[str, ...] = ()) -> dict[str, Any]:
+        """``{**defaults, **matched}`` for the first toplevel that matches.
+
+        Probes ``toplevel`` then each of ``fallback_toplevels`` — e.g. a
+        linked worktree's main checkout, whose repo-stem globs a worktree
+        directory name rarely matches (GH-978). Parses the file once, so a
+        hot-path caller pays one YAML load however many probes it passes.
+        No legacy ``config.yaml`` fallback: callers that need it use the
+        session-yaml seam.
+        """
+        doc = self._doc()
+        defaults = _defaults_of(doc=doc)
+        for toplevel in (self.toplevel, *fallback_toplevels):
+            matched = _matched_in(doc=doc, toplevel=toplevel)
+            if matched is not None:
+                return {**defaults, **matched}
+        return defaults
 
     @staticmethod
     def render_starter(

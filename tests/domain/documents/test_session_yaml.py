@@ -520,6 +520,10 @@ class TestReadProtectedBranches:
         """Must be in DURABLE_KEYS or readers filter it out of project entries."""
         assert "protected_branches" in DURABLE_KEYS
 
+    def test_dx017_is_a_durable_key(self) -> None:
+        """GH-1493: readers would filter per-rule validator config out otherwise."""
+        assert "dx017" in DURABLE_KEYS
+
 
 class TestConfigRender:
     """GH-774: ConfigYamlDocument owns the durable-prefs template."""
