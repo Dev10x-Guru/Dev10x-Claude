@@ -428,6 +428,26 @@ rules:
       for structured responses and consistency with other list tools
       (GH-1359).
 
+  - name: gh-ci-rerun
+    matcher: Bash
+    patterns:
+      - "gh api .*check-suites/[0-9]+/rerequest"
+      - "gh api .*actions/runs/[0-9]+/rerun"
+    except: []
+    hook_block: false
+    compensations:
+      - type: use-tool
+        tool: mcp__plugin_dev10x_cli__ci_rerun
+        guardrails: repo-bound, per-run retry cap, every retry reported
+        description: >
+          ci_rerun re-runs failed GitHub Actions jobs and re-requests
+          third-party GitHub App check suites for a PR or head SHA,
+          without a raw gh api POST.
+    reason: >
+      Raw gh api POST to a rerun/rerequest endpoint hits the
+      gh api --method POST ask rule, and nothing capped the retries
+      (GH-1674). Advisory because the MCP server may be unavailable.
+
   - name: gh-milestone-create
     matcher: Bash
     patterns:

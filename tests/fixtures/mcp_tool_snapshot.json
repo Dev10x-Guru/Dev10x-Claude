@@ -350,6 +350,80 @@
       "title": "ci_check_statusArguments",
       "type": "object"
     },
+    "ci_rerun": {
+      "properties": {
+        "checks": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Checks"
+        },
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "failed_only": {
+          "default": true,
+          "title": "Failed Only",
+          "type": "boolean"
+        },
+        "head_sha": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Head Sha"
+        },
+        "pr_number": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pr Number"
+        },
+        "repo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repo"
+        }
+      },
+      "title": "ci_rerunArguments",
+      "type": "object"
+    },
     "cluster_review_comments": {
       "properties": {
         "cwd": {

@@ -209,6 +209,7 @@ one session). Use these shapes verbatim:
 | `task_index_append` | `entry` dict with required `subject` + `source` | reading the store and writing it back by hand — the tool owns the locked read-append-write |
 | `pr_labels` | `pr_number`; `action` (`list` default / `add` / `remove`), plus `labels` for the two writes | separate `pr_label_add` / `pr_label_remove` names — it is one tool with an action selector, like `pr_comments` |
 | `issue_labels` | `number`; `action` (`list` default / `add` / `remove`), plus `labels` for the two writes | `issue_edit(labels=...)` for anything but adding — that parameter's docstring used to claim replacement semantics it never had (GH-1322); `pr_number` (that's `pr_labels`'s param name) |
+| `ci_rerun` | exactly one of `pr_number` / `head_sha`; optional `checks` (names), `failed_only` (default `true`), `repo` | passing both targets or neither — an error; expecting a retry counter on a third-party suite — only Actions runs carry `run_attempt`, so only they are capped at 3 (GH-1674); raw `gh api --method POST .../rerequest` — routed here |
 | `task_index_get` | none (optional `cwd`) | `Read`ing `.claude/Dev10x/session.yaml` — retired by ADR-0018 D5; the tool probes it as a fallback |
 | `pr_ready` | `pr_number`; optional `undo` (bool) | assuming it only publishes — `undo=true` returns a PR to draft |
 | `ci_check_status` | `pr_number`, `repo`; optional `wait`, `wait_out_pending` (default `true`), `wait_for` (list of check names) | reading a `wait=true` `failing` as "every leg finished" — check `pending` (GH-1065); expecting `wait_out_pending` to cover a failed REQUIRED leg — it does not, use `wait_for` (GH-1138); raising `max_polls` to cover a slow PR — the grant is capped by the transport budget, so ask twice rather than once for longer (GH-1288) |
@@ -740,6 +741,7 @@ supporting each tool:
 | `pin_ide` | `cli` | GH-1261 | v0.99.0+ |
 | `pr_labels` | `cli` | GH-1008 | v0.94.0+ |
 | `issue_labels` | `cli` | GH-1322 | v0.102.0+ |
+| `ci_rerun` | `cli` | GH-1674 | v0.109.0+ |
 | `task_index_get` | `cli` | GH-1009 | v0.94.0+ |
 | `task_index_append` | `cli` | GH-1009 | v0.94.0+ |
 | `task_index_set` | `cli` | GH-1009 | v0.94.0+ |
@@ -924,6 +926,7 @@ the MCP server is unavailable.
 | `gh pr ready` | `mcp__plugin_dev10x_cli__pr_ready` |
 | `gh pr edit --add-label` / `--remove-label` | `mcp__plugin_dev10x_cli__pr_labels` (GH-1008) |
 | `gh pr close` | `mcp__plugin_dev10x_cli__pr_close` (GH-924) |
+| `gh api .../check-suites/{id}/rerequest` / `.../actions/runs/{id}/rerun` (POST) | `mcp__plugin_dev10x_cli__ci_rerun` (GH-1674, advisory) |
 | `gh pr create` | `dev10x:gh-pr-create` (wraps `create_pr`) |
 | `gh pr merge` | `dev10x:gh-pr-merge` (wraps `merge_pr`) |
 

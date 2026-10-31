@@ -35,6 +35,7 @@ from dev10x.coding.github.bulk import (
     issues_bulk_edit,
     milestones_bulk_create,
 )
+from dev10x.coding.github.ci_rerun import ci_rerun
 from dev10x.coding.github.detection import (
     detect_base_branch,
     detect_tracker,
@@ -133,6 +134,8 @@ __all__ = [
     "_parse_gh_api_result",
     "_resolve_repo",
     "_run_and_parse",
+    # ci_rerun
+    "ci_rerun",
     # detection
     "detect_base_branch",
     "detect_tracker",
