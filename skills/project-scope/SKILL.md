@@ -260,15 +260,28 @@ create the parent ticket using the executive summary as description.
 
 ### 3.3 Create Project Entity
 
-**When the planned milestones require a project entity, create it —
-do not ask.** That is Linear with milestones: Linear milestones belong
-to a project, so offering "Skip" would offer a structure that cannot
-be created.
+The gate's outcome is decided by the tracker before anyone is asked:
+
+| Tracker | Milestones planned | Action |
+|---------|--------------------|--------|
+| Linear | yes | Create the project — do not ask |
+| Linear | no | Ask (gate below) |
+| JIRA | either | Ask (gate below) — the entity is an Epic |
+| GitHub Issues | either | Skip — do not ask |
+
+**Linear with milestones: create it, do not ask.** Linear milestones
+belong to a project, so offering "Skip" would offer a structure that
+cannot be created.
+
+**GitHub Issues: skip the gate, do not ask (GH-1513).** GitHub has no
+project-level entity (§ 3.1 lists it as "N/A (use milestones)"), so
+neither answer could change what gets created. Record
+"no project entity on GitHub" for the Phase 4 summary and go to 3.4.
 
 **Otherwise — REQUIRED: Call `AskUserQuestion`** (do NOT use plain
 text, call spec: [ask-project-entity.md](./tool-calls/ask-project-entity.md))
-— JIRA and GitHub Issues with or without milestones, and Linear with
-no milestones planned. This blocks execution until the user responds.
+— JIRA with or without milestones, and Linear with no milestones
+planned. This blocks execution until the user responds.
 Options:
 - Create project entity (Recommended) — Enables roadmap views and project tracking
 - Skip — No project entity; milestones (if any) and tickets only
@@ -381,7 +394,8 @@ Re-fetch all created entities to verify:
 
 Present a summary with:
 - Parent ticket link
-- Project entity link (if created)
+- Project entity link (if created), or "no project entity on
+  GitHub" for a GitHub Issues scope
 - Milestone list with ticket counts and `Depends on:` lines;
   milestones with no tickets yet are marked provisional
 - Blocking chain visualization

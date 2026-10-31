@@ -42,6 +42,16 @@
       ]
     },
     {
+      "name": "github-scope-skips-project-entity-gate",
+      "description": "On GitHub Issues, which has no project entity, the project-entity gate never fires and the summary says so (GH-1513)",
+      "setup": "/dev10x:project-scope https://github.com/org/repo/issues/42 (GitHub Issues tracker, milestones planned)",
+      "checks": [
+        {"type": "behavioral", "assertion": "no_project_entity_gate_on_github", "signal": "No AskUserQuestion offering 'Create project entity' / 'Skip' is presented"},
+        {"type": "tool_called", "tool": "mcp__plugin_dev10x_cli__milestones_bulk_create", "assertion": "proceeds_to_milestones", "signal": "Moves straight from 3.2 to milestone creation"},
+        {"type": "behavioral", "assertion": "summary_records_no_entity", "signal": "Phase 4 summary states 'no project entity on GitHub'"}
+      ]
+    },
+    {
       "name": "unnumbered-milestones-gated-tickets",
       "description": "Milestones carry no ordinal prefixes and tickets are created only for startable work (GH-1509)",
       "setup": "/dev10x:project-scope Replace graphene with strawberry; a spike must decide feasibility first",
