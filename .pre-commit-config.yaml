@@ -10,6 +10,10 @@
 default_language_version:
   python: python3.12
 
+# GH-1692: the supervisor page bundle is build output; the SPA workflow
+# checks it byte-for-byte against a fresh `pnpm build`.
+exclude: ^src/dev10x/comm/supervisor/static/
+
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0

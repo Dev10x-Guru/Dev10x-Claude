@@ -1,0 +1,111 @@
+@import "@fontsource-variable/bricolage-grotesque";
+@import "@fontsource-variable/instrument-sans";
+@import "@fontsource/ibm-plex-mono/400.css";
+
+:root {
+  color-scheme: light dark;
+
+  --paper: oklch(97.4% 0.009 85);
+  --paper-sunk: oklch(94.6% 0.012 85);
+  --ink: oklch(25% 0.02 255);
+  --ink-soft: oklch(45% 0.018 255);
+  --ink-faint: oklch(60% 0.014 255);
+  --rule: oklch(87% 0.012 85);
+  --rule-strong: oklch(78% 0.014 85);
+  --amber: oklch(76% 0.15 72);
+  --amber-ink: oklch(44% 0.11 62);
+  --amber-wash: oklch(95% 0.045 82);
+  --working: oklch(58% 0.1 160);
+  --danger: oklch(55% 0.17 28);
+  --focus: oklch(55% 0.16 255);
+
+  --font-display: "Bricolage Grotesque Variable", "Avenir Next Condensed", sans-serif;
+  --font-body: "Instrument Sans Variable", "Helvetica Neue", sans-serif;
+  --font-term: "IBM Plex Mono", ui-monospace, monospace;
+
+  --step--1: clamp(0.78rem, 0.76rem + 0.1vw, 0.84rem);
+  --step-0: clamp(0.92rem, 0.89rem + 0.15vw, 1rem);
+  --step-1: clamp(1.08rem, 1.02rem + 0.3vw, 1.25rem);
+  --step-3: clamp(1.9rem, 1.55rem + 1.6vw, 3rem);
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: clamp(1.75rem, 1.4rem + 1.5vw, 2.75rem);
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: oklch(19.5% 0.012 255);
+    --paper-sunk: oklch(23.5% 0.014 255);
+    --ink: oklch(93% 0.01 85);
+    --ink-soft: oklch(76% 0.012 85);
+    --ink-faint: oklch(61% 0.012 85);
+    --rule: oklch(31% 0.014 255);
+    --rule-strong: oklch(40% 0.016 255);
+    --amber: oklch(80% 0.14 76);
+    --amber-ink: oklch(84% 0.12 78);
+    --amber-wash: oklch(28% 0.045 70);
+    --working: oklch(72% 0.11 160);
+    --danger: oklch(70% 0.15 28);
+    --focus: oklch(72% 0.13 255);
+  }
+}
+
+:root[data-theme="dark"] {
+  --paper: oklch(19.5% 0.012 255);
+  --paper-sunk: oklch(23.5% 0.014 255);
+  --ink: oklch(93% 0.01 85);
+  --ink-soft: oklch(76% 0.012 85);
+  --ink-faint: oklch(61% 0.012 85);
+  --rule: oklch(31% 0.014 255);
+  --rule-strong: oklch(40% 0.016 255);
+  --amber: oklch(80% 0.14 76);
+  --amber-ink: oklch(84% 0.12 78);
+  --amber-wash: oklch(28% 0.045 70);
+  --working: oklch(72% 0.11 160);
+  --danger: oklch(70% 0.15 28);
+  --focus: oklch(72% 0.13 255);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: var(--step-0);
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
+  }
+}
