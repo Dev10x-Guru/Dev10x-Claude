@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import re
 import shlex
+from dataclasses import dataclass
 
 # A single leading environment-variable assignment token, e.g. ``FOO=bar``.
 # Matched against one already-split argv token — anchored at both ends.
@@ -33,6 +34,63 @@ ENV_VAR_RE = re.compile(r"^[A-Z_][A-Z0-9_]*=\S*$")
 # permits lowercase names, so `foo=bar ./guarded.sh` would otherwise
 # resolve its executable to `foo=bar` and let the guarded script through.
 ANY_CASE_ENV_VAR_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=\S*$")
+
+
+@dataclass(frozen=True)
+class _Wrapper:
+    """A process wrapper that runs the rest of argv as a command.
+
+    ``value_options`` consume the next token; ``positionals`` counts the
+    operands taken before the wrapped command (``timeout``'s duration).
+    """
+
+    value_options: frozenset[str] = frozenset()
+    positionals: int = 0
+
+
+_COMMAND_WRAPPERS: dict[str, _Wrapper] = {
+    "env": _Wrapper(value_options=frozenset({"-u", "--unset", "-C", "--chdir"})),
+    "timeout": _Wrapper(
+        value_options=frozenset({"-s", "--signal", "-k", "--kill-after"}), positionals=1
+    ),
+    "nice": _Wrapper(value_options=frozenset({"-n", "--adjustment"})),
+    "stdbuf": _Wrapper(value_options=frozenset({"-i", "-o", "-e"})),
+    "nohup": _Wrapper(),
+    "exec": _Wrapper(value_options=frozenset({"-a"})),
+    "command": _Wrapper(),
+    "time": _Wrapper(value_options=frozenset({"-f", "--format", "-o", "--output"})),
+}
+
+
+def _skip_wrapper_options(*, parts: list[str], idx: int, wrapper: _Wrapper) -> int:
+    while idx < len(parts) and parts[idx].startswith("-") and parts[idx] != "-":
+        token = parts[idx]
+        idx += 1
+        if token == "--":
+            break
+        if token in wrapper.value_options:
+            idx += 1
+    return min(idx + wrapper.positionals, len(parts))
+
+
+def strip_command_wrappers(*, parts: list[str]) -> list[str]:
+    """``parts`` from the program actually run, past env and process wrappers.
+
+    ``FOO=1 timeout 30 nice -n 5 python -c …`` yields ``["python", "-c", …]``.
+    Guards that judge ``parts[0]`` otherwise see ``timeout`` and abstain,
+    which is the evasion GH-1630's review found for DX003 and DX004.
+    """
+    idx = 0
+    while idx < len(parts):
+        token = parts[idx]
+        if ANY_CASE_ENV_VAR_RE.match(token):
+            idx += 1
+            continue
+        wrapper = _COMMAND_WRAPPERS.get(token.rsplit("/", 1)[-1])
+        if wrapper is None:
+            break
+        idx = _skip_wrapper_options(parts=parts, idx=idx + 1, wrapper=wrapper)
+    return parts[idx:]
 
 
 def split_tokens(*, command: str) -> list[str]:

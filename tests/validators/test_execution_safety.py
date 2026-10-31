@@ -153,6 +153,119 @@ class TestPython3Inline:
         assert result is None
 
 
+class TestPythonInlineAcrossNamesAndLaunchers:
+    """GH-1630: every python name and launcher, not only a literal python3."""
+
+    @pytest.fixture()
+    def validator(self) -> ExecutionSafetyValidator:
+        return ExecutionSafetyValidator()
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            'python -c "print(1)"',
+            'python3.12 -c "print(1)"',
+            '/usr/bin/python3 -c "print(1)"',
+            'uv run python -c "print(1)"',
+            'uv run --script python -c "print(1)"',
+            'uv --project apps/api run python -c "print(1)"',
+            'uv --directory apps/api run python -c "print(1)"',
+            'uv run --with requests python -c "print(1)"',
+            'uv run --python=3.12 python3 -c "print(1)"',
+            'uv run -- python -c "print(1)"',
+            'uvx python -c "print(1)"',
+            'uvx python@3.12 -c "print(1)"',
+            'uvx --from foo python -c "print(1)"',
+            'poetry run python -c "print(1)"',
+            'pipenv run python -c "print(1)"',
+            "uv tool run python -c 'print(1)'",
+            "uv --color always run python -c 'print(1)'",
+            "uv run --upgrade-package x python -c 'print(1)'",
+            "uv run --prerelease allow python -c 'print(1)'",
+            "poetry -P apps/api run python -c 'print(1)'",
+            "uv run -q python -c 'print(1)'",
+            "uv --offline run python -c 'print(1)'",
+            "python3 -Ic 'import os'",
+            "python -IEc 'import os'",
+            "uv run python -Ic 'import os'",
+            "python -cprint(1)",
+            "uv run python -c 'import os' -m",
+            "python -W ignore -c 'import os'",
+            "python -- -",
+            "timeout 30 uv run python -c 'import os'",
+            "env python -c 'import os'",
+            "nice -n 5 python3 -c 'import os'",
+            "exec python -c 'import os'",
+            "nohup uv run python -c 'import os' &",
+            "uv run python - < script.py",
+            "cat script.py | uv run python",
+            "uv run python <<'PY'\nprint(1)\nPY",
+            "FOO=1 uv run python -c 'print(1)'",
+            "python /tmp/malicious.py",
+        ],
+    )
+    def test_blocks_inline_python(self, validator: ExecutionSafetyValidator, command: str) -> None:
+        result = validator.validate(inp=_make_input(command=command))
+
+        assert result is not None
+        assert result.message == PYTHON3_INLINE_MSG
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "python script.py",
+            "python -m pytest",
+            "uv run pytest",
+            "uv run python -m pytest tests/",
+            "uv run python manage.py migrate",
+            "uv run --script /tmp/Dev10x/tool.py",
+            "uvx ruff check .",
+            "poetry run pytest",
+            "uv pip install python-dotenv",
+            "rg -n python src",
+            "uv --project python run pytest",
+            "uv run --frozen pytest -k python",
+            "uv tool run ruff check .",
+            "uv python install 3.12",
+            "uv run python tools/report.py -c config.yaml",
+            "python manage.py shell -c x",
+            "uv run python convert.py -",
+            "python -m pytest -c pytest.ini",
+            "python -Wignore -m pytest",
+            "python -X dev script.py",
+            "python --version",
+            "python -u",
+            "python -- script.py",
+            "python --",
+            "uv run --project python",
+            "env | grep python",
+        ],
+    )
+    def test_allows_non_inline_python(
+        self, validator: ExecutionSafetyValidator, command: str
+    ) -> None:
+        assert validator.validate(inp=_make_input(command=command)) is None
+
+    def test_unparseable_launcher_form_fails_closed(
+        self, validator: ExecutionSafetyValidator
+    ) -> None:
+        result = validator.validate(inp=_make_input(command="uv run python -c 'print(\"x)"))
+
+        assert result is not None
+        assert result.message == PYTHON3_INLINE_MSG
+
+    def test_steer_names_mktmp(self, validator: ExecutionSafetyValidator) -> None:
+        result = validator.validate(inp=_make_input(command='python -c "1"'))
+
+        assert result is not None
+        assert "mcp__plugin_dev10x_cli__mktmp" in result.message
+
+    def test_launcher_with_trailing_options_only_is_not_python(
+        self, validator: ExecutionSafetyValidator
+    ) -> None:
+        assert validator.validate(inp=_make_input(command="uv run --project")) is None
+
+
 class TestInplaceEdit:
     @pytest.fixture()
     def validator(self) -> ExecutionSafetyValidator:
