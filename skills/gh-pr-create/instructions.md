@@ -343,7 +343,26 @@ Fixes: {fixes_url from detect_tracker MCP tool}
 {.github/checklist.md contents with TICKET-ID substituted}
 ```
 
-If FIXES_URL is empty (unknown tracker), omit the `Fixes:` line entirely.
+**Never omit the `Fixes:` line.**
+`create_pr` reads the body back and refuses a PR without one (GH-1274).
+If `fixes_url` is empty (unknown tracker), first call
+`mcp__plugin_dev10x_cli__tracker_status` — a pinned `tracker` names
+where the key lives, so build the issue URL from it.
+When no URL can be built, pass the bare ticket key, or
+`fixes_url="none — <reason>"` when there is no ticket at all.
+
+**Partial delivery (GH-1604).**
+When the PR delivers only part of issue #N, the trailer must be
+`Fixes: none — part of #N`: it is present and verified, but carries no
+closing reference, so #N stays open on merge.
+The body also needs a `Part of #N` line plus the steps that remain
+for #N, which `job_story=` cannot carry (GH-1073).
+Either pass the whole body via `body=`, ending in that trailer
+(`body=` refuses a separate `fixes_url`), or pass
+`job_story=` with `fixes_url="none — part of #N"` and add the extra
+lines afterwards with `update_pr`.
+Still pass the required `issue_id`: a prose `fixes_url` replaces the
+reference `issue_id` would seed, so #N gets no closing trailer.
 
 ### Step 5: Run Pre-PR Checks
 

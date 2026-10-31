@@ -82,8 +82,13 @@ else
     echo "⚠️  Skipping conflict check (requires Git 2.38+)." >&2
 fi
 
-# Extract ticket ID from branch name (username/TICKET-ID/[worktree/]description)
-ISSUE=$(echo "$BRANCH_NAME" | cut -d'/' -f2)
+# Extract the ticket key (PROJ-123) from any branch segment, so
+# feature/ACME-1925-roadrunner-sms yields ACME-1925. Without a key,
+# fall back to segment 2 (username/TICKET-ID/[worktree/]description).
+ISSUE=$(printf '%s\n' "$BRANCH_NAME" | grep -oE '[A-Z][A-Z0-9]+-[0-9]+' | head -n 1 || true)
+if [ -z "$ISSUE" ]; then
+    ISSUE=$(printf '%s\n' "$BRANCH_NAME" | cut -d'/' -f2)
+fi
 
 echo "BRANCH_NAME=$BRANCH_NAME"
 echo "ISSUE=$ISSUE"
