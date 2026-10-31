@@ -2402,6 +2402,7 @@ safest fallback for permission-sensitive operations.
 | State | Action |
 |-------|--------|
 | Main repo, user wants worktree | Invoke `dev10x:git-worktree` (creates branch internally — do NOT call `dev10x:ticket-branch` first) |
+| Any, worktree wanted, `HERDR_ENV=1` | Invoke `dev10x:git-worktree` — it takes Path C on its own (GH-1617): Herdr creates the worktree, a Claude agent named after the ticket starts there and is briefed through a file. That agent owns the ticket from then on; this session does not continue the ticket's plan |
 | Main repo, work here | Invoke `dev10x:ticket-branch` to create feature branch |
 | Worktree, generic WT branch | Invoke `dev10x:ticket-branch` to create work-specific branch from within the worktree |
 | Worktree, matching feature branch | No action needed — branch already exists |

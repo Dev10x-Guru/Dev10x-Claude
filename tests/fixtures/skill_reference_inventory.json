@@ -41,7 +41,7 @@
   "git-fixup": 30,
   "git-groom": 100,
   "git-promote": 7,
-  "git-worktree": 25,
+  "git-worktree": 29,
   "gog": 8,
   "ide-normalize": 14,
   "investigate": 14,
@@ -99,7 +99,7 @@
   "spec-update": 27,
   "sql-handoff": 14,
   "target-name": 1,
-  "ticket-branch": 55,
+  "ticket-branch": 56,
   "ticket-create": 52,
   "ticket-foo": 1,
   "ticket-jtbd": 18,
@@ -108,6 +108,6 @@
   "upgrade-cleanup": 29,
   "verify-acc-dod": 54,
   "voice-supervisor": 7,
-  "work-on": 167,
+  "work-on": 168,
   "yt-upload": 41
 }

@@ -44,6 +44,12 @@ This skill creates a properly named git branch following the project convention:
 
 It ensures you're on the latest develop branch before creating the new branch and automatically detects if running in a git worktree.
 
+**Under Herdr (`HERDR_ENV=1`, GH-1617):** this skill still creates a
+branch in the *current* checkout. When the ticket should run in its
+own worktree and agent instead — parallel work — invoke
+`dev10x:git-worktree`, which takes its Herdr Path C automatically and
+uses this skill's branch convention.
+
 ## When to Use This Skill
 
 Use this skill when:
