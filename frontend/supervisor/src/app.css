@@ -1,6 +1,8 @@
 @import "@fontsource-variable/bricolage-grotesque";
 @import "@fontsource-variable/instrument-sans";
 @import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/source-code-pro/400.css";
+@import "@fontsource/source-code-pro/600.css";
 
 :root {
   color-scheme: light dark;
@@ -26,6 +28,7 @@
   --font-display: "Bricolage Grotesque Variable", "Avenir Next Condensed", sans-serif;
   --font-body: "Instrument Sans Variable", "Helvetica Neue", sans-serif;
   --font-term: "IBM Plex Mono", ui-monospace, monospace;
+  --font-status: "Source Code Pro", ui-monospace, monospace;
 
   --step--1: clamp(0.78rem, 0.76rem + 0.1vw, 0.84rem);
   --step-0: clamp(0.92rem, 0.89rem + 0.15vw, 1rem);

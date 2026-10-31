@@ -30,6 +30,7 @@ export function makeSession(overrides: Partial<Session> = {}): Session {
     preview: null,
     excerpt: "",
     status_line: "",
+    status_line_ansi: "",
     workspace: makeWorkspace(),
     decisions: [],
     ...overrides,
