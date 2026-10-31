@@ -28,6 +28,10 @@ allowed-tools:
   # so they must be declared here or every groom pays per-call approval.
   - Bash(git log:*)
   - Bash(git merge-base:*)
+  # Rename-first split (GH-1629): staged-candidate check and the
+  # R100 purity check on each rename commit.
+  - Bash(git diff --cached:*)
+  - Bash(git show --name-status:*)
   # Phase 1 resolves the base branch through this tool rather than
   # assuming `develop`, so it needs declaring for the same reason.
   - mcp__plugin_dev10x_cli__detect_base_branch
