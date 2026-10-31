@@ -23,6 +23,7 @@ allowed-tools:
   - mcp__plugin_dev10x_cli__generate_commit_list
   - mcp__plugin_dev10x_cli__post_summary_comment
   - mcp__plugin_dev10x_cli__detect_tracker
+  - mcp__plugin_dev10x_cli__tracker_status
   - mcp__plugin_dev10x_cli__resolve_gate
   - mcp__plugin_dev10x_cli__supervisor_review_status
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/gh-pr-create/scripts/:*)
