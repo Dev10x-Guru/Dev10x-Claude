@@ -31,6 +31,7 @@ EXPECTED_SUBCOMMANDS = {
     "validate",
     "skill",
     "spec",
+    "supervisor",
     "usage",
     "watchdog",
 }
