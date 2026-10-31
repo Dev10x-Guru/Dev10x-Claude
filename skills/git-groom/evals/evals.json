@@ -20,6 +20,11 @@
       "id": "tree-equality-gate",
       "name": "Tree-Equality Gate Before Push",
       "description": "Backup tag created before the soft reset; tree-equality diff against the tag asserted (and rolled back on mismatch) before the force-push"
+    },
+    {
+      "id": "rename-first-split",
+      "name": "Rename-First Split for File Moves",
+      "description": "A commit that moves and edits files is detected in Phase 1 and split into a pure R100 rename commit followed by the edit commit (GH-1629)"
     }
   ],
   "evals": [
@@ -112,6 +117,36 @@
           "dimension": "tree-equality-gate",
           "check": "behavioral",
           "signal": "A non-empty tree-equality diff triggers 'git reset --hard groom-backup-<branch-slug>' and the force-push does NOT run"
+        }
+      ]
+    },
+    {
+      "id": "rename-first-split-for-moved-file",
+      "name": "Moved-and-edited file is split rename-first",
+      "description": "A branch whose single commit moves references/a.md to references/sub/a.md and edits it is reported as a rename-first candidate and split into a 🚚 R100 rename commit plus the edit commit",
+      "input": "/dev10x:git-groom (branch with one commit: R062 references/a.md -> references/sub/a.md)",
+      "assertions": [
+        {
+          "dimension": "rename-first-split",
+          "check": "tool_called",
+          "tool": "Bash",
+          "signal": "Phase 1 runs 'git log -M30% --name-status' and reports the R062 entry as a rename-first candidate"
+        },
+        {
+          "dimension": "rename-first-split",
+          "check": "behavioral",
+          "signal": "The strategy chosen (auto-selected or recommended) is 'Rename-first split', not Full restructure"
+        },
+        {
+          "dimension": "rename-first-split",
+          "check": "behavioral",
+          "signal": "The rewritten branch has a 🚚 commit whose 'git show --name-status -M' lists only R100 entries, followed by a commit carrying the original message"
+        },
+        {
+          "dimension": "tree-equality-gate",
+          "check": "tool_called",
+          "tool": "Bash",
+          "signal": "'git diff groom-backup-<branch-slug> HEAD' is empty before the force-push"
         }
       ]
     }

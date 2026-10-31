@@ -228,7 +228,19 @@ git log --oneline origin/develop..HEAD
 git log --oneline --stat origin/develop..HEAD
 ```
 
-Both shapes are declared in this skill's `allowed-tools`
+**Rename-first candidates (GH-1629).** Also list commits that move
+files *and* edit them — they review as a delete plus an add:
+
+```bash
+git log -M30% --name-status --format='--- %h %s' origin/develop..HEAD
+```
+
+Any `R<nnn>` line with `nnn < 100` is a candidate; `R100` is already a
+pure rename. Report them in the analysis summary. Detection rules and
+the uncommitted-work caveat are in
+[`references/rename-first-split.md`](references/rename-first-split.md).
+
+These shapes are declared in this skill's `allowed-tools`
 (`Bash(git log:*)`, `Bash(git merge-base:*)`), so they run without
 per-call approval. Substitute the detected base for `develop` —
 resolve it via `mcp__plugin_dev10x_cli__detect_base_branch` rather
@@ -284,9 +296,14 @@ commits are the discriminator between the two common requests:
   commits, rebuild from scratch as atomic layer/component commits
 - Mass rewrite — Non-interactive message rewrite from JSON
 - Interactive rebase — Full manual control over commit order
+- Rename-first split (Recommended when candidates exist) — offered only when
+  Phase 1 found rename-first candidates; splits each into a pure
+  rename commit and the edit commit (Strategy E)
 
 Rationale: if fixups exist, the user almost always wants them applied;
 if there are no fixups, a "full restructure" is the probable request.
+Rename-first candidates take the recommendation over Full restructure:
+a move-plus-edit commit is the specific shape a reviewer pays for.
 
 **At adaptive level (GH-530):**
 
@@ -300,6 +317,10 @@ fixups, a full restructure is the probable request:
 - **Fixup commits present → auto-select "Fixup" and apply them.**
   The presence of `fixup!`/`squash!` commits is the strongest signal
   the user wants targeted squashing, not a rebuild.
+- **Rename-first candidates present → auto-select "Rename-first
+  split" (GH-1629)**, after the Fixup pass when fixups also exist.
+  It is deterministic and content-preserving — the tree-equality
+  post-condition proves it — so pass `destructive: false`.
 - No fixups, only message issues → auto-select "Mass rewrite"
 - Mixed structural issues → auto-select "Fixup" (safest default)
 - **No fixups and structural reorganization is needed → "Full
@@ -537,6 +558,21 @@ ${CLAUDE_PLUGIN_ROOT}/skills/git/scripts/git-rebase-groom.sh <seq-path> develop
 `GIT_EDITOR="true"` suppresses the commit message editor for `--amend`
 so the rebase runs fully unattended.
 
+#### Strategy E: Rename-First Split (for file moves, GH-1629)
+
+Use when Phase 1 reported rename-first candidates. Each candidate
+commit becomes two: a 🚚 rename commit with zero content change (it
+reviews as `R100` entries), then the original commit's edits with its
+original message. Runs unattended through `git-rebase-groom.sh` with
+two `exec` lines per candidate — `git mv` + commit on the parent tree,
+then `git read-tree -u --reset <C>` + `git commit -C <C>`.
+
+Backup tag first, verify each rename commit lists only `R100`
+entries, and finish with the tree-equality post-condition. The
+sequence-file recipe, rename commit title rules, and when not to
+split are in
+[`references/rename-first-split.md`](references/rename-first-split.md).
+
 #### Strategy C: Interactive Rebase (for reordering/editing)
 
 Use when you need to reorder, edit messages, or split commits:
@@ -578,8 +614,8 @@ via Bash. Do NOT call `git rebase --abort` unless resolution fails.
 
 Mark phase transition: `TaskUpdate(taskId=execute_task, status="completed")` then `TaskUpdate(taskId=push_task, status="in_progress")`
 
-**REQUIRED for Strategy B only — tree-equality assertion before the
-force-push.** Run `git diff groom-backup-<branch-slug> HEAD` and
+**REQUIRED for Strategies B and E — tree-equality assertion before
+the force-push.** Run `git diff groom-backup-<branch-slug> HEAD` and
 confirm it is empty before continuing. A non-empty diff means the
 rebuild changed content, not just commit boundaries — roll back with
 `git reset --hard groom-backup-<branch-slug>` and re-run the

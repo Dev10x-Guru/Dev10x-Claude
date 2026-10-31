@@ -71,6 +71,18 @@ Moving those to references risks agents skipping guardrails.
    `## Example Plays`), keep that gating text inline in SKILL.md
    and move only the bulk of the examples.
 
+### Commit the move before the edit (GH-1629)
+
+Land an extraction as two commits: first a pure rename (`git mv`,
+zero content change, reviewed as `R100`), then the edits that turn
+the moved text into a standalone reference. Committed together, the
+move reads as a delete plus an add and the reviewer has to diff two
+long blobs by eye. GH-970 (PR #975) split
+`references/task-orchestration.md` into `references/orchestration/*.md`
+this way. When the two already landed as one commit,
+`dev10x:git-groom` detects it and offers the rename-first split
+(Strategy E).
+
 ## Shared references
 
 Content referenced by more than one skill lives at the repo root
