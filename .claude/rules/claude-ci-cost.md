@@ -96,7 +96,11 @@ these jobs.
    `claude-code-action` lags a generation, so keep the aliases in
    `--model` and move them by changing the variable. That changes every
    workflow without a PR: read the CLI changelog first, then compare
-   usage reports (rule 7).
+   usage reports (rule 7). Bump the action and the variable together:
+   each action release bundles one CLI through its `claude-agent-sdk`
+   dependency (v1.0.250 ships SDK 0.3.300, CLI 2.1.300), and the
+   variable should be at least that version, so the action never
+   drives a CLI older than the one it was released with.
 9. **Federation, not keys (GH-1622).** Every Claude step authenticates
    with the four `anthropic_federation_*` inputs, read from the
    `ANTHROPIC_FEDERATION_RULE_ID` / `_ORGANIZATION_ID` /
