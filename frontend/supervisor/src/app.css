@@ -27,8 +27,10 @@
 
   --font-display: "Bricolage Grotesque Variable", "Avenir Next Condensed", sans-serif;
   --font-body: "Instrument Sans Variable", "Helvetica Neue", sans-serif;
-  --font-term: "IBM Plex Mono", ui-monospace, monospace;
-  --font-status: "Source Code Pro", ui-monospace, monospace;
+  --font-term: "SauceCodePro Nerd Font Mono", "SauceCodePro NFM", "SauceCodePro Nerd Font",
+    "Source Code Pro", "IBM Plex Mono", ui-monospace, monospace;
+  --font-status: "SauceCodePro Nerd Font Mono", "SauceCodePro NFM", "Source Code Pro", ui-monospace,
+    monospace;
 
   --step--1: clamp(0.78rem, 0.76rem + 0.1vw, 0.84rem);
   --step-0: clamp(0.92rem, 0.89rem + 0.15vw, 1rem);
