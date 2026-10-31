@@ -63,6 +63,7 @@ plugins:
     - gog
     - slack
     - slack-setup
+    - supervisor
     - voice-supervisor
   teach:
     - audit-file

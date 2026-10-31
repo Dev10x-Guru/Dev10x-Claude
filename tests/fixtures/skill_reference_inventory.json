@@ -102,6 +102,7 @@
   "spec-sync": 32,
   "spec-update": 27,
   "sql-handoff": 14,
+  "supervisor": 6,
   "target-name": 1,
   "ticket-branch": 56,
   "ticket-create": 54,
