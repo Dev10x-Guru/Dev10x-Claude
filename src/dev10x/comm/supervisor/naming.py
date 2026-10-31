@@ -28,7 +28,10 @@ def name_from_branch(*, branch: str) -> str:
     if branch in UNNAMED_BRANCHES:
         return ""
     parts = branch.split("/")
-    kept = parts[1:] if len(parts) > 1 else parts
+    if len(parts) >= 4:
+        kept = [parts[1], *parts[3:]]
+    else:
+        kept = parts[1:] if len(parts) > 1 else parts
     return NOT_A_NAME.sub("-", "-".join(kept)).strip("-.")[:MAX_NAME_CHARS].rstrip("-.")
 
 
