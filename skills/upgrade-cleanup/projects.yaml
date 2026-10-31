@@ -75,6 +75,7 @@ command_spellings:
       - dev10x permission init
       - dev10x permission investigate
       - dev10x permission merge-worktree
+      - dev10x permission sync-worktrees
       - dev10x permission ensure-ignored
       - dev10x permission record-upgrade
       - dev10x permission report

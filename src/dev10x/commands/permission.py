@@ -1035,6 +1035,46 @@ def ensure_ignored(*, dry_run: bool, quiet: bool) -> None:
             click.echo(text)
 
 
+@permission.command(name="sync-worktrees")
+@click.option("--dry-run", is_flag=True, help="Show changes without modifying files")
+def sync_worktrees(*, dry_run: bool) -> None:
+    """Carry rules granted in a main checkout into its existing worktrees (GH-1673).
+
+    The reverse of merge-worktree. Rules pinned to a checkout path and
+    session-specific noise stay where they were granted; a git-tracked
+    worktree settings file is skipped.
+    """
+    from dev10x.core.skills.permission import merge_worktree_permissions as mod
+    from dev10x.core.skills.permission.settings_discovery import vendored_dirs
+
+    ctx = _require_context()
+    families = mod.find_repo_families(
+        ctx.config.get("roots", []),
+        excluded=vendored_dirs(ctx.config),
+    )
+    if not families:
+        click.echo("No main checkout with seeded worktrees found under the configured roots.")
+        return
+    if dry_run:
+        click.echo("(dry run — no files will be modified)\n")
+
+    total = 0
+    for main_project, worktree_dirs in sorted(families.items()):
+        count, messages = mod.sync_main_to_worktrees(
+            main_project=main_project,
+            worktree_dirs=worktree_dirs,
+            dry_run=dry_run,
+        )
+        if messages:
+            click.echo(f"\n{main_project} -> {len(worktree_dirs)} worktree(s)")
+            for message in messages:
+                click.echo(message)
+        total += count
+
+    verb = "Would add" if dry_run else "Added"
+    click.echo(f"\n{verb} {total} rule(s) across {len(families)} repo(s).")
+
+
 @permission.command(name="merge-worktree")
 @click.option("--dry-run", is_flag=True, help="Show changes without modifying files")
 @click.option("--restore", is_flag=True, help="Restore settings from most recent backups")

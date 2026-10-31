@@ -217,6 +217,177 @@ class TestReanchorWorktreePaths:
         )
 
 
+class TestPinsACheckout:
+    FAMILY = [Path("/work/dx/Dev10x-Claude"), Path("/work/.herdr/worktrees/Dev10x-Claude/wt-1")]
+
+    @pytest.mark.parametrize(
+        ("entry", "expected"),
+        [
+            ("Bash(/work/dx/Dev10x-Claude/bin/release.sh:*)", True),
+            ("Read(/work/.herdr/worktrees/Dev10x-Claude/wt-1/docs/**)", True),
+            ("mcp__chrome-devtools__take_snapshot", False),
+            ("Bash(/work/dx/Dev10x-Claude-2/bin/x.sh:*)", False),
+        ],
+        ids=["main-path", "worktree-path", "portable-tool", "sibling-repo-prefix"],
+    )
+    def test_detects_checkout_paths(self, entry: str, expected: bool) -> None:
+        assert mod.pins_a_checkout(entry, checkouts=self.FAMILY) is expected
+
+    def test_tilde_spelling_is_a_pin(self) -> None:
+        checkout = Path.home() / "repo"
+
+        assert mod.pins_a_checkout("Bash(~/repo/bin/x.sh:*)", checkouts=[checkout]) is True
+
+
+class TestSyncMainToWorktrees:
+    """GH-1673: a grant made in the main checkout reaches existing worktrees."""
+
+    @pytest.fixture
+    def family(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, Path]:
+        from dev10x.skills.permission import catalog_write
+
+        monkeypatch.setattr(catalog_write, "_is_git_tracked", lambda _path: False)
+        main = tmp_path / "proj"
+        (main / ".claude").mkdir(parents=True)
+        (main / ".claude" / "settings.local.json").write_text(
+            json.dumps(
+                {
+                    "permissions": {
+                        "allow": [
+                            "mcp__chrome-devtools__take_snapshot",
+                            f"Bash({main}/bin/release.sh:*)",
+                            "Bash(git log:*)",
+                        ]
+                    }
+                }
+            )
+        )
+        wt = tmp_path / "wt-1"
+        _make_worktree(main=main, wt=wt)
+        (wt / ".claude" / "settings.local.json").write_text(
+            json.dumps({"permissions": {"allow": ["Bash(git log:*)"]}})
+        )
+        return main, wt
+
+    def _allow(self, worktree: Path) -> list[str]:
+        settings = worktree / ".claude" / "settings.local.json"
+        return json.loads(settings.read_text())["permissions"]["allow"]
+
+    def test_portable_grant_is_copied_and_pinned_path_is_not(
+        self,
+        family: tuple[Path, Path],
+    ) -> None:
+        main, wt = family
+
+        count, messages = mod.sync_main_to_worktrees(main_project=main, worktree_dirs=[wt])
+
+        assert count == 1
+        assert self._allow(wt) == ["Bash(git log:*)", "mcp__chrome-devtools__take_snapshot"]
+        assert "    + mcp__chrome-devtools__take_snapshot" in messages
+
+    def test_dry_run_reports_without_writing(self, family: tuple[Path, Path]) -> None:
+        main, wt = family
+
+        count, _messages = mod.sync_main_to_worktrees(
+            main_project=main,
+            worktree_dirs=[wt],
+            dry_run=True,
+        )
+
+        assert count == 1
+        assert self._allow(wt) == ["Bash(git log:*)"]
+
+    def test_second_run_is_a_no_op(self, family: tuple[Path, Path]) -> None:
+        main, wt = family
+        mod.sync_main_to_worktrees(main_project=main, worktree_dirs=[wt])
+
+        count, messages = mod.sync_main_to_worktrees(main_project=main, worktree_dirs=[wt])
+
+        assert (count, messages) == (0, [])
+
+    def test_unreadable_worktree_is_skipped_and_the_rest_synced(
+        self,
+        family: tuple[Path, Path],
+        tmp_path: Path,
+    ) -> None:
+        main, wt = family
+        broken = tmp_path / "wt-2"
+        _make_worktree(main=main, wt=broken)
+        (broken / ".claude" / "settings.local.json").write_text("{not json")
+
+        count, messages = mod.sync_main_to_worktrees(
+            main_project=main,
+            worktree_dirs=[broken, wt],
+        )
+
+        assert count == 1
+        assert f"  SKIP (unreadable settings): {broken / '.claude' / 'settings.local.json'}" in (
+            messages
+        )
+        assert "mcp__chrome-devtools__take_snapshot" in self._allow(wt)
+
+    def test_unreadable_main_skips_the_family(self, family: tuple[Path, Path]) -> None:
+        main, wt = family
+        (main / ".claude" / "settings.local.json").write_text("{not json")
+
+        count, messages = mod.sync_main_to_worktrees(main_project=main, worktree_dirs=[wt])
+
+        assert count == 0
+        assert messages == [
+            f"  SKIP (unreadable settings): {main / '.claude' / 'settings.local.json'}"
+        ]
+
+    def test_tracked_worktree_settings_are_skipped(
+        self,
+        family: tuple[Path, Path],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from dev10x.skills.permission import catalog_write
+
+        main, wt = family
+        monkeypatch.setattr(catalog_write, "_is_git_tracked", lambda _path: True)
+
+        count, messages = mod.sync_main_to_worktrees(main_project=main, worktree_dirs=[wt])
+
+        assert count == 0
+        assert self._allow(wt) == ["Bash(git log:*)"]
+        assert any("SKIP (git-tracked)" in message for message in messages)
+
+
+class TestFindRepoFamilies:
+    def test_groups_main_with_its_seeded_worktrees(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        container = tmp_path / "work"
+        main = container / "proj"
+        (main / ".git").mkdir(parents=True)
+        (main / ".claude").mkdir()
+        (main / ".claude" / "settings.local.json").write_text("{}")
+        seeded = tmp_path / "herdr" / "wt-1"
+        bare = tmp_path / "herdr" / "wt-2"
+        for wt in (seeded, bare):
+            _make_worktree(main=main, wt=wt, settings=wt is seeded)
+        monkeypatch.setattr(mod, "git_registered_worktrees", lambda _repo: [main, seeded, bare])
+
+        assert mod.find_repo_families([str(container)]) == {main: [seeded]}
+
+    def test_repo_without_worktrees_is_not_a_family(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        main = tmp_path / "work" / "proj"
+        (main / ".git").mkdir(parents=True)
+        monkeypatch.setattr(mod, "git_registered_worktrees", lambda _repo: [main])
+
+        assert mod.find_repo_families([str(tmp_path / "work")]) == {}
+
+    def test_missing_root_is_skipped(self, tmp_path: Path) -> None:
+        assert mod.find_repo_families([str(tmp_path / "absent")]) == {}
+
+
 class TestMergePermissionsReanchor:
     def test_herdr_worktree_rule_lands_on_main_checkout_path(
         self,

@@ -86,6 +86,7 @@ OPT_IN_GROUPS: frozenset[str] = frozenset(
         "obsidian-cli",
         "mcp-google-workspace-readonly",
         "secrets-listing-readonly",
+        "browser-readonly",
     }
 )
 

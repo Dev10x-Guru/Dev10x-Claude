@@ -27,7 +27,21 @@ DEFAULT_SAFE_GROUPS = (
 OPT_IN_GROUPS = {
     "mcp-google-workspace-readonly": Sensitivity.PII,
     "secrets-listing-readonly": Sensitivity.SECRET,
+    "browser-readonly": Sensitivity.PII,
 }
+
+BROWSER_ACT_OR_EVAL_TOOLS = (
+    "mcp__chrome-devtools__evaluate_script",
+    "mcp__chrome-devtools__click",
+    "mcp__chrome-devtools__fill",
+    "mcp__chrome-devtools__fill_form",
+    "mcp__chrome-devtools__upload_file",
+    "mcp__chrome-devtools__handle_dialog",
+    "mcp__chrome-devtools__navigate_page",
+    "mcp__claude-in-chrome__javascript_tool",
+    "mcp__claude-in-chrome__computer",
+    "mcp__claude-in-chrome__form_input",
+)
 
 
 @pytest.fixture(scope="module")
@@ -82,6 +96,26 @@ class TestOptInGroups:
         ]
         assert google_tools  # sanity: the group is non-empty
         assert not (set(google_tools) & tier2_rules)
+
+    @pytest.mark.parametrize("tool", BROWSER_ACT_OR_EVAL_TOOLS)
+    def test_browser_group_leaves_act_and_eval_tools_prompting(
+        self,
+        groups: dict,
+        tool: str,
+    ) -> None:
+        """GH-1673: read must be split from act, never `mcp__chrome-devtools__*`."""
+        assert tool not in groups["browser-readonly"]["rules"]
+
+    def test_browser_group_names_tools_by_server_without_wildcards(self, groups: dict) -> None:
+        rules = groups["browser-readonly"]["rules"]
+        assert rules
+        assert all(rule.startswith("mcp__") and "*" not in rule for rule in rules)
+
+    def test_browser_group_holds_no_write_tool(self, groups: dict) -> None:
+        writes = [
+            r for r in groups["browser-readonly"]["rules"] if classify_mcp_tool(r) == "write"
+        ]
+        assert writes == []
 
     def test_secret_listings_are_opt_in(self, groups: dict) -> None:
         rules = set(groups["secrets-listing-readonly"]["rules"])

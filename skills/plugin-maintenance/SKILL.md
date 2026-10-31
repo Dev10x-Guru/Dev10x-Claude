@@ -350,6 +350,15 @@ merged into the userspace catalog, so `ensure-base` and `seed-worktree`
 carry those rules into every checkout, including ones created after the
 grant, and `catalog-diff` lists them as user-only.
 
+**Grants made in a main checkout (GH-1673).** `permission
+sync-worktrees [--dry-run]` copies allow rules from each main checkout
+under the configured roots into its existing worktrees, wherever they
+live. Rules pinned to a checkout path and session noise stay put, and
+a git-tracked worktree file is skipped. Browser observation tools ship
+as the opt-in `browser-readonly` group (`permission doctor
+--enable-group=browser-readonly`); tools that act or run JavaScript
+stay prompting.
+
 **Worktree roots outside the repo (GH-1666).** Set
 `derive_worktree_roots: true` in the userspace `projects.yaml` and
 `ensure-workspace` registers the parent of every linked worktree that

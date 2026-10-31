@@ -12,6 +12,7 @@ CLI entry point: ``dev10x permission merge-worktree``.
 """
 
 import json
+import logging
 import re
 from pathlib import Path
 
@@ -21,17 +22,23 @@ from dev10x.domain.common.policy import Policy, PolicySource
 from dev10x.domain.common.result import Result
 from dev10x.domain.common.ticket_id import TICKET_ID_PATTERN
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.skills.permission.backup import backed_up_write
 from dev10x.skills.permission.catalog_paths import shipped_projects_catalog
+from dev10x.skills.permission.catalog_write import partition_writable
 from dev10x.skills.permission.config import parse_config, resolve_config
 from dev10x.skills.permission.policy_authoring import policy_from_accepted_prompt
 from dev10x.skills.permission.settings_discovery import (
+    VENDORED_DIRS,
     git_registered_worktrees,
     resolve_main_project,
+    walk_repos,
 )
 
 MEMORY_CONFIG = Dev10xConfigDir.projects_yaml()
 USERSPACE_CONFIG = Dev10xConfigDir.upgrade_cleanup_projects_yaml()
 PLUGIN_CONFIG = shipped_projects_catalog()
+
+log = logging.getLogger(__name__)
 
 NOISE_PATTERNS = [
     re.compile(r"\.[A-Za-z0-9]{8,}\.(txt|md|json)"),
@@ -273,6 +280,115 @@ def merge_permissions(
             )
 
     return len(stable_entries), messages
+
+
+def find_repo_families(
+    roots: list[str],
+    *,
+    excluded: frozenset[str] = VENDORED_DIRS,
+) -> dict[Path, list[Path]]:
+    """Map each main checkout under ``roots`` to its worktrees that carry settings.
+
+    Unlike :func:`find_worktree_groups`, a root may be a container of many
+    repos (``/work/tt``), and a worktree may live anywhere on disk:
+    ``git worktree list`` names the main checkout first and every linked
+    worktree after it (GH-1673).
+    """
+    families: dict[Path, list[Path]] = {}
+    seen: set[Path] = set()
+    for root in roots:
+        root_path = Path(root).expanduser()
+        if not root_path.is_dir():
+            continue
+        for repo in walk_repos(root_path, excluded=excluded):
+            if repo.resolve() in seen:
+                continue
+            family = git_registered_worktrees(repo)
+            seen.update(member.resolve() for member in family)
+            if len(family) < 2:
+                continue
+            main, *linked = family
+            worktrees = [wt for wt in linked if (wt / ".claude" / "settings.local.json").is_file()]
+            if worktrees and (main / ".claude" / "settings.local.json").is_file():
+                families[main] = worktrees
+    return families
+
+
+def _home_relative(path: Path) -> str | None:
+    home = Path.home()
+    return f"~/{path.relative_to(home)}" if path.is_relative_to(home) else None
+
+
+def pins_a_checkout(entry: str, *, checkouts: list[Path]) -> bool:
+    """True when ``entry`` names a path inside one checkout of the family.
+
+    Such a rule only makes sense where it was granted (GH-1673, GH-1666):
+    copying ``Bash(/work/proj/bin/x.sh:*)`` into a sibling worktree grants
+    a script in the main checkout from inside the worktree, which is the
+    cross-checkout pinning the doctor's invariants already reject.
+    """
+    for checkout in checkouts:
+        spellings = [str(checkout), _home_relative(checkout)]
+        if any(spelling and f"{spelling}/" in entry for spelling in spellings):
+            return True
+    return False
+
+
+def _read_allow(settings: Path) -> set[str] | None:
+    """The file's allow rules, or ``None`` when it cannot be read or parsed."""
+    try:
+        return extract_allow_set(load_permissions(settings))
+    except (OSError, ValueError, AttributeError) as error:
+        log.warning("cannot read %s: %s", settings, error)
+        return None
+
+
+def sync_main_to_worktrees(
+    *,
+    main_project: Path,
+    worktree_dirs: list[Path],
+    dry_run: bool = False,
+) -> tuple[int, list[str]]:
+    """Copy rules granted in the main checkout into its existing worktrees.
+
+    Propagation used to be one-shot (GH-1673): a worktree got a snapshot
+    at creation, and ``merge-worktree`` only flows worktree → main. A
+    "don't ask again" answered in the main checkout after the worktrees
+    existed never reached them, so each kept prompting for a tool the
+    repo had already approved. Rules pinned to a checkout path and
+    session noise stay where they are.
+    """
+    main_settings = main_project / ".claude" / "settings.local.json"
+    main_allow = _read_allow(main_settings)
+    if main_allow is None:
+        return 0, [f"  SKIP (unreadable settings): {main_settings}"]
+    family = [main_project, *worktree_dirs]
+    portable = sorted(
+        entry
+        for entry in main_allow
+        if not pins_a_checkout(entry, checkouts=family) and not is_noise(entry)
+    )
+    targets = [wt / ".claude" / "settings.local.json" for wt in worktree_dirs]
+    writable, messages = partition_writable(targets)
+
+    total = 0
+    for settings in writable:
+        present = _read_allow(settings)
+        if present is None:
+            messages.append(f"  SKIP (unreadable settings): {settings}")
+            continue
+        missing = [entry for entry in portable if entry not in present]
+        if not missing:
+            continue
+        total += len(missing)
+        messages.append(f"  target: {settings}")
+        messages.extend(f"    + {entry}" for entry in missing)
+        if dry_run:
+            continue
+        with backed_up_write(path=settings) as live_data:
+            allow = live_data.setdefault("permissions", {}).setdefault("allow", [])
+            allow.extend(entry for entry in missing if entry not in allow)
+    return total, messages
 
 
 def _restore(*, config_path: Path) -> int:
