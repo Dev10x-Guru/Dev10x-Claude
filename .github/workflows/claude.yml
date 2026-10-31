@@ -72,9 +72,18 @@ jobs:
 
             FOR PR REVIEWS:
             - Focus ONLY on changes in the PR, not the entire codebase
-            - No PR context bundle is fetched for this job. Use
-              `gh pr diff <PR>` to see actual changes
-            - Use `gh pr view <PR> --json files` to get changed files list
+            - No PR context bundle is fetched for this job. List the
+              changed files with
+              `gh api repos/<REPO>/pulls/<PR>/files --paginate --jq '.[].filename'`
+              and read one file's patch at a time with
+              `gh api repos/<REPO>/pulls/<PR>/files --paginate --jq 'map(select(.filename == "PATH").patch)[]'`.
+              An empty patch means GitHub left it out as too large or
+              binary: Read that file at HEAD instead. Never fetch the
+              whole diff with `gh pr diff`; a large one overflows the
+              output, and saving it to a file is denied
+            - `gh pr view` always takes an explicit `--json` field list.
+              Never request `statusCheckRollup` and never run
+              `gh pr checks`: this token cannot read check runs
             - Load domain-specific agent specs from .claude/agents/ based on
               changed file types (see CLAUDE.md Code Review table)
             - Follow review workflow from references/review-guidelines.md
@@ -108,7 +117,7 @@ jobs:
           # prefix; review comments are a `gh api` call away. --tools leaves
           # only the built-in tools this job uses; Write is how a multi-line
           # review body reaches `gh pr review --body-file`.
-          claude_args: '--settings .github/claude-ci-settings.json --append-system-prompt-file .github/claude/ci-system-prompt.md --exclude-dynamic-system-prompt-sections --disallowed-tools "ScheduleWakeup,Monitor" --model haiku --tools "Bash,Read,Write,Grep,Glob" --allowed-tools "Read,Write,Grep,Glob,mcp__github_inline_comment__create_inline_comment,Bash(gh issue view:*),Bash(gh search:*),Bash(gh issue list:*),Bash(gh pr review:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh api:*)"'
+          claude_args: '--settings .github/claude-ci-settings.json --append-system-prompt-file .github/claude/ci-system-prompt.md --exclude-dynamic-system-prompt-sections --disallowed-tools "ScheduleWakeup,Monitor" --model haiku --tools "Bash,Read,Write,Grep,Glob" --allowed-tools "Read,Write,Grep,Glob,mcp__github_inline_comment__create_inline_comment,Bash(gh issue view:*),Bash(gh search:*),Bash(gh issue list:*),Bash(gh pr review:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh api:*)"'
 
       # GH-1615: cost and cache use of this run; see claude-code-review.yml.
       - name: Report Claude usage

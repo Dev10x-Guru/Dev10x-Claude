@@ -390,3 +390,18 @@ class TestReviewScope:
         output = (_CLAUDE_DIR / "prompts" / "code-review.output-ci.md").read_text(encoding="utf-8")
 
         assert "Never raise it as an inline comment" in output
+
+
+class TestMentionDiffReads:
+    """@claude reads one patch at a time, never the whole diff (GH-1691)."""
+
+    @pytest.fixture(scope="class")
+    def step(self) -> dict[str, Any]:
+        (step,) = _claude_steps(workflow="claude.yml")
+        return step
+
+    def test_allowlist_has_no_whole_diff_command(self, step: dict[str, Any]) -> None:
+        assert "Bash(gh pr diff:*)" not in step["with"]["claude_args"]
+
+    def test_prompt_reads_patches_from_the_files_endpoint(self, step: dict[str, Any]) -> None:
+        assert "gh api repos/<REPO>/pulls/<PR>/files --paginate" in step["with"]["prompt"]
