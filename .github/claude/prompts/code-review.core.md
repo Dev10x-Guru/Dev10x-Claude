@@ -16,7 +16,9 @@ Read these files first:
 STEP 2 — CLASSIFY PR TYPE:
 Check the PR title and description in `pr.json` for:
 - POC/test code (🧪, "POC", "demo", "prototype") → relaxed standards
-- Revert PR ("Revert" in title) → REQUEST_CHANGES, require explanation
+- Revert PR ("Revert" in title) → require an explanation of why. A
+  missing explanation is a CRITICAL finding; a revert with a clear
+  explanation is reviewed like any other PR
 - Stacked PR ("Stacked on #N", "Depends on #N") → note in summary,
   focus review on changes unique to THIS PR, not the base PR
 

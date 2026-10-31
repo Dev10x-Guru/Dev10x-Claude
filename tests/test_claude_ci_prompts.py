@@ -303,6 +303,45 @@ class TestRoutingParity:
         assert routes[pattern]
 
 
+class TestReviewVerdict:
+    """The CI review submits the state its verdict names (GH-1693)."""
+
+    _OUTPUT: ClassVar[Path] = _CLAUDE_DIR / "prompts" / "code-review.output-ci.md"
+    _CORE: ClassVar[Path] = _CLAUDE_DIR / "prompts" / "code-review.core.md"
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "--request-changes --body-file review-summary-body.md",
+            "--approve --body-file review-summary-body.md",
+        ],
+    )
+    def test_verdict_is_submitted_as_a_review_state(self, command: str) -> None:
+        assert command in self._OUTPUT.read_text(encoding="utf-8")
+
+    def test_comment_is_no_longer_the_default_state(self) -> None:
+        output = self._OUTPUT.read_text(encoding="utf-8")
+
+        assert "gh pr review <PR> --comment --body-file" not in output
+
+    def test_revert_is_a_finding_not_a_bare_state(self) -> None:
+        core = self._CORE.read_text(encoding="utf-8")
+
+        assert "→ REQUEST_CHANGES" not in core
+
+    def test_draft_step_also_drafts_on_requested_changes(self) -> None:
+        document = yaml.safe_load(
+            (_WORKFLOWS / "claude-code-review.yml").read_text(encoding="utf-8")
+        )
+        (step,) = [
+            step
+            for step in document["jobs"]["claude-review"]["steps"]
+            if step["name"] == "Convert to draft when the review left findings"
+        ]
+
+        assert '.state == "CHANGES_REQUESTED"' in step["run"]
+
+
 class TestDraftConversion:
     """A shell step, not the model, drafts a PR with findings (GH-1618)."""
 
