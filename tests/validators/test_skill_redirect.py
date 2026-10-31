@@ -1653,7 +1653,14 @@ class TestPytestInnerLoop:
 
     @pytest.mark.parametrize(
         "command",
-        ["pip install pytest", "uv add --dev pytest", "rg -n pytest src/"],
+        [
+            "pip install pytest",
+            "uv add --dev pytest",
+            "rg -n pytest src/",
+            # GH-1609: `git grep` is a search, not a pytest run.
+            'git -C /x grep -n "def \\|@pytest" HEAD -- tests/a.py',
+            "git grep -n pytest -- tests/",
+        ],
     )
     def test_does_not_fire_on_non_invocations(
         self, validator: SkillRedirectValidator, command: str

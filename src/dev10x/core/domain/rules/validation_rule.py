@@ -176,6 +176,9 @@ def _unquoted(command: str) -> str:
     return "".join(out)
 
 
+_COMPOUND_MARKERS = ("|", ";", "&", "\n", "`", "$(", "<(", ">(")
+
+
 def is_search_command(*, command: str) -> bool:
     """Return True when the resolved executable is a filesystem search tool.
 
@@ -201,9 +204,44 @@ def is_search_command(*, command: str) -> bool:
     never reaches :meth:`MatchingRule.matches_command`.
     """
     bare = _unquoted(command)
-    if "|" in bare or "-exec" in bare:
+    if any(marker in bare for marker in _COMPOUND_MARKERS) or "-exec" in bare:
         return False
-    return _resolved_executable(command=command) in _SEARCH_TOOLS
+    return _resolved_executable(command=command) in _SEARCH_TOOLS or _is_git_grep(command=command)
+
+
+# GH-1609: `git grep -O<cmd>` and a `core.pager` / `pager.*` override run a
+# program, so those spellings keep normal rule evaluation.
+_GIT_GREP_EXEC_OPTIONS = ("-O", "--open-files-in-pager")
+_GIT_PAGER_CONFIG_RE = re.compile(r"^(core\.pager|pager\.)", re.IGNORECASE)
+
+
+def _is_git_grep(*, command: str) -> bool:
+    try:
+        parts = shlex.split(command)
+    except ValueError:
+        return False
+    if not parts or parts[0].split("/")[-1] != "git":
+        return False
+
+    idx = 1
+    while idx < len(parts):
+        token = parts[idx]
+        if token in _GLOBAL_VALUE_OPTIONS:
+            value = parts[idx + 1] if idx + 1 < len(parts) else ""
+            if token == "-c" and _GIT_PAGER_CONFIG_RE.match(value):
+                return False
+            idx += 2
+            continue
+        if token in _GLOBAL_FLAG_OPTIONS or (
+            "=" in token and token.split("=", 1)[0] in _GLOBAL_VALUE_OPTIONS
+        ):
+            idx += 1
+            continue
+        break
+
+    if idx >= len(parts) or parts[idx] != "grep":
+        return False
+    return not any(arg.startswith(_GIT_GREP_EXEC_OPTIONS) for arg in parts[idx + 1 :])
 
 
 @lru_cache(maxsize=256)

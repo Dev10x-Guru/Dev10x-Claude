@@ -279,7 +279,7 @@ class ExecutionSafetyValidator(ValidatorBase):
         result = self._check_inplace_edit(command=inp.command)
         if result:
             return result
-        return self._check_interpreter(command=inp.command)
+        return self._check_interpreter(command=inp.command, cwd=inp.cwd)
 
     def _check_shell_writes(self, *, command: str) -> HookResult | None:
         """Block `cat`/`echo`/`printf` writing a file through a redirect.
@@ -363,13 +363,14 @@ class ExecutionSafetyValidator(ValidatorBase):
 
         return None
 
-    def _check_interpreter(self, *, command: str) -> HookResult | None:
+    def _check_interpreter(self, *, command: str, cwd: str = "") -> HookResult | None:
         """Block inline code and untrusted absolute script paths for
         python3 and the shell interpreters (bash/sh/zsh).
 
         python3 keeps its `-m` carve-out and the narrow approved-prefix
         set; the shell interpreters additionally allow /tmp/Dev10x/.
-        First match wins (python3 checked before the shells), so the
+        An absolute script inside ``cwd`` is trusted like its relative
+        spelling (GH-1683). First match wins (python3 checked before the shells), so the
         interpreter loop stays outermost and each one sweeps every unit
         before the next interpreter is tried.
         """
@@ -383,6 +384,7 @@ class ExecutionSafetyValidator(ValidatorBase):
                 message=PYTHON3_INLINE_MSG,
                 allow_module=True,
                 dash_s_stdin=False,  # python3 -s is a site-flag, not stdin delivery
+                cwd=cwd,
             )
             if result:
                 return result
@@ -396,6 +398,7 @@ class ExecutionSafetyValidator(ValidatorBase):
                     message=SHELL_INTERP_MSG,
                     allow_module=False,
                     dash_s_stdin=True,  # bash/sh/zsh -s reads the script from stdin
+                    cwd=cwd,
                 )
                 if result:
                     return result
@@ -411,6 +414,7 @@ class ExecutionSafetyValidator(ValidatorBase):
         message: str,
         allow_module: bool,
         dash_s_stdin: bool,
+        cwd: str = "",
     ) -> HookResult | None:
         """Judge ONE command unit — the caller supplies substitution bodies
         as their own units (see `_command_units`), so this never has to
@@ -476,6 +480,24 @@ class ExecutionSafetyValidator(ValidatorBase):
             if _is_approved_path(script, approved):
                 continue
 
+            if _is_inside_cwd(script=script, cwd=cwd):
+                continue
+
             return HookResult(message=message)
 
         return None
+
+
+def _is_inside_cwd(*, script: str, cwd: str) -> bool:
+    # GH-1683: `bash /abs/worktree/scripts/x.sh` names the same file as the
+    # relative spelling that already passes. resolve() collapses `..` and
+    # symlinks so an escape out of the tree is still judged untrusted.
+    if not cwd:
+        return False
+    try:
+        root = Path(cwd).resolve()
+        if root == Path(root.anchor):
+            return False
+        return Path(script).expanduser().resolve().is_relative_to(root)
+    except (OSError, RuntimeError):
+        return False
