@@ -87,6 +87,65 @@
           "assertion": "pin_supervisor_review_not_called_when_pinned"
         }
       ]
+    },
+    {
+      "scenario": "User has not starred the repo and accepts the star prompt",
+      "expected": "Star state is checked first; the star gate fires as an AskUserQuestion with 'Star the repo (Recommended)' leading; on acceptance with gh authenticated, the PUT to /user/starred is issued and the tour continues",
+      "assertions": [
+        {
+          "check": "output_contains",
+          "value": "/user/starred/Dev10x-Guru/dev10x-claude",
+          "assertion": "star_state_checked_before_ask"
+        },
+        {
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "assertion": "star_prompt_uses_gate"
+        },
+        {
+          "check": "output_contains",
+          "value": "--method PUT",
+          "assertion": "star_put_issued_on_accept"
+        }
+      ]
+    },
+    {
+      "scenario": "User declines the star prompt with 'No thanks'",
+      "expected": "No star API write is made and the tour continues to the 2.6 choice",
+      "assertions": [
+        {
+          "check": "behavioral",
+          "value": "no-put-to-user-starred",
+          "assertion": "no_api_call_on_decline"
+        }
+      ]
+    },
+    {
+      "scenario": "User has already starred the repo",
+      "expected": "The star-state GET returns success; the star AskUserQuestion does NOT fire and no PUT is made",
+      "assertions": [
+        {
+          "check": "behavioral",
+          "value": "no-star-prompt-when-starred",
+          "assertion": "already_starred_skips_prompt"
+        }
+      ]
+    },
+    {
+      "scenario": "User accepts the star prompt but gh is not authenticated",
+      "expected": "gh auth status fails; no PUT is attempted; the repo URL and a gh auth login hint are printed and the tour continues",
+      "assertions": [
+        {
+          "check": "output_contains",
+          "value": "https://github.com/Dev10x-Guru/dev10x-claude",
+          "assertion": "unauthenticated_fallback_prints_url"
+        },
+        {
+          "check": "output_contains",
+          "value": "gh auth login",
+          "assertion": "unauthenticated_fallback_hints_login"
+        }
+      ]
     }
   ]
 }
