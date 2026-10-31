@@ -1,6 +1,7 @@
 <script lang="ts">
   import ProjectActions from "./ProjectActions.svelte";
   import StatusMark from "./StatusMark.svelte";
+  import Toggle from "./Toggle.svelte";
   import { displayName } from "../lib/format";
   import { PROJECT_MIME, SESSION_MIME, carriesProject } from "../lib/drag";
   import {
@@ -172,14 +173,17 @@
     <span class="visually-hidden">Filter sessions</span>
     <input bind:value={query} type="search" placeholder="Filter by name, branch, issue" autocomplete="off" />
   </label>
-  <label class="stopped">
-    <input
-      type="checkbox"
-      bind:checked={hideStopped}
-      onchange={() => saveHideStopped(hideStopped)}
-    />
-    Hide idle and done <span class="count">{stoppedCount}</span>
-  </label>
+  <div class="stopped">
+    <Toggle
+      on={hideStopped}
+      onchange={(next) => {
+        hideStopped = next;
+        saveHideStopped(next);
+      }}
+    >
+      Hide idle and done <span class="count">{stoppedCount}</span>
+    </Toggle>
+  </div>
 
   <div class="scroll">
     {#if pinned.length}
@@ -298,17 +302,7 @@
   }
 
   .stopped {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
     padding: 0 var(--space-4) var(--space-2);
-    color: var(--ink-soft);
-    font-size: 0.74rem;
-    cursor: pointer;
-  }
-
-  .stopped input {
-    accent-color: var(--amber-ink);
   }
 
   .search input:focus-visible {
