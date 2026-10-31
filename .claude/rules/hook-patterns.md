@@ -436,6 +436,15 @@ A new validator that inspects paths should follow the same shape: decide
 from the payload the hook already carries, and scope the denial to the
 blast radius that motivated it.
 
+**Per-rule config lives in `friction.yaml`, not `settings.json`
+(GH-1493).** A project adjusts DX017's blocked extensions with
+`dx017: {blocked_extensions: {add: [...], remove: [...]}}` in its
+`projects[]` entry. Precedence, lowest first: that key, then
+`DEV10X_DX017_BLOCKED_EXTENSIONS` (replaces), `…_EXTRA_…` (adds),
+`…_ALLOW_…` (removes). The worktree is probed before its main checkout,
+using `domain.linked_worktree` file reads rather than a git subprocess,
+and only on the in-tree-write path.
+
 ### Configuration
 
 Set via environment variables in `.claude/settings.json` or shell:

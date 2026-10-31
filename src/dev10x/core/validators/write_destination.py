@@ -27,8 +27,9 @@ blocked-extension set is a closed allowlist of formats normally
 authored in a session (``_DEFAULT_BLOCKED_EXTENSIONS``) rather than
 sniffing file bytes: a destination may not exist yet, and a byte sniff
 costs a ``stat``/read on every Bash call this validator's fast path
-lets through. The set is overridable via ``DEV10X_DX017_*`` env vars
-(see below).
+lets through. The set is overridable per project through the durable
+``dx017.blocked_extensions`` key in ``~/.config/Dev10x/friction.yaml``
+and per session via ``DEV10X_DX017_*`` env vars (see below; GH-1493).
 
 Destination detection follows each verb's own convention rather than a
 single positional rule: ``cp``/``mv``/``install`` write their last
@@ -57,12 +58,16 @@ from __future__ import annotations
 import os
 import posixpath
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
+from functools import cache, partial
 from pathlib import Path, PurePosixPath
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from dev10x.domain import HookInput, HookResult
 from dev10x.domain.common.bash_tokens import split_tokens, substitution_bodies
+from dev10x.domain.documents.friction_yaml import FrictionYamlDocument
+from dev10x.domain.linked_worktree import main_checkout
 from dev10x.domain.profile_tier import ProfileTier
 from dev10x.validators.base import ValidatorBase
 
@@ -132,10 +137,12 @@ _BLOCKED_EXTENSIONLESS_NAMES = frozenset(
     {"dockerfile", "makefile", "license", "readme", ".gitignore", ".editorconfig"}
 )
 
-#: `BLOCKED` REPLACES the default set; `EXTRA` then adds to whatever is in
-#: effect; `ALLOW` then removes from that — a one-off exemption without
-#: restating the whole list (GH-1455 addendum). Read once per hook
-#: invocation, same as the hook's other env-driven knobs.
+#: Precedence, lowest first (GH-1455 design, GH-1493): the durable
+#: per-project key adds to / removes from the default set; `BLOCKED` then
+#: REPLACES whatever is in effect; `EXTRA` adds to that; `ALLOW` removes
+#: from that — a one-off exemption without restating the whole list.
+#: Read once per hook invocation, same as the hook's other env knobs.
+_PREFS_KEY = "dx017"
 _ENV_BLOCKED = "DEV10X_DX017_BLOCKED_EXTENSIONS"
 _ENV_EXTRA = "DEV10X_DX017_EXTRA_EXTENSIONS"
 _ENV_ALLOW = "DEV10X_DX017_ALLOW_EXTENSIONS"
@@ -154,8 +161,55 @@ def _parse_ext_list(*, value: str) -> frozenset[str]:
     )
 
 
-def _effective_blocked_extensions() -> frozenset[str]:
-    blocked = _DEFAULT_BLOCKED_EXTENSIONS
+def _ext_values(*, value: Any) -> frozenset[str]:
+    """An ``add``/``remove`` value as a set — a YAML list or a comma string."""
+    if isinstance(value, str):
+        return _parse_ext_list(value=value)
+    if isinstance(value, list):
+        return frozenset(
+            normalized
+            for item in value
+            if isinstance(item, str) and (normalized := _normalize_ext(item))
+        )
+    return frozenset()
+
+
+def _durable_prefs(*, tree: PurePosixPath) -> dict[str, Any]:
+    """The ``friction.yaml`` prefs governing ``tree`` (GH-1493).
+
+    Probes the worktree first and its main checkout second — the same
+    order ``gate_query._policy_toplevel`` uses (GH-978), because entries
+    are keyed by the repo stem and a linked worktree's own directory
+    name rarely matches them. A matched entry is layered over
+    ``defaults:``, so an entry that says nothing about DX017 does not hide
+    a default that does.
+    """
+    main = main_checkout(Path(tree))
+    fallbacks = (str(main),) if main is not None else ()
+    return FrictionYamlDocument(toplevel=str(tree)).effective(fallback_toplevels=fallbacks)
+
+
+def _durable_extension_overrides(*, tree: PurePosixPath) -> tuple[frozenset[str], frozenset[str]]:
+    """``(add, remove)`` from ``dx017.blocked_extensions``; empty when unset.
+
+    Anything malformed reads as unset, so a bad config degrades to the
+    default set rather than to an unguarded tree.
+    """
+    section = _durable_prefs(tree=tree).get(_PREFS_KEY)
+    if not isinstance(section, dict):
+        return frozenset(), frozenset()
+    extensions = section.get("blocked_extensions")
+    if not isinstance(extensions, dict):
+        return frozenset(), frozenset()
+    return (
+        _ext_values(value=extensions.get("add")),
+        _ext_values(value=extensions.get("remove")),
+    )
+
+
+def _effective_blocked_extensions(*, tree: PurePosixPath) -> frozenset[str]:
+    add, remove = _durable_extension_overrides(tree=tree)
+    blocked = (_DEFAULT_BLOCKED_EXTENSIONS | add) - remove
     replacement = os.environ.get(_ENV_BLOCKED, "")
     if replacement.strip():
         blocked = _parse_ext_list(value=replacement)
@@ -168,21 +222,28 @@ def _effective_blocked_extensions() -> frozenset[str]:
     return blocked
 
 
-def _is_blocked_destination_type(*, destination: str) -> bool:
+def _is_blocked_destination_type(
+    *,
+    destination: str,
+    blocked_extensions: Callable[[], frozenset[str]],
+) -> bool:
     """Whether ``destination`` names a format DX017 still guards (GH-1455).
 
     A binary format can never round-trip through ``Read`` → ``Write``, so
     blocking it would leave the caller with no compliant path — this is
     the check that lets a same-tree PDF rename through while still
-    denying a same-tree copy of a source file.
+    denying a same-tree copy of a source file. ``blocked_extensions`` is
+    called only once a suffix is known, so an extensionless destination
+    never pays for the config read.
     """
-    name = PurePosixPath(destination).name
-    if name.lower() in _BLOCKED_EXTENSIONLESS_NAMES:
+    path = PurePosixPath(destination)
+    if path.name.lower() in _BLOCKED_EXTENSIONLESS_NAMES:
         return True
-    suffix = PurePosixPath(name).suffix.lower()
+    suffix = path.suffix.lower()
     if not suffix:
         return False
-    return suffix in _effective_blocked_extensions()
+    return suffix in blocked_extensions()
+
 
 #: Commands whose non-flag arguments name a file they create or overwrite.
 #: ``cp``/``mv``/``install`` write their LAST argument; ``tee``/``touch``
@@ -308,8 +369,8 @@ def _working_tree(*, cwd: str) -> PurePosixPath:
     return PurePosixPath(cwd)
 
 
-def _lands_in_working_tree(*, destination: str, cwd: str) -> bool:
-    """True when ``destination`` resolves to a path inside the checkout.
+def _lands_in_working_tree(*, destination: str, cwd: str, tree: PurePosixPath) -> bool:
+    """True when ``destination`` resolves to a path inside ``tree``.
 
     ``~`` and ``$VAR`` forms are treated as outside: they are absolute
     once expanded and the expansion is not this validator's job to
@@ -319,7 +380,7 @@ def _lands_in_working_tree(*, destination: str, cwd: str) -> bool:
     if destination.startswith(("~", "$")):
         return False
 
-    root = PurePosixPath(posixpath.normpath(str(_working_tree(cwd=cwd))))
+    root = PurePosixPath(posixpath.normpath(str(tree)))
     if destination.startswith("/"):
         candidate = destination
     else:
@@ -361,12 +422,18 @@ class WriteDestinationValidator(ValidatorBase):
         return any(verb in inp.command for verb in _WRITERS)
 
     def validate(self, inp: HookInput) -> HookResult | None:
+        tree = _working_tree(cwd=inp.cwd)
+        # Read once per call, and only when a suffixed in-tree destination
+        # actually needs it — the config read stays off the common path.
+        blocked_extensions = cache(partial(_effective_blocked_extensions, tree=tree))
         for segment in _segments(inp.command):
             verb, destinations = _destinations(segment=segment)
             for destination in destinations:
-                if not _lands_in_working_tree(destination=destination, cwd=inp.cwd):
+                if not _lands_in_working_tree(destination=destination, cwd=inp.cwd, tree=tree):
                     continue
-                if not _is_blocked_destination_type(destination=destination):
+                if not _is_blocked_destination_type(
+                    destination=destination, blocked_extensions=blocked_extensions
+                ):
                     continue
                 return HookResult(
                     message=_message(verb=verb, destination=destination),

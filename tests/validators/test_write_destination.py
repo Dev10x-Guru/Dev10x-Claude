@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path, PurePosixPath
 
 import pytest
+from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.validators.write_destination import (
     WriteDestinationValidator,
     _destinations,
@@ -277,6 +278,211 @@ class TestBlockedExtensionEnvOverrides:
         monkeypatch.setenv("DEV10X_DX017_EXTRA_EXTENSIONS", ".bar")
         result = validator.validate(_make_input(command="cp /tmp/scratch/a.bar docs/a.bar"))
         assert isinstance(result, HookResult)
+
+
+def _write_friction_yaml(*, body: str) -> None:
+    path = Dev10xConfigDir.friction_yaml()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(body)
+
+
+class TestBlockedExtensionDurablePrefs:
+    """GH-1493: a project adjusts the set once, in friction.yaml."""
+
+    @pytest.fixture()
+    def validator(self, synthetic_root: None) -> WriteDestinationValidator:
+        return WriteDestinationValidator()
+
+    @pytest.mark.parametrize("add", ["[ipynb]", "'.ipynb, .rst'"])
+    def test_add_blocks_a_new_extension(
+        self, validator: WriteDestinationValidator, add: str
+    ) -> None:
+        _write_friction_yaml(
+            body=(
+                "projects:\n"
+                "  - match: ['*/repo']\n"
+                "    dx017:\n"
+                f"      blocked_extensions: {{add: {add}}}\n"
+            )
+        )
+
+        result = validator.validate(_make_input(command="cp /tmp/scratch/nb.ipynb docs/nb.ipynb"))
+
+        assert isinstance(result, HookResult)
+
+    def test_remove_unblocks_a_default_extension(
+        self, validator: WriteDestinationValidator
+    ) -> None:
+        _write_friction_yaml(
+            body=(
+                "projects:\n"
+                "  - match: ['*/repo']\n"
+                "    dx017: {blocked_extensions: {remove: [.csv]}}\n"
+            )
+        )
+
+        assert validator.validate(_make_input(command="cp /tmp/x.csv docs/x.csv")) is None
+
+    def test_defaults_apply_when_no_project_matches(
+        self, validator: WriteDestinationValidator
+    ) -> None:
+        _write_friction_yaml(
+            body=(
+                "defaults:\n"
+                "  dx017: {blocked_extensions: {add: [.ipynb]}}\n"
+                "projects:\n"
+                "  - match: ['*/other']\n"
+                "    tracker: github\n"
+            )
+        )
+
+        result = validator.validate(_make_input(command="cp /tmp/nb.ipynb docs/nb.ipynb"))
+
+        assert isinstance(result, HookResult)
+
+    def test_defaults_apply_under_a_matching_entry_without_dx017(
+        self, validator: WriteDestinationValidator
+    ) -> None:
+        _write_friction_yaml(
+            body=(
+                "defaults:\n"
+                "  dx017: {blocked_extensions: {add: [.ipynb]}}\n"
+                "projects:\n"
+                "  - match: ['*/repo']\n"
+                "    tracker: github\n"
+            )
+        )
+
+        result = validator.validate(_make_input(command="cp /tmp/nb.ipynb docs/nb.ipynb"))
+
+        assert isinstance(result, HookResult)
+
+    def test_matching_entry_dx017_overrides_the_default(
+        self, validator: WriteDestinationValidator
+    ) -> None:
+        _write_friction_yaml(
+            body=(
+                "defaults:\n"
+                "  dx017: {blocked_extensions: {add: [.ipynb]}}\n"
+                "projects:\n"
+                "  - match: ['*/repo']\n"
+                "    dx017: {blocked_extensions: {add: [.rst]}}\n"
+            )
+        )
+
+        assert validator.validate(_make_input(command="cp /tmp/nb.ipynb docs/nb.ipynb")) is None
+
+    def test_blocked_env_replaces_the_durable_additions(
+        self,
+        validator: WriteDestinationValidator,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        _write_friction_yaml(
+            body=(
+                "projects:\n"
+                "  - match: ['*/repo']\n"
+                "    dx017: {blocked_extensions: {add: [.ipynb]}}\n"
+            )
+        )
+        monkeypatch.setenv("DEV10X_DX017_BLOCKED_EXTENSIONS", ".foo")
+
+        assert validator.validate(_make_input(command="cp /tmp/nb.ipynb docs/nb.ipynb")) is None
+
+    def test_allow_env_removes_a_durable_addition(
+        self,
+        validator: WriteDestinationValidator,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        _write_friction_yaml(
+            body=(
+                "projects:\n"
+                "  - match: ['*/repo']\n"
+                "    dx017: {blocked_extensions: {add: [.ipynb]}}\n"
+            )
+        )
+        monkeypatch.setenv("DEV10X_DX017_ALLOW_EXTENSIONS", ".ipynb")
+
+        assert validator.validate(_make_input(command="cp /tmp/nb.ipynb docs/nb.ipynb")) is None
+
+    def test_extra_env_composes_with_a_durable_removal(
+        self,
+        validator: WriteDestinationValidator,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        _write_friction_yaml(
+            body=(
+                "projects:\n"
+                "  - match: ['*/repo']\n"
+                "    dx017: {blocked_extensions: {remove: [.csv]}}\n"
+            )
+        )
+        monkeypatch.setenv("DEV10X_DX017_EXTRA_EXTENSIONS", ".csv")
+
+        result = validator.validate(_make_input(command="cp /tmp/x.csv docs/x.csv"))
+
+        assert isinstance(result, HookResult)
+
+    @pytest.mark.parametrize(
+        "section",
+        [
+            "dx017: nope",
+            "dx017: {blocked_extensions: [.csv]}",
+            "dx017: {blocked_extensions: {remove: 42}}",
+        ],
+    )
+    def test_malformed_section_keeps_the_default_set(
+        self, validator: WriteDestinationValidator, section: str
+    ) -> None:
+        _write_friction_yaml(body=f"projects:\n  - match: ['*/repo']\n    {section}\n")
+
+        result = validator.validate(_make_input(command="cp /tmp/x.csv docs/x.csv"))
+
+        assert isinstance(result, HookResult)
+
+
+class TestDurablePrefsReachALinkedWorktree:
+    """Entries key on the repo stem; a worktree's own name rarely matches."""
+
+    @pytest.fixture()
+    def worktree(self, tmp_path: Path) -> Path:
+        main = tmp_path / "repo"
+        (main / ".git" / "worktrees" / "feature-x").mkdir(parents=True)
+        worktree = tmp_path / "wt" / "feature-x"
+        worktree.mkdir(parents=True)
+        (worktree / ".git").write_text(f"gitdir: {main}/.git/worktrees/feature-x\n")
+        return worktree
+
+    def test_main_checkout_entry_governs_the_worktree(self, worktree: Path) -> None:
+        _write_friction_yaml(
+            body=(
+                "projects:\n"
+                "  - match: ['*/repo']\n"
+                "    dx017: {blocked_extensions: {add: [.ipynb]}}\n"
+            )
+        )
+
+        result = WriteDestinationValidator().validate(
+            _make_input(command="cp /tmp/nb.ipynb nb.ipynb", cwd=str(worktree))
+        )
+
+        assert isinstance(result, HookResult)
+
+    def test_worktree_entry_wins_over_main_checkout(self, worktree: Path) -> None:
+        _write_friction_yaml(
+            body=(
+                "projects:\n"
+                "  - match: ['*/feature-x']\n"
+                "    tracker: github\n"
+                "  - match: ['*/repo']\n"
+                "    dx017: {blocked_extensions: {add: [.ipynb]}}\n"
+            )
+        )
+
+        result = WriteDestinationValidator().validate(
+            _make_input(command="cp /tmp/nb.ipynb nb.ipynb", cwd=str(worktree))
+        )
+
+        assert result is None
 
 
 class TestWorkingTreeIsTheCheckoutNotTheCwd:
