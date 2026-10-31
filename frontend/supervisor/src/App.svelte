@@ -32,12 +32,15 @@
   let view = $state<View>(loadView());
   let asideWidth = $state(loadAsideWidth());
   let dragging = $state(false);
+  let needsOnly = $state(false);
   let pending = $state(false);
   let toast = $state<{ text: string; ok: boolean } | null>(null);
   let toastTimer: ReturnType<typeof setTimeout> | undefined;
 
   const sessions = $derived(snapshot?.sessions ?? []);
   const groups = $derived(bucket(sessions));
+  const waitingCount = $derived(groups["needs-you"].length);
+  const listed = $derived(needsOnly && waitingCount ? groups["needs-you"] : sessions);
   const current = $derived(pickSession(sessions, chosen));
   const errors = $derived(Object.entries(snapshot?.errors ?? {}));
 
@@ -143,7 +146,20 @@
   <div class={["desk", { dragging }]} style="--aside: {asideWidth}px">
     <header class="brand">
       <p class="eyebrow">Session Supervisor</p>
-      <p class="headline">{snapshot ? headline(groups) : "Reading sessions…"}</p>
+      {#if waitingCount}
+        <button
+          class={["headline", "toggle", { on: needsOnly }]}
+          aria-pressed={needsOnly}
+          title={needsOnly ? "Show every session" : "Show only the sessions waiting for you"}
+          onclick={() => (needsOnly = !needsOnly)}
+        >
+          <span aria-hidden="true" class="diamond">◆</span>
+          {headline(groups)}
+          <span class="hint">{needsOnly ? "Show all" : "Show only these"}</span>
+        </button>
+      {:else}
+        <p class="headline">{snapshot ? headline(groups) : "Reading sessions…"}</p>
+      {/if}
       <p class="meta">
         <span class="conn conn-{connection}" aria-hidden="true"></span>
         {#if connection === "live" && snapshot}
@@ -164,7 +180,7 @@
     </header>
 
     <div class="index">
-      <Sidebar {sessions} selected={current?.session_id ?? ""} {pins} onselect={select} onpin={pin} />
+      <Sidebar sessions={listed} selected={current?.session_id ?? ""} {pins} onselect={select} onpin={pin} />
     </div>
 
     <button
@@ -319,6 +335,49 @@
     font-weight: 700;
     line-height: 1.1;
     letter-spacing: -0.015em;
+  }
+
+  .toggle {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.15rem var(--space-2);
+    width: 100%;
+    padding: var(--space-1) var(--space-2);
+    margin-left: calc(-1 * var(--space-2));
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    color: var(--amber-ink);
+    text-align: left;
+    cursor: pointer;
+    transition:
+      background 160ms var(--ease-out),
+      border-color 160ms var(--ease-out);
+  }
+
+  .toggle:hover {
+    border-color: var(--amber);
+  }
+
+  .toggle.on {
+    background: var(--amber-wash);
+    border-color: var(--amber);
+  }
+
+  .diamond {
+    font-size: 0.7em;
+  }
+
+  .hint {
+    color: var(--ink-soft);
+    font-family: var(--font-body);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0;
+    text-decoration: underline;
+    text-decoration-color: var(--amber);
+    text-underline-offset: 3px;
   }
 
   .meta {
