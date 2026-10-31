@@ -20,6 +20,7 @@ from uuid import uuid4
 from dev10x.comm.skills.bus.maildir import InvalidMessageError
 from dev10x.comm.supervisor.decisions import ANSWERED, OPEN, Decision, DecisionStore
 from dev10x.comm.supervisor.delivery import (
+    SESSION_COMMANDS,
     Peer,
     deliver_keys,
     deliver_relay,
@@ -28,6 +29,7 @@ from dev10x.comm.supervisor.delivery import (
     log_action,
     rename_session,
     request_preapproval,
+    run_session_command,
 )
 from dev10x.comm.supervisor.history import PastSession, read_past_sessions
 from dev10x.comm.supervisor.launcher import (
@@ -106,6 +108,7 @@ class SupervisorApp:
     conversation_reader: Callable[..., list[ConversationEntry]] = read_conversation
     workspace_reader: Callable[..., Workspace] = read_workspace
     renamer: Callable[..., None] = rename_session
+    commander: Callable[..., None] = run_session_command
     project_reader: Callable[..., Project] = read_project
     past_reader: Callable[..., list[PastSession]] = read_past_sessions
     opener: Callable[..., Launched] = open_session
@@ -385,6 +388,7 @@ class SupervisorHandler(BaseHTTPRequestHandler):
                 "/reply": self._post_reply,
                 "/introduce": self._post_introduce,
                 "/rename": self._post_rename,
+                "/command": self._post_command,
                 "/launch": self._post_launch,
                 "/preapprove": self._post_preapprove,
                 "/lessons": self._post_lesson,
@@ -765,6 +769,37 @@ class SupervisorHandler(BaseHTTPRequestHandler):
         )
         self._ok(pane_id=launched.pane_id, agent=launched.agent, path=launched.path)
 
+    def _idle_pane(self, *, view: SessionView, what: str) -> str:
+        if view.status != "idle" or not view.pane_id:
+            raise RequestError(
+                status=HTTPStatus.CONFLICT,
+                message=f"{what} once the session is idle in a Herdr pane; "
+                "it is busy or has no pane.",
+            )
+        return view.pane_id
+
+    def _post_command(self, params: dict[str, str]) -> None:
+        body = self._body()
+        view = self._listed_session(session_id=str(body.get("session_id", "")))
+        command = str(body.get("command", ""))
+        if command not in SESSION_COMMANDS:
+            raise RequestError(
+                status=HTTPStatus.BAD_REQUEST,
+                message=f"Unknown command; use one of {', '.join(SESSION_COMMANDS)}.",
+            )
+        pane_id = self._idle_pane(view=view, what="Run it")
+        try:
+            self.app.commander(
+                pane_id=pane_id,
+                session_name=view.name,
+                command=command,
+                confirmed_by=CONFIRMED_BY,
+                log_path=self.app.log_path,
+            )
+        except ProbeError as exc:
+            raise RequestError(status=HTTPStatus.BAD_GATEWAY, message=str(exc)) from exc
+        self._ok(sent=SESSION_COMMANDS[command])
+
     def _post_rename(self, params: dict[str, str]) -> None:
         body = self._body()
         view = self._listed_session(session_id=str(body.get("session_id", "")))
@@ -777,16 +812,10 @@ class SupervisorHandler(BaseHTTPRequestHandler):
                     "starting with a letter or digit."
                 ),
             )
-        if view.status != "idle" or not view.pane_id:
-            raise RequestError(
-                status=HTTPStatus.CONFLICT,
-                message=(
-                    "Rename once the session is idle in a Herdr pane; it is busy or has no pane."
-                ),
-            )
+        pane_id = self._idle_pane(view=view, what="Rename")
         try:
             self.app.renamer(
-                pane_id=view.pane_id,
+                pane_id=pane_id,
                 session_name=view.name,
                 name=name,
                 confirmed_by=CONFIRMED_BY,

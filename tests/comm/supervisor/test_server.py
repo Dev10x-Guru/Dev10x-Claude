@@ -911,6 +911,65 @@ class TestRename:
         assert (response.status, response.json()["error"]) == (502, "herdr refused the prompt")
 
 
+class TestSessionCommand:
+    @pytest.fixture
+    def commander(self, app: SupervisorApp) -> Launcher:
+        commander = Launcher()
+        app.commander = commander
+        return commander
+
+    @pytest.mark.parametrize(
+        ("command", "sent"),
+        [("reflect", "/my:reflect"), ("wrap-up", "/dev10x:session-wrap-up")],
+    )
+    def test_runs_a_known_command_in_an_idle_session(
+        self, port: int, commander: Launcher, command: str, sent: str
+    ) -> None:
+        response = call(
+            port=port,
+            method="POST",
+            path="/command",
+            payload={"session_id": IDLE.session_id, "command": command},
+        )
+
+        assert (response.json(), [(c["pane_id"], c["command"]) for c in commander.calls]) == (
+            {"ok": True, "sent": sent},
+            [("w12:p1", command)],
+        )
+
+    def test_refuses_anything_else(self, port: int, commander: Launcher) -> None:
+        response = call(
+            port=port,
+            method="POST",
+            path="/command",
+            payload={"session_id": IDLE.session_id, "command": "/exit"},
+        )
+
+        assert (response.status, commander.calls) == (400, [])
+
+    def test_waits_for_an_idle_session(self, port: int, commander: Launcher) -> None:
+        response = call(
+            port=port,
+            method="POST",
+            path="/command",
+            payload={"session_id": WAITING.session_id, "command": "reflect"},
+        )
+
+        assert (response.status, commander.calls) == (409, [])
+
+    def test_herdr_failure_reported(self, port: int, app: SupervisorApp) -> None:
+        app.commander = Launcher(error=ProbeError("herdr refused the prompt"))
+
+        response = call(
+            port=port,
+            method="POST",
+            path="/command",
+            payload={"session_id": IDLE.session_id, "command": "wrap-up"},
+        )
+
+        assert (response.status, response.json()["error"]) == (502, "herdr refused the prompt")
+
+
 class TestRenameDefaults:
     GENERATED = replace(IDLE, name="kb-2a", cwd="/kb")
     OTHER = replace(IDLE, session_id="sid-other", name="kb-3b", cwd="/kb", pane_id="w9:p1")

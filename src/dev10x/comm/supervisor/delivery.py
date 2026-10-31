@@ -57,6 +57,31 @@ def deliver_keys(
     )
 
 
+SESSION_COMMANDS = {
+    "reflect": "/my:reflect",
+    "wrap-up": "/dev10x:session-wrap-up",
+}
+
+
+def run_session_command(
+    *,
+    pane_id: str,
+    session_name: str,
+    command: str,
+    confirmed_by: str,
+    log_path: Path,
+    submitter: Callable[..., None] = submit_prompt,
+) -> None:
+    submitter(pane_id=pane_id, text=SESSION_COMMANDS[command])
+    log_action(
+        log_path=log_path,
+        action=f"command-{command}",
+        target=session_name,
+        detail=SESSION_COMMANDS[command],
+        confirmed_by=confirmed_by,
+    )
+
+
 def rename_session(
     *,
     pane_id: str,
