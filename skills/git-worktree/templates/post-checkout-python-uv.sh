@@ -100,6 +100,25 @@ if [ "$1" = "0000000000000000000000000000000000000000" ]; then
         fi
     }
 
+    # fix_broken_symlinks <path>
+    # GH-1632: rsync -a copies symlinks verbatim, so a relative target
+    # such as ../../.agents/skills/gsap breaks whenever this worktree
+    # sits at a different depth than ORIGINAL_REPO — and a broken link
+    # stays invisible until a skill tries to load it. Re-anchor each
+    # broken RELATIVE link to the absolute target its twin in
+    # ORIGINAL_REPO resolves to. Working links, absolute links, and
+    # links whose source target does not exist are left alone.
+    fix_broken_symlinks() {
+        dir="$1"
+        [ -d "$dir" ] || return 0
+        find "$dir" -type l | while IFS= read -r link; do
+            [ -e "$link" ] && continue
+            case "$(readlink "$link")" in /*) continue ;; esac
+            resolved=$(readlink -f "$ORIGINAL_REPO/$link") || continue
+            [ -e "$resolved" ] && ln -sfn "$resolved" "$link"
+        done
+    }
+
     # ── FILES TO COPY (add new entries here) ────────────────────────
     copy_clean ".env"
     copy_clean ".env.supabase"
@@ -111,6 +130,7 @@ if [ "$1" = "0000000000000000000000000000000000000000" ]; then
     # (legacy config.yaml, auto-advance doubt-sink) rides across; seed
     # (below) ensures the global friction.yaml + the .gitignore fresh.
     copy_clean ".claude/" worktrees "Dev10x"
+    fix_broken_symlinks ".claude"
     copy_clean ".idea/"
 
     # Ensure .claude/ exists even if source had nothing to copy

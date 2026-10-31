@@ -150,6 +150,107 @@ def test_gitignored_local_config_still_rides_across(
     assert (worktree / ".claude" / "settings.local.json").exists()
 
 
+@pytest.fixture
+def symlink_origin(origin: Path) -> Path:
+    """GH-1632: gitignored ``.claude/`` symlinks of every shape.
+
+    ``.agents/`` is never copied into a worktree, so a relative link into
+    it resolves inside the worktree to a path that does not exist.
+    """
+    (origin / ".gitignore").write_text(
+        ".claude/settings.local.json\n.claude/skills/\n.claude/local-notes/\n.agents/\n"
+    )
+    _git(origin, "add", "-A")
+    _git(origin, "commit", "-m", "ignore local links")
+    _git(origin, "checkout", "feature")
+    _git(origin, "merge", "main")
+    _git(origin, "checkout", "main")
+
+    (origin / ".agents" / "skills" / "gsap").mkdir(parents=True)
+    (origin / ".claude" / "local-notes").mkdir()
+    skills = origin / ".claude" / "skills"
+    skills.mkdir()
+    (skills / "gsap").symlink_to("../../.agents/skills/gsap")
+    (skills / "gone").symlink_to("../../.agents/skills/does-not-exist")
+    (skills / "notes").symlink_to("../local-notes")
+    (skills / "absolute").symlink_to(origin / ".agents" / "skills" / "gsap")
+    return origin
+
+
+@pytest.mark.parametrize("template", TEMPLATES)
+def test_broken_relative_symlink_is_reanchored_to_source(
+    template: str,
+    repo_root: Path,
+    symlink_origin: Path,
+    stub_bin: Path,
+    tmp_path: Path,
+) -> None:
+    worktree = _add_worktree(origin=symlink_origin, path=tmp_path / "wt")
+
+    _run_hook(
+        template=template,
+        repo_root=repo_root,
+        origin=symlink_origin,
+        worktree=worktree,
+        stub_bin=stub_bin,
+    )
+
+    link = worktree / ".claude" / "skills" / "gsap"
+    assert link.readlink() == (symlink_origin / ".agents" / "skills" / "gsap").resolve()
+
+
+@pytest.mark.parametrize(
+    ("name", "expected_target"),
+    [
+        ("gone", "../../.agents/skills/does-not-exist"),
+        ("notes", "../local-notes"),
+    ],
+)
+@pytest.mark.parametrize("template", TEMPLATES)
+def test_unrepairable_and_working_relative_links_are_left_alone(
+    template: str,
+    name: str,
+    expected_target: str,
+    repo_root: Path,
+    symlink_origin: Path,
+    stub_bin: Path,
+    tmp_path: Path,
+) -> None:
+    worktree = _add_worktree(origin=symlink_origin, path=tmp_path / "wt")
+
+    _run_hook(
+        template=template,
+        repo_root=repo_root,
+        origin=symlink_origin,
+        worktree=worktree,
+        stub_bin=stub_bin,
+    )
+
+    assert (worktree / ".claude" / "skills" / name).readlink() == Path(expected_target)
+
+
+@pytest.mark.parametrize("template", TEMPLATES)
+def test_absolute_symlink_is_preserved(
+    template: str,
+    repo_root: Path,
+    symlink_origin: Path,
+    stub_bin: Path,
+    tmp_path: Path,
+) -> None:
+    worktree = _add_worktree(origin=symlink_origin, path=tmp_path / "wt")
+
+    _run_hook(
+        template=template,
+        repo_root=repo_root,
+        origin=symlink_origin,
+        worktree=worktree,
+        stub_bin=stub_bin,
+    )
+
+    link = worktree / ".claude" / "skills" / "absolute"
+    assert link.readlink() == symlink_origin / ".agents" / "skills" / "gsap"
+
+
 def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["git", *args],
