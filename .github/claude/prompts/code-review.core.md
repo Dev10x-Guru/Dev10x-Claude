@@ -87,3 +87,11 @@ Apply to ALL files regardless of domain:
 - Code verification (read actual file before claiming errors)
 - Scope awareness (only review changed lines; pre-existing issues
   are "out of scope")
+
+REVIEW THE DIFF, NOT THE MERGE DECISION:
+The author decides when a PR merges. Say nothing about approvals,
+`reviewDecision`, which requested reviewers have or have not
+reviewed, ready-for-review flips, or when and by whom the PR is
+merged; a merge without a human review is allowed. None of it is
+ever an inline comment, a CRITICAL or WARNING finding, or a reason
+to soften the summary. The verdict judges the diff alone.
