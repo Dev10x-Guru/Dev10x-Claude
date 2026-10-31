@@ -55,7 +55,12 @@ class TestNameFromBranch:
         ("branch", "expected"),
         [
             ("janusz/GH-1722/supervisor-status-bar", "GH-1722-supervisor-status-bar"),
-            ("janusz/PAY-12/wt-3/fix-tax", "PAY-12-wt-3-fix-tax"),
+            ("janusz/PAY-12/wt-3/fix-tax", "PAY-12-fix-tax"),
+            (
+                "janusz/TD-6636/janusz-c4-ftp-feed-intake/show-supplier-feed-request",
+                "TD-6636-show-supplier-feed-request",
+            ),
+            ("janusz/GH-103/read-side-adr", "GH-103-read-side-adr"),
             ("feature-x", "feature-x"),
             ("janusz/fix: odd chars!", "fix-odd-chars"),
             ("main", ""),
