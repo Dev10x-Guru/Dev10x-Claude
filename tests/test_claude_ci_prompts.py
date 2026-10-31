@@ -476,3 +476,50 @@ class TestReviewCadence:
         guard = steps["Refuse to run without the App credentials"]["run"]
 
         assert "exit 1" in guard
+
+
+class TestReviewChecklist:
+    """Each review run stamps its id and sha into the PR body (GH-1694)."""
+
+    _BEGIN: ClassVar[str] = "<!-- BEGIN claude-review-checklist -->"
+    _END: ClassVar[str] = "<!-- END claude-review-checklist -->"
+
+    @pytest.fixture(scope="class")
+    def steps(self) -> dict[str, dict[str, Any]]:
+        return _steps_by_name(workflow="claude-code-review.yml")
+
+    @pytest.fixture(scope="class")
+    def output(self) -> str:
+        return (_CLAUDE_DIR / "prompts" / "code-review.output-ci.md").read_text(encoding="utf-8")
+
+    @pytest.mark.parametrize("key", ["- RUN_ID: ", "- SHA: "])
+    def test_run_context_carries_the_stamp(
+        self, steps: dict[str, dict[str, Any]], key: str
+    ) -> None:
+        assert key in steps["Build Claude inputs"]["env"]["RUN_CONTEXT"]
+
+    def test_guard_runs_after_a_successful_review(self, steps: dict[str, dict[str, Any]]) -> None:
+        guard = steps["Fail if the review left no fresh checklist"]
+
+        assert "steps.claude-review.outputs.conclusion == 'success'" in guard["if"]
+
+    @pytest.mark.parametrize("needle", [_BEGIN, _END, "GITHUB_RUN_ID", "REVIEWED_SHA"])
+    def test_guard_matches_the_stamped_block(
+        self, steps: dict[str, dict[str, Any]], needle: str
+    ) -> None:
+        assert needle in steps["Fail if the review left no fresh checklist"]["run"]
+
+    @pytest.mark.parametrize(
+        "needle",
+        [_BEGIN, _END, "STEP 7", "run <RUN_ID> · sha <SHA>", "review-checklist-body.md"],
+    )
+    def test_prompt_instructs_the_refresh(self, output: str, needle: str) -> None:
+        assert needle in output
+
+    def test_format_reference_documents_the_same_markers(self) -> None:
+        reference = (_REPO_ROOT / "references" / "review-checklist-format.md").read_text(
+            encoding="utf-8"
+        )
+
+        assert self._BEGIN in reference
+        assert self._END in reference
