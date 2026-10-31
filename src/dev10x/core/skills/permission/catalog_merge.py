@@ -75,6 +75,7 @@ USER_OWNED_KEYS = (
     "include_user_settings",
     "plugin_cache",
     "exclude_dirs",
+    "derive_worktree_roots",
 )
 
 #: Keys where a user suppression is refused — these are the safety

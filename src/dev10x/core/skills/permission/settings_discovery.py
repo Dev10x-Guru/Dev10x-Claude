@@ -101,6 +101,51 @@ def git_registered_worktrees(root_path: Path) -> list[Path]:
     ]
 
 
+def resolve_main_project(worktree_dir: Path) -> Path | None:
+    """The main checkout a linked worktree belongs to, read from its ``.git`` file.
+
+    Layout-free (GH-1666): a linked worktree's ``.git`` is a file whose
+    ``gitdir:`` points into ``<main>/.git/worktrees/<name>``, wherever the
+    worktree itself lives. A main checkout (``.git`` directory) or a
+    non-repo answers ``None``.
+    """
+    git_file = worktree_dir / ".git"
+    if not git_file.is_file():
+        return None
+    try:
+        content = git_file.read_text().strip()
+    except (OSError, UnicodeDecodeError) as error:
+        log.warning("cannot read %s, treated as not a linked worktree: %s", git_file, error)
+        return None
+    if not content.startswith("gitdir:"):
+        return None
+    gitdir_path = Path(content.split(":", 1)[1].strip())
+    if not gitdir_path.is_absolute():
+        # worktree.useRelativePaths (git 2.48+) writes the gitdir relative
+        # to the worktree, not to the process CWD.
+        gitdir_path = (worktree_dir / gitdir_path).resolve()
+    if "/worktrees/" not in str(gitdir_path):
+        return None
+    return gitdir_path.parent.parent.parent
+
+
+def linked_worktree_roots(checkouts: list[Path]) -> list[str]:
+    """Parent dirs of the linked worktrees that live outside their main checkout.
+
+    These are the roots a user would otherwise register by hand under
+    ``additionalDirectories`` (GH-1666): ``/work/.herdr/worktrees/<repo>``
+    for a herdr worktree, ``<repo>/.worktrees`` needing nothing since it
+    sits inside the main checkout already.
+    """
+    roots: dict[str, None] = {}
+    for checkout in checkouts:
+        main = resolve_main_project(checkout)
+        if main is None or checkout.resolve().is_relative_to(main.resolve()):
+            continue
+        roots.setdefault(str(checkout.parent), None)
+    return sorted(roots)
+
+
 def outside_roots(*, files: list[Path], roots: list[str]) -> list[Path]:
     """Settings files that sit under no configured root and outside ``~/.claude``.
 

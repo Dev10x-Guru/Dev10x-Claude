@@ -11,7 +11,9 @@ from dev10x.skills.permission.settings_discovery import (
     SettingsDiscovery,
     discover_settings,
     git_registered_worktrees,
+    linked_worktree_roots,
     outside_roots,
+    resolve_main_project,
     vendored_dirs,
 )
 
@@ -110,6 +112,72 @@ class TestVendoredPruning:
         )
 
         assert discovery.files == []
+
+
+class TestLinkedWorktreeRoots:
+    """GH-1666: derive the roots users used to register by hand."""
+
+    def test_outside_worktree_contributes_its_parent(
+        self,
+        repo_with_outside_worktree: tuple[Path, Path],
+    ) -> None:
+        repo, worktree = repo_with_outside_worktree
+
+        assert linked_worktree_roots([repo, worktree]) == [str(worktree.parent)]
+
+    def test_worktree_inside_main_checkout_contributes_nothing(self, root: Path) -> None:
+        repo = root / "proj"
+        repo.mkdir()
+        _git("init", "-q", cwd=repo)
+        _git("commit", "-q", "--allow-empty", "-m", "init", cwd=repo)
+        inner = repo / ".worktrees" / "proj-1"
+        _git("worktree", "add", "-q", "-b", "inner", str(inner), cwd=repo)
+
+        assert linked_worktree_roots([repo, inner]) == []
+
+    def test_non_repo_contributes_nothing(self, root: Path) -> None:
+        assert linked_worktree_roots([root]) == []
+
+    @pytest.mark.parametrize(
+        "content",
+        ["not a gitdir line\n", "gitdir: /somewhere/repo/.git\n"],
+        ids=["no-gitdir-prefix", "not-a-worktree-gitdir"],
+    )
+    def test_git_file_that_is_not_a_linked_worktree(self, root: Path, content: str) -> None:
+        (root / ".git").write_text(content)
+
+        assert resolve_main_project(root) is None
+
+    def test_relative_gitdir_resolves_against_the_worktree(self, tmp_path: Path) -> None:
+        main = tmp_path / "proj"
+        (main / ".git" / "worktrees" / "wt-1").mkdir(parents=True)
+        worktree = tmp_path / "wt-1"
+        worktree.mkdir()
+        (worktree / ".git").write_text("gitdir: ../proj/.git/worktrees/wt-1\n")
+
+        assert resolve_main_project(worktree) == main.resolve()
+
+    def test_unreadable_git_file_is_not_a_worktree(
+        self,
+        root: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        (root / ".git").write_text("gitdir: /x/.git/worktrees/y\n")
+
+        def _refuse(*_args: object, **_kwargs: object) -> str:
+            raise PermissionError("denied")
+
+        monkeypatch.setattr(Path, "read_text", _refuse)
+
+        assert resolve_main_project(root) is None
+
+    def test_resolve_main_project_is_layout_free(
+        self,
+        repo_with_outside_worktree: tuple[Path, Path],
+    ) -> None:
+        repo, worktree = repo_with_outside_worktree
+
+        assert resolve_main_project(worktree).resolve() == repo.resolve()
 
 
 class TestVendoredDirs:

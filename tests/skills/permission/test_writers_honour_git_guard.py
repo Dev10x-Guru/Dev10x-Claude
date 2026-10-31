@@ -72,6 +72,7 @@ _NON_WRITERS = frozenset(
         "find_settings_files",  # discovery, returns the list
         "catalog_gap",  # read-only gap report
         "_residual_gap_errors",  # read-only post-write assertion
+        "derived_worktree_roots",  # reads .git files to name roots (GH-1666)
         # Writes into a worktree it has just created, so its settings file
         # cannot pre-exist as a tracked file holding unrelated committed
         # content — the bug class does not transfer (GH-1155).

@@ -21,6 +21,23 @@ class TestWorkspace:
         workspace = Workspace(root="/work/dx/.worktrees/dx-zebra-4/src/pkg")
         assert workspace.worktree_name == "dx-zebra-4"
 
+    @pytest.mark.parametrize(
+        ("root", "name"),
+        [
+            ("/work/.herdr/worktrees/Dev10x-Claude/janusz-milestone-74", "janusz-milestone-74"),
+            ("/home/u/.herdr/worktrees/tt-pos/tt-pos-3", "tt-pos-3"),
+            ("/home/u/.herdr/worktrees/tt-pos/tt-pos-3/src/app", "tt-pos-3"),
+        ],
+    )
+    def test_herdr_worktree_is_detected_and_named(self, root: str, name: str) -> None:
+        """GH-1666: herdr worktrees carry no `/.worktrees/` segment."""
+        workspace = Workspace(root=root)
+        assert workspace.is_worktree is True
+        assert workspace.worktree_name == name
+
+    def test_herdr_root_itself_is_not_a_worktree(self) -> None:
+        assert Workspace(root="/work/.herdr/worktrees/Dev10x-Claude").is_worktree is False
+
     def test_from_config_collects_string_directories(self) -> None:
         config = {"workspace_directories": ["/tmp/Dev10x", "~/.claude/memory", 42, None]}
         workspace = Workspace.from_config(root="/work/repo", config=config)
