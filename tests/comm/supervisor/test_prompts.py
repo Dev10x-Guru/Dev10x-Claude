@@ -4,7 +4,13 @@ from __future__ import annotations
 
 import pytest
 
-from dev10x.comm.supervisor.prompts import Prompt, PromptOption, find_option, parse_prompt
+from dev10x.comm.supervisor.prompts import (
+    Prompt,
+    PromptOption,
+    find_option,
+    parse_prompt,
+    parse_status_line,
+)
 
 PERMISSION = """\
 ● Writing hello.txt
@@ -118,3 +124,40 @@ class TestFindOption:
 
     def test_no_prompt(self) -> None:
         assert find_option(prompt=None, key="1", label="Yes") is None
+
+
+RULE = "─" * 40
+IDLE_PANE = (
+    "✻ Sautéed for 59s\n"
+    f"{RULE}\n"
+    "❯ \n"
+    f"{RULE}\n"
+    "   wt poc   janusz/GH-1692/poc  GH-1692  PR#1718  Opus 5.5\n"
+    "  ⏵⏵ accept edits on (shift+tab to cycle)\n"
+)
+
+
+class TestParseStatusLine:
+    def test_reads_the_bar_under_the_input_box(self) -> None:
+        assert parse_status_line(pane_text=IDLE_PANE) == (
+            "wt poc   janusz/GH-1692/poc  GH-1692  PR#1718  Opus 5.5"
+        )
+
+    def test_keeps_every_bar_line_and_drops_hints(self) -> None:
+        text = f"{RULE}\n❯ draft\nmore draft\n{RULE}\n  ctx 40%\n\n  main\n  ? for shortcuts\n"
+
+        assert parse_status_line(pane_text=text) == "ctx 40%\nmain"
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "",
+            "just output\n",
+            f"{RULE}\n❯ 1. Yes\n  2. No\n{RULE}\n  bar\n",
+            f"{RULE}\nDo you want to proceed?\n{RULE}\n  bar\n",
+            f"{RULE}\n{RULE}\n  bar\n",
+        ],
+        ids=["empty", "no-rules", "option-list", "dialog", "adjacent-rules"],
+    )
+    def test_no_input_box_means_no_bar(self, text: str) -> None:
+        assert parse_status_line(pane_text=text) == ""

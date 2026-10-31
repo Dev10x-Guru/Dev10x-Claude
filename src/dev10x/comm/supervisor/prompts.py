@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 OPTION_LINE = re.compile(r"^\s*(?:[❯>]\s*)?(\d{1,2})\.\s+(\S.*?)\s*$")
 CURSOR = re.compile(r"^\s*[❯>]")
 RULE_LINE = re.compile(r"^\s*[─╌━-]{8,}\s*$")
+INPUT_LINE = re.compile(r"^\s*[❯>](?!\s*\d{1,2}\.)")
+HINT_LINE = re.compile(r"^\s*(?:⏵|\?\s+for shortcuts\b|esc to interrupt\b)")
 
 
 @dataclass(frozen=True)
@@ -77,6 +79,18 @@ def parse_prompt(*, pane_text: str) -> Prompt | None:
             )
         )
     return Prompt(question=_question(lines=lines, first=run[0]), options=options)
+
+
+def parse_status_line(*, pane_text: str) -> str:
+    lines = pane_text.splitlines()
+    rules = [index for index, line in enumerate(lines) if RULE_LINE.match(line)]
+    if len(rules) < 2 or not INPUT_LINE.match(lines[rules[-2] + 1]):
+        return ""
+    return "\n".join(
+        line.strip()
+        for line in lines[rules[-1] + 1 :]
+        if line.strip() and not HINT_LINE.match(line)
+    )
 
 
 def find_option(*, prompt: Prompt | None, key: str, label: str) -> PromptOption | None:

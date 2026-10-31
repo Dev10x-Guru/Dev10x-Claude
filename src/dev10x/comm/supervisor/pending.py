@@ -14,12 +14,22 @@ MAX_PREVIEW_LINES = 400
 MAX_FILE_BYTES = 256 * 1024
 DIFF_TOOLS = ("Edit", "MultiEdit", "Write")
 MAX_COMMANDS = 60
+MAX_RECENT_TOOLS = 25
+REJECTED_MARKERS = ("doesn't want to proceed", "was rejected", "Permission to use")
 
 
 @dataclass(frozen=True)
 class PendingTool:
     name: str
     input: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class RecentTool:
+    tool: str
+    target: str
+    outcome: str
+    command: str = ""
 
 
 @dataclass(frozen=True)
@@ -103,6 +113,55 @@ def read_session_commands(
     except OSError:
         return []
     return commands[-limit:]
+
+
+def _target(*, tool: PendingTool) -> str:
+    for key in ("command", "file_path", "url", "pattern", "path"):
+        value = str(tool.input.get(key, "")).strip()
+        if value:
+            return value
+    return ""
+
+
+def _outcome(*, result: dict[str, Any] | None) -> str:
+    if result is None:
+        return "pending"
+    content = result.get("content")
+    text = content if isinstance(content, str) else json.dumps(content, ensure_ascii=False)
+    if result.get("is_error") and any(marker in text for marker in REJECTED_MARKERS):
+        return "rejected"
+    return "failed" if result.get("is_error") else "ran"
+
+
+def read_recent_tools(
+    *,
+    session_id: str,
+    projects_root: Path | None = None,
+    limit: int = MAX_RECENT_TOOLS,
+) -> list[RecentTool]:
+    path = find_transcript(session_id=session_id, projects_root=projects_root)
+    if path is None:
+        return []
+    calls: dict[str, PendingTool] = {}
+    results: dict[str, dict[str, Any]] = {}
+    try:
+        for item in _items(path=path):
+            if item.get("type") == "tool_use" and item.get("id"):
+                calls[str(item["id"])] = _tool(item=item)
+            elif item.get("type") == "tool_result":
+                results[str(item.get("tool_use_id"))] = item
+    except OSError:
+        return []
+    recent = [
+        RecentTool(
+            tool=tool.name,
+            target=_target(tool=tool),
+            outcome=_outcome(result=results.get(tool_id)),
+            command=str(tool.input.get("command", "")).strip() if tool.name == "Bash" else "",
+        )
+        for tool_id, tool in calls.items()
+    ]
+    return list(reversed(recent[-limit:]))
 
 
 def _diff(*, path: str, before: str, after: str) -> str:

@@ -81,14 +81,20 @@ def take_snapshot(*, bus_root: Path, runner: Runner = run) -> Snapshot:
     )
 
 
-def read_pane(*, pane_id: str, lines: int = PANE_LINES, runner: Runner = run) -> str:
+def read_pane(
+    *,
+    pane_id: str,
+    lines: int = PANE_LINES,
+    source: str = "visible",
+    runner: Runner = run,
+) -> str:
     args = [
         "herdr",
         "agent",
         "read",
         pane_id,
         "--source",
-        "visible",
+        source,
         "--lines",
         str(lines),
         "--format",
