@@ -343,6 +343,47 @@ async def pr_labels(
 
 
 @github_tool
+async def ci_rerun(
+    pr_number: int | None = None,
+    head_sha: str | None = None,
+    checks: list[str] | None = None,
+    failed_only: bool = True,
+    repo: str | None = None,
+    cwd: str | None = None,
+) -> Result[dict]:
+    """Re-run failed CI for a PR head without a raw `gh api` POST (GH-1674).
+
+    Actions runs are re-run via `rerun-failed-jobs` (or a full `rerun`
+    when `failed_only=false`); third-party GitHub App check suites are
+    re-requested via `check-suites/{id}/rerequest`. Actions runs are
+    capped at 3 attempts (counted on GitHub); third-party suites expose
+    no attempt counter, so they are bounded per call only (at most 10
+    re-runs per call). Reach for this instead of `gh api --method POST
+    .../rerequest`, which sits on an ask rule.
+
+    Args:
+        pr_number: PR whose head SHA is targeted (give this or head_sha).
+        head_sha: Commit SHA to target directly.
+        checks: Case-insensitive workflow/app names to restrict to.
+        failed_only: Only re-run failed suites. Defaults to true.
+        repo: Repository (owner/repo). Auto-detected if omitted.
+        cwd: Effective working directory (GH-979).
+
+    Returns:
+        Dictionary with keys: repo, head_sha, failed_only,
+        max_attempts, retried (each retry recorded), skipped (with
+        reason), failed.
+    """
+    return await gh.ci_rerun(
+        pr_number=pr_number,
+        head_sha=head_sha,
+        checks=checks,
+        failed_only=failed_only,
+        repo=repo,
+    )
+
+
+@github_tool
 async def issue_labels(
     number: int,
     action: str = "list",

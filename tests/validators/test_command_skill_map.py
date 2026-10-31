@@ -350,6 +350,30 @@ class TestGh879WatchLoopEntry:
         for pattern in _rule_by_name(name)["patterns"]:
             re.compile(pattern)
 
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "gh api --method POST repos/o/r/check-suites/123/rerequest",
+            "gh api -X POST repos/o/r/check-suites/123/rerequest",
+            "gh api --method POST repos/o/r/actions/runs/9/rerun-failed-jobs",
+            "gh api -X POST repos/o/r/actions/runs/9/rerun",
+        ],
+    )
+    def test_ci_rerun_forms_route_to_the_wrapper(self, command: str) -> None:
+        rule = _rule_by_name("gh-ci-rerun")
+        assert _matches_any_pattern(rule=rule, command=command)
+
+    def test_ci_rerun_steer_targets_the_wrapper_and_is_advisory(self) -> None:
+        rule = _rule_by_name("gh-ci-rerun")
+        assert (
+            _compensation_targets(rule) == {"mcp__plugin_dev10x_cli__ci_rerun"}
+            and rule["hook_block"] is False
+        )
+
+    def test_ci_rerun_steer_ignores_reads(self) -> None:
+        rule = _rule_by_name("gh-ci-rerun")
+        assert not _matches_any_pattern(rule=rule, command="gh api repos/o/r/actions/runs/9")
+
     def test_find_exec_search_recognized(self) -> None:
         rule = _rule_by_name("find-search")
         assert _matches_any_pattern(
