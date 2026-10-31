@@ -976,6 +976,51 @@ def permission_audit() -> None:
         click.echo(line)
 
 
+@permission.command(name="findings")
+@click.argument("findings_path", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option(
+    "--severity-max",
+    type=click.Choice(["CRITICAL", "HIGH", "MEDIUM", "LOW"], case_sensitive=False),
+    default=None,
+    help="Keep findings from CRITICAL down to this severity (e.g. HIGH keeps CRITICAL+HIGH)",
+)
+def permission_findings(*, findings_path: Path, severity_max: str | None) -> None:
+    """Validate permission-auditor FINDINGS_PATH and print them as JSON (GH-1631).
+
+    stdout carries one JSON object either way — the parsed findings or
+    ``{"error": ...}`` — so the apply skill parses a single channel.
+    """
+    import json
+
+    from dev10x.commands.json_output import fail_json
+    from dev10x.domain.common.audit_findings import (
+        Severity,
+        parse_findings,
+        select_findings,
+    )
+
+    try:
+        payload = json.loads(findings_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        fail_json(error=f"cannot read {findings_path}: {exc}")
+    parsed = parse_findings(payload=payload)
+    if isinstance(parsed, ErrorResult):
+        fail_json(error=parsed)
+    selection = select_findings(
+        findings=parsed.value,
+        severity_max=Severity(severity_max.upper()) if severity_max else None,
+    )
+    click.echo(
+        json.dumps(
+            {
+                "findings": [finding.to_dict() for finding in selection.selected],
+                "excluded_by_severity": [f.id for f in selection.excluded_by_severity],
+            },
+            indent=2,
+        )
+    )
+
+
 @permission.command(name="resolve")
 @click.argument("signature")
 @click.option("--context", default="", help="Active skill context for PAP-5 scoped resolution")

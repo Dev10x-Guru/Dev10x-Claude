@@ -103,6 +103,7 @@ plugins:
     - friction-setup
     - gh-context
     - onboarding
+    - permission-audit-apply
     - permission-investigator
     - playbook
     - playbook-maintenance

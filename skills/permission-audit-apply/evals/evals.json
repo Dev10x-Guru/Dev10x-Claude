@@ -1,0 +1,78 @@
+{
+  "skill_name": "dev10x:permission-audit-apply",
+  "eval_dimensions": [
+    {
+      "id": "per-finding-gate",
+      "name": "Per-Finding Gate",
+      "description": "Attended runs ask once per finding through AskUserQuestion, never in plain text and never in bulk"
+    },
+    {
+      "id": "scope-ceiling",
+      "name": "Approved-Scope Ceiling",
+      "description": "Declined findings and findings below --severity-max are never applied (GH-965 over-reach)"
+    },
+    {
+      "id": "schema-validation",
+      "name": "Schema Validation First",
+      "description": "The findings block is validated with `dev10x permission findings` before any edit; an invalid block stops the run"
+    },
+    {
+      "id": "single-edit-fix",
+      "name": "One Edit per Fix",
+      "description": "Each applied finding is exactly one Edit to one permissions list; inapplicable and manual findings are reported, never edited"
+    }
+  ],
+  "evals": [
+    {
+      "id": "attended-gate-per-finding",
+      "name": "Three findings, three gates",
+      "description": "Three findings produce three AskUserQuestion gates and three single-rule edits when all are applied",
+      "input": "/dev10x:permission-audit-apply after a permission-auditor report with findings F1 CRITICAL, F2 HIGH, F3 MEDIUM",
+      "assertions": [
+        {"dimension": "schema-validation", "check": "tool_called", "tool": "Bash", "signal": "'dev10x permission findings' runs before the first Edit"},
+        {"dimension": "per-finding-gate", "check": "tool_called", "tool": "AskUserQuestion", "signal": "One AskUserQuestion per finding, in CRITICAL→MEDIUM order, 'Apply (Recommended)' listed first"},
+        {"dimension": "single-edit-fix", "check": "behavioral", "signal": "Each applied finding is exactly one Edit to one permissions list, followed by 'jq empty'"}
+      ]
+    },
+    {
+      "id": "skip-on-decline",
+      "name": "A declined finding stays unapplied",
+      "description": "A skipped finding is never applied and never re-asked",
+      "input": "/dev10x:permission-audit-apply; the user answers Skip for F2",
+      "assertions": [
+        {"dimension": "scope-ceiling", "check": "behavioral", "signal": "No Edit is made for F2"},
+        {"dimension": "per-finding-gate", "check": "behavioral", "signal": "F2 is not offered again in the same run"},
+        {"dimension": "scope-ceiling", "check": "behavioral", "signal": "The summary marks F2 as skipped by the user"}
+      ]
+    },
+    {
+      "id": "unattended-severity-ceiling",
+      "name": "--severity-max=HIGH applies CRITICAL and HIGH only",
+      "description": "Unattended bulk apply never reaches below the ceiling",
+      "input": "/dev10x:permission-audit-apply --severity-max=HIGH with findings F1 CRITICAL, F2 HIGH, F3 MEDIUM",
+      "assertions": [
+        {"dimension": "per-finding-gate", "check": "behavioral", "signal": "No AskUserQuestion is called"},
+        {"dimension": "scope-ceiling", "check": "behavioral", "signal": "F3 is listed as below the ceiling and no Edit is made for it"}
+      ]
+    },
+    {
+      "id": "invalid-block-stops",
+      "name": "Invalid block stops before any edit",
+      "description": "A findings block that fails validation stops the run",
+      "input": "/dev10x:permission-audit-apply with a block whose finding lacks 'severity'",
+      "assertions": [
+        {"dimension": "schema-validation", "check": "behavioral", "signal": "The schema error is reported and no Edit is made"}
+      ]
+    },
+    {
+      "id": "inapplicable-and-manual",
+      "name": "Inapplicable and manual findings are not edited",
+      "description": "A remove for an absent rule is marked inapplicable; a manual fix is shown but not edited",
+      "input": "/dev10x:permission-audit-apply with F1 remove of an absent rule and F2 manual hook registration",
+      "assertions": [
+        {"dimension": "single-edit-fix", "check": "behavioral", "signal": "F1 is reported inapplicable without an Edit"},
+        {"dimension": "single-edit-fix", "check": "behavioral", "signal": "F2's note is shown, 'Done by hand (Recommended)' leads the gate, and no Edit is made for it"}
+      ]
+    }
+  ]
+}
