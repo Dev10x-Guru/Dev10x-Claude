@@ -24,6 +24,10 @@
   let { session, conversation, tail, view, onview, pending, run, nameOf }: Props = $props();
 
   const NAME_PATTERN = "[A-Za-z0-9][A-Za-z0-9._\\-]{0,63}";
+  const COMMANDS = [
+    ["reflect", "Reflect", "/my:reflect"],
+    ["wrap-up", "Wrap up", "/dev10x:session-wrap-up"],
+  ] as const;
 
   let dropping = $state(false);
   let peer = $state("");
@@ -141,6 +145,16 @@
             renaming = true;
           }}>Rename</button
         >
+        {#each COMMANDS as [command, label, sent] (command)}
+          <button
+            class="ghost"
+            title={session.status === "idle" ? `Send ${sent} to this session` : `${label} once the session is idle`}
+            disabled={pending || session.status !== "idle" || !session.pane_id}
+            onclick={() =>
+              run("/command", { session_id: session.session_id, command }, `Sent ${sent} to ${session.name}`)}
+            >{label}</button
+          >
+        {/each}
       {/if}
     </div>
     <p class="where">

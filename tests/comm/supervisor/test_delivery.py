@@ -19,6 +19,7 @@ from dev10x.comm.supervisor.delivery import (
     keys_for_option,
     rename_session,
     request_preapproval,
+    run_session_command,
 )
 from dev10x.comm.supervisor.probes import ProbeError
 
@@ -151,6 +152,33 @@ class TestRenameSession:
             "rename",
             "kb-2a",
             "GH-1-x",
+        )
+
+
+class TestRunSessionCommand:
+    @pytest.mark.parametrize(
+        ("command", "text"),
+        [("reflect", "/my:reflect"), ("wrap-up", "/dev10x:session-wrap-up")],
+    )
+    def test_submits_the_slash_command_and_logs(
+        self, log_path: Path, command: str, text: str
+    ) -> None:
+        submitter = RecordingSender()
+
+        run_session_command(
+            pane_id="w1:p1",
+            session_name="kb-2a",
+            command=command,
+            confirmed_by="janusz",
+            log_path=log_path,
+            submitter=submitter,
+        )
+        record = json.loads(log_path.read_text(encoding="utf-8"))
+
+        assert (submitter.calls, record["action"], record["detail"]) == (
+            [{"pane_id": "w1:p1", "text": text}],
+            f"command-{command}",
+            text,
         )
 
 
