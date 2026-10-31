@@ -7,6 +7,7 @@
 namespaces:
   dev10x: core
   dev10x.audit: teach
+  dev10x.ci_review: core
   dev10x.cli: core
   dev10x.coding: coding
   dev10x.coding.github._gateway: core

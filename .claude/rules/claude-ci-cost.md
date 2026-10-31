@@ -145,6 +145,14 @@ environment values in rule 6; it does not change which plugins load.
 
 ## Verifying a change
 
+Before merging a change to a prompt, args file, agent spec or the CLI
+pin, replay the review locally on a real PR with
+`dev10x ci-review --pr <N>` (GH-1621). It reads the workflow and the
+base-owned files the same way CI does, runs the pinned CLI with an
+empty config, and records every GitHub write to an outbox instead of
+posting it. Add `--rules head` to run under the PR's own rules and
+prompts — the way to see a prompt change before it merges.
+
 Changes to `claude*.yml` are validated against the default branch, and
 the action skips on the PR that edits them. Verify on the next PR after
 merge, from the usage step: the per-model table in the job summary

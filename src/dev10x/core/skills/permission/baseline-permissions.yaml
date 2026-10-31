@@ -288,6 +288,9 @@ groups:
       - Bash(uvx dev10x platform:*)
       - Bash(uvx dev10x init:*)
       - Bash(uvx dev10x github-app:*)
+      # GH-1621: a dry run — GitHub writes go to an outbox, never out.
+      # dev10x:ci-review asks before any run that spends model tokens.
+      - Bash(uvx dev10x ci-review:*)
       # GH-1577, GH-1582
       - Bash(uvx dev10x foreman escalate:*)
       - Bash(uvx dev10x foreman probe:*)

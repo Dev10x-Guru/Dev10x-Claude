@@ -116,6 +116,7 @@ plugins:
     - skill-prune
     - upgrade-cleanup
   coding:
+    - ci-review
     - fanout
     - foreman
     - gchat-review-request
