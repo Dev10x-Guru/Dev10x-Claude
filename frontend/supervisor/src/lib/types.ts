@@ -71,6 +71,29 @@ export interface RecentTool {
   command: string;
 }
 
+export interface ProjectCheckout {
+  path: string;
+  branch: string;
+  is_main: boolean;
+  open: boolean;
+}
+
+export interface PastSession {
+  session_id: string;
+  cwd: string;
+  title: string;
+  topic: string;
+  active_at: string;
+  named: boolean;
+}
+
+export interface ProjectDetail {
+  root: string;
+  name: string;
+  checkouts: ProjectCheckout[];
+  past: PastSession[];
+}
+
 export interface ConversationEntry {
   role: "user" | "assistant";
   kind: "text" | "tool";

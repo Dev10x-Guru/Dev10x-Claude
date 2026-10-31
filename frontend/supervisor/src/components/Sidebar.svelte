@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ProjectActions from "./ProjectActions.svelte";
   import StatusMark from "./StatusMark.svelte";
   import { displayName } from "../lib/format";
   import { SESSION_MIME } from "../lib/drag";
@@ -9,14 +10,18 @@
     sessions: Session[];
     selected: string;
     pins: string[];
+    token: string;
+    pending: boolean;
     onselect: (sessionId: string) => void;
     onpin: (sessionId: string) => void;
+    run: (path: string, body: Record<string, unknown>, what: string) => Promise<void>;
   }
 
-  let { sessions, selected, pins, onselect, onpin }: Props = $props();
+  let { sessions, selected, pins, token, pending, onselect, onpin, run }: Props = $props();
 
   let query = $state("");
   let collapsed = $state<Record<string, boolean>>({});
+  let acting = $state("");
 
   const visible = $derived(sessions.filter((session) => matches(session, query)));
   const pinned = $derived(
@@ -30,6 +35,16 @@
     collapsed = { ...collapsed, [name]: !collapsed[name] };
   }
 </script>
+
+{#snippet plus(name: string)}
+  <button
+    class={["plus", { on: acting === name }]}
+    aria-expanded={acting === name}
+    aria-label="New session, worktree or resume in {name}"
+    title="New session, worktree or resume"
+    onclick={() => (acting = acting === name ? "" : name)}>+</button
+  >
+{/snippet}
 
 {#snippet leaf(session: Session, showProject: boolean)}
   {@const ws = session.workspace}
@@ -100,20 +115,33 @@
     <ul class="projects">
       {#each tree as project (project.name)}
         {@const open = !collapsed[project.name] || !!query}
+        {@const root = project.folders[0].sessions[0].workspace.root || project.folders[0].root}
         {#if project.count === 1}
           <li class="project">
-            <ul class="sessions flat">
-              {@render leaf(project.folders[0].sessions[0], true)}
-            </ul>
+            <div class="project-row">
+              <ul class="sessions flat">
+                {@render leaf(project.folders[0].sessions[0], true)}
+              </ul>
+              {@render plus(project.name)}
+            </div>
+            {#if acting === project.name}
+              <ProjectActions {root} {token} {pending} {run} onclose={() => (acting = "")} />
+            {/if}
           </li>
         {:else}
         <li class="project">
-          <button class="project-head" aria-expanded={open} onclick={() => toggle(project.name)}>
-            <span class={["caret", { open }]} aria-hidden="true"></span>
-            <StatusMark mark={project.mark} />
-            <span class="project-name">{project.name}</span>
-            <span class="count">{project.count}</span>
-          </button>
+          <div class="project-row">
+            <button class="project-head" aria-expanded={open} onclick={() => toggle(project.name)}>
+              <span class={["caret", { open }]} aria-hidden="true"></span>
+              <StatusMark mark={project.mark} />
+              <span class="project-name">{project.name}</span>
+              <span class="count">{project.count}</span>
+            </button>
+            {@render plus(project.name)}
+          </div>
+          {#if acting === project.name}
+            <ProjectActions {root} {token} {pending} {run} onclose={() => (acting = "")} />
+          {/if}
 
           {#if open}
             <ul class="sessions">
@@ -192,6 +220,54 @@
 
   .project + .project {
     margin-top: var(--space-1);
+  }
+
+  .project-row {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+  }
+
+  .project-row > :first-child {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .plus {
+    flex: none;
+    width: 1.4rem;
+    height: 1.4rem;
+    margin-right: var(--space-2);
+    padding: 0;
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    color: var(--ink-faint);
+    font-size: 0.95rem;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0;
+    transition:
+      opacity 140ms var(--ease-out),
+      border-color 140ms var(--ease-out);
+  }
+
+  .project-row:hover .plus,
+  .plus:focus-visible,
+  .plus.on {
+    opacity: 1;
+  }
+
+  .plus:hover,
+  .plus.on {
+    border-color: var(--rule-strong);
+    color: var(--ink);
+  }
+
+  @media (hover: none) {
+    .plus {
+      opacity: 1;
+    }
   }
 
   .project-head {

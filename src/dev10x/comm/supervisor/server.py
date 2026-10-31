@@ -25,8 +25,18 @@ from dev10x.comm.supervisor.delivery import (
     deliver_relay,
     introduce,
     keys_for_option,
+    log_action,
     rename_session,
     request_preapproval,
+)
+from dev10x.comm.supervisor.history import PastSession, read_past_sessions
+from dev10x.comm.supervisor.launcher import (
+    Launched,
+    LaunchError,
+    Project,
+    create_worktree,
+    open_session,
+    read_project,
 )
 from dev10x.comm.supervisor.lessons import find_lessons, write_lesson
 from dev10x.comm.supervisor.naming import Rename, is_valid_name, plan_renames
@@ -96,6 +106,10 @@ class SupervisorApp:
     conversation_reader: Callable[..., list[ConversationEntry]] = read_conversation
     workspace_reader: Callable[..., Workspace] = read_workspace
     renamer: Callable[..., None] = rename_session
+    project_reader: Callable[..., Project] = read_project
+    past_reader: Callable[..., list[PastSession]] = read_past_sessions
+    opener: Callable[..., Launched] = open_session
+    worktree_maker: Callable[..., Launched] = create_worktree
     auto_rename: bool = False
     auto_renamed: bool = False
     today: Callable[[], date] = date.today
@@ -357,6 +371,7 @@ class SupervisorHandler(BaseHTTPRequestHandler):
                 "/api/sessions": self._api,
                 "/api/events": self._events,
                 "/api/session": self._session_detail,
+                "/api/project": self._project_detail,
                 "/lessons": self._lessons,
             }
         )
@@ -370,6 +385,7 @@ class SupervisorHandler(BaseHTTPRequestHandler):
                 "/reply": self._post_reply,
                 "/introduce": self._post_introduce,
                 "/rename": self._post_rename,
+                "/launch": self._post_launch,
                 "/preapprove": self._post_preapprove,
                 "/lessons": self._post_lesson,
             }
@@ -669,6 +685,85 @@ class SupervisorHandler(BaseHTTPRequestHandler):
             log_path=self.app.log_path,
         )
         self._ok()
+
+    def _known_project(self, *, root: str) -> Project:
+        with self.app.changed:
+            roots = {workspace.root for workspace in self.app.workspaces.values()}
+        if not root or root not in roots:
+            raise RequestError(
+                status=HTTPStatus.BAD_REQUEST,
+                message="Pick a project from the session list.",
+            )
+        try:
+            return self.app.project_reader(root=root)
+        except LaunchError as exc:
+            raise RequestError(status=HTTPStatus.BAD_GATEWAY, message=str(exc)) from exc
+
+    def _past(self, *, project: Project) -> list[PastSession]:
+        with self.app.changed:
+            running = {view.session_id for view in self.app.snapshot.sessions}
+        return self.app.past_reader(
+            checkouts=[checkout.path for checkout in project.checkouts], running=running
+        )
+
+    def _project_detail(self, params: dict[str, str]) -> None:
+        project = self._known_project(root=params.get("root", ""))
+        self._json(
+            status=HTTPStatus.OK,
+            payload={
+                "root": project.root,
+                "name": project.name,
+                "checkouts": [
+                    {
+                        "path": checkout.path,
+                        "branch": checkout.branch,
+                        "is_main": checkout.is_main,
+                        "open": bool(checkout.workspace_id)
+                        or (checkout.is_main and bool(project.main_workspace_id)),
+                    }
+                    for checkout in project.checkouts
+                ],
+                "past": [asdict(past) for past in self._past(project=project)],
+            },
+        )
+
+    def _launch(self, *, body: dict[str, Any], project: Project) -> Launched:
+        action = str(body.get("action", ""))
+        if action == "worktree":
+            return self.app.worktree_maker(
+                project=project, branch=str(body.get("branch", "")).strip()
+            )
+        if action == "session":
+            return self.app.opener(project=project, path=str(body.get("path") or project.root))
+        if action == "resume":
+            session_id = str(body.get("session_id", ""))
+            past = next(
+                (item for item in self._past(project=project) if item.session_id == session_id),
+                None,
+            )
+            if past is None:
+                raise RequestError(
+                    status=HTTPStatus.CONFLICT,
+                    message="That session is running or no longer in this project.",
+                )
+            return self.app.opener(project=project, path=past.cwd, resume=past.session_id)
+        raise RequestError(status=HTTPStatus.BAD_REQUEST, message=f"Unknown action {action!r}.")
+
+    def _post_launch(self, params: dict[str, str]) -> None:
+        body = self._body()
+        project = self._known_project(root=str(body.get("root", "")))
+        try:
+            launched = self._launch(body=body, project=project)
+        except LaunchError as exc:
+            raise RequestError(status=HTTPStatus.BAD_GATEWAY, message=str(exc)) from exc
+        log_action(
+            log_path=self.app.log_path,
+            action=f"launch-{body.get('action')}",
+            target=launched.path or project.root,
+            detail=f"{launched.agent} in {launched.pane_id}",
+            confirmed_by=CONFIRMED_BY,
+        )
+        self._ok(pane_id=launched.pane_id, agent=launched.agent, path=launched.path)
 
     def _post_rename(self, params: dict[str, str]) -> None:
         body = self._body()

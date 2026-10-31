@@ -21,7 +21,14 @@ def keys_for_option(*, index: int) -> list[str]:
     return [str(index + 1)]
 
 
-def _log(*, log_path: Path, action: str, target: str, detail: str, confirmed_by: str) -> None:
+def log_action(
+    *,
+    log_path: Path,
+    action: str,
+    target: str,
+    detail: str,
+    confirmed_by: str,
+) -> None:
     record = {
         "at": datetime.now().astimezone().isoformat(timespec="seconds"),
         "action": action,
@@ -41,7 +48,7 @@ def deliver_keys(
     sender: Callable[..., None] = send_keys,
 ) -> None:
     sender(pane_id=pane_id, keys=keys)
-    _log(
+    log_action(
         log_path=log_path,
         action="keys",
         target=pane_id,
@@ -60,7 +67,7 @@ def rename_session(
     submitter: Callable[..., None] = submit_prompt,
 ) -> None:
     submitter(pane_id=pane_id, text=f"/rename {name}")
-    _log(
+    log_action(
         log_path=log_path,
         action="rename",
         target=session_name,
@@ -102,7 +109,7 @@ def request_preapproval(
         ),
         body=json.dumps(body, indent=2),
     )
-    _log(
+    log_action(
         log_path=log_path,
         action="preapprove",
         target=session_name,
@@ -178,7 +185,7 @@ def introduce(
             body=introduction(to=to, about=about),
         )
         paths.append(delivery.path)
-    _log(
+    log_action(
         log_path=log_path,
         action="introduce",
         target=f"{first.name} <-> {second.name}",
@@ -213,7 +220,7 @@ def deliver_relay(
         ),
         body=ANSWER_PREFIX + answer,
     )
-    _log(
+    log_action(
         log_path=log_path,
         action="relay",
         target=session_name,
