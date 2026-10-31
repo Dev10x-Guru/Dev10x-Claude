@@ -15,5 +15,10 @@ from dev10x.core.module_alias import alias_package
 
 if TYPE_CHECKING:
     from dev10x.coding.github import *  # noqa: F403
+    from dev10x.coding.github import candidate_rules as candidate_rules
+    from dev10x.coding.github import pattern_validation as pattern_validation
+    from dev10x.coding.github import review_patterns as review_patterns
+    from dev10x.coding.github import rule_authoring as rule_authoring
+    from dev10x.coding.github import rule_confidence as rule_confidence
 
 alias_package(old=__name__, new="dev10x.coding.github")
