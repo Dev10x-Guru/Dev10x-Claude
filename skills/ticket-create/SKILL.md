@@ -209,7 +209,8 @@ mention, prefer the roster: its description states its purpose.
 
 **Step 4c — propose a milestone.** Match the ticket's theme against
 the open milestones' titles and descriptions, respecting the
-initiative prefixes and close-at-zero lifecycle in
+initiative prefixes (no sequence numbers — older `<INIT>-M<n>` titles
+are legacy, not a pattern to copy) and close-at-zero lifecycle in
 [`references/milestone-naming.md`](../../references/milestone-naming.md).
 A milestone whose description already names this ticket's theme is a
 direct hit.
