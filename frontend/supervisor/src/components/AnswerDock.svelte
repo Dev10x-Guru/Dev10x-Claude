@@ -2,6 +2,8 @@
   import { fly } from "svelte/transition";
   import { cubicOut } from "svelte/easing";
 
+  import ToolPreview from "./ToolPreview.svelte";
+  import { splitDialog } from "../lib/dialog";
   import { displayName, optionText, waitingLabel } from "../lib/format";
   import type { Decision, PromptOption, Session } from "../lib/types";
 
@@ -12,6 +14,8 @@
   }
 
   let { session, pending, run }: Props = $props();
+
+  const dialog = $derived(session.prompt ? splitDialog(session.prompt.context) : null);
 
   function choose(option: PromptOption): void {
     run(
@@ -34,6 +38,18 @@
   <p class="waiting"><span aria-hidden="true">◆</span> {waitingLabel(session)}</p>
 
   {#if session.prompt}
+    {#if dialog?.title}
+      <div class="dialog">
+        <p class="title">{dialog.title}</p>
+        {#each dialog.description as line, index (index)}<p class="description">{line}</p>{/each}
+      </div>
+    {/if}
+    {#if session.preview}
+      <ToolPreview preview={session.preview} />
+    {:else if dialog?.body}
+      <pre class="command">{dialog.body}</pre>
+    {/if}
+    {#each dialog?.notes ?? [] as note, index (index)}<p class="note">{note}</p>{/each}
     {#if session.prompt.question}<p class="question">{session.prompt.question}</p>{/if}
     <ol class="options">
       {#each session.prompt.options as option (option.key)}
@@ -87,7 +103,7 @@
     padding: var(--space-3) var(--space-6) var(--space-4);
     background: var(--amber-wash);
     border-top: 1px solid var(--amber);
-    max-height: 45vh;
+    max-height: 60vh;
     overflow-y: auto;
   }
 
@@ -98,6 +114,41 @@
     font-weight: 650;
     letter-spacing: 0.08em;
     text-transform: uppercase;
+  }
+
+  .dialog {
+    display: grid;
+    gap: 0.1rem;
+  }
+
+  .title {
+    margin: 0;
+    font-weight: 700;
+  }
+
+  .description {
+    margin: 0;
+    color: var(--ink-soft);
+    overflow-wrap: anywhere;
+  }
+
+  .command {
+    margin: 0;
+    padding: var(--space-2) var(--space-3);
+    max-height: 18rem;
+    overflow: auto;
+    background: var(--paper);
+    border: 1px solid var(--rule-strong);
+    border-radius: 3px;
+    font-family: var(--font-term);
+    font-size: 0.8rem;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .note {
+    font-size: var(--step--1);
   }
 
   .question {

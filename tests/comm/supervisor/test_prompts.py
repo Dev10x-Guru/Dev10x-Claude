@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from dev10x.comm.supervisor import prompts
 from dev10x.comm.supervisor.prompts import (
     Prompt,
     PromptOption,
@@ -64,7 +65,47 @@ class TestParsePrompt:
                 ),
                 PromptOption(key="3", label="No"),
             ],
+            context=[
+                " Bash command",
+                " Register the relay mailbox on the bus",
+                "╌" * 40,
+                " │ send.py registry hello",
+                "╌" * 40,
+                " This command requires approval",
+            ],
         )
+
+    def test_context_stops_at_the_dialog_edge(self) -> None:
+        text = "\n".join(
+            ["noise"] * 5
+            + ["─" * 20, "", " Edit file", " a.py", "", " Proceed?", " 1. Yes", " 2. No"]
+        )
+
+        prompt = parse_prompt(pane_text=text)
+
+        assert prompt is not None
+        assert prompt.context == [" Edit file", " a.py"]
+
+    def test_question_drops_the_widget_gutter(self) -> None:
+        prompt = parse_prompt(pane_text="│ What next?\n❯ 1. Merge\n  2. Wait\n")
+
+        assert prompt is not None
+        assert prompt.question == "What next?"
+
+    def test_no_dialog_edge_means_no_context(self) -> None:
+        prompt = parse_prompt(pane_text=WIDGET)
+
+        assert prompt is not None
+        assert prompt.context == []
+
+    def test_dialog_edge_too_far_up_is_ignored(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(prompts, "MAX_CONTEXT_LINES", 2)
+        text = "\n".join(["─" * 20, "a", "b", "c", "Proceed?", "1. Yes", "2. No"])
+
+        prompt = parse_prompt(pane_text=text)
+
+        assert prompt is not None
+        assert prompt.context == []
 
     def test_widget_takes_the_last_list(self) -> None:
         prompt = parse_prompt(pane_text=WIDGET)

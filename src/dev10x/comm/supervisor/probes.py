@@ -17,7 +17,7 @@ from dev10x.comm.supervisor.sessions import (
 from dev10x.subprocess_utils import run
 
 PROBE_TIMEOUT_SECONDS = 10
-PANE_LINES = 20
+PANE_LINES = 60
 CLAUDE_AGENTS = ["claude", "agents", "--json"]
 HERDR_AGENTS = ["herdr", "agent", "list"]
 

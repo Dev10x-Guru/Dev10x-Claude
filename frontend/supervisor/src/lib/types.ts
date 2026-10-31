@@ -12,6 +12,7 @@ export interface PromptOption {
 export interface Prompt {
   question: string;
   options: PromptOption[];
+  context: string[];
 }
 
 export interface ToolCallPreview {
