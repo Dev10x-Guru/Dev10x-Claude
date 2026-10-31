@@ -64,6 +64,18 @@ if [ "$1" = "0000000000000000000000000000000000000000" ]; then
         fi
     }
 
+    # GH-1632: re-anchor broken relative symlinks rsync carried across.
+    fix_broken_symlinks() {
+        dir="$1"
+        [ -d "$dir" ] || return 0
+        find "$dir" -type l | while IFS= read -r link; do
+            [ -e "$link" ] && continue
+            case "$(readlink "$link")" in /*) continue ;; esac
+            resolved=$(readlink -f "$ORIGINAL_REPO/$link") || continue
+            [ -e "$resolved" ] && ln -sfn "$resolved" "$link"
+        done
+    }
+
     # ── FILES TO COPY (add new entries here) ────────────────────────
     copy_clean ".env"
     copy_clean ".env.supabase"
@@ -71,6 +83,7 @@ if [ "$1" = "0000000000000000000000000000000000000000" ]; then
     # .claude/Dev10x/. Exclude Dev10x/ from the copy so no stale per-repo
     # state rides across; seed (below) ensures the global friction.yaml.
     copy_clean ".claude/" worktrees "Dev10x"
+    fix_broken_symlinks ".claude"
 
     if [ ! -d .claude ]; then
         mkdir -p .claude
