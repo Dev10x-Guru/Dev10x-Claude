@@ -51,12 +51,19 @@ offer a `strict` / `guided` / `adaptive` picker.
 2. `pinned: true` — this checkout already has a posture in the
    global `~/.config/Dev10x/friction.yaml` (set by a prior
    invocation, `dev10x:afk`, or `dev10x:friction-setup`). Adopt it
-   silently and continue to Phase 1.
+   silently and continue to step 4.
 3. `pinned: false` — delegate to `Skill(dev10x:friction-setup)`,
    which owns both the blocking review-policy question and the
-   locked write. Continue to Phase 1 when it returns, whatever the
+   locked write. Continue to step 4 when it returns, whatever the
    answer — a dismissal leaves the safe default
    (`supervisor_review: required`) in place.
+4. Compute `overlay_args` for the per-item template (GH-1609 F1):
+   read `gate_overlays` from `mcp__plugin_dev10x_cli__preset_pin_status`
+   and emit one `--overlay <name>` per entry.
+   Drop `solo-maintainer` whenever `supervisor_review` is `required` —
+   a child must never be handed a looser posture than the swarm's.
+   Empty overlays → `overlay_args` is the empty string.
+   Then continue to Phase 1.
 
 **Never write `friction.yaml` from this skill** — not with the Write
 tool, not under the repo's `.claude/` tree (ADR-0018). The pin tools
@@ -580,9 +587,12 @@ Bootstrap (REQUIRED first, before Skill invocation):
 2. Persist the inherited gate policy for your isolated
    worktree by running, inside it:
        uvx dev10x session set-friction --preset adaptive \
-           --overlay solo-maintainer
+           {{overlay_args}}
    `adaptive` is the sole shipped baseline (ADR-0022 D-1), so
-   this call carries the overlay, not a preset choice. It makes
+   this call carries the overlays, not a preset choice.
+   `{{overlay_args}}` is filled by the orchestrator from its own
+   resolved posture (Phase 0 step 4); it never carries
+   `solo-maintainer` when supervisor_review is `required`. It makes
    the fanout session's posture resolvable inside your
    worktree, so dev10x:work-on's Phase 0 finds it already
    settled and asks nothing. Never
@@ -597,9 +607,18 @@ Invoke Skill(dev10x:work-on) with this input: <issue or PR URL>
 
 ANTI-STALL CONTRACT (highest priority — read before invoking work-on):
 
+MERGE MODE: {{merge_mode}} (draft | manual | autonomous | cascade)
+
 YOUR LIFECYCLE IS ORDERED. Do not reorder it:
   1 branch → 2 implement → 3 COMMIT → 4 push → 5 verify (full
-  test suite) → 6 PR → 7 CI monitor → 8 merge.
+  test suite) → 5b self-review → 6 PR → 7 CI monitor → 8 finish.
+Step 5b: Skill(dev10x:review) --unattended, then
+Skill(dev10x:review-fix) on its findings; commit the fixups.
+Step 8 depends on MERGE MODE:
+  - autonomous | cascade → merge via Skill(dev10x:gh-pr-merge).
+  - manual → mark ready via `pr_ready`; do NOT merge.
+  - draft → leave the PR draft; no `pr_ready`, no merge.
+    Report the CI result (or that CI has not run on the draft).
 Verification is step 5 BECAUSE the commit is step 3. Whenever you
 are about to wait for anything — a test run, a CI verdict, a
 monitor notification, a sibling's file lock, a review — and steps
@@ -616,18 +635,20 @@ remember mid-task.
   reclaimed. The orchestrator now inspects your worktree and
   resumes you (`dev10x orchestration stranded-work`) — a resume you
   did not need is a round-trip the whole wave pays for.
-- "Branch created" = 0% done. "PR created" = 0% done. Only
-  "PR MERGED" counts as task complete. Do NOT stop after branch or
-  PR creation; every step above is mandatory.
+- "Branch created" = 0% done. "PR created" = 0% done. Only the
+  MERGE MODE's finish line counts as task complete: MERGED
+  (autonomous/cascade), ready + CI green (manual), or draft PR +
+  CI result reported (draft). Do NOT stop after branch or PR
+  creation; every step above is mandatory.
 - Step 5 runs the COMPLETE suite with coverage (GH-876 F1) — never
   only the edited-file subset, which misses regressions in unedited
   callers and the 100%-coverage gate and then fails in CI after you
   have returned. Route through Skill(test) / Skill(dev10x:py-test)
   with NO path-narrowing args.
-- After work-on returns, if the PR is open but not merged, that is
-  NOT done. Invoke Skill(dev10x:gh-pr-monitor) and then
-  Skill(dev10x:gh-pr-merge) to complete.
-- If your turn ends before the PR is merged, your final line MUST
+- After work-on returns, if the finish line is not reached, that
+  is NOT done. Invoke Skill(dev10x:gh-pr-monitor), then (in
+  autonomous/cascade) Skill(dev10x:gh-pr-merge) to complete.
+- If your turn ends before the finish line, your final line MUST
   be NEEDS_CONTEXT (not DONE). The orchestrator will re-dispatch.
 
 Sibling coordination (BEST-EFFORT — never your conflict guard):
@@ -718,7 +739,10 @@ Return on completion — REPORT ONLY WHAT YOU DID (GH-1380):
   - `ALREADY_MERGED` — you found it merged. Give `mergedAt` and
     the merging actor from `pr_get`, or say the state names none.
     Do NOT report the nine-check gate: it ran in another session.
-  - `OPEN` | `DRAFT` — explain why
+  - `OPEN` | `DRAFT` — explain why (expected under manual / draft)
+- CI result: green | failing | pending | not run on draft
+- Review: <findings count from step 5b> | skipped + <reason>
+  (a report with no Review line is treated as NEEDS_CONTEXT)
 - Worktree path: the absolute path of your ephemeral worktree
   (run `git rev-parse --show-toplevel` to get it)
 - Cost (total_cost_usd if known)
@@ -728,11 +752,15 @@ Return on completion — REPORT ONLY WHAT YOU DID (GH-1380):
   NEEDS_CONTEXT: <what> | BLOCKED: <reason>
 
 Status line rules (GH-368, GH-385):
-- DONE requires: PR merged, no open comments, CI green, and the
-  FULL test suite + coverage run green locally (not a subset).
-- DONE_WITH_CONCERNS: PR merged but flagged issues remain.
-- NEEDS_CONTEXT: interrupted before merge (branch or PR open
-  but not merged) — the orchestrator will re-dispatch.
+- DONE requires: the MERGE MODE finish line (merged for
+  autonomous/cascade; ready + CI green for manual; draft PR + CI
+  result reported for draft), no open comments, a `Review:` line
+  with a findings count from an executed step 5b (`Review: skipped`
+  downgrades to DONE_WITH_CONCERNS), and the FULL test suite +
+  coverage run green locally (not a subset).
+- DONE_WITH_CONCERNS: finish line reached but flagged issues remain.
+- NEEDS_CONTEXT: interrupted before the finish line, or the Review
+  line is missing — the orchestrator will re-dispatch.
 - BLOCKED: permission wall, MCP unavailable, or merge blocked
   by branch protection requiring human action.
 - A missing or non-terminal trailing line is treated by the
@@ -906,17 +934,23 @@ Controls whether PRs are merged autonomously after CI passes.
 
 | Mode | Behavior |
 |------|----------|
+| `draft` | Stop at a draft PR + CI result. No `pr_ready`, no merge (GH-1604). |
 | `manual` | Mark ready, stop. User merges explicitly. |
 | `autonomous` | After CI green + no comments → invoke `dev10x:gh-pr-merge` |
 | `cascade` | Autonomous + auto-rebase downstream PRs in the same fanout chain |
 
 **Resolution order** (first match wins):
-1. **Merge gate:** call `mcp__plugin_dev10x_cli__resolve_gate(
+1. **Playbook override:** an explicit `merge_mode` (any value,
+   including `draft`) in the user's `work-on.yaml` playbook wins
+   over the gate — the user stated it, and `draft` is strictly more
+   conservative than any gate effect.
+2. **Merge gate:** call `mcp__plugin_dev10x_cli__resolve_gate(
    gate="merge", context={})`. `effect: "auto-advance"` → default
    to `cascade`; any other effect → `manual`.
-2. **Playbook override:** `merge_mode` in the user's
-   `work-on.yaml` playbook
-3. **Default:** `manual`
+3. **Default:** `manual` (reached only when the gate cannot be read)
+
+Fill the per-item template's `{{merge_mode}}` with the resolved
+value; the child's lifecycle tail and DONE bar follow from it.
 
 **Cascade logic** (when merge_mode is `cascade`):
 1. Merge PR N via `Skill(dev10x:gh-pr-merge)`
@@ -1052,11 +1086,17 @@ Phase 4's job is therefore **collection**, not orchestration:
    agent result contains a PR URL and the trailing line is
    `DONE` but the PR state (via `mcp__plugin_dev10x_cli__pr_get`)
    shows the PR is still OPEN, downgrade the status to
-   `NEEDS_CONTEXT: PR open, merge incomplete`. Apply the
+   `NEEDS_CONTEXT: PR open, merge incomplete` — only under
+   `autonomous`/`cascade`. Under `draft` or `manual` an open PR is
+   the expected finish line: accept `DONE` when the draft PR has its
+   CI result (`draft`) or the PR is ready with green CI (`manual`),
+   and downgrade only when that mode's line is not met. Apply the
    same resume-first strategy before re-dispatching.
 2. Mark the matching Phase 3 subtask `completed` only when
-   the PR is confirmed MERGED. Mark `pending` again if the
-   agent reported `NEEDS_CONTEXT` or if the PR is open.
+   the PR is confirmed MERGED (`autonomous`/`cascade`) or the
+   mode's finish line is confirmed (`draft`/`manual`). Mark
+   `pending` again if the agent reported `NEEDS_CONTEXT` or the
+   finish line is not met.
 3. For `BLOCKED` results, queue an `AskUserQuestion` so the
    orchestrator can decide between retry, fallback to
    serial, or skip.
@@ -1391,16 +1431,21 @@ the Agent Isolation Matrix) or read-only monitoring fallback,
 every prompt MUST instruct the agent to end its output with
 one of:
 
-- `DONE` — task complete (PR MERGED, CI green, no comments)
+- `DONE` — task complete (merge-mode finish line, no comments)
 - `DONE_WITH_CONCERNS: <text>` — PR merged but flagged issues
 - `NEEDS_CONTEXT: <what>` — re-dispatch needed; includes the
   case where the agent was interrupted before merge (branch or
   PR exists but is still open)
 - `BLOCKED: <reason>` — permission wall or unrecoverable error
 
-**Success bar (GH-368 F1):** `DONE` requires a MERGED PR,
-not just a created or open one. A swarm agent that opens a PR
-and stops must return `NEEDS_CONTEXT`, not `DONE`.
+**Success bar (GH-368 F1, GH-1604):** `DONE` requires the merge
+mode's finish line — a MERGED PR under `autonomous`/`cascade`, a
+ready PR with green CI under `manual`, a draft PR with its CI
+result reported under `draft` — not just a created PR. A swarm
+agent that opens a PR and stops short of that must return
+`NEEDS_CONTEXT`, not `DONE`. A report missing its `Review:` line
+(self-review step 5b) is also treated as `NEEDS_CONTEXT`; see the
+template's status-line rules for `Review: skipped`.
 
 **Interruption guarantee (GH-368 F2, GH-385 F1):** Every
 agent prompt MUST include the instruction:
