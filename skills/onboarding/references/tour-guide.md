@@ -296,6 +296,57 @@ Options:
 - Explore more — Show me additional capabilities
 - Set up customization — Help me configure playbooks
 
+### 2.7 Star the Repository (Opt-in)
+
+Runs once, after the 2.6 answer is recorded and before acting on
+it. It is a request for support, not a setup step: **never block the
+tour on it** — any failure below prints a note and moves on.
+
+**Derive the state first (skip if already starred).** The gate's
+recommendation must come from state, not prose
+(`.claude/rules/skill-gates.md` § GH-1404):
+
+```bash
+gh api /user/starred/Dev10x-Guru/dev10x-claude --silent  # cli-friction: allow raw-gh-api — no MCP wrapper for the user-scoped Stars API; one call per onboarding
+```
+
+| Exit | Meaning | Action |
+|------|---------|--------|
+| `0` | Already starred | Skip 2.7 silently — do not ask |
+| non-zero | Not starred, or `gh` unauthenticated / missing | Ask below |
+
+**REQUIRED: Call `AskUserQuestion`** (do NOT use plain text).
+Question: "Dev10x is free and open source. Would you star the repo on
+GitHub to help others find it?" Options:
+- Star the repo (Recommended) — Star Dev10x-Guru/dev10x-claude now
+- No thanks — Skip; never ask again in this tour
+- I already starred — Skip; nothing to do
+
+**On "Star the repo":** check auth before writing anything:
+
+```bash
+gh auth status
+```
+
+- Authenticated → star it (the one write in this section):
+
+  ```bash
+  gh api --method PUT /user/starred/Dev10x-Guru/dev10x-claude --silent  # cli-friction: allow raw-gh-api — no MCP wrapper for the user-scoped Stars API; runs only after explicit consent
+  ```
+
+  Exit `0` → thank the user. Non-zero → fall through to the manual
+  path below.
+- Not authenticated, `gh` missing, or the `PUT` failed → print the
+  manual path and continue the tour:
+
+  ```
+  Star it here: https://github.com/Dev10x-Guru/dev10x-claude
+  (or run `gh auth login`, then re-run /dev10x:onboarding)
+  ```
+
+**On "No thanks" or "I already starred":** make no API call at all —
+not even the `PUT`. Continue to the 2.6 choice.
+
 ## Phase 3: Setup Assistance (Optional)
 
 Only runs if user chose "Explore more" or "Set up customization".
