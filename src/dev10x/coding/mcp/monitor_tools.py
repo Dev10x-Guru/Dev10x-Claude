@@ -47,8 +47,9 @@ async def ci_check_status(
             ``wait_out_pending`` does not cover it. Pass the bot legs
             (e.g. ``["claude-review", "hygiene-review"]``) when the next
             step would invalidate what they anchor to, such as a groom
-            that force-pushes the SHAs their comments reference. The poll
-            budget still bounds the wait.
+            that force-pushes the SHAs their comments reference. A named
+            check that never registers keeps the wait alive until the poll
+            budget ends and is listed in ``unregistered`` (GH-1679).
         cwd: Effective working directory (GH-979).
 
     Returns:
@@ -65,6 +66,11 @@ async def ci_check_status(
         when that cross-check overturned a false "no checks reported", and
         ``gh-pr-checks`` otherwise. A cross-check that cannot be made
         returns an error carrying ``undetermined: true``, never a zero.
+        A ``green`` is cross-checked the same way (GH-1679): any run for
+        the head SHA still queued or in progress turns it into ``pending``
+        with ``checks_source: "runs-api-pending"`` and the run names in
+        ``running_runs``, because ``gh pr checks`` lists a partial set
+        right after a push.
     """
     from dev10x import monitor as mon
     from dev10x.subprocess_utils import use_cwd
