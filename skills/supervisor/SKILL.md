@@ -22,7 +22,8 @@ allowed-tools:
   - SendMessage
   - AskUserQuestion
   - Agent
-  - Edit
+  - mcp__plugin_dev10x_cli__permission_triage
+  - mcp__plugin_dev10x_cli__permission_grant
   - Read
   - TaskCreate
   - TaskUpdate
@@ -96,14 +97,15 @@ Args: `[serve | relay | stop]` (default `serve`).
       The JSON body names the session, its pending call and the Bash
       commands it ran. Dispatch one subagent with the brief in
       [`references/preapprove.md`](references/preapprove.md), passing
-      the body inline. It returns proposed rules; it writes nothing.
-      Then **REQUIRED: Call `AskUserQuestion`** (do NOT use plain
-      text) listing every proposed rule and target file, with options
-      **Write them (Recommended)** / **Narrower** / **Cancel**.
-      Recommend Write only when no rule contains a bare `*` or
-      `Bash(*)`; otherwise lead with **Narrower**. On Write, apply
-      exactly the listed rules (see the reference's § Writing); on
-      Narrower, re-dispatch with the supervisor's note.
+      the body inline. It triages each command shape the session used
+      with `permission_triage` and writes nothing. Then **REQUIRED:
+      Call `AskUserQuestion`** (do NOT use plain text) listing every
+      `GRANT` rule with its files and every `NOT GRANTED` verdict, with
+      options **Write them (Recommended)** / **Narrower** / **Cancel**.
+      Lead with **Narrower** when any rule is a bare `*` or `Bash(*)`.
+      On Write, grant with `permission_grant` as the reference's
+      § Granting says; on Narrower, re-dispatch with the supervisor's
+      note.
    5. Any other message: **REQUIRED: Call `AskUserQuestion`** (do NOT
       use plain text), quoting the subject, with options
       **Ignore it (Recommended)** / **Show it to me**.

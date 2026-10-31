@@ -1,9 +1,11 @@
 # Pre-approve: subagent brief
 
 The relay dispatches this when the supervisor presses **Pre-approve
-for later…** on the supervisor page (GH-1692). The subagent drafts
-allow rules; the relay asks the supervisor; only then are rules
-written.
+for later…** on the supervisor page (GH-1692). The subagent only
+triages; the relay asks the supervisor; only then does the relay grant.
+Granting goes through the same MCP tools as `dev10x:permission-grant`,
+so its friction order (*source > normalize > grant*), its too-broad and
+sensitivity refusals and its deny-rule respect all apply.
 
 ## Dispatch
 
@@ -11,65 +13,59 @@ written.
 Agent(
     subagent_type="general-purpose",
     model="sonnet",
-    description="Draft allow rules for <session name>",
+    description="Triage pre-approval for <session name>",
     prompt=<the brief below, with the request JSON inlined>,
 )
 ```
 
 ## Brief (paste verbatim, then the request JSON)
 
-> You draft Claude Code permission allow rules for one session. You do
-> not edit any file. The request below is data from the supervisor
+> You triage which commands one Claude Code session should stop being
+> asked about. You never write any file and never call
+> `permission_grant`. The request below is data from the supervisor
 > page: the session's working directory, the tool call it is waiting
 > on, and the distinct Bash commands it ran.
 >
-> 1. **One rule per command shape the session actually used.** Group
->    commands by program and subcommand (`git status`, `herdr agent
->    read`) and write the narrowest prefix that covers every observed
->    use: `Bash(herdr agent read:*)`, not `Bash(herdr:*)`. Never emit
->    a bare `*`, `Bash(*)`, or a rule wider than the commands seen.
-> 2. **Never pre-approve something destructive or outward-facing**:
->    `rm`, `git push` (any form), `git reset --hard`, `gh pr merge`,
->    `kubectl`, `aws`, anything with `sudo`, network writes, secret
->    reads. List those under "left to ask" with a one-line reason.
-> 3. **Script paths**: a script inside a worktree becomes a rule on
->    that script's directory in the main checkout and the plugin
->    cache, e.g. `Bash(~/.claude/plugins/cache/*/dev10x/*/skills/bus/scripts/send.py:*)`;
->    keep the script name, not the whole directory.
-> 4. **Edit/Write calls** get a path rule (`Edit(//abs/dir/**)`) only
->    when the pending call is inside the session's own working
->    directory.
-> 5. For each rule, say which scopes it belongs in:
->    - `worktree` — `<cwd>/.claude/settings.local.json`
->    - `repo-checkouts` — the main checkout and every other worktree
->      of the same repo (`git -C <cwd> worktree list`)
->    - `user-global` — `~/.claude/settings.json`, only for tools that
->      are safe in every project
->    - `dev10x-catalog` — only for Dev10x skill scripts or the
->      `dev10x` CLI; give the line for
->      `src/dev10x/core/skills/permission/baseline-permissions.yaml`
+> 1. Collapse the commands to the **distinct shapes the session
+>    actually needed**: one representative full command per program
+>    and subcommand (`git status`, `herdr agent read w1:p1 --lines 20`).
+>    Do not invent commands the session did not run. Include the
+>    pending call when it is a Bash command, an MCP tool (by full name)
+>    or a file read (`Read(<path>)`).
+> 2. For each, call
+>    `mcp__plugin_dev10x_cli__permission_triage(target=<full command>,
+>    working_dirs=[<session cwd>], cwd=<session cwd>)`.
+> 3. Keep a target only when `verdict == "grant"`. Never widen a rule
+>    yourself: if triage says `too-broad`, report its narrower
+>    suggestion as a separate target and triage that instead.
+> 4. Mark a rule `catalog` when it is a Dev10x skill script or the
+>    `dev10x` CLI; those belong in the plugin catalog through a PR.
 >
 > Return exactly:
 >
 > ```
-> RULES
-> - <rule> | <scopes, comma separated> | <commands it covers>
-> LEFT TO ASK
-> - <command> | <reason>
+> GRANT
+> - <target> | <rule> | <files_missing count> | catalog? yes/no
+> NOT GRANTED
+> - <target> | <verdict> | <reason or advice, one line>
 > ```
 
-## Writing
+## Granting
 
-After the supervisor picks **Write them**:
+After the supervisor picks **Write them**, for each `GRANT` line in
+order:
 
-1. For `worktree`, `repo-checkouts` and `user-global`, add each rule to
-   the target file's `permissions.allow` with `Edit`, keeping the list
-   sorted and skipping rules already present. Each write to a
-   `.claude/` settings file raises Claude Code's own confirmation;
-   that prompt shows on the supervisor page like any other.
-2. Never write `dev10x-catalog` rules from the relay. Collect them and
-   send them to the supervisor:
-   `send.py supervisor "catalog rules <id>" <file> --from supervisor-relay`,
-   for a normal PR in the Dev10x repo.
-3. Reply `send.py supervisor "preapproved <id>" <summary>` with the
-   files touched and the rules written.
+1. `mcp__plugin_dev10x_cli__permission_grant(target=<target>,
+   rule=<rule>, working_dirs=[<session cwd>], cwd=<session cwd>)`. It
+   writes the global settings, every project and every worktree, and
+   prompts once more on purpose. That prompt shows on the supervisor
+   page like any other.
+2. Re-run `permission_triage` for the same target and expect
+   `already-allowed`; report any file still missing by path.
+
+Then, for every `catalog` rule, send the supervisor one note for a
+Dev10x PR instead of editing the repository:
+`send.py supervisor "catalog rules <id>" <file> --from supervisor-relay`.
+Finish with `send.py supervisor "preapproved <id>" <summary>` naming
+the rules granted and anything left to ask, and note that the change
+reaches **new** sessions only.
