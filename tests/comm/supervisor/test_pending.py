@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR, ClaudeDir
 
 from dev10x.comm.supervisor import pending
 from dev10x.comm.supervisor.pending import (
@@ -47,6 +48,25 @@ def _write(*, path: Path, records: list[Any]) -> Path:
 @pytest.fixture
 def projects(tmp_path: Path) -> Path:
     return tmp_path / "projects"
+
+
+class TestDefaultRoot:
+    def test_resolves_through_claude_dir(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv(CLAUDE_HOME_ENV_VAR, str(tmp_path / "claude"))
+        ClaudeDir.reset_cache()
+        path = _write(
+            path=tmp_path / "claude" / "projects" / "-w" / f"{SESSION}.jsonl", records=[]
+        )
+        try:
+            found = find_transcript(session_id=SESSION)
+        finally:
+            ClaudeDir.reset_cache()
+
+        assert found == path
 
 
 class TestFindTranscript:
