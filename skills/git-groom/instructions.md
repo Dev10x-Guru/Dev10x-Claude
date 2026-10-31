@@ -48,8 +48,14 @@ establishes *intent to groom*, not *which strategy to use*.
 
 **NEVER auto-select a grooming strategy on your own judgement.**
 Call `mcp__plugin_dev10x_cli__resolve_gate(gate="history_rewrite",
-context={"destructive": <true when the only viable path is a Full
-restructure or an interactive reorder>})` and branch on `effect`.
+context={"provably_safe": <true for fast-exit, a `fixup!`/`squash!`
+autosquash, or a message-only mass rewrite; false when the only
+viable path is a Full restructure or an interactive reorder>})` and
+branch on `effect`. `provably_safe` is the one key the
+`history_rewrite` toggle reads (`auto-advance-if-safe`); a
+`destructive` flag alone leaves it at its `False` default, so a
+fixup-only groom resolved to `ask` on every autonomous session
+(GH-1656).
 On `ask` you MUST present the `AskUserQuestion` gate for strategy
 selection — even when invoked from a parent orchestrator that has
 chosen "Full shipping pipeline". Auto-selecting autosquash because
@@ -67,7 +73,8 @@ re-imposes a gate the resolver auto-advanced. Do NOT read
 guess it. The `history_rewrite` floor does the carve-out for you:
 an `auto-advance` covers only deterministic, non-destructive
 strategies (fast-exit, autosquash of `fixup!` commits, message-only
-mass rewrite), and passing `destructive: true` returns `ask` — a
+mass rewrite) passed as `provably_safe: true`, and passing
+`provably_safe: false` returns `ask` — a
 history-destroying operation with no deterministic answer is the
 one case the supervisor confirms however autonomous the session is.
 See Phase 2 for the auto-select rules.
@@ -314,7 +321,7 @@ honors both GH-458 (no silent destructive rewrites) and GH-530
 commit analysis cannot resolve to one of the deterministic options
 above and the only viable path is a destructive Full restructure
 (soft reset + rebuild) or an interactive reorder, pass
-`destructive: true` to `resolve_gate` and fire the strategy
+`provably_safe: false` to `resolve_gate` and fire the strategy
 `AskUserQuestion` gate on the `ask` it returns. A
 history-destroying operation with no deterministic answer is the
 one case the supervisor must confirm however autonomous the
