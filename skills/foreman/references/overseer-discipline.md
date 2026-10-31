@@ -142,29 +142,20 @@ from the outside, and only the disk tells them apart.
 
 ## Overseer-tier fallback ladder (GH-1054)
 
-Overseers fail the way the crew does — by abandoning the turn (§ An
-idle agent cannot heartbeat). Three failed sequentially in one run
-before recovery came from dropping the tier entirely, now a named mode
-(`collapsed-merge-guidance.md`). Climb on a *repeat* of the same
-failure, not on the first instance:
+On a *repeat* of the same turn-abandonment, climb nudge → respawn
+(prefer a higher model tier) → collapse to watchdog-direct. Rungs,
+triggers and costs: [`overseer-fallback-ladder.md`](overseer-fallback-ladder.md).
 
-| Rung | When | Action |
-|---|---|---|
-| 1. Nudge | First stale overseer heartbeat while crew branch tips and PR state still move | Direct message naming the missing step ("heartbeat, ONE bounded blocking wait, heartbeat"). Cheap; keeps its accumulated context. |
-| 2. Respawn | Same overseer goes silent again after a nudge, or ends its turn twice | Stand-down handshake, `TaskStop`, respawn from `manifest.md` + `roster.md` + newest heartbeats. Context lost, queue intact. |
-| 3. Collapse | Two or more overseers fail the same way, or a respawn fails inside one chunk | Drop the tier — watchdog-direct dispatch, observation and gating. |
+## The watchdog never moves run-dir files (GH-1577)
 
-**Repeated turn-abandonment on a cheap tier is a tier problem, not an
-instruction problem.** `stall-protocol.md` § Repeated stalls on one
-tier says this for crew workers (GH-956); it applies unchanged to the
-overseer. Before rung 2, prefer respawning at a *higher model tier*
-over respawning the same one — three haiku overseers failing
-identically is evidence about haiku, not about the third agent.
-
-In the run that produced this ladder the remaining chunks ran at
-roughly twice the prior throughput after collapsing. That is one run,
-not a benchmark: a reason not to fear rung 3, not a reason to start
-there. What rung 3 costs is in `collapsed-merge-guidance.md`.
+- **Never run `mv`, `cp` or `rm` on a run-dir file.** The supervisor's
+  global `Bash(mv:*)` ask rule outranks any local allow, so the command
+  waits on a prompt nobody is awake to answer — one `mv` froze the
+  2026-10-10/11 run for about six hours.
+- **A STALL alert for a finished worker is noise**, not a cue to tidy
+  up. The watcher retires a heartbeat whose last line is `DONE:`; for
+  one that ended without it, run
+  `dev10x foreman retire --scratchpad <run-dir> <chunk>`.
 
 ## The merge gate reads `ask` in fresh worktrees (GH-978)
 
