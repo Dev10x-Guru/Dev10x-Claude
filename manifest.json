@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "dev10x",
   "display_name": "Dev10x",
-  "version": "0.109.0.dev0",
+  "version": "0.109.0",
   "description": "Dev10x MCP tools for GitHub PR lifecycle, issue tracking, git history, CI monitoring and gate policy.",
   "author": {
     "name": "Janusz Skonieczny",
