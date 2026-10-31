@@ -12,7 +12,6 @@ import subprocess
 from pathlib import Path
 
 import pytest
-
 from dev10x.skills.permission.ignore_session_state import (
     IGNORE_PATTERN,
     SUGGESTED_TRACKED_PATTERN,

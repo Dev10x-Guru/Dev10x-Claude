@@ -7,12 +7,12 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import pytest
-
 from dev10x.audit.log_reader import LogReaderAuditWriter
 from dev10x.domain.audit_writer import AuditWriter
 from dev10x.domain.hook_telemetry import HookOutcome
-from dev10x.hooks import audit_emit
 from dev10x.hooks.audit_emit import append_gate_record, audit_hook, set_audit_writer
+
+from dev10x.hooks import audit_emit
 
 
 @dataclass

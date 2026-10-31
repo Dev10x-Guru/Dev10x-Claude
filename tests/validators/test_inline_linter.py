@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import pytest
-
 from dev10x.validators.inline_linter import INLINE_LINTER_MSG, InlineLinterValidator
+
 from tests.fakers import BashHookInputFaker
 
 

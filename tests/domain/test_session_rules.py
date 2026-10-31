@@ -21,7 +21,6 @@ directly:
 from __future__ import annotations
 
 import pytest
-
 from dev10x.domain.documents.session_state import PlanSummary
 from dev10x.domain.friction_level import FrictionLevel
 from dev10x.domain.session_rules import (

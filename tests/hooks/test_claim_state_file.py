@@ -4,7 +4,6 @@ import json
 from pathlib import Path
 
 import pytest
-
 from dev10x.hooks.session import _claim_state_file
 
 

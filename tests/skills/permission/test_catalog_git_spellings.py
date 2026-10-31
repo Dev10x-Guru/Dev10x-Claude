@@ -13,7 +13,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from dev10x.skills.permission.catalog_paths import load_catalog_document
 
 

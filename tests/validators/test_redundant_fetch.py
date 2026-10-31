@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import pytest
+from dev10x.validators.redundant_fetch import RedundantFetchValidator
 
 from dev10x.domain import HookAllow, HookInput
-from dev10x.validators.redundant_fetch import RedundantFetchValidator
 
 
 def _make_input(*, command: str) -> HookInput:

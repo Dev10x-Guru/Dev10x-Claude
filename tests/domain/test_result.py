@@ -1,5 +1,4 @@
 import pytest
-
 from dev10x.domain.common.result import (
     ErrorResult,
     ResultProtocol,

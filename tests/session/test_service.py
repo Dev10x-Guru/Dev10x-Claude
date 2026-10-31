@@ -12,7 +12,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
 from dev10x.domain.session_document import state_path_for_toplevel, write_state
 from dev10x.session.service import SessionService
 

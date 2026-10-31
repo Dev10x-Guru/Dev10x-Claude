@@ -13,9 +13,9 @@ import urllib.error
 import urllib.request
 
 import pytest
-
 from dev10x.domain.common.result import ErrorResult, ok
 from dev10x.domain.common.singleton_holder import SingletonHolder
+
 from dev10x.skills.notifications import slack_notify as mod
 
 

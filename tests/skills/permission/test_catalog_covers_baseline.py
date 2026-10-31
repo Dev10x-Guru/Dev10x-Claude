@@ -33,7 +33,6 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-import dev10x.skills.permission as permission_pkg
 from dev10x.domain.common.baseline_catalog import load_baseline_dict
 from dev10x.domain.common.command_spellings import expand_spellings
 from dev10x.skills.permission.baseline_coverage import (
@@ -50,6 +49,8 @@ from dev10x.skills.permission.baseline_coverage import (
     unseeded_baseline_rules,
 )
 from dev10x.skills.permission.catalog_paths import CATALOG_RELPATH, load_catalog_document
+
+import dev10x.skills.permission as permission_pkg
 
 PERMISSION_DIR = Path(permission_pkg.__file__).resolve().parent
 REPO_ROOT = PERMISSION_DIR.parents[4]

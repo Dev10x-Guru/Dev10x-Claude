@@ -17,7 +17,6 @@ from __future__ import annotations
 import time
 
 import pytest
-
 from dev10x.skills.common.jtbd import extract_jtbd_structured
 
 # GitHub's own PR-body ceiling, so the guard covers the worst a body can be.

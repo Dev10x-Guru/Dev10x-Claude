@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 
 import pytest
-
 from dev10x.skills.doctor.strategies import missing_linear_mcp_allow
 from dev10x.skills.doctor.strategy import Context
 

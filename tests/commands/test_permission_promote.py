@@ -7,9 +7,9 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
+from dev10x.domain.common.result import ok
 
 from dev10x.commands.permission import promote_plan
-from dev10x.domain.common.result import ok
 
 READ_TOOL = "mcp__claude_ai_Slack__slack_read_channel"
 DOMAIN_RULE = "WebFetch(domain:arxiv.org)"

@@ -7,11 +7,11 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
+from dev10x.domain.common.result import ok
+from dev10x.permission.service import PermissionContext
 
 from dev10x.commands.permission import doctor as doctor_group
 from dev10x.commands.permission import ensure_safety_keys as ensure_safety_keys_cmd
-from dev10x.domain.common.result import ok
-from dev10x.permission.service import PermissionContext
 
 
 def _with_settings_files(monkeypatch: pytest.MonkeyPatch, files: list[Path]) -> None:

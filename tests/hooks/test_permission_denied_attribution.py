@@ -12,10 +12,10 @@ import logging
 from typing import Never
 
 import pytest
+from dev10x.hooks.permission_diagnostics import DiagnosticResult
 
 from dev10x.commands.hook import _record_denied_tool, _run_permission_diagnostics
 from dev10x.hooks import audit_emit
-from dev10x.hooks.permission_diagnostics import DiagnosticResult
 
 
 def _raise_boom(*args: object, **kwargs: object) -> Never:

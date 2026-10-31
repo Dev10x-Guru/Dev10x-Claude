@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from dev10x.skill_index.builder import (
     SkillEntry,
     extract_front_matter,

@@ -6,10 +6,10 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
-
-from dev10x.commands.usage import usage
 from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR
 from dev10x.domain.common.result import err
+
+from dev10x.commands.usage import usage
 
 
 def _recent_iso(minutes_ago: int = 1) -> str:

@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 
 import pytest
-
 from dev10x.skills.doctor.registry import DEFAULT_STRATEGY_MODULES
 from dev10x.skills.doctor.strategies.shell_equivalent_mcp_tools import STRATEGY, detect
 from dev10x.skills.doctor.strategy import Context

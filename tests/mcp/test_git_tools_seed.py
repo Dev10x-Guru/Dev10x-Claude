@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import pytest
-
 from dev10x.domain.common.result import err, ok
+
 from dev10x.mcp.git_tools import _seed_worktree_defaults
 
 

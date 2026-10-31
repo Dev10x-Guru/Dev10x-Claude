@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pytest
-
 from dev10x.domain.common.bash_tokens import (
     ANY_CASE_ENV_VAR_RE,
     ENV_VAR_RE,

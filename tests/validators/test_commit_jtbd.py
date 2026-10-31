@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import pytest
-
 from dev10x.validators.commit_jtbd import CommitJtbdValidator
+
 from tests.fakers import BashHookInputFaker
 
 

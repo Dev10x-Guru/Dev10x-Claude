@@ -3,7 +3,6 @@ import tomllib
 from pathlib import Path
 
 import pytest
-
 from dev10x.domain.deprecations import (
     REGISTER,
     WINDOW_MINOR_VERSIONS,

@@ -12,9 +12,9 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from click.testing import CliRunner
+from dev10x.domain.common.result import err, ok
 
 from dev10x.cli import cli
-from dev10x.domain.common.result import err, ok
 
 
 @pytest.fixture()

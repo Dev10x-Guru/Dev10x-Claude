@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pytest
 import yaml
-
 from dev10x.domain.common.baseline_catalog import load_baseline_dict
 
 

@@ -17,7 +17,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from dev10x.skills.doctor.registry import load_strategies
 from dev10x.skills.doctor.strategies.retired_session_yaml import (
     STRATEGY,

@@ -7,8 +7,6 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
-
-from dev10x.commands.orchestration import orchestration
 from dev10x.skills.orchestration.stranded_work import (
     StrandedSignal,
     StrandedVerdict,
@@ -18,6 +16,8 @@ from dev10x.skills.orchestration.stranded_work import (
     resume_prompt,
 )
 from dev10x.skills.orchestration.subagent_protocol import SubagentStatus
+
+from dev10x.commands.orchestration import orchestration
 
 
 @pytest.fixture

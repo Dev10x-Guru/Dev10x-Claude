@@ -5,12 +5,12 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from dev10x.domain.common.doctor_acceptance import (
     DEFAULT_ACCEPTED_DOCTOR_FINDINGS,
     AcceptedDoctorFinding,
     find_doctor_acceptance,
 )
+
 from dev10x.skills.doctor import acceptance
 
 

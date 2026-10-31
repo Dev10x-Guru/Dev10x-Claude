@@ -1,7 +1,6 @@
 """GH-945: PR-body hygiene rules mirroring the hygiene-bot findings."""
 
 import pytest
-
 from dev10x.domain.pr_body import (
     SO_CAN_MARKER,
     WANTS_MARKER,

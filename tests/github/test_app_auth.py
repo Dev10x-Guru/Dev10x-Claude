@@ -6,9 +6,9 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from dev10x.github.app_api import GitHubAPIError
 
 from dev10x.github import app_auth as auth
-from dev10x.github.app_api import GitHubAPIError
 
 
 @pytest.fixture(autouse=True)

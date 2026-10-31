@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from dev10x.domain.pr_body import missing_job_story_markers
 from dev10x.skills.common.jtbd import (
     extract_jtbd,

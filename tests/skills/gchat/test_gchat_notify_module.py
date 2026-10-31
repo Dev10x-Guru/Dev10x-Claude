@@ -9,8 +9,8 @@ import urllib.error
 from types import SimpleNamespace
 
 import pytest
-
 from dev10x.domain.common.result import ErrorResult, SuccessResult, err, ok
+
 from dev10x.skills.notifications import gchat_notify as mod
 
 

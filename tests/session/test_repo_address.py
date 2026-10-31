@@ -6,7 +6,6 @@ import subprocess
 from unittest.mock import patch
 
 import pytest
-
 from dev10x.domain.common.result import ErrorResult, SuccessResult
 from dev10x.session.repo_address import (
     NO_ORIGIN_REASON,

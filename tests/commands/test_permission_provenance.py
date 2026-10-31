@@ -6,10 +6,10 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
+from dev10x.domain.common.result import err, ok
 
 from dev10x.commands.permission import provenance as provenance_cmd
 from dev10x.commands.permission import seed_worktree as seed_worktree_cmd
-from dev10x.domain.common.result import err, ok
 
 
 @pytest.fixture(autouse=True)

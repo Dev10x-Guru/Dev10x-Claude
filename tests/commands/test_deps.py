@@ -11,9 +11,9 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
+from dev10x.domain.common.result import err, ok
 
 from dev10x.commands.deps import deps
-from dev10x.domain.common.result import err, ok
 
 
 @pytest.fixture

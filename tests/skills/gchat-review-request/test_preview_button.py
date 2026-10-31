@@ -13,9 +13,9 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from dev10x.skills.notifications._gh import GhCommandError
 
 from dev10x.skills.notifications import gchat_review_request as mod
-from dev10x.skills.notifications._gh import GhCommandError
 
 PR_URL = "https://github.com/org/my-app/pull/42"
 PREVIEW_URL = "https://my-app-git-feature.vercel.app"

@@ -12,7 +12,6 @@ import json
 import subprocess
 
 import pytest
-
 from dev10x.skills.merge.fixes_scope import (
     commit_ticket_ids,
     fixes_links,

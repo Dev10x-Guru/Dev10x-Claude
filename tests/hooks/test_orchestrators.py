@@ -16,7 +16,6 @@ import uuid
 from pathlib import Path
 
 import pytest
-
 from dev10x.domain.friction_level import FrictionLevel
 
 SCRIPTS = Path(__file__).resolve().parents[2] / "hooks" / "scripts"
@@ -373,6 +372,7 @@ class TestSkillsIndexWiring:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR, ClaudeDir
+
         from dev10x.hooks import session_dispatch
 
         monkeypatch.setenv(CLAUDE_HOME_ENV_VAR, str(tmp_path / "claude-home"))
@@ -384,6 +384,7 @@ class TestSkillsIndexWiring:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR, ClaudeDir
+
         from dev10x.hooks import session_dispatch
 
         claude_home = tmp_path / "claude-home"

@@ -6,13 +6,13 @@ import json
 from pathlib import Path
 
 import yaml
-
-import dev10x.skills.permission as permission_pkg
 from dev10x.skills.permission.promote import (
     apply_promotion_plan,
     build_proactive_seed_plan,
     catalog_default_safe_surface,
 )
+
+import dev10x.skills.permission as permission_pkg
 
 CATALOG = Path(permission_pkg.__file__).parent / "baseline-permissions.yaml"
 

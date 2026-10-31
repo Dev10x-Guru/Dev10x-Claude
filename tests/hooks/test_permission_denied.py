@@ -5,9 +5,9 @@ from __future__ import annotations
 import json
 
 import pytest
-
 from dev10x.domain.events.hook_input import HookRetry
 from dev10x.hooks.hook_transport import emit
+
 from tests.fakers import BashHookInputFaker
 
 

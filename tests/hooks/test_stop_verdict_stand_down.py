@@ -12,7 +12,6 @@ import json
 from pathlib import Path
 
 import pytest
-
 from dev10x.hooks.session_dispatch import build_stop_verdict
 from dev10x.hooks.stop_verdict import (
     StopSignal,

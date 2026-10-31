@@ -5,15 +5,15 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
-from dev10x.skills.playbook import discovery
 from dev10x.skills.playbook.discovery import (
     find_user_playbooks,
     load_plugin_default,
     plugin_default_path,
     shared_fragment_directories,
 )
+
+from dev10x.skills.playbook import discovery
 
 
 class TestFindUserPlaybooks:

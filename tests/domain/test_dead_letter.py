@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 
 import pytest
-
 from dev10x.domain.dead_letter import (
     _MAX_RECORDED_BODY,
     dead_letter_path,

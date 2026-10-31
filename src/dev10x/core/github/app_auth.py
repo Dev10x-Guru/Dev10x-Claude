@@ -23,12 +23,12 @@ from pathlib import Path
 
 import yaml
 
-from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.core.github.app_api import (
     GitHubAPIError,
     create_installation_token_full,
     get_repo_installation,
 )
+from dev10x.domain.dev10x_paths import Dev10xConfigDir
 
 try:  # PyJWT is an optional dependency; its absence surfaces as ImportError
     from jwt.exceptions import PyJWTError as _PyJWTError

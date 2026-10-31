@@ -7,7 +7,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest  # type: ignore[import-not-found]
-
 from dev10x.domain.common.result import Result, err, ok
 
 # Load the shim script so the module object is available for patching.

@@ -6,7 +6,6 @@ import json
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from dev10x.domain.common.result import ErrorResult, SuccessResult
 from dev10x.domain.rules.sql import is_read_only_sql
 

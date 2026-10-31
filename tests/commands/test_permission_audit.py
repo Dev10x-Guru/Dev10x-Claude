@@ -7,11 +7,11 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
+from dev10x.domain.common.result import ok
+from dev10x.permission.service import PermissionContext
 
 from dev10x.commands import permission as cmd
 from dev10x.commands.permission import permission
-from dev10x.domain.common.result import ok
-from dev10x.permission.service import PermissionContext
 
 
 @pytest.fixture

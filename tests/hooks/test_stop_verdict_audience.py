@@ -23,7 +23,6 @@ import json
 from pathlib import Path
 
 import pytest
-
 from dev10x.hooks.stop_verdict import (
     StopSignal,
     _standby_path,

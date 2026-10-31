@@ -7,10 +7,10 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
-from dev10x.domain import session_document
 from dev10x.domain.documents.session_state import PlanSummary
 from dev10x.domain.file_locks import atomic_write_text
+
+from dev10x.domain import session_document
 
 
 class TestWriteStateIsAtomic:

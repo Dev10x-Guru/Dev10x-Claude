@@ -11,7 +11,6 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, patch
 
 import pytest
-
 from dev10x.domain.common.result import ErrorResult, SuccessResult, err, ok
 
 cr = pytest.importorskip("dev10x.github.candidate_rules", reason="dev10x not installed")

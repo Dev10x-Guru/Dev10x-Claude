@@ -13,7 +13,6 @@ import json
 from datetime import UTC, datetime, timedelta
 
 import pytest
-
 from dev10x.skills.merge.handoff_audit import (
     ACCEPT,
     ALREADY_MERGED,

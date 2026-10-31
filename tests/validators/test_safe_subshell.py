@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import pytest
+from dev10x.validators.safe_subshell import SafeSubshellValidator
 
 from dev10x.domain import HookAllow
-from dev10x.validators.safe_subshell import SafeSubshellValidator
 from tests.fakers import BashHookInputFaker
 
 

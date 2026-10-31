@@ -17,10 +17,10 @@ import subprocess
 from unittest.mock import AsyncMock, patch
 
 import pytest
-
-from dev10x import github as gh
 from dev10x.domain.common.result import ErrorResult, SuccessResult, err, ok
 from dev10x.skills.merge.fixes_scope import reconcile_link_closure
+
+from dev10x import github as gh
 
 _JOB_STORY = (
     "**When** a PR is opened, **the maintainer wants** the trailer to be "

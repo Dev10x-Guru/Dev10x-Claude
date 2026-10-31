@@ -5,9 +5,9 @@ import subprocess
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from dev10x.domain.common.result import ErrorResult, SuccessResult
 
 from dev10x import runner
-from dev10x.domain.common.result import ErrorResult, SuccessResult
 
 
 def _completed(

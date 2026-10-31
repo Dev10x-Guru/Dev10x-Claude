@@ -687,6 +687,7 @@ class TestGitContextHonorsCwd:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         from dev10x.domain.git_context import GitContext
+
         from dev10x.subprocess_utils import use_cwd
 
         a, b = two_repos

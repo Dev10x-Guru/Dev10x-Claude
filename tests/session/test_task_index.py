@@ -12,8 +12,8 @@ from typing import Any
 
 import pytest
 import yaml
-
 from dev10x.domain.common.result import ErrorResult
+
 from dev10x.session import preset_pin, task_index
 
 

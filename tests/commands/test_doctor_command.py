@@ -11,10 +11,10 @@ from typing import Any
 
 import pytest
 from click.testing import CliRunner
-
-from dev10x.commands.doctor import doctor
 from dev10x.domain.common.result import err, ok
 from dev10x.skills.doctor.strategy import Context
+
+from dev10x.commands.doctor import doctor
 
 
 @pytest.fixture(autouse=True)

@@ -6,7 +6,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
 from dev10x.domain.common.result import err, ok
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.domain.project_match import MatchScheme, ProjectsStatus

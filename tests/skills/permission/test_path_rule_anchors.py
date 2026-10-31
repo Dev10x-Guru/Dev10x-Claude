@@ -24,8 +24,6 @@ from pathlib import Path
 
 import pytest
 import yaml
-
-import dev10x.skills.permission as permission_pkg
 from dev10x.domain.common.baseline_catalog import load_baseline_dict
 from dev10x.domain.common.command_spellings import expand_spellings
 from dev10x.skills.permission.catalog_paths import (
@@ -43,6 +41,8 @@ from dev10x.skills.permission.path_rule_anchors import (
     parse_path_rule,
     path_rules,
 )
+
+import dev10x.skills.permission as permission_pkg
 
 PERMISSION_DIR = Path(permission_pkg.__file__).resolve().parent
 REPO_ROOT = PERMISSION_DIR.parents[4]

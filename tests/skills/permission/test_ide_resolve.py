@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pytest
 import yaml
-
 from dev10x.domain.common.ide_choice import Ide, apply_ide_selection, ide_inventory
 from dev10x.skills.permission.catalog_paths import load_catalog_document
 from dev10x.skills.permission.ide_resolve import ide_source, resolve_ide

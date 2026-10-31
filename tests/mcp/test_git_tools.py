@@ -9,8 +9,8 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, patch
 
 import pytest
-
 from dev10x.domain.common.result import err, ok
+
 from dev10x.mcp import server_cli as cli_server
 
 

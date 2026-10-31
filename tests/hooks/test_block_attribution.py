@@ -13,10 +13,8 @@ it into the record). These tests pin each hop plus the end-to-end path.
 from __future__ import annotations
 
 import pytest
-
 from dev10x.domain.events.hook_input import HookAllow, HookAsk, HookInput, HookResult
 from dev10x.domain.profile_tier import ProfileTier
-from dev10x.hooks import audit_emit
 from dev10x.hooks.audit_emit import (
     audit_hook,
     set_audit_writer,
@@ -24,6 +22,8 @@ from dev10x.hooks.audit_emit import (
 )
 from dev10x.hooks.hook_transport import emit
 from dev10x.validators.registry import ValidatorChain, ValidatorRegistry
+
+from dev10x.hooks import audit_emit
 
 
 class RecordingWriter:

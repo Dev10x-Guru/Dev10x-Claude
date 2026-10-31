@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 
 import pytest
-
 from dev10x.hooks.format_scope import (
     LineRange,
     describe_changes,

@@ -12,7 +12,6 @@ from pathlib import Path
 
 import pytest
 import yaml
-
 from dev10x.domain.common.policy import PolicyEffect, PolicySensitivity, PolicySource
 
 FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "permission-policy"

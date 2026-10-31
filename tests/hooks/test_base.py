@@ -5,7 +5,6 @@ from __future__ import annotations
 import io
 
 import pytest
-
 from dev10x.hooks.base import AbstractHook, load_hook_stdin
 
 

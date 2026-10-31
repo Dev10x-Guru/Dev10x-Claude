@@ -7,7 +7,6 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
-
 from dev10x.skills.bus.maildir import Delivery, Envelope, headers_for, render, send
 
 LEGACY_HELLO = (
