@@ -42,6 +42,10 @@ Accepts one of:
 **Not for self-review** — use `dev10x:review` to review your own
 branch before creating a PR.
 
+**Not a CI replica** — it reviews in this session's model and config;
+to see what the Claude CI review would post, use `dev10x:ci-review`
+(GH-1621).
+
 ## Orchestration
 
 This skill follows `references/task-orchestration.md` patterns

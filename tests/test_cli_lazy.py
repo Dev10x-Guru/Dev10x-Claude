@@ -15,6 +15,7 @@ import pytest
 from dev10x.cli import cli
 
 EXPECTED_SUBCOMMANDS = {
+    "ci-review",
     "config",
     "deps",
     "doctor",
