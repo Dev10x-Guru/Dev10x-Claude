@@ -34,6 +34,10 @@ describe("splitDialog", () => {
     });
   });
 
+  it.each([" ☐ Push/PR", " ☒ Push/PR", " ✔ Push/PR"])("drops the widget's tab mark from %j", (line) => {
+    expect(splitDialog([line])?.title).toBe("Push/PR");
+  });
+
   it("drops the question widget's gutter from the header", () => {
     expect(splitDialog([" ☐ Review", "", "│ PR #507 is green."])?.description).toEqual(["PR #507 is green."]);
   });
