@@ -19,6 +19,7 @@ allowed-tools:
   - AskUserQuestion
   - mcp__plugin_dev10x_cli__supervisor_review_status
   - mcp__plugin_dev10x_cli__pin_supervisor_review
+  - mcp__plugin_dev10x_cli__resolve_gate
   - Bash(uvx dev10x session pin:*)
   - Bash(dev10x session pin:*)
   - Bash(uvx dev10x session set-friction:*)
@@ -97,37 +98,47 @@ gate.
 ### Gate 2 — Overlays (REQUIRED)
 
 **REQUIRED: Call `AskUserQuestion`** with `multiSelect: true`. Overlays patch
-the preset. Options:
+the adaptive baseline. Options:
 
-- **None (Recommended)** — preset stands alone.
+- **None (Recommended)** — the baseline stands alone.
 - **solo-maintainer** — skip reviewer assignment + external notify; auto-merge.
 - **afk** — adopt the persisted session even when stale; route mid-flight
   doubts to the PR description.
 
 ### Gate 3 — Per-gate deviations (REQUIRED gate; per-gate follow-ups optional)
 
-**REQUIRED: Call `AskUserQuestion`** — "Override any individual gates, or keep
-the preset defaults?" Options: **Keep preset defaults (Recommended)** /
-**Override specific gates**. Only when the supervisor picks *Override* do you
-ask, per chosen gate, for `ask` / `auto-advance` / `skip`, and collect each as
-a `--gate-override <toggle>=<value>` pair. The 17 gates:
+**REQUIRED: Call `AskUserQuestion`** (call spec:
+[ask-gate-overrides.md](./tool-calls/ask-gate-overrides.md)) — "Should any
+decision point stop and ask you, or be skipped, instead of following the
+adaptive baseline?" Options: **Keep baseline (Recommended)** — the agent
+continues through every gate except safety floors and the Gate 1 review
+choice / **Customize gates** — gates set to ask, auto-advance or skip, saved
+per repo and its worktrees, changeable by re-running this skill. Before
+asking, resolve each gate's current value with
+`mcp__plugin_dev10x_cli__resolve_gate` and show it in the option `preview`,
+grouped (planning, review/PR, merge/history, session) as the spec describes.
+Only on *Customize gates* do you ask, per chosen gate, for `ask` /
+`auto-advance` / `skip`, collecting each as `--gate-override <toggle>=<value>`.
+The 17 gates and their grouping are listed in the call spec.
 
-`plan_approval`, `batch_layout`, `strategy_choice`, `artifact_preview`,
-`triage_response`, `thread_resolution`, `comment_hide`, `yagni_routing`,
-`shipping_continuation`, `request_review`, `external_notify`, `merge`,
-`completion_signoff`, `history_rewrite`, `workspace_choice`, `branch_cleanup`,
-`session_adoption`.
-
-Write **only** the gates that deviate from the preset — an unchanged gate must
-never appear in `gate_overrides`.
+Write **only** the gates that deviate from the baseline — an unchanged gate
+must never appear in `gate_overrides`.
 
 ### Gate 4 — Skippable steps (REQUIRED)
 
-**REQUIRED: Call `AskUserQuestion`** with `multiSelect: true` — "Always skip
-any optional play steps for this project?" Options:
+**REQUIRED: Call `AskUserQuestion`** with `multiSelect: false` — "Should the
+agent skip any optional play steps for this project?" Options:
 
-- **None (Recommended)** — run every play step.
-- **Draft Job Story (JTBD)** — skip the `dev10x:jtbd` step in the work-on play.
+- **No — run every step (Recommended)** — nothing is saved.
+- **Yes — choose steps to skip** — saved per repo; re-run this skill to undo.
+
+Only on *Yes*, **REQUIRED: Call `AskUserQuestion`** with `multiSelect: true`
+(no "None" checkbox) listing the skippable steps, each stating what it
+produces and what happens without it:
+
+- **Draft Job Story (JTBD)** — produces the `dev10x:jtbd` Job Story that
+  opens the PR body. Without it the agent opens PRs with no Job Story, and the
+  PR-hygiene check may flag the body. Persists for this repo.
 
 Selected steps become `--skip-step "<subject>"` on `set-playbook`; any enabled
 overlay that is also a structural mode becomes `--mode <name>`.
@@ -176,6 +187,6 @@ was dismissed, do NOT run any write.
 - **Offering a preset choice.** There is no `strict` / `guided` / `adaptive`
   picker any more (ADR-0022 D-1) — do not reintroduce one.
 - **Recording non-deviations.** Only gates that differ from the baseline
-  belong in `gate_overrides`; copying the whole preset in defeats the point.
+  belong in `gate_overrides`; copying every gate in defeats the point.
 - **Confusing with `dev10x:afk`.** `afk` flips one session to walk-away;
   this skill sets a *durable, per-project* posture.
