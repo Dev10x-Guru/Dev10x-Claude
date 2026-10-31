@@ -159,7 +159,7 @@ class TestPaneCommands:
                 "read",
                 "w1:p1",
                 "--source",
-                "recent",
+                "visible",
                 "--lines",
                 "20",
                 "--format",

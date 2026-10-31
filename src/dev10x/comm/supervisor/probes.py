@@ -88,7 +88,7 @@ def read_pane(*, pane_id: str, lines: int = PANE_LINES, runner: Runner = run) ->
         "read",
         pane_id,
         "--source",
-        "recent",
+        "visible",
         "--lines",
         str(lines),
         "--format",
