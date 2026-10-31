@@ -6,7 +6,8 @@ and strips rules that are:
   - Old plugin version paths (any version older than current)
   - Env-prefixed session noise (GIT_SEQUENCE_EDITOR=*, DATABASE_URL=*, etc.)
   - Shell control flow fragments (do, done, fi, for, while, etc.)
-  - Double-slash path typos (Read(//...), Write(//...))
+  - Double-slash path typos mid-token (``.../<ver>//skills/...``); a
+    leading ``//`` is the absolute-path anchor and is kept (GH-1601)
   - Bash rules with a `*` before a trailing `:*` — a literal prefix that
     can never match (GH-1472)
 
@@ -50,6 +51,7 @@ from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.domain.plugin_identity import PLUGIN_NAMES
 from dev10x.skills.permission.catalog_paths import shipped_projects_catalog
 from dev10x.skills.permission.config import parse_config, resolve_config
+from dev10x.skills.permission.doctor import has_double_slash_typo
 from dev10x.skills.permission.legacy_namespace import (
     NamespaceMigration,
     migrate_legacy_namespace,
@@ -90,8 +92,6 @@ SHELL_FRAGMENTS = frozenset(
         "until",
     }
 )
-
-DOUBLE_SLASH_PATTERN = re.compile(r"\(//")
 
 # Patterns superseded by ensure-reads per-skill enumeration (GH-48).
 # The `Read(...Dev10x/*/**)` glob does not reliably match in Claude
@@ -438,7 +438,7 @@ def classify_rules(
             result.shell_fragments.append(rule)
             continue
 
-        if DOUBLE_SLASH_PATTERN.search(rule):
+        if has_double_slash_typo(rule):
             result.double_slash.append(rule)
             continue
 

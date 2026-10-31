@@ -183,6 +183,17 @@ def canonicalize_rule(rule: str) -> str | None:
     return collapsed
 
 
+def has_double_slash_typo(rule: str) -> bool:
+    """True when ``rule`` carries a ``//`` that :func:`canonicalize_rule` would collapse.
+
+    The one predicate both ``doctor canonicalize`` and ``clean`` consult
+    (GH-1601), so a leading ``//`` anchor — the catalog's
+    ``Read(//tmp/Dev10x/**)`` — is never a typo to one and valid to the
+    other.
+    """
+    return canonicalize_rule(rule) is not None
+
+
 @dataclass
 class CanonicalizeResult:
     rewrites: list[tuple[str, str]] = field(default_factory=list)

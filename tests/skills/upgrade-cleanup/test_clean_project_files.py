@@ -4,8 +4,14 @@ import json
 from pathlib import Path
 
 import pytest
+from dev10x.skills.permission.catalog_paths import (
+    load_catalog_document,
+    shipped_projects_catalog,
+)
+from dev10x.skills.permission.catalog_write import render_catalog
 
 from dev10x.skills.permission import clean_project_files as clean_mod
+from dev10x.subprocess_utils import get_plugin_root
 
 
 class TestIsShellFragment:
@@ -335,8 +341,8 @@ class TestClassifyRules:
 
         assert len(result.shell_fragments) == 3
 
-    def test_classifies_double_slash_paths(self) -> None:
-        rules = ["Read(//work/example/app-pos/src/file.py)"]
+    def test_classifies_mid_token_double_slash_as_typo(self) -> None:
+        rules = ["Read(/work/example/app-pos//src/file.py)"]
 
         result = clean_mod.classify_rules(
             rules,
@@ -344,7 +350,35 @@ class TestClassifyRules:
             current_version="0.33.0",
         )
 
-        assert len(result.double_slash) == 1
+        assert result.double_slash == rules
+
+    @pytest.mark.parametrize(
+        "rule",
+        ["Read(//tmp/Dev10x/**)", "Edit(//tmp/Dev10x/**)", "Read(//work/example/src/file.py)"],
+    )
+    def test_keeps_leading_double_slash_anchor(self, rule: str) -> None:
+        """GH-1601: `//` opening a path is the absolute anchor ensure-base seeds."""
+        result = clean_mod.classify_rules(
+            [rule],
+            global_rules=self.GLOBAL_RULES,
+            current_version="0.33.0",
+        )
+
+        assert result.double_slash == []
+
+    def test_rules_seeded_by_ensure_base_are_not_double_slash_typos(self) -> None:
+        """GH-1601: an ensure-base → clean cycle must not undo itself."""
+        projects_yaml = shipped_projects_catalog(plugin_root=get_plugin_root())
+        assert projects_yaml is not None
+        catalog = render_catalog(
+            config=load_catalog_document(catalog_path=projects_yaml),
+            toplevel=None,
+            quiet=True,
+        )
+        seeded = [*catalog.allow, *catalog.deny, *catalog.ask]
+
+        assert [rule for rule in seeded if clean_mod.has_double_slash_typo(rule)] == []
+        assert any(rule.startswith("Read(//") for rule in seeded)
 
     def test_keeps_legitimate_rules(self) -> None:
         rules = [
@@ -406,7 +440,7 @@ class TestClassifyRules:
             "Bash(/home/u/.claude/plugins/cache/Dev10x-Guru/dev10x-claude/0.4.0/x.sh:*)",
             "Bash(GIT_SEQUENCE_EDITOR=: git rebase)",
             "Bash(fi)",
-            "Read(//work/example/file.py)",
+            "Read(/work/example//file.py)",
         ]
 
         result = clean_mod.classify_rules(
