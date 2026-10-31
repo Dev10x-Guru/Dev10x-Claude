@@ -14,6 +14,8 @@ TAIL_BYTES = 256 * 1024
 MAX_PAST_SESSIONS = 30
 TOPIC_CHARS = 90
 FOLDER_CHARS = re.compile(r"[/.]")
+COMMAND_NAME = re.compile(r"<command-name>(.*?)</command-name>", re.DOTALL)
+COMMAND_ARGS = re.compile(r"<command-args>(.*?)</command-args>", re.DOTALL)
 
 
 @dataclass(frozen=True)
@@ -50,16 +52,32 @@ def _ends(*, path: Path) -> tuple[bytes, bytes]:
         return head, handle.read()
 
 
+def _clip(*, text: str) -> str:
+    line = " ".join(text.split())
+    return line if len(line) <= TOPIC_CHARS else f"{line[:TOPIC_CHARS].rstrip()}…"
+
+
+def _command(*, text: str) -> str:
+    name = COMMAND_NAME.search(text)
+    if name is None:
+        return ""
+    args = COMMAND_ARGS.search(text)
+    return f"{name.group(1).strip()} {args.group(1).strip() if args else ''}".strip()
+
+
 def _first_prompt(*, records: list[dict[str, Any]]) -> str:
+    first_command = ""
     for record in records:
         if record.get("type") != "user" or record.get("isMeta"):
             continue
         content = (record.get("message") or {}).get("content")
         text = content if isinstance(content, str) else ""
-        if text.strip() and not text.lstrip().startswith("<"):
-            line = " ".join(text.split())
-            return line if len(line) <= TOPIC_CHARS else f"{line[:TOPIC_CHARS].rstrip()}…"
-    return ""
+        if not text.strip():
+            continue
+        if not text.lstrip().startswith("<"):
+            return _clip(text=text)
+        first_command = first_command or _command(text=text)
+    return _clip(text=first_command)
 
 
 def _title(*, records: list[dict[str, Any]]) -> str:

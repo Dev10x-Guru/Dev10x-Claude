@@ -137,6 +137,26 @@ def test_defaults_to_claude_dir(projects: Path, monkeypatch: pytest.MonkeyPatch)
     ]
 
 
+@pytest.mark.parametrize(
+    ("text", "topic"),
+    [
+        (
+            "<command-message>dev10x:work-on</command-message>\n"
+            "<command-name>/dev10x:work-on</command-name>\n"
+            "<command-args>Stop the Stop hook\nfrom being noisy</command-args>",
+            "/dev10x:work-on Stop the Stop hook from being noisy",
+        ),
+        ("<command-name>/my:reflect</command-name>", "/my:reflect"),
+        ("<system-reminder>only markup</system-reminder>", ""),
+    ],
+    ids=["command-with-args", "bare-command", "markup"],
+)
+def test_slash_command_topics(tmp_path: Path, text: str, topic: str) -> None:
+    path = _write(folder=tmp_path, session_id="cmd", records=[_prompt(text)], mtime=5)
+
+    assert read_past_session(path=path, cwd=ROOT).topic == topic  # type: ignore[union-attr]
+
+
 def test_read_past_session_without_prompts(tmp_path: Path) -> None:
     path = _write(folder=tmp_path, session_id="empty", records=[{"type": "summary"}], mtime=5)
 
