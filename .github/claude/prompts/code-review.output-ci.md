@@ -1,3 +1,8 @@
+YOUR RUN IS NOT DONE UNTIL STEP 7 HAS WRITTEN THE CHECKLIST. A guard
+step after you fails this job when the PR body lacks the checklist
+block stamped with this run's <RUN_ID> and <SHA> — whether or not you
+found anything to report.
+
 STEP 5 — PRODUCE REVIEW OUTPUT:
 Follow the review workflow from review-guidelines.md:
 - Check existing review comments to avoid duplicates
@@ -62,3 +67,23 @@ Do not change the PR's draft state: a step after you converts the
 PR to draft when this run left inline comments or requested
 changes. The author's flip back to ready starts the next review,
 whose approval clears this round's request for changes.
+
+STEP 7 — REFRESH THE REVIEW CHECKLIST IN THE PR BODY (MANDATORY,
+EVERY RUN, EVEN WHEN STEPS 5–6 POSTED NOTHING):
+Follow `references/review-checklist-format.md`:
+1. Fetch the current body, one command:
+   `gh pr view <PR> --json body -q .body`
+2. If the `<!-- BEGIN claude-review-checklist -->` …
+   `<!-- END claude-review-checklist -->` block exists, replace its
+   contents in place; otherwise append a blank line and the block.
+   Never change text outside the markers.
+3. One group per agent dispatched in STEP 3, plus the Cross-cutting
+   group; each item `- [x| |~] <summary> — <evidence>`, evidence
+   mandatory.
+4. Header line, copied exactly with RUN CONTEXT values:
+   `_Auto-maintained by claude-code-review.yml. Round N · run <RUN_ID> · sha <SHA>._`
+   Round N matches this round's summary; with no summary, it is the
+   highest existing round + 1. Never invent the run id or the sha.
+5. Write the complete new body with the Write tool to
+   `review-checklist-body.md` in the current directory, then apply:
+   `gh api -X PATCH repos/<REPO>/pulls/<PR> -F body=@review-checklist-body.md`

@@ -101,6 +101,13 @@ correctly. Each one is about what to report, not a new merge gate.
   exercised pre-merge and names where the behaviour will first be
   observed after merge. Say plainly that no bot reviewed it; whether to
   wait for a human read is the author's call.
+- **The checklist's sha says which head the last round read
+  (GH-1694).** The code review stamps `run <id> · sha <sha>` into the
+  `claude-review-checklist` block of the PR body. When that sha is not
+  HEAD, report the review as not run on HEAD, even with every check
+  green: the draft-on-push workflow cannot draft a fork PR or a push
+  made with the workflow token. A PR with no checklist block has no
+  review on record. Format: `references/review-checklist-format.md`.
 
 ## Merge Configuration (Fanout / Work-On)
 

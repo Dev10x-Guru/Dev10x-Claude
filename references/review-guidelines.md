@@ -107,7 +107,7 @@ The guard applies to:
 | Workflow                   | Trigger              | Scope                          |
 |----------------------------|----------------------|--------------------------------|
 | `pr-hygiene-review.yml`   | PR opened/ready      | PR metadata (title, body, commits) |
-| `claude-code-review.yml`  | PR opened/ready/sync  | Code quality, architecture     |
+| `claude-code-review.yml`  | PR opened/ready      | Code quality, architecture     |
 | `claude.yml`              | @claude mention      | Interactive assistance         |
 | `claude-memory-review.yml`| PR merged            | Lessons learned extraction     |
 
@@ -209,7 +209,7 @@ Do NOT re-flag the name in the next review round.
 ```
 
 Round numbering tracks review invocations, not author fix commits.
-Each time Claude is triggered to review (e.g., on `synchronize`),
+Each time Claude is triggered to review (a ready-for-review flip),
 that is a new round — even if the author pushed multiple fix commits
 between rounds.
 
