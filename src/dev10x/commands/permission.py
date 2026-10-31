@@ -233,21 +233,58 @@ def update_paths(
     is_flag=True,
     help="Skip rules already in ~/.claude/settings.json (pre-GH-1136 behaviour)",
 )
-def ensure_base(*, dry_run: bool, quiet: bool, dedupe_global: bool) -> None:
+@click.option(
+    "--global",
+    "include_global",
+    is_flag=True,
+    help="Also write ~/.claude/settings.json when a dotfiles repo tracks it (GH-1664)",
+)
+@click.option(
+    "--no-create",
+    is_flag=True,
+    help="Do not create settings files in worktrees whose siblings have one (GH-1664)",
+)
+def ensure_base(
+    *,
+    dry_run: bool,
+    quiet: bool,
+    dedupe_global: bool,
+    include_global: bool,
+    no_create: bool,
+) -> None:
     """Add missing base permissions from projects.yaml.
 
     Exits non-zero when any settings file still lacks catalog rules after
     the run — the defect in GH-1136 was that silence read as success.
+    A worktree with no settings file of its own gets one when a sibling
+    checkout of the same repo has one, unless --no-create is passed.
     """
     from dev10x.core.skills.permission import update_paths as mod
+    from dev10x.core.skills.permission.settings_discovery import vendored_dirs
 
-    _run_fix(
-        mod.ensure_base,
-        needs_config=True,
-        dry_run=dry_run,
-        quiet=quiet,
-        show_config=True,
-        extra={"dedupe_global": dedupe_global},
+    ctx = _require_settings(show_config=True, quiet=quiet)
+    if ctx is None:
+        return
+    create_missing = (
+        []
+        if no_create
+        else mod.find_missing_settings(
+            roots=ctx.config.get("roots", []),
+            excluded=vendored_dirs(ctx.config),
+        )
+    )
+    sys.exit(
+        _emit_result(
+            mod.ensure_base(
+                config=ctx.config,
+                settings_files=ctx.settings_files,
+                dry_run=dry_run,
+                quiet=quiet,
+                dedupe_global=dedupe_global,
+                create_missing=create_missing,
+                include_global=include_global,
+            )
+        )
     )
 
 
@@ -630,6 +667,7 @@ def clean(
 ) -> None:
     """Clean redundant permissions from project settings files."""
     from dev10x.core.skills.permission import clean_project_files as mod
+    from dev10x.core.skills.permission.catalog_prune import prune_messages
     from dev10x.core.skills.permission.settings_discovery import vendored_dirs
 
     if restore:
@@ -642,6 +680,9 @@ def clean(
 
     config_path = _require_config(mod)
     click.echo(f"Config: {config_path}")
+    if config_path != mod.PLUGIN_CONFIG:
+        for message in prune_messages(config_path=config_path, dry_run=dry_run):
+            click.echo(message)
     config = mod.load_config(config_path)
 
     global_data = mod.load_global_settings(mod.GLOBAL_SETTINGS)

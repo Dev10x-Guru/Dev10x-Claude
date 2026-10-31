@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
+from dev10x.domain.claude_paths import ClaudeDir
 from dev10x.domain.common.result import ok
 
 from dev10x.commands.permission import promote_plan
@@ -37,6 +38,8 @@ def env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     monkeypatch.setattr(catalog_load, "load_config", lambda _path: {"roots": []})
     monkeypatch.setattr(paths_mod, "find_settings_files", lambda **_kw: [project])
     monkeypatch.setattr(Path, "home", staticmethod(lambda: home))
+    monkeypatch.setenv("DEV10X_CLAUDE_HOME", str(home / ".claude"))
+    ClaudeDir.reset_cache()
     return global_settings
 
 

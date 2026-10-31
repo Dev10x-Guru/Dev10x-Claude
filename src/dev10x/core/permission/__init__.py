@@ -181,6 +181,7 @@ def _run_sub_command(
     quiet: bool = False,
 ) -> Result[dict[str, Any]]:
     from dev10x.core.skills.permission import update_paths as mod
+    from dev10x.core.skills.permission.settings_discovery import vendored_dirs
 
     ctx = load_permission_context()
     if isinstance(ctx, ErrorResult):
@@ -223,6 +224,10 @@ def _run_sub_command(
                 dry_run=dry_run,
                 quiet=quiet,
                 drift=ctx.value.drift,
+                create_missing=mod.find_missing_settings(
+                    roots=config.get("roots", []),
+                    excluded=vendored_dirs(config),
+                ),
             )
         ):
             return _format_failure(combined_messages, combined_errors, exit_code)

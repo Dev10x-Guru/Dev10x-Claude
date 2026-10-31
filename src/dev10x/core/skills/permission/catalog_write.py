@@ -17,6 +17,7 @@ from pathlib import Path
 
 from dev10x.domain.claude_paths import ClaudeDir
 from dev10x.domain.common.result import Result, err, ok
+from dev10x.domain.file_locks import atomic_write_text, file_lock
 from dev10x.skills.permission.backup import backed_up_write
 from dev10x.skills.permission.catalog_load import detect_latest_version
 from dev10x.skills.permission.catalog_merge import CatalogDrift
@@ -395,6 +396,7 @@ def partition_writable(
     *,
     redirect_tracked: bool = False,
     allow_tracked: bool = False,
+    allow_tracked_paths: frozenset[Path] = frozenset(),
 ) -> tuple[list[Path], list[str]]:
     """Split settings files into writable ones and skip messages (GH-1136).
 
@@ -414,6 +416,8 @@ def partition_writable(
 
     `allow_tracked` is the escape hatch for a user who genuinely intends
     to commit their settings; it disables the guard entirely and says so.
+    `allow_tracked_paths` lifts the guard for named files only — the
+    global `~/.claude/settings.json` kept in a dotfiles repo (GH-1664).
 
     A committed `settings.local.json` is skipped too (GH-1686): it has no
     further sibling to redirect to. A file whose tracked state git cannot
@@ -425,6 +429,9 @@ def partition_writable(
     writable: list[Path] = []
     messages: list[str] = []
     for path in settings_files:
+        if path in allow_tracked_paths:
+            writable.append(path)
+            continue
         tracked = _is_git_tracked(path)
         if tracked is False:
             writable.append(path)
@@ -789,6 +796,8 @@ def ensure_base(
     drift: CatalogDrift | None = None,
     toplevel: str | None = None,
     dedupe_global: bool = False,
+    create_missing: list[Path] | None = None,
+    include_global: bool = False,
 ) -> dict[str, object]:
     """Add missing base permissions to each settings file. Returns result dict.
 
@@ -799,10 +808,24 @@ def ensure_base(
     project, so treating global as coverage wrote nothing to any project
     file for months while reporting success. Same opt-in posture as
     ``clean --aggressive``.
+
+    ``create_missing`` names worktree settings files to create first
+    (GH-1664): discovery reports a worktree whose sibling checkout has a
+    file and it does not, which otherwise reads only the global files.
+    ``include_global`` writes the global ``settings.json`` even when a
+    dotfiles repo tracks it — the only file a worktree with no settings
+    of its own inherits from.
     """
     errors: list[str] = []
     catalog = render_catalog(config=config, toplevel=toplevel, quiet=quiet)
     messages = list(catalog.messages)
+    created, create_messages, create_errors = _create_missing_settings(
+        paths=create_missing or [],
+        dry_run=dry_run,
+    )
+    messages.extend(create_messages)
+    errors.extend(create_errors)
+    settings_files = [*settings_files, *created]
     base_permissions = catalog.allow
     base_denies = catalog.deny
     base_asks = catalog.ask
@@ -821,7 +844,13 @@ def ensure_base(
         filtered = list(base_permissions)
         skipped = 0
 
-    writable_files, skip_messages = _partition_writable(sorted(settings_files))
+    global_settings = ClaudeDir.settings_json()
+    writable_files, skip_messages = _partition_writable(
+        sorted(settings_files),
+        allow_tracked_paths=frozenset({global_settings}) if include_global else frozenset(),
+    )
+    if any(str(global_settings) in message for message in skip_messages):
+        skip_messages.append("  (pass --global to write the tracked global settings.json anyway)")
 
     total_added = 0
     changed_files: set[Path] = set()
@@ -954,12 +983,46 @@ def ensure_base(
     errors.extend(residual)
 
     return _result(
-        exit_code=1 if residual else 0,
+        exit_code=1 if residual or create_errors else 0,
         messages=messages,
         errors=errors,
         total_added=total_added,
         files_changed=files_changed,
     )
+
+
+def _create_missing_settings(
+    *,
+    paths: list[Path],
+    dry_run: bool,
+) -> tuple[list[Path], list[str], list[str]]:
+    """Create each empty ``settings.local.json`` so ensure-base can fill it.
+
+    Returns ``(created, messages, errors)``. Creation re-checks existence
+    under the file's lock and writes atomically, so a concurrent seed that
+    filled the file first is never truncated back to ``{}``.
+    """
+    created: list[Path] = []
+    messages: list[str] = []
+    errors: list[str] = []
+    for path in paths:
+        if path.exists():
+            continue
+        if dry_run:
+            messages.append(f"  Would create {path}")
+            continue
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with file_lock(path):
+                if path.exists():
+                    continue
+                atomic_write_text(path, "{}\n")
+        except OSError as error:
+            errors.append(f"ERROR: cannot create {path}: {error}")
+            continue
+        messages.append(f"  Created {path}")
+        created.append(path)
+    return created, messages, errors
 
 
 def _unmatchable_rule_messages(*, unmatchable: list[str], quiet: bool) -> list[str]:
@@ -1074,6 +1137,26 @@ def catalog_gap(
     )
 
 
+def _would_seed_count(*, settings: Path, config: dict, toplevel: str) -> int:
+    """How many catalog rules a real seed would add (GH-1664).
+
+    The dry run used to report a constant 0, so ``seed-worktree --dry-run``
+    said "Would seed 0 rule(s)" for a worktree that had no settings at all.
+    A missing file lacks every rendered rule; an existing one lacks its gap.
+    """
+    from dev10x.skills.permission.catalog_gap import compute_gap
+
+    catalog = render_catalog(config=config, toplevel=toplevel, quiet=True)
+    if not settings.exists():
+        return len(catalog.allow) + len(catalog.deny) + len(catalog.ask)
+    return compute_gap(
+        path=settings,
+        base_permissions=catalog.allow,
+        base_denies=catalog.deny,
+        base_asks=catalog.ask,
+    ).total_missing
+
+
 def seed_worktree(
     *,
     worktree_root: Path,
@@ -1112,7 +1195,11 @@ def seed_worktree(
         return ok(
             {
                 "path": str(settings),
-                "added": 0,
+                "added": _would_seed_count(
+                    settings=settings,
+                    config=config,
+                    toplevel=str(worktree_root),
+                ),
                 "would_create": created_fresh,
                 "dry_run": True,
             }
@@ -1124,6 +1211,16 @@ def seed_worktree(
             settings.write_text("{}\n")
         except OSError as error:
             return err(f"cannot create worktree settings: {error}", path=str(settings))
+
+    # ensure_base runs quiet here and drops its skip lines, so a tracked or
+    # unknown-state target would otherwise come back as "seeded 0" (GH-1136).
+    writable, skip_messages = _partition_writable([settings])
+    if not writable:
+        return err(
+            f"worktree settings not seeded:{''.join(skip_messages)}",
+            path=str(settings),
+            created_fresh=created_fresh,
+        )
 
     result = ensure_base(
         config=config,

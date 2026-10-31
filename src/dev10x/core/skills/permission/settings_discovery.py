@@ -14,7 +14,7 @@ disk. GH-813 already did the git half for ``merge-worktree``;
 import logging
 import os
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from dev10x import subprocess_utils
@@ -58,6 +58,7 @@ def vendored_dirs(config: dict) -> frozenset[str]:
 class SettingsDiscovery:
     files: list[Path]
     out_of_roots: list[Path]
+    missing: list[Path] = field(default_factory=list)
 
 
 def git_registered_worktrees(root_path: Path) -> list[Path]:
@@ -188,18 +189,35 @@ def walk_repos(
     return repos
 
 
-def _worktree_settings(repos: list[Path]) -> list[Path]:
+def _worktree_settings(repos: list[Path]) -> tuple[list[Path], list[Path]]:
+    """Settings files of every git-registered worktree, and the ones missing.
+
+    A worktree's file counts as *missing* only when a sibling checkout of
+    the same repo has one (GH-1664): the user opted that repo in, and a
+    worktree created outside ``dev10x:git-worktree`` — a herdr worktree,
+    a raw ``git worktree add`` — otherwise reads only the global files.
+    A repo with no settings file anywhere is left alone.
+    """
     known_worktrees: set[Path] = set()
     found: list[Path] = []
+    missing: list[Path] = []
     for repo in repos:
         if repo.resolve() in known_worktrees:
             continue
-        for worktree in git_registered_worktrees(repo):
-            known_worktrees.add(worktree.resolve())
-            candidate = worktree / SETTINGS_DIR / SETTINGS_NAME
-            if candidate.is_file():
-                found.append(candidate)
-    return found
+        family = git_registered_worktrees(repo)
+        candidates = [worktree / SETTINGS_DIR / SETTINGS_NAME for worktree in family]
+        known_worktrees.update(worktree.resolve() for worktree in family)
+        present = [candidate for candidate in candidates if candidate.is_file()]
+        found.extend(present)
+        if present:
+            # `git worktree list` names the main checkout first; only the
+            # linked worktrees after it are created on the user's behalf.
+            missing.extend(
+                candidate
+                for candidate in candidates[1:]
+                if not candidate.is_file() and candidate.parent.parent.is_dir()
+            )
+    return found, missing
 
 
 def _dedupe(paths: list[Path]) -> list[Path]:
@@ -236,9 +254,11 @@ def discover_settings(
         files.extend(root_settings)
         repos.extend(root_repos)
 
-    worktree_files = _dedupe(_worktree_settings(repos))
+    found, missing = _worktree_settings(repos)
+    worktree_files = _dedupe(found)
     files.extend(worktree_files)
     return SettingsDiscovery(
         files=_dedupe(files),
         out_of_roots=outside_roots(files=worktree_files, roots=roots),
+        missing=_dedupe(missing),
     )

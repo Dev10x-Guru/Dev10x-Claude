@@ -5,7 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from dev10x.skills.permission.catalog_load import find_settings_files
+from dev10x.skills.permission.catalog_load import find_missing_settings, find_settings_files
 from dev10x.skills.permission.settings_discovery import (
     VENDORED_DIRS,
     SettingsDiscovery,
@@ -112,6 +112,63 @@ class TestVendoredPruning:
         )
 
         assert discovery.files == []
+
+
+class TestMissingWorktreeSettings:
+    """GH-1664: a worktree whose sibling has settings but it does not."""
+
+    def test_worktree_without_file_beside_a_seeded_main_is_missing(
+        self,
+        repo_with_outside_worktree: tuple[Path, Path],
+        root: Path,
+    ) -> None:
+        repo, worktree = repo_with_outside_worktree
+        _settings(project=repo)
+
+        discovery = discover_settings(roots=[str(root)], include_user=False)
+
+        assert discovery.missing == [(worktree / ".claude" / "settings.local.json").resolve()]
+
+    def test_repo_with_no_settings_anywhere_is_left_alone(
+        self,
+        repo_with_outside_worktree: tuple[Path, Path],
+        root: Path,
+    ) -> None:
+        discovery = discover_settings(roots=[str(root)], include_user=False)
+
+        assert discovery.missing == []
+
+    def test_fully_seeded_family_has_nothing_missing(
+        self,
+        git_discovery: tuple[SettingsDiscovery, Path, Path],
+    ) -> None:
+        discovery, _repo_settings, _worktree_settings = git_discovery
+
+        assert discovery.missing == []
+
+    def test_main_checkout_without_file_is_never_missing(
+        self,
+        repo_with_outside_worktree: tuple[Path, Path],
+        root: Path,
+    ) -> None:
+        _repo, worktree = repo_with_outside_worktree
+        _settings(project=worktree)
+
+        discovery = discover_settings(roots=[str(root)], include_user=False)
+
+        assert discovery.missing == []
+
+    def test_find_missing_settings_reads_the_same_discovery(
+        self,
+        repo_with_outside_worktree: tuple[Path, Path],
+        root: Path,
+    ) -> None:
+        repo, worktree = repo_with_outside_worktree
+        _settings(project=repo)
+
+        assert find_missing_settings(roots=[str(root)]) == [
+            (worktree / ".claude" / "settings.local.json").resolve()
+        ]
 
 
 class TestLinkedWorktreeRoots:
@@ -222,7 +279,7 @@ class TestGitWorktreeDiscovery:
 
         discovery = discover_settings(roots=[str(root)], include_user=False)
 
-        assert discovery == SettingsDiscovery(files=[repo_settings.resolve()], out_of_roots=[])
+        assert (discovery.files, discovery.out_of_roots) == ([repo_settings.resolve()], [])
 
     def test_worktree_inside_roots_is_listed_once(
         self, repo_with_outside_worktree: tuple[Path, Path], tmp_path: Path
@@ -234,7 +291,7 @@ class TestGitWorktreeDiscovery:
             roots=[str(tmp_path / "work"), str(tmp_path / "herdr")], include_user=False
         )
 
-        assert discovery == SettingsDiscovery(files=[worktree_settings.resolve()], out_of_roots=[])
+        assert (discovery.files, discovery.out_of_roots) == ([worktree_settings.resolve()], [])
 
     def test_queries_git_once_per_worktree_family(
         self,
