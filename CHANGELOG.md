@@ -5,6 +5,172 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.109.0 — Supervising Many Sessions at Once
+
+Released 2026-10-31
+
+### Breaking
+
+- **The `human_review` aliases are gone** — they were scheduled for removal
+  in 0.109.0 in the ADR-0028 deprecation register. The
+  `human_review_status` MCP tool, the payload's boolean `human_review` key,
+  and the legacy config key no longer answer. Use `supervisor_review_status`,
+  `pin_supervisor_review` and `supervisor_review: required|none`
+  ([GH-1161](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1161))
+
+### Features
+
+- **Answer stalled sessions from one localhost page** — a supervisor
+  running many Claude sessions had to visit each terminal to find the one
+  waiting on a prompt. The supervisor daemon shows every session's state on
+  one live strip-board page. From there the supervisor can read the full
+  edit or command behind a prompt, pick an option, and have the answer
+  relayed into the right session. It can also turn an answer into a
+  pre-approval through `permission-grant`'s guards. The page is
+  loopback-only and keystrokes need the page's own token
+  ([GH-1692](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1692))
+- **Route Google Chat replies to the session that is waiting** — a bot that
+  asked a question in a Chat thread never saw the reply, so a person had to
+  paste it back by hand. `gchat_watch_arm` / `gchat_watch_disarm` /
+  `gchat_watch_list` arm a watch on a thread with a durable cursor. A new
+  reply goes to the session that asked, as untrusted data, and the bus
+  registry can route messages by domain
+  ([GH-1612](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1612),
+  [GH-1682](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1682))
+- **Fix permission friction at the right layer, everywhere** — a supervisor
+  re-approved the same command in worktree after worktree. `diag-friction`
+  now ends in a fix: it runs `permission_triage`, which picks one of four
+  routes. A deliberate deny is explained, a propagation gap is backfilled, a
+  rewrite or wrapper is proposed when no rule can match, and a real gap goes
+  to the new `dev10x:permission-grant`. That skill grants one narrow rule
+  everywhere, and `dev10x:diag-approval` turns a manual approval into one.
+  Unknown executables, path-qualified binaries and exec wrappers are refused
+  ([GH-1676](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1676),
+  [GH-1687](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1687),
+  [GH-1669](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1669),
+  [GH-1667](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1667),
+  [GH-1607](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1607),
+  [GH-1668](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1668))
+- **Let a granted rule reach every checkout** — a rule approved in one place
+  now reaches the main checkout, existing worktrees in any layout, and
+  worktrees created later. Scans stay out of vendored dirs, and `clean` no
+  longer strips catalog rules
+  ([GH-1664](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1664),
+  [GH-1673](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1673),
+  [GH-1677](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1677),
+  [GH-1666](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1666),
+  [GH-1626](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1626),
+  [GH-1602](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1602),
+  [GH-1601](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1601),
+  [GH-1600](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1600),
+  [GH-1686](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1686))
+- **Install Dev10x MCP tools in one click from each release** — each GitHub
+  release now carries an `.mcpb` bundle. Onboarding ends with an opt-in
+  invitation to star the repo, and the marketplace list shows the version
+  ([GH-1675](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1675),
+  [GH-1628](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1628),
+  [GH-1355](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1355))
+- **Preview the CI review of a PR before anything posts** —
+  `dev10x ci-review --pr <N>` replays the Claude review locally the way CI
+  runs it. Every GitHub write goes to an outbox instead of being posted
+  ([GH-1621](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1621))
+- **Keep the CI review honest** — a review that never ran, or that posted
+  nothing, no longer passes green. A blocking review blocks until a clean
+  round, and each PR is reviewed once per ready flip with a run-stamped
+  checklist. A rebase or retarget no longer counts as a reviewed PR. These
+  rules are ported from tt-pos
+  ([GH-1691](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1691),
+  [GH-1693](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1693),
+  [GH-1694](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1694),
+  [GH-1696](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1696),
+  [GH-1618](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1618),
+  [GH-1619](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1619),
+  [GH-1620](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1620),
+  [GH-1625](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1625))
+- **Keep plans auto-advancing without Stop blocks** — the Stop hook no
+  longer interrupts every turn of a plan, and it no longer calls a task list
+  done while a task is still open. Auto-advance squashes `fixup!` commits
+  without asking
+  ([GH-1603](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1603),
+  [GH-1656](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1656))
+- **Make post-upgrade setup guided, approve-once steps** — a project spends
+  its skill budget only on the skills it uses. Applied audit fixes stay
+  inside the approved scope, and git-groom renames a moved file first, so
+  reviewers don't diff it line by line
+  ([GH-1627](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1627),
+  [GH-1631](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1631),
+  [GH-1629](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1629),
+  [GH-1640](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1640))
+- **Supervise sessions from a voice chat** — a voice hub learns which
+  sessions need the supervisor, and a bus inbox screens out loops, stale asks
+  and floods. A mailbox stays watched past the Monitor cap
+  ([GH-1624](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1624),
+  [GH-1613](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1613))
+- **Hand-run SQL without psql paste errors** — `dev10x:sql-handoff`
+  prepares SQL for a supervisor to run by hand
+  ([GH-1685](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1685))
+- **Re-run a third-party CI check without `gh api`** — the `ci_rerun` MCP
+  tool re-runs a check, bounded to the caller's repo and to a few attempts
+  ([GH-1674](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1674))
+- **Start a briefed agent in a new Herdr worktree**
+  ([GH-1617](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1617))
+- **Plugin split, Stage A3: each plugin owns its config** — permissions,
+  families, DX006 rules and hook files now load from per-plugin fragments.
+  The open Stage B decisions are settled
+  ([GH-1589](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1589),
+  [GH-1590](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1590),
+  [GH-1556](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1556),
+  [GH-1561](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1561))
+
+### Security
+
+- **Close hook-guard gaps** — inline Python no longer slips past DX003
+  through any launcher. An auto-approved `bq query` can no longer write to
+  BigQuery
+  ([GH-1630](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1630),
+  [GH-1633](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1633))
+
+### Fixes
+
+- **Keep develop's CI green** — a PR now fails as soon as the tree drifts out
+  of isort or mypy, and the existing drift is cleared
+  ([GH-1657](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1657))
+- **Stop unattended merges shipping ahead of the test suite**
+  ([GH-1679](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1679))
+- **Git and PR skill fixes from the October skill audit:**
+  - a vitest run with zero tests no longer passes;
+  - a worktree runs its own scripts by absolute path;
+  - a CI wait stays open for every check the caller named;
+  - every PR links its ticket, even from an off-convention branch;
+  - a groom no longer reverts PRs that already landed on the base;
+  - swarm children run under the posture their repo set.
+
+  ([GH-1683](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1683),
+  [GH-1609](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1609),
+  [GH-1680](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1680),
+  [GH-1665](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1665),
+  [GH-1604](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1604))
+- **Keep symlinked skills loadable in a fresh worktree**, and guard a repo's
+  own text formats once for every worktree
+  ([GH-1632](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1632),
+  [GH-1493](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1493))
+- **Keep Codex mirrors, stale caches and local agent instructions out of
+  git status**
+  ([GH-1671](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1671),
+  [GH-1610](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1610))
+- **Keep every active milestone prefix unambiguous**, and stop asking about
+  a project entity that GitHub cannot have
+  ([GH-1688](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1688),
+  [GH-1515](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1515),
+  [GH-1513](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1513))
+
+### Performance
+
+- **Serve Claude CI from current models and a cached prefix** — the bill
+  goes to the Dev10x service account, not a key
+  ([GH-1615](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1615),
+  [GH-1622](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1622))
+
 ## 0.108.0 — Getting Ready to Split the Plugin
 
 Released 2026-10-12
