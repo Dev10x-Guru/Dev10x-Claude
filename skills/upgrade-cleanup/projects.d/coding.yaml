@@ -140,6 +140,10 @@ base_permissions:
   # run finds the same wedge from the other direction.
   - "Bash(uv add:*)"
   - "Bash(uv remove:*)"
+  # GH-1664: `npm ci` installs exactly what the committed lockfile pins
+  # and refuses to touch the manifest, so it is narrower than `uv add`.
+  # It prompted in a seeded session that had only `npm --version`.
+  - "Bash(npm ci:*)"
   # GH-1149: the SANCTIONED lint form is bare `pre-commit run` — CLAUDE.md
   # says to call it directly, never via `uv run`. Only the discouraged
   # `uv run` shape was catalogued here, so the form users are told to use

@@ -408,6 +408,8 @@ base_permissions:
   - "Bash(echo:*)"
   - "Bash(printf:*)"
   - "Bash(date:*)"
+  # GH-1664: read-only load/uptime probe; prompted in a seeded session.
+  - "Bash(uptime:*)"
 
   # Version / help info flags for the option-2 footgun verbs — always safe
   # (the git and gh ones are coding's)
@@ -420,6 +422,7 @@ base_permissions:
   - "Bash(pnpm --version)"
   - "Bash(pipx --version)"
   - "Bash(bun --version)"
+  - "Bash(claude --version)" # GH-1664
   - "Bash(yarn --version)"
   - "Bash(node --version)"
   - "Bash(python --version)"

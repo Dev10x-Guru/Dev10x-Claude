@@ -333,6 +333,16 @@ every root (for example under `~/.herdr/worktrees/`) is still checked
 and seeded. `catalog-gap` lists those worktrees under
 "Out-of-roots worktrees".
 
+**Worktrees without a settings file, and the global file (GH-1664).**
+`ensure-base` creates `.claude/settings.local.json` in a worktree that
+has none when a sibling checkout of the same repo has one (a herdr or
+raw `git worktree add` checkout), then seeds it; `--no-create` opts out.
+A dotfiles repo that tracks `~/.claude/settings.json` keeps it skipped
+unless `--global` is passed. `seed-worktree --dry-run` now reports the
+real number of rules it would add, and `clean` prunes `*`-before-`:*`
+rules from the userspace `projects.yaml` copy line by line, keeping
+comments and a backup.
+
 **Remembered grants (GH-1677).** `~/.config/Dev10x/granted-permissions.yaml`
 holds allow rules remembered from a grant. It is Dev10x-owned (written
 only by `granted_catalog.remember_granted_rule`, under a file lock) and

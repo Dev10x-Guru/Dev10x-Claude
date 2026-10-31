@@ -127,6 +127,20 @@ def find_settings_files(
     return discover_settings(roots=roots, include_user=include_user, excluded=excluded).files
 
 
+def find_missing_settings(
+    roots: list[str],
+    *,
+    excluded: frozenset[str] = VENDORED_DIRS,
+) -> list[Path]:
+    """Worktree settings files ``ensure-base`` should create (GH-1664).
+
+    Kept apart from :func:`find_settings_files` so only the command that
+    creates files pays for asking, and every read-only caller keeps the
+    one seam it already has.
+    """
+    return discover_settings(roots=roots, include_user=False, excluded=excluded).missing
+
+
 KNOWN_PLUGIN_DIRS = ("dev10x", "Dev10x", "dev10x-claude")
 DEFAULT_PLUGIN_CACHE = "~/.claude/plugins/cache/Dev10x-Guru/dev10x"
 
