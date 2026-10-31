@@ -4,6 +4,7 @@
   import StatusBar from "./StatusBar.svelte";
   import StatusMark from "./StatusMark.svelte";
   import { displayName, shortPath } from "../lib/format";
+  import { statusLinks } from "../lib/links";
   import { pinned } from "../lib/tail";
   import { markOf } from "../lib/tree";
   import type { ConversationEntry, Session, View } from "../lib/types";
@@ -62,9 +63,6 @@
       <span title={session.cwd}>{shortPath(session.cwd)}</span>
       {#if session.workspace.branch}<span class="branch">{session.workspace.branch}</span>{/if}
     </p>
-    {#if session.status_line_ansi}
-      <StatusBar ansi={session.status_line_ansi} />
-    {/if}
   </header>
 
   <div class="well">
@@ -125,12 +123,18 @@
     ></textarea>
     <button type="submit" disabled={pending || !reply.trim()}>Send</button>
   </form>
+
+  {#if session.status_line_ansi}
+    <footer class="status">
+      <StatusBar ansi={session.status_line_ansi} links={statusLinks(session.workspace)} />
+    </footer>
+  {/if}
 </section>
 
 <style>
   .pane {
     display: grid;
-    grid-template-rows: auto minmax(0, 1fr) auto auto;
+    grid-template-rows: auto minmax(0, 1fr) auto auto auto;
     min-height: 0;
     height: 100%;
     min-width: 0;
@@ -178,8 +182,9 @@
     font-size: 0.76rem;
   }
 
-  .head :global(.bar) {
-    margin-top: var(--space-2);
+  .status {
+    padding: 0 var(--space-6) var(--space-3);
+    background: var(--paper);
   }
 
   .well {
