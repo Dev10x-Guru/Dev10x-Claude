@@ -19,6 +19,7 @@ from pathlib import Path
 
 from dev10x import subprocess_utils
 from dev10x.domain.claude_paths import ClaudeDir
+from dev10x.domain.linked_worktree import main_checkout
 
 VENDORED_DIRS = frozenset(
     {
@@ -103,31 +104,11 @@ def git_registered_worktrees(root_path: Path) -> list[Path]:
 
 
 def resolve_main_project(worktree_dir: Path) -> Path | None:
-    """The main checkout a linked worktree belongs to, read from its ``.git`` file.
+    """The main checkout a linked worktree belongs to (GH-1666).
 
-    Layout-free (GH-1666): a linked worktree's ``.git`` is a file whose
-    ``gitdir:`` points into ``<main>/.git/worktrees/<name>``, wherever the
-    worktree itself lives. A main checkout (``.git`` directory) or a
-    non-repo answers ``None``.
+    Delegates to the subprocess-free domain parser DX017 shares (GH-1493).
     """
-    git_file = worktree_dir / ".git"
-    if not git_file.is_file():
-        return None
-    try:
-        content = git_file.read_text().strip()
-    except (OSError, UnicodeDecodeError) as error:
-        log.warning("cannot read %s, treated as not a linked worktree: %s", git_file, error)
-        return None
-    if not content.startswith("gitdir:"):
-        return None
-    gitdir_path = Path(content.split(":", 1)[1].strip())
-    if not gitdir_path.is_absolute():
-        # worktree.useRelativePaths (git 2.48+) writes the gitdir relative
-        # to the worktree, not to the process CWD.
-        gitdir_path = (worktree_dir / gitdir_path).resolve()
-    if "/worktrees/" not in str(gitdir_path):
-        return None
-    return gitdir_path.parent.parent.parent
+    return main_checkout(worktree_dir)
 
 
 def linked_worktree_roots(checkouts: list[Path]) -> list[str]:
