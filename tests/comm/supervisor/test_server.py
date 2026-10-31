@@ -65,6 +65,7 @@ PROMPT_TEXT = " Do you want to proceed?\n ❯ 1. Yes\n   2. Yes, and don't ask a
 PREVIEWS = {
     "sid-perm": Preview(tool="Bash", title="Clean the build", kind="command", body="rm -rf build")
 }
+COMMANDS = {"sid-perm": ["git status", "rm -rf build"], "sid-idle": ["ls"]}
 PANES = {"w3:p1": "working on it\n", "w5:p1": PROMPT_TEXT, "w12:p1": ""}
 
 
@@ -121,6 +122,7 @@ def app(tmp_path: Path, keys: KeySender, panes: dict[str, str], static_dir: Path
         key_sender=keys,
         pane_reader=lambda pane_id: panes[pane_id],
         preview_reader=lambda session_id: PREVIEWS.get(session_id),
+        commands_reader=lambda session_id: COMMANDS.get(session_id, []),
         today=lambda: date(2026, 10, 31),
         static_dir=static_dir,
     )
@@ -177,7 +179,9 @@ class TestAuth:
     def test_get_requires_token(self, port: int, path: str) -> None:
         assert call(port=port, method="GET", path=path, token=None).status == 403
 
-    @pytest.mark.parametrize("path", ["/decisions", "/answer", "/keys", "/reply", "/lessons"])
+    @pytest.mark.parametrize(
+        "path", ["/decisions", "/answer", "/keys", "/reply", "/preapprove", "/lessons"]
+    )
     def test_post_without_token_forbidden(self, port: int, path: str) -> None:
         assert call(port=port, method="POST", path=path, payload={}, token=None).status == 403
 
@@ -604,6 +608,56 @@ class TestReply:
         )
 
         assert (response.status, response.json()) == (409, {"error": "That session is gone."})
+
+
+class TestPreapprove:
+    def test_mails_the_relay_with_pending_call_and_commands(
+        self,
+        port: int,
+        app: SupervisorApp,
+    ) -> None:
+        refresh(app=app, provider=lambda: Snapshot(sessions=[PERMISSION, IDLE], taken_at=NOW))
+
+        response = call(
+            port=port,
+            method="POST",
+            path="/preapprove",
+            payload={"session_id": PERMISSION.session_id},
+        )
+        [message] = mailbox_unread(root=app.bus_root, name=RELAY)
+        headers, body = read_message(message=message)
+        request = json.loads(body)
+
+        assert (
+            response.json()["commands"],
+            headers["subject"].startswith("preapprove sid-perm-"),
+            request["pending"]["body"],
+            request["commands"],
+        ) == (2, True, "rm -rf build", ["git status", "rm -rf build"])
+
+    def test_commands_alone_are_enough(self, port: int, app: SupervisorApp) -> None:
+        response = call(
+            port=port, method="POST", path="/preapprove", payload={"session_id": IDLE.session_id}
+        )
+
+        assert (response.status, response.json()["commands"]) == (200, 1)
+
+    def test_nothing_to_preapprove(self, port: int, app: SupervisorApp) -> None:
+        response = call(
+            port=port,
+            method="POST",
+            path="/preapprove",
+            payload={"session_id": WAITING.session_id},
+        )
+
+        assert (response.status, (app.bus_root / RELAY).exists()) == (409, False)
+
+    def test_unknown_session(self, port: int) -> None:
+        response = call(
+            port=port, method="POST", path="/preapprove", payload={"session_id": "gone"}
+        )
+
+        assert response.status == 409
 
 
 class TestLessons:

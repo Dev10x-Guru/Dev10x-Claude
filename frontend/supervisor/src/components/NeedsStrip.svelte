@@ -43,6 +43,16 @@
     );
   }
 
+  async function preapprove(): Promise<void> {
+    pending = true;
+    const result = await post("/preapprove", { session_id: session.session_id }, token);
+    pending = false;
+    onresult(
+      result,
+      `Sent ${result.commands ?? 0} commands from ${displayName(session)} to the relay to draft allow rules; it asks you before writing any`,
+    );
+  }
+
   async function sendReply(event: SubmitEvent): Promise<void> {
     event.preventDefault();
     const text = reply.trim();
@@ -82,6 +92,12 @@
           </li>
         {/each}
       </ul>
+      {#if session.waiting_for === "permission prompt"}
+        <button class="preapprove" disabled={pending} onclick={preapprove}>
+          Pre-approve for later…
+          <span>drafts narrow rules from the commands this session used</span>
+        </button>
+      {/if}
     {:else if session.decisions.length}
       {#each session.decisions as decision (decision.decision_id)}
         <section class="decision">
@@ -281,6 +297,34 @@
     color: var(--ink-soft);
     font-size: var(--step--1);
     overflow-wrap: anywhere;
+  }
+
+  .preapprove {
+    justify-self: start;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-2);
+    align-items: baseline;
+    padding: var(--space-1) 0;
+    background: none;
+    border: none;
+    color: var(--ink);
+    font-weight: 600;
+    text-decoration: underline;
+    text-decoration-color: var(--amber);
+    text-underline-offset: 3px;
+    cursor: pointer;
+  }
+
+  .preapprove span {
+    color: var(--ink-soft);
+    font-size: var(--step--1);
+    font-weight: 400;
+    text-decoration: none;
+  }
+
+  .preapprove:disabled {
+    cursor: progress;
   }
 
   .decision {

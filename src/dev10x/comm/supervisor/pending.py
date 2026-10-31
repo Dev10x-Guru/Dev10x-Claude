@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import difflib
 import json
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -11,6 +12,7 @@ TAIL_BYTES = 512 * 1024
 MAX_PREVIEW_LINES = 400
 MAX_FILE_BYTES = 256 * 1024
 DIFF_TOOLS = ("Edit", "MultiEdit", "Write")
+MAX_COMMANDS = 60
 
 
 @dataclass(frozen=True)
@@ -48,28 +50,57 @@ def _content(*, record: dict[str, Any]) -> list[dict[str, Any]]:
     )
 
 
-def read_pending_tool(*, path: Path) -> PendingTool | None:
-    pending: dict[str, PendingTool] = {}
-    order: list[str] = []
+def _items(*, path: Path) -> Iterator[dict[str, Any]]:
     for line in _tail_lines(path=path):
         try:
             record = json.loads(line)
         except json.JSONDecodeError:
             continue
-        if not isinstance(record, dict):
-            continue
-        for item in _content(record=record):
-            if item.get("type") == "tool_use" and item.get("id"):
-                tool_input = item.get("input")
-                pending[item["id"]] = PendingTool(
-                    name=str(item.get("name", "")),
-                    input=tool_input if isinstance(tool_input, dict) else {},
-                )
-                order.append(item["id"])
-            elif item.get("type") == "tool_result":
-                pending.pop(str(item.get("tool_use_id")), None)
+        if isinstance(record, dict):
+            yield from _content(record=record)
+
+
+def _tool(*, item: dict[str, Any]) -> PendingTool:
+    tool_input = item.get("input")
+    return PendingTool(
+        name=str(item.get("name", "")),
+        input=tool_input if isinstance(tool_input, dict) else {},
+    )
+
+
+def read_pending_tool(*, path: Path) -> PendingTool | None:
+    pending: dict[str, PendingTool] = {}
+    order: list[str] = []
+    for item in _items(path=path):
+        if item.get("type") == "tool_use" and item.get("id"):
+            pending[item["id"]] = _tool(item=item)
+            order.append(item["id"])
+        elif item.get("type") == "tool_result":
+            pending.pop(str(item.get("tool_use_id")), None)
     open_ids = [tool_id for tool_id in order if tool_id in pending]
     return pending[open_ids[-1]] if open_ids else None
+
+
+def read_session_commands(
+    *,
+    session_id: str,
+    projects_root: Path = PROJECTS_ROOT,
+    limit: int = MAX_COMMANDS,
+) -> list[str]:
+    path = find_transcript(session_id=session_id, projects_root=projects_root)
+    if path is None:
+        return []
+    commands: list[str] = []
+    try:
+        for item in _items(path=path):
+            if item.get("type") != "tool_use" or item.get("name") != "Bash":
+                continue
+            command = str(_tool(item=item).input.get("command", "")).strip()
+            if command and command not in commands:
+                commands.append(command)
+    except OSError:
+        return []
+    return commands[-limit:]
 
 
 def _diff(*, path: str, before: str, after: str) -> str:

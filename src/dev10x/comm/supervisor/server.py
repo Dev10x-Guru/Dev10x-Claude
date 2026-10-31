@@ -13,12 +13,18 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlsplit
+from uuid import uuid4
 
 from dev10x.comm.supervisor.decisions import ANSWERED, OPEN, Decision, DecisionStore
-from dev10x.comm.supervisor.delivery import deliver_keys, deliver_relay, keys_for_option
+from dev10x.comm.supervisor.delivery import (
+    deliver_keys,
+    deliver_relay,
+    keys_for_option,
+    request_preapproval,
+)
 from dev10x.comm.supervisor.lessons import find_lessons, write_lesson
 from dev10x.comm.supervisor.paths import TOKEN_HEADER
-from dev10x.comm.supervisor.pending import Preview, read_preview
+from dev10x.comm.supervisor.pending import Preview, read_preview, read_session_commands
 from dev10x.comm.supervisor.probes import ProbeError, Snapshot, read_pane, send_keys
 from dev10x.comm.supervisor.prompts import find_option, parse_prompt
 from dev10x.comm.supervisor.sessions import SessionView
@@ -51,6 +57,7 @@ class SupervisorApp:
     key_sender: Callable[..., None] = send_keys
     pane_reader: Callable[..., str] = read_pane
     preview_reader: Callable[..., Preview | None] = read_preview
+    commands_reader: Callable[..., list[str]] = read_session_commands
     today: Callable[[], date] = date.today
     static_dir: Path = STATIC_DIR
     snapshot: Snapshot = field(default_factory=lambda: Snapshot(sessions=[]))
@@ -205,6 +212,7 @@ class SupervisorHandler(BaseHTTPRequestHandler):
                 "/answer": self._post_answer,
                 "/keys": self._post_keys,
                 "/reply": self._post_reply,
+                "/preapprove": self._post_preapprove,
                 "/lessons": self._post_lesson,
             }
         )
@@ -452,6 +460,32 @@ class SupervisorHandler(BaseHTTPRequestHandler):
             log_path=self.app.log_path,
         )
         self._ok()
+
+    def _post_preapprove(self, params: dict[str, str]) -> None:
+        body = self._body()
+        view = self._listed_session(session_id=str(body.get("session_id", "")))
+        with self.app.changed:
+            preview = self.app.previews.get(view.session_id)
+        commands = self.app.commands_reader(session_id=view.session_id)
+        if preview is None and not commands:
+            raise RequestError(
+                status=HTTPStatus.CONFLICT,
+                message="Nothing to pre-approve: no pending call or commands in that session.",
+            )
+        request_id = f"{view.session_id[:8]}-{uuid4().hex[:6]}"
+        request_preapproval(
+            bus_root=self.app.bus_root,
+            relay_mailbox=self.app.relay_mailbox,
+            session_name=view.name,
+            session_id=view.session_id,
+            cwd=view.cwd,
+            request_id=request_id,
+            pending=asdict(preview) if preview else None,
+            commands=commands,
+            confirmed_by=CONFIRMED_BY,
+            log_path=self.app.log_path,
+        )
+        self._ok(request_id=request_id, commands=len(commands))
 
     def _post_lesson(self, params: dict[str, str]) -> None:
         body = self._body()

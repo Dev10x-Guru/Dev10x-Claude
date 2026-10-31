@@ -16,6 +16,7 @@ from dev10x.comm.supervisor.pending import (
     find_transcript,
     read_pending_tool,
     read_preview,
+    read_session_commands,
 )
 
 SESSION = "47a1ef74-ca1e-4876-bdb1-83dd7a452919"
@@ -189,6 +190,53 @@ class TestBuildPreview:
         preview = build_preview(tool=PendingTool(name="Bash", input={"command": "a\nb\nc"}))
 
         assert (preview.body, preview.truncated) == ("a\nb", True)
+
+
+class TestReadSessionCommands:
+    def test_distinct_bash_commands_in_order(self, projects: Path) -> None:
+        _write(
+            path=projects / "-w" / f"{SESSION}.jsonl",
+            records=[
+                _use(tool_id="a", name="Bash", tool_input={"command": "git status"}),
+                _use(tool_id="b", name="Read", tool_input={"file_path": "x"}),
+                _use(tool_id="c", name="Bash", tool_input={"command": " herdr agent list "}),
+                _use(tool_id="d", name="Bash", tool_input={"command": "git status"}),
+                _use(tool_id="e", name="Bash", tool_input={"command": ""}),
+                _result(tool_id="a"),
+            ],
+        )
+
+        assert read_session_commands(session_id=SESSION, projects_root=projects) == [
+            "git status",
+            "herdr agent list",
+        ]
+
+    def test_keeps_the_most_recent(self, projects: Path) -> None:
+        _write(
+            path=projects / "-w" / f"{SESSION}.jsonl",
+            records=[
+                _use(tool_id=str(i), name="Bash", tool_input={"command": f"cmd {i}"})
+                for i in range(5)
+            ],
+        )
+
+        assert read_session_commands(session_id=SESSION, projects_root=projects, limit=2) == [
+            "cmd 3",
+            "cmd 4",
+        ]
+
+    def test_no_transcript(self, projects: Path) -> None:
+        assert read_session_commands(session_id=SESSION, projects_root=projects) == []
+
+    def test_unreadable_transcript(self, projects: Path) -> None:
+        path = _write(path=projects / "-w" / f"{SESSION}.jsonl", records=[])
+        path.chmod(0)
+        try:
+            commands = read_session_commands(session_id=SESSION, projects_root=projects)
+        finally:
+            path.chmod(0o600)
+
+        assert commands == []
 
 
 class TestReadPreview:
