@@ -204,12 +204,37 @@ jobs:
       - name: Enforce skills floor
         run: uv run coverage report --include='src/dev10x/skills/*,src/dev10x/*/skills/*' --fail-under=78
 
+  # Whole-tree lint drift (GH-1657). The pre-commit ruff and mypy hooks see
+  # only the files a commit touches, so drift from a mechanical move stayed
+  # invisible until an unrelated PR touched the file and inherited it.
+  # Deliberately unfiltered and whole-tree: the point is to fail where the
+  # drift lands, not where it is next touched. ruff and mypy come from the
+  # `dev` extra, the same pins `.pre-commit-config.yaml` mirrors.
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Import order (ruff isort)
+        run: uv run --extra dev ruff check --select I src tests hooks skills bin servers
+
+      - name: Type check (mypy)
+        run: uv run --extra dev mypy --config-file=mypy.ini src/
+
   ci-gate:
     # `always()` is load-bearing: without it this job is skipped whenever
     # its dependencies skip, which reintroduces the never-reports hang it
     # exists to prevent.
     if: always()
-    needs: [changes, hook-tests, server-tests, floors]
+    needs: [changes, hook-tests, server-tests, floors, lint]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

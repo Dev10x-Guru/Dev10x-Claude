@@ -29,10 +29,13 @@ _WORKFLOW = _REPO_ROOT / ".github" / "workflows" / "ci-gate.yml"
 #: Jobs the gate aggregates. ``changes`` is included deliberately: it is the
 #: one dependency with no ``if:``, so it is what keeps an all-skipped run from
 #: passing vacuously.
-_EXPECTED_NEEDS = {"changes", "hook-tests", "server-tests", "floors"}
+_EXPECTED_NEEDS = {"changes", "hook-tests", "server-tests", "floors", "lint"}
 
 #: Path-filtered legs — each must be able to report ``skipped``.
 _FILTERED_LEGS = ("hook-tests", "server-tests", "floors")
+
+#: Every tree the whole-tree isort check must cover (GH-1657).
+_LINTED_TREES = ("src", "tests", "hooks", "skills", "bin", "servers")
 
 
 def _verdict(*, results: str) -> int:
@@ -44,6 +47,10 @@ def _verdict(*, results: str) -> int:
         timeout=30,
     )
     return completed.returncode
+
+
+def _run_commands(*, job: dict[str, Any]) -> list[str]:
+    return [step.get("run", "") for step in job["steps"]]
 
 
 @pytest.fixture(scope="module")
@@ -110,7 +117,7 @@ class TestWorkflowWiring:
         assert set(gate["needs"]) == _EXPECTED_NEEDS
 
     def test_gate_delegates_the_decision_to_the_tested_script(self, gate: dict[str, Any]) -> None:
-        commands = [step.get("run", "") for step in gate["steps"]]
+        commands = _run_commands(job=gate)
         assert any(".github/scripts/ci-gate-verdict.sh" in command for command in commands)
 
     @pytest.mark.parametrize("leg", _FILTERED_LEGS)
@@ -127,3 +134,25 @@ class TestWorkflowWiring:
         """Both files emitted a check literally named ``test``, so neither name
         could be required unambiguously (ADR-0024)."""
         assert not (_REPO_ROOT / ".github" / "workflows" / retired).exists()
+
+
+class TestWholeTreeLintLeg:
+    """GH-1657: drift must fail where it lands, not where it is next touched."""
+
+    @pytest.fixture(scope="class")
+    def commands(self, jobs: dict[str, Any]) -> list[str]:
+        return _run_commands(job=jobs["lint"])
+
+    @pytest.fixture(scope="class")
+    def isort_command(self, commands: list[str]) -> str:
+        return next(command for command in commands if "--select I" in command)
+
+    def test_runs_on_every_pull_request(self, jobs: dict[str, Any]) -> None:
+        assert "if" not in jobs["lint"]
+
+    @pytest.mark.parametrize("tree", _LINTED_TREES)
+    def test_isort_check_covers_the_whole_tree(self, isort_command: str, tree: str) -> None:
+        assert f" {tree}" in isort_command
+
+    def test_type_checks_all_of_src(self, commands: list[str]) -> None:
+        assert any("mypy --config-file=mypy.ini src/" in command for command in commands)
