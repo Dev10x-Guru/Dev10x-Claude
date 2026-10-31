@@ -376,3 +376,17 @@ class TestSilentReview:
 
         assert "steps.claude-review.outputs.conclusion == 'success'" in step["if"]
         assert step["env"]["SINCE"] == "${{ steps.review-start.outputs.iso }}"
+
+
+class TestReviewScope:
+    """The review judges the diff, never the merge decision (GH-1691)."""
+
+    def test_core_prompt_keeps_merge_state_out_of_findings(self) -> None:
+        core = (_CLAUDE_DIR / "prompts" / "code-review.core.md").read_text(encoding="utf-8")
+
+        assert "REVIEW THE DIFF, NOT THE MERGE DECISION" in core
+
+    def test_injection_flag_never_becomes_an_inline_comment(self) -> None:
+        output = (_CLAUDE_DIR / "prompts" / "code-review.output-ci.md").read_text(encoding="utf-8")
+
+        assert "Never raise it as an inline comment" in output
