@@ -778,6 +778,143 @@
       "title": "detect_trackerArguments",
       "type": "object"
     },
+    "gchat_watch_arm": {
+      "properties": {
+        "mode": {
+          "default": "reply",
+          "title": "Mode",
+          "type": "string"
+        },
+        "notify": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Notify"
+        },
+        "notify_roles": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Notify Roles"
+        },
+        "own_message_names": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Own Message Names"
+        },
+        "route": {
+          "default": false,
+          "title": "Route",
+          "type": "boolean"
+        },
+        "space": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Space"
+        },
+        "thread": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Thread"
+        },
+        "ttl_hours": {
+          "default": 24.0,
+          "title": "Ttl Hours",
+          "type": "number"
+        }
+      },
+      "title": "gchat_watch_armArguments",
+      "type": "object"
+    },
+    "gchat_watch_disarm": {
+      "properties": {
+        "space": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Space"
+        },
+        "thread": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Thread"
+        },
+        "watch_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Watch Id"
+        }
+      },
+      "title": "gchat_watch_disarmArguments",
+      "type": "object"
+    },
+    "gchat_watch_list": {
+      "properties": {},
+      "title": "gchat_watch_listArguments",
+      "type": "object"
+    },
     "generate_commit_list": {
       "properties": {
         "base_branch": {

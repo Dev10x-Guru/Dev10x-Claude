@@ -285,6 +285,11 @@ class Dev10xConfigDir:
         """Per-repo Google Chat review-request config (space + mentions)."""
         return cls._resolve("gchat-config-code-review-requests.yaml")
 
+    @classmethod
+    def gchat_watch_json(cls) -> Path:
+        """Armed Google Chat watches and their cursors (GH-1682)."""
+        return cls._resolve("gchat-watch.json")
+
 
 def _with_lazy_migration(current: Path, legacy_provider: Callable[[], Path]) -> Path:
     migrate_path(legacy=legacy_provider(), current=current)

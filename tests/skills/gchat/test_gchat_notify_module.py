@@ -783,6 +783,109 @@ class TestNotifyGchatDeadLetters:
         assert recorded[0]["body"] == "crew stalled"
 
 
+class TestPostedThread:
+    """GH-1682: arming a watch after a post needs the thread it landed in."""
+
+    @pytest.mark.parametrize(
+        ("response", "requested", "thread"),
+        [
+            (
+                {"name": "spaces/A/messages/M", "thread": {"name": "spaces/A/threads/N"}},
+                None,
+                "spaces/A/threads/N",
+            ),
+            (
+                {"name": "spaces/A/messages/M", "thread": "spaces/A/threads/N"},
+                None,
+                "spaces/A/threads/N",
+            ),
+            ({"name": "spaces/A/messages/M"}, "T", "spaces/A/threads/T"),
+            ({"name": "spaces/A/messages/M", "thread": {}}, None, None),
+        ],
+    )
+    def test_reports_the_thread_from_the_response(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        response: dict,
+        requested: str | None,
+        thread: str | None,
+    ) -> None:
+        monkeypatch.setattr(mod, "_post_json", lambda url, payload, token: ok(response))
+
+        result = mod.post_message_detailed(space_id="A", text="hi", token="t", thread=requested)
+
+        assert result == ok(mod.PostedMessage(name="spaces/A/messages/M", thread=thread))
+
+    def test_detailed_send_resolves_mentions_and_posts(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        captured: dict = {}
+        monkeypatch.setattr(mod, "_load_config", lambda: {"user_groups": {"@team": "<G>"}})
+        monkeypatch.setattr(mod, "resolve_space_id", lambda alias: ok("A"))
+        monkeypatch.setattr(mod, "mint_chat_token", lambda: ok("tok"))
+        monkeypatch.setattr(
+            mod,
+            "_post_json",
+            lambda url, payload, token: (
+                captured.update(payload=payload)
+                or ok({"name": "spaces/A/messages/M", "thread": {"name": "spaces/A/threads/N"}})
+            ),
+        )
+
+        result = mod.notify_gchat_detailed(
+            space="rev", message="@team", fallback_text="@team", cards=[{"cardId": "c"}]
+        )
+
+        assert result == ok(
+            mod.PostedMessage(name="spaces/A/messages/M", thread="spaces/A/threads/N")
+        )
+        assert captured["payload"]["text"] == "<G>"
+        assert captured["payload"]["fallbackText"] == "<G>"
+
+    def test_detailed_send_without_text_passes_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured: dict = {}
+        monkeypatch.setattr(mod, "_load_config", lambda: {})
+        monkeypatch.setattr(mod, "resolve_space_id", lambda alias: ok("A"))
+        monkeypatch.setattr(mod, "mint_chat_token", lambda: ok("tok"))
+
+        def fake_detailed(**kwargs: object) -> object:
+            captured.update(kwargs)
+            return ok(mod.PostedMessage(name="n", thread=None))
+
+        monkeypatch.setattr(mod, "post_message_detailed", fake_detailed)
+
+        mod.send_gchat_message_detailed(space="rev", cards=[{"cardId": "c"}])
+
+        assert captured["text"] is None
+        assert captured["fallback_text"] is None
+
+    @pytest.mark.parametrize(
+        ("space_result", "token_result", "error"),
+        [(err("no space"), ok("tok"), "no space"), (ok("A"), err("no token"), "no token")],
+    )
+    def test_detailed_send_failures_are_dead_lettered(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        space_result: object,
+        token_result: object,
+        error: str,
+    ) -> None:
+        recorded: list[dict] = []
+        monkeypatch.setattr(mod, "record_undelivered", lambda **kwargs: recorded.append(kwargs))
+        monkeypatch.setattr(mod, "resolve_space_id", lambda alias: space_result)
+        monkeypatch.setattr(mod, "mint_chat_token", lambda: token_result)
+
+        result = mod.notify_gchat_detailed(space="rev", message="hi", thread="T")
+
+        assert result == ErrorResult(error=error)
+        assert recorded[0]["context"] == {"thread": "T"}
+
+    def test_post_message_maps_a_detailed_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(mod, "post_message_detailed", lambda **_: err("boom"))
+
+        assert mod.post_message(space_id="A", text="hi", token="t") == ErrorResult(error="boom")
+
+
 class TestQualifyThreadName:
     def test_leaves_a_full_resource_name_untouched(self) -> None:
         assert (

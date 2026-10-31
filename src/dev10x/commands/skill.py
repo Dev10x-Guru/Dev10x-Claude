@@ -2,10 +2,15 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import click
 
 from dev10x.core.domain.common.result import ErrorResult
+
+if TYPE_CHECKING:  # pragma: no cover
+    from dev10x.comm.skills.notifications.gchat_notify import PostedMessage
+    from dev10x.comm.skills.notifications.gchat_watch import Watch
 
 
 @click.group()
@@ -143,6 +148,32 @@ def slack_send(
         "spaces/<space>/threads/<id> name or the bare thread id from a Chat URL"
     ),
 )
+@click.option(
+    "--watch",
+    "watch_replies",
+    is_flag=True,
+    default=False,
+    help="After posting, watch the message's thread and notify --notify/--notify-role",
+)
+@click.option(
+    "--notify",
+    "notify_mailboxes",
+    multiple=True,
+    help="claude-bus mailbox told about replies (with --watch; repeatable)",
+)
+@click.option(
+    "--notify-role",
+    "notify_roles",
+    multiple=True,
+    help="Bus registry Role told about replies, resolved at delivery (with --watch; repeatable)",
+)
+@click.option(
+    "--watch-mode",
+    type=click.Choice(["reply", "ttl"]),
+    default="reply",
+    show_default=True,
+    help="reply: disarm after the first delivered reply; ttl: stay armed until the TTL",
+)
 def gchat_send(
     *,
     space: str,
@@ -153,6 +184,10 @@ def gchat_send(
     card_file: Path | None,
     fallback_text: str | None,
     thread: str | None,
+    watch_replies: bool,
+    notify_mailboxes: tuple[str, ...],
+    notify_roles: tuple[str, ...],
+    watch_mode: str,
 ) -> None:
     """Send a Google Chat message via the importable gchat_notify module.
 
@@ -166,7 +201,15 @@ def gchat_send(
     A card cannot resolve mentions, and `--card-title` leaves no text
     behind, so pair `--message` with `--card-file` when the notification
     has to reach a person.
+
+    `--watch` arms a reply watch on the thread the message landed in
+    (GH-1682); `gchat-watch poll` then delivers each reply over the bus.
     """
+    has_targets = bool(notify_mailboxes or notify_roles)
+    if watch_replies and not has_targets:
+        raise click.UsageError("--watch needs at least one --notify or --notify-role.")
+    if has_targets and not watch_replies:
+        raise click.UsageError("--notify and --notify-role only apply with --watch.")
     msg, cards = _resolve_gchat_body(
         message=message,
         message_file=message_file,
@@ -177,13 +220,73 @@ def gchat_send(
 
     from dev10x.comm.skills.notifications import gchat_notify
 
-    result = gchat_notify.notify_gchat(
+    if not watch_replies:
+        result = gchat_notify.notify_gchat(
+            space=space, message=msg, cards=cards, fallback_text=fallback_text, thread=thread
+        )
+        if isinstance(result, ErrorResult):
+            click.echo(f"❌ {result.error}", err=True)
+            sys.exit(1)
+        click.echo(f"✅ Google Chat message sent! name={result.value}")
+        return
+
+    posted = gchat_notify.notify_gchat_detailed(
         space=space, message=msg, cards=cards, fallback_text=fallback_text, thread=thread
     )
-    if isinstance(result, ErrorResult):
-        click.echo(f"❌ {result.error}", err=True)
+    if isinstance(posted, ErrorResult):
+        click.echo(f"❌ {posted.error}", err=True)
         sys.exit(1)
-    click.echo(f"✅ Google Chat message sent! name={result.value}")
+    click.echo(f"✅ Google Chat message sent! name={posted.value.name}")
+    _arm_after_post(
+        posted=posted.value,
+        notify_mailboxes=notify_mailboxes,
+        notify_roles=notify_roles,
+        watch_mode=watch_mode,
+    )
+
+
+def _arm_after_post(
+    *,
+    posted: PostedMessage,
+    notify_mailboxes: tuple[str, ...],
+    notify_roles: tuple[str, ...],
+    watch_mode: str,
+) -> None:
+    from dev10x.comm.skills.notifications import gchat_watch
+
+    if not posted.thread:
+        click.echo(
+            "❌ Posted, but Google Chat reported no thread for the message, so no "
+            "watch was armed.",
+            err=True,
+        )
+        sys.exit(1)
+    armed = gchat_watch.arm_watch(
+        thread=posted.thread,
+        notify=notify_mailboxes,
+        notify_roles=notify_roles,
+        mode=watch_mode,
+        own_message_names=(posted.name,),
+    )
+    if isinstance(armed, ErrorResult):
+        click.echo(f"❌ Posted, but the watch was not armed: {armed.error}", err=True)
+        sys.exit(1)
+    click.echo(_watch_line(watch=armed.value, kind="ARMED"))
+
+
+def _watch_line(*, watch: Watch, kind: str) -> str:
+    targets = ",".join((*watch.notify, *(f"role:{role}" for role in watch.notify_roles)))
+    return " ".join(
+        (
+            kind,
+            watch.id,
+            watch.thread or watch.space,
+            f"mode={watch.mode}",
+            f"notify={targets or '-'}",
+            f"route={'yes' if watch.route else 'no'}",
+            f"expires={watch.expires_at.isoformat(timespec='seconds')}",
+        )
+    )
 
 
 def _resolve_gchat_body(
@@ -242,6 +345,154 @@ def _load_cards(card_file: Path) -> list[dict]:
     if "card" in parsed:
         return [parsed]
     return [{"cardId": "dev10x-message", "card": parsed}]
+
+
+@notify.group(name="gchat-watch")
+def gchat_watch_group() -> None:
+    """Watch Google Chat threads and spaces for new messages (GH-1612, GH-1682).
+
+    Reads through your own `gog` grant, keeps a durable cursor per watch,
+    and delivers each new message over the claude-bus as untrusted data.
+    """
+
+
+@gchat_watch_group.command(name="arm")
+@click.option("--space", default=None, help="Space alias, id, or spaces/<id>")
+@click.option(
+    "--thread",
+    default=None,
+    help="spaces/<space>/threads/<id>, or a bare thread id with --space; omit to watch the space",
+)
+@click.option(
+    "--notify", "notify_mailboxes", multiple=True, help="claude-bus mailbox (repeatable)"
+)
+@click.option(
+    "--notify-role",
+    "notify_roles",
+    multiple=True,
+    help="Bus registry Role, resolved to its newest Reply-To at delivery (repeatable)",
+)
+@click.option(
+    "--route",
+    is_flag=True,
+    default=False,
+    help="Route each message by domain through the bus registry (dispatcher mode)",
+)
+@click.option(
+    "--mode",
+    type=click.Choice(["reply", "ttl"]),
+    default="reply",
+    show_default=True,
+    help="reply: disarm after the first delivered message; ttl: stay armed until the TTL",
+)
+@click.option(
+    "--ttl-hours",
+    type=click.FloatRange(min=0, min_open=True),
+    default=24.0,
+    show_default=True,
+)
+def gchat_watch_arm(
+    *,
+    space: str | None,
+    thread: str | None,
+    notify_mailboxes: tuple[str, ...],
+    notify_roles: tuple[str, ...],
+    route: bool,
+    mode: str,
+    ttl_hours: float,
+) -> None:
+    """Arm (or extend) a watch; re-arming merges targets and keeps the cursor."""
+    from datetime import timedelta
+
+    from dev10x.comm.skills.notifications import gchat_watch
+
+    result = gchat_watch.arm_watch(
+        space=space,
+        thread=thread,
+        notify=notify_mailboxes,
+        notify_roles=notify_roles,
+        route=route,
+        mode=mode,
+        ttl=timedelta(hours=ttl_hours),
+    )
+    if isinstance(result, ErrorResult):
+        click.echo(f"ERROR {result.error}", err=True)
+        sys.exit(1)
+    click.echo(_watch_line(watch=result.value, kind="ARMED"))
+
+
+@gchat_watch_group.command(name="disarm")
+@click.option("--id", "watch_id", default=None, help="Watch id, as printed by arm or list")
+@click.option("--space", default=None, help="Space alias, id, or spaces/<id>")
+@click.option("--thread", default=None, help="Thread name of the watch to disarm")
+def gchat_watch_disarm(*, watch_id: str | None, space: str | None, thread: str | None) -> None:
+    """Disarm a watch by id, or by the space/thread it watches."""
+    from dev10x.comm.skills.notifications import gchat_watch
+
+    result = gchat_watch.disarm_watch(watch_id=watch_id, space=space, thread=thread)
+    if isinstance(result, ErrorResult):
+        click.echo(f"ERROR {result.error}", err=True)
+        sys.exit(1)
+    click.echo(f"DISARMED {result.value.id}")
+
+
+@gchat_watch_group.command(name="list")
+def gchat_watch_list() -> None:
+    """Print one line per armed watch."""
+    from dev10x.comm.skills.notifications import gchat_watch
+
+    result = gchat_watch.list_watches()
+    if isinstance(result, ErrorResult):
+        click.echo(f"ERROR {result.error}", err=True)
+        sys.exit(1)
+    if not result.value:
+        click.echo("No armed Google Chat watches.")
+    for watch in result.value:
+        click.echo(_watch_line(watch=watch, kind="WATCH"))
+
+
+@gchat_watch_group.command(name="poll")
+@click.option(
+    "--once",
+    is_flag=True,
+    default=False,
+    help="Exit after the first poll that reports anything (run under background Bash)",
+)
+@click.option(
+    "--interval",
+    type=click.FloatRange(min=0),
+    default=60.0,
+    show_default=True,
+    help="Seconds between polls",
+)
+@click.option(
+    "--polls",
+    type=click.IntRange(min=1),
+    default=None,
+    help="Give up after N polls",
+)
+def gchat_watch_poll(*, once: bool, interval: float, polls: int | None) -> None:
+    """Poll armed watches and print NEW/UNROUTED/DEAD/EXPIRED/DISARMED/GAP/FAILED lines.
+
+    Exits 0 when nothing is armed any more, after the first batch with
+    events under `--once`, or after `--polls` polls.
+    """
+    import time
+    from datetime import UTC, datetime
+
+    from dev10x.comm.skills.notifications import gchat_watch
+
+    result = gchat_watch.watch_loop(
+        poll=lambda: gchat_watch.poll_once(reader=gchat_watch.gog_reader, now=datetime.now(UTC)),
+        emit=lambda line: click.echo(line),
+        sleep=time.sleep,
+        interval=interval,
+        once=once,
+        polls=polls,
+    )
+    if isinstance(result, ErrorResult):
+        click.echo(f"ERROR {result.error}", err=True)
+        sys.exit(1)
 
 
 @notify.command(name="gchat-update")
