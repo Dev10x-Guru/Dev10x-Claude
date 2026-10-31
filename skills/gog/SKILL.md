@@ -79,6 +79,21 @@ wrong".
 | `--readonly` | Block mutating API requests at runtime |
 | `-n` / `--dry-run` | Print intended actions and exit |
 
+### Global flags go after the subcommand path
+
+```bash
+gog chat messages list spaces/<id> -a <email> --readonly --json   # ✅
+gog -a <email> --readonly chat messages list spaces/<id> --json   # ❌
+```
+
+Allow rules match a command **prefix**. The catalogued read rules are
+spelled `Bash(gog chat messages list:*)`, `Bash(gog drive ls:*)` and so on,
+so a command that starts with `-a`/`--readonly`/`--json` matches none of
+them and prompts. The prompt then offers "don't ask again for `gog *`",
+which would also allow sending, sharing and deleting. `gog` accepts every
+global flag after the path, so the reordered command does the same thing
+and matches its rule (GH-1667).
+
 Exit codes: `0` success, `1` error, `2` usage, `3` empty, `4` auth,
 `5` not found, `6` denied, `7` rate limited, `8` retryable, `10` config,
 `11` orphaned, `130` interrupted. Branch on `4` to distinguish "needs
@@ -113,5 +128,7 @@ deletion is not a step to take on inference.
 
 ## Verified against
 
-`gog v0.34.1 (4747fb05)`. Re-check the chapters on a `gog` upgrade —
-each names the specific behaviours worth re-testing.
+`gog v0.34.1 (4747fb05)`; the flags-after-path rule against `gog v0.38.3`,
+whose per-subcommand `--help` lists every global flag. Re-check the
+chapters on a `gog` upgrade — each names the specific behaviours worth
+re-testing.

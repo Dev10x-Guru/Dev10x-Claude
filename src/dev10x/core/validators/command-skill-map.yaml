@@ -598,6 +598,34 @@ rules:
       on every plugin upgrade. Route up to the skill invocation or the
       stable installed CLI so the call survives version bumps (GH-488 #26).
 
+  - name: gog-global-flags-first
+    matcher: Bash
+    patterns:
+      - "^\\s*gog\\s+--?[A-Za-z]"
+    except:
+      - "gog --version"
+      - "gog --help"
+    # Advisory: a leading flag is not unsafe, it only stops the catalogued
+    # read rules from matching. permission_triage and diag-friction read
+    # advisory rules; the hook never sees them.
+    hook_block: false
+    compensations:
+      - type: use-alternative
+        description: >
+          Move gog's global flags after the subcommand path:
+          `gog chat messages list spaces/<id> -a <account> --readonly
+          --json`, not `gog -a <account> --readonly chat messages list …`.
+          gog accepts every global flag after the path, and only that
+          order lets `Bash(gog chat messages list:*)` match.
+    reason: >
+      Allow rules match a command prefix. `gog -a <account> --readonly chat
+      messages list …` starts with the flags, so no catalogued `gog-readonly`
+      rule matches, and the harness offers "don't ask again for `gog *`",
+      which would also allow send, share and delete (GH-1667).
+    related:
+      - dev10x:gog
+      - dev10x:diag-friction
+
   # ── Edit|Write rules ───────────────────────────────────────
 
   - name: eval-in-skills

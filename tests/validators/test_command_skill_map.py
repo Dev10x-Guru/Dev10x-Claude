@@ -12,6 +12,7 @@ from typing import Any
 
 import pytest
 from dev10x.config.loader import load_document
+from dev10x.domain.rules.validation_rule import MatchingRule
 
 from tests.validators.loop_shapes import BARE_POLL_LOOP
 
@@ -542,6 +543,50 @@ class TestGh1117ForLoopEntry:
 
     def test_names_diag_friction_as_related(self) -> None:
         assert "dev10x:diag-friction" in _rule_by_name("for-loop-handrolled")["related"]
+
+
+class TestGh1667GogGlobalFlagsFirst:
+    """GH-1667: a gog command led by global flags matches no catalogued read
+    rule; the map steers it to put the flags after the subcommand path."""
+
+    @pytest.fixture
+    def rule(self) -> MatchingRule:
+        return MatchingRule.from_yaml_entry(entry=_rule_by_name("gog-global-flags-first"))
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "gog -a me@example.com --readonly chat messages list spaces/X "
+            "--thread spaces/X/threads/T --json --wrap-untrusted",
+            "gog --account me@example.com drive ls",
+            "gog --json youtube channels list --mine",
+        ],
+    )
+    def test_leading_flag_shapes_recognized(self, rule: MatchingRule, command: str) -> None:
+        assert rule.matches_command(command=command)
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "gog chat messages list spaces/X -a me@example.com --readonly --json",
+            "gog --version",
+            "gog --help",
+            "gogcli -a me drive ls",
+        ],
+    )
+    def test_flags_after_the_path_not_matched(self, rule: MatchingRule, command: str) -> None:
+        assert not rule.matches_command(command=command)
+
+    def test_steers_to_reordering(self) -> None:
+        description = _rule_by_name("gog-global-flags-first")["compensations"][0]["description"]
+        assert "after the subcommand path" in description
+
+    def test_is_advisory_not_blocking(self) -> None:
+        # A leading flag is not unsafe; it only defeats prefix matching.
+        assert _rule_by_name("gog-global-flags-first")["hook_block"] is False
+
+    def test_names_the_gog_skill_as_related(self) -> None:
+        assert "dev10x:gog" in _rule_by_name("gog-global-flags-first")["related"]
 
 
 def _fallback_text(rule: dict[str, Any]) -> str:

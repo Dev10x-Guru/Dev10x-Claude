@@ -490,7 +490,9 @@ def triage(
 
     Checks run in friction-fix order and the first hit wins: a sensitive
     target keeps its prompt, a deliberate deny stays a deny (GH-972),
-    a routed command uses its route, an unmatchable shape is rewritten, a
+    a routed command uses its route — even when its shape alone made the
+    derived rule too broad, as a leading ``gog`` global flag does
+    (GH-1667) — an unmatchable shape is rewritten, a
     read outside the working directories gets a directory or ``Read()``
     fix, and only then is a rule granted to the files that lack it.
     """
@@ -522,8 +524,28 @@ def triage(
             ],
         )
 
+    def routed_verdict(*, routed: MatchingRule) -> Triage:
+        return verdict(
+            kind=Verdict.USE_ALTERNATIVE,
+            reason=f"The command-skill map routes this command ({routed.name}).",
+            advice=[_describe(compensation=c) for c in routed.compensations],
+        )
+
+    def route() -> MatchingRule | None:
+        if not command:
+            return None
+        rules = load_skill_map_rules() if skill_map_rules is None else skill_map_rules
+        return next(
+            (r for r in rules if r.compensations and r.matches_command(command=command)),
+            None,
+        )
+
     too_broad = breadth_problem(rule=rule)
     if too_broad:
+        # GH-1667
+        rerouted = route()
+        if rerouted is not None:
+            return routed_verdict(routed=rerouted)
         return verdict(
             kind=Verdict.TOO_BROAD,
             reason=too_broad,
@@ -552,19 +574,11 @@ def triage(
             advice=["Run the exact command yourself with the `!` prefix if it is needed."],
         )
 
-    if command:
-        rules = load_skill_map_rules() if skill_map_rules is None else skill_map_rules
-        routed = next(
-            (r for r in rules if r.compensations and r.matches_command(command=command)),
-            None,
-        )
-        if routed is not None:
-            return verdict(
-                kind=Verdict.USE_ALTERNATIVE,
-                reason=f"The command-skill map routes this command ({routed.name}).",
-                advice=[_describe(compensation=c) for c in routed.compensations],
-            )
+    routed = route()
+    if routed is not None:
+        return routed_verdict(routed=routed)
 
+    if command:
         reasons = _normalize_reasons(command=command)
         if reasons:
             return verdict(
