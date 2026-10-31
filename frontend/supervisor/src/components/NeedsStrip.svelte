@@ -2,7 +2,9 @@
   import { fly } from "svelte/transition";
   import { cubicOut } from "svelte/easing";
 
+  import ToolPreview from "./ToolPreview.svelte";
   import { post } from "../lib/api";
+  import { tail } from "../lib/tail";
   import { displayName, optionText, shortPath, waitingLabel } from "../lib/format";
   import type { ActionResult, Decision, PromptOption, Session } from "../lib/types";
 
@@ -59,6 +61,8 @@
   </header>
 
   <div class="body">
+    {#if session.preview}<ToolPreview preview={session.preview} />{/if}
+
     {#if session.prompt}
       {#if session.prompt.question}<p class="question">{session.prompt.question}</p>{/if}
       <ul class="options">
@@ -128,7 +132,7 @@
     {#if session.excerpt}
       <details>
         <summary>Screen</summary>
-        <pre>{session.excerpt}</pre>
+        <pre {@attach tail(session.excerpt)}>{session.excerpt}</pre>
       </details>
     {/if}
   </div>
@@ -136,9 +140,8 @@
 
 <style>
   .strip {
-    container-type: inline-size;
     display: grid;
-    grid-template-columns: minmax(11rem, 15rem) 1fr;
+    grid-template-columns: minmax(11rem, 15rem) minmax(0, 1fr);
     gap: var(--space-6);
     padding: var(--space-6) var(--space-6) var(--space-6) var(--space-4);
     background: var(--amber-wash);

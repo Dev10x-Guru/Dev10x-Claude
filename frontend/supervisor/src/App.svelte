@@ -191,6 +191,7 @@
   }
 
   .needs {
+    container-type: inline-size;
     margin-top: var(--space-6);
     border-bottom: 1px solid var(--rule-strong);
   }
@@ -203,20 +204,13 @@
   }
 
   .lists {
-    container-type: inline-size;
     margin-top: var(--space-8);
     display: grid;
-    grid-template-columns: 1fr 1.4fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
     gap: var(--space-8);
   }
 
-  @container (max-width: 44rem) {
-    .lists {
-      grid-template-columns: 1fr;
-    }
-  }
-
-  @media (max-width: 52rem) {
+  @media (max-width: 56rem) {
     .lists {
       grid-template-columns: 1fr;
     }

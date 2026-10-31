@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import { bucket, clockTime, displayName, headline, optionText, shortPath, waitingLabel } from "./format";
+import {
+  bucket,
+  clockTime,
+  diffLineKind,
+  displayName,
+  headline,
+  optionText,
+  shortPath,
+  waitingLabel,
+} from "./format";
 import type { Session } from "./types";
 
 function session(overrides: Partial<Session> = {}): Session {
@@ -16,6 +25,7 @@ function session(overrides: Partial<Session> = {}): Session {
     board_state: "",
     group: "done",
     prompt: null,
+    preview: null,
     excerpt: "",
     decisions: [],
     ...overrides,
@@ -75,6 +85,19 @@ describe("headline", () => {
   ])("%i waiting → %s", (count, expected) => {
     const needs = Array.from({ length: count }, () => session({ group: "needs-you" }));
     expect(headline(bucket(needs))).toBe(expected);
+  });
+});
+
+describe("diffLineKind", () => {
+  it.each([
+    ["+++ b/a.py", "file"],
+    ["--- a/a.py", "file"],
+    ["@@ -1 +1 @@", "hunk"],
+    ["+x = 2", "add"],
+    ["-x = 1", "del"],
+    [" same", "same"],
+  ])("%j → %s", (line, kind) => {
+    expect(diffLineKind(line)).toBe(kind);
   });
 });
 

@@ -37,6 +37,16 @@ export function headline(groups: Record<Group, Session[]>): string {
   return waiting === 1 ? "One session needs you." : `${waiting} sessions need you.`;
 }
 
+export type DiffLineKind = "add" | "del" | "hunk" | "file" | "same";
+
+export function diffLineKind(line: string): DiffLineKind {
+  if (line.startsWith("+++") || line.startsWith("---")) return "file";
+  if (line.startsWith("@@")) return "hunk";
+  if (line.startsWith("+")) return "add";
+  if (line.startsWith("-")) return "del";
+  return "same";
+}
+
 export function clockTime(iso: string): string {
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
