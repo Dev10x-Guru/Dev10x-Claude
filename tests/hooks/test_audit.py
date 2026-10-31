@@ -9,7 +9,6 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
-
 from dev10x.audit.log_pruner import prune
 from dev10x.audit.log_reader import (
     AUDIT_DIR_ENV,

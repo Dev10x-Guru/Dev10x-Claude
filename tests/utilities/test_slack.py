@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import pytest
-
 from dev10x.domain.common.result import SuccessResult
+
 from dev10x.utilities import slack
 
 

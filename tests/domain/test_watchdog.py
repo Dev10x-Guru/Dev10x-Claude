@@ -10,9 +10,9 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from dev10x.domain.common.result import ErrorResult, SuccessResult, ok
 
 from dev10x.domain import watchdog
-from dev10x.domain.common.result import ErrorResult, SuccessResult, ok
 
 NOW = datetime(2026, 9, 1, 6, 0, tzinfo=UTC)
 

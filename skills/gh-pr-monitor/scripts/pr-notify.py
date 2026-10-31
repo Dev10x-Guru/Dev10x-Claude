@@ -14,9 +14,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "src"))
 
-from dev10x.comm.skills.notifications.slack_notify import notify_slack
 from dev10x.skills.monitor.pr_notify import *  # noqa: F401, F403
 from dev10x.skills.monitor.pr_notify import main
+
+from dev10x.comm.skills.notifications.slack_notify import notify_slack
 
 if __name__ == "__main__":
     main(send_slack=notify_slack)

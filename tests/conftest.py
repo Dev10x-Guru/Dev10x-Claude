@@ -4,11 +4,10 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from factory.random import reseed_random
-
 from dev10x.domain.claude_paths import ClaudeDir
 from dev10x.domain.common.result import ok
 from dev10x.domain.dev10x_paths import CONFIG_HOME_ENV_VAR, Dev10xConfigDir
+from factory.random import reseed_random
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 

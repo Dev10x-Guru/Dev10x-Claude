@@ -13,7 +13,6 @@ import subprocess
 from unittest.mock import AsyncMock, patch
 
 import pytest
-
 from dev10x.domain.common.result import ErrorResult, SuccessResult, err, ok
 
 pv = pytest.importorskip("dev10x.github.pattern_validation", reason="dev10x not installed")

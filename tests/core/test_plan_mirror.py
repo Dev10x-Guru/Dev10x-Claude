@@ -5,6 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from dev10x.domain.documents.plan import Plan, get_plan_path
+from dev10x.domain.documents.task import Task, TaskStatus
 
 from dev10x.core.plan_mirror import (
     PlanMirror,
@@ -12,8 +14,6 @@ from dev10x.core.plan_mirror import (
     read_plan_mirror,
     read_plan_summary,
 )
-from dev10x.domain.documents.plan import Plan, get_plan_path
-from dev10x.domain.documents.task import Task, TaskStatus
 
 PLAN_YAML = """\
 plan:

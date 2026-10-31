@@ -4,7 +4,6 @@ import json
 from pathlib import Path
 
 import pytest
-
 from dev10x.domain.common.result import ErrorResult, SuccessResult
 from dev10x.domain.plugin_origin import (
     load_marketplace_sources,

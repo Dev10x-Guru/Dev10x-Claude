@@ -4,7 +4,6 @@ import json
 from pathlib import Path
 
 import pytest
-
 from dev10x.skills.permission.file_lock import locked_json_update
 
 

@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import pytest
-
 from dev10x.validators.sql_safety import SqlSafetyValidator
+
 from tests.fakers import BashHookInputFaker
 
 

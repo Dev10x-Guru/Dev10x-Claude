@@ -6,7 +6,6 @@ from unittest.mock import patch
 
 import pytest
 import yaml
-
 from dev10x.domain.documents.plan import (
     Plan,
     TaskStatus,

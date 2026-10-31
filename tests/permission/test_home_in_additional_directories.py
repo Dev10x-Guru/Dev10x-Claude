@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 
 import pytest
-
 from dev10x.skills.doctor.registry import DEFAULT_STRATEGY_MODULES, load_strategies
 from dev10x.skills.doctor.strategies import home_in_additional_directories as strategy
 from dev10x.skills.doctor.strategy import Context

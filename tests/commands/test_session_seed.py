@@ -13,9 +13,9 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
+from dev10x.domain.dev10x_paths import Dev10xConfigDir
 
 from dev10x.commands.session import session
-from dev10x.domain.dev10x_paths import Dev10xConfigDir
 
 
 def _gitignore_path(root: Path) -> Path:

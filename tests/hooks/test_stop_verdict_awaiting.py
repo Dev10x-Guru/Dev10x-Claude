@@ -12,7 +12,6 @@ import json
 from pathlib import Path
 
 import pytest
-
 from dev10x.hooks.stop_verdict import AWAITING_KEY, StopSignal, decide, task_signal
 
 VERIFY = "Verify acceptance criteria"

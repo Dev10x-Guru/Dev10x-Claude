@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 
 import pytest
-
 from dev10x.domain.documents.settings_document import (
     SettingsDocument,
     _deduplicate_rules,

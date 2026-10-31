@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from dev10x.skills.orchestration.subagent_protocol import (
     BACKGROUND_DELIVERY_TEMPLATE,
     STATUS_PROMPT_TEMPLATE,

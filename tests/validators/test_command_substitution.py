@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import pytest
-
 from dev10x.validators.command_substitution import CommandSubstitutionValidator
+
 from tests.fakers import BashHookInputFaker
 
 

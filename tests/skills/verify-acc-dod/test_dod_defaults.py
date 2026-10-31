@@ -24,7 +24,6 @@ from pathlib import Path
 
 import pytest
 import yaml
-
 from dev10x.domain.session_rules import (
     CompletionRecommendation,
     completion_gate_recommendation,

@@ -7,7 +7,6 @@ from pathlib import Path
 
 import pytest
 import yaml
-
 from dev10x.domain.rules.rule_engine import RuleEngine
 from dev10x.domain.rules.validation_rule import MatchingRule
 from dev10x.hooks.edit_validator import _build_engine, reset_engine_cache

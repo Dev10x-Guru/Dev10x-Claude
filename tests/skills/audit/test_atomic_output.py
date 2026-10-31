@@ -11,7 +11,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from dev10x.skills.audit.analyze_actions import _atomic_write_text as actions_write
 from dev10x.skills.audit.extract_session import _atomic_write_text as session_write
 

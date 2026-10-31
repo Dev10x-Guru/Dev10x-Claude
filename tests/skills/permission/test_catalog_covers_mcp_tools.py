@@ -42,12 +42,13 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-import dev10x.skills.permission as permission_pkg
 from dev10x.skills.permission.catalog_paths import load_catalog_document
 from dev10x.skills.permission.enumerate_mcp import (
     WRITE_TOOLS_NOT_SEEDED,
     discover_mcp_tools,
 )
+
+import dev10x.skills.permission as permission_pkg
 
 REPO_ROOT = Path(permission_pkg.__file__).resolve().parents[5]
 PROJECTS_YAML = REPO_ROOT / "skills" / "upgrade-cleanup" / "projects.yaml"

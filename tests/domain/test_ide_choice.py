@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from dev10x.domain.common.ide_choice import (
     IDE_ALLOW_KEY,
     IDE_DENY_KEY,

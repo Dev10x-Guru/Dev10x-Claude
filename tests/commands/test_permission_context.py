@@ -9,10 +9,10 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
-from dev10x.commands import permission as cmd
 from dev10x.domain.common.result import err, ok
 from dev10x.permission.service import PermissionContext
+
+from dev10x.commands import permission as cmd
 
 
 def test_returns_context_value(monkeypatch: pytest.MonkeyPatch) -> None:

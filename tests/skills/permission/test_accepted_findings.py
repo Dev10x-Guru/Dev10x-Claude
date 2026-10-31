@@ -6,12 +6,12 @@ import re
 from pathlib import Path
 
 import pytest
-
 from dev10x.domain.common.accepted_findings import (
     DEFAULT_ACCEPTED_FINDINGS,
     AcceptedFinding,
     find_acceptance,
 )
+
 from dev10x.skills.permission import accepted_findings
 
 

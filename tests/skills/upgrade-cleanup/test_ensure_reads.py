@@ -11,7 +11,6 @@ import json
 from pathlib import Path
 
 import pytest
-
 from dev10x.skills.permission.update_paths import (
     READ_TOP_LEVEL_DIRS,
     build_marketplaces_read_rules,

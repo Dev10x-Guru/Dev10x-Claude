@@ -18,7 +18,6 @@ from pathlib import Path
 
 import pytest
 import yaml
-
 from dev10x.domain.documents.session_yaml import (
     is_provably_dead,
     project_entries,

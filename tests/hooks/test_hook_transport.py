@@ -12,7 +12,6 @@ import io
 import json
 
 import pytest
-
 from dev10x.domain.events.hook_input import HookAllow, HookAsk, HookResult
 from dev10x.hooks.hook_transport import emit, read_hook_input
 

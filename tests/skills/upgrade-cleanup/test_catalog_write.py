@@ -10,7 +10,6 @@ import json
 from pathlib import Path
 
 import pytest
-
 from dev10x.skills.permission.catalog_write import (
     collapse_legacy_upgrade_cleanup_rule,
     collapse_legacy_upgrade_cleanup_rules,

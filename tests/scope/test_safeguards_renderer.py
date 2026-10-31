@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 
 import pytest
-
 from dev10x.scope.safeguards_renderer import render_safeguards
 
 

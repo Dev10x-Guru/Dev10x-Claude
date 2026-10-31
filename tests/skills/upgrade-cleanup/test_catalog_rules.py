@@ -6,7 +6,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
 from dev10x.skills.permission.catalog_rules import (
     _expand_stale_wildcards,
     _generalizations,

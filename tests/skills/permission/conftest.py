@@ -16,7 +16,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from dev10x.skills.permission.catalog_paths import shipped_projects_catalog
 
 REPO_ROOT = Path(__file__).resolve().parents[3]

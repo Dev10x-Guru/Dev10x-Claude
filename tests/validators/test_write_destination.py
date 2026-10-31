@@ -5,12 +5,12 @@ from __future__ import annotations
 from pathlib import Path, PurePosixPath
 
 import pytest
-
-from dev10x.domain import HookResult
 from dev10x.validators.write_destination import (
     WriteDestinationValidator,
     _destinations,
 )
+
+from dev10x.domain import HookResult
 from tests.fakers import BashHookInputFaker
 
 REPO = "/work/dx/repo"

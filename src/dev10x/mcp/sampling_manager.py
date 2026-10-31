@@ -154,7 +154,7 @@ class SamplingManager:
             return err(f"Sampling request failed: {exc}")
 
         content = result.content
-        text = content.text if getattr(content, "type", None) == "text" else None
+        text = content.text if content.type == "text" else None
         return ok(
             {
                 "text": text,

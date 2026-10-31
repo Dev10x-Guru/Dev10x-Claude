@@ -19,16 +19,16 @@ from typing import Any
 from unittest.mock import patch
 
 import pytest
-
-from dev10x.domain import HookInput
 from dev10x.domain.profile_tier import ProfileTier
-from dev10x.validators import get_validators, reset_registry
 from dev10x.validators.spec_drift import (
     SpecDriftValidator,
     _branch_ticket_id,
     _repo_toplevel,
     _working_set_paths,
 )
+
+from dev10x.domain import HookInput
+from dev10x.validators import get_validators, reset_registry
 
 # ---------------------------------------------------------------------------
 # Helpers

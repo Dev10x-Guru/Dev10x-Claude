@@ -8,7 +8,6 @@ forever while `ensure-base` reported success against the stale copy.
 from __future__ import annotations
 
 import pytest
-
 from dev10x.skills.permission.catalog_merge import (
     CatalogDrift,
     compute_drift,

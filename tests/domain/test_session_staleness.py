@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from dev10x.domain.session_staleness import session_stale
 
 

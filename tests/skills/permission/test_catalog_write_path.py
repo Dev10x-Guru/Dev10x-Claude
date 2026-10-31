@@ -7,10 +7,10 @@ import json
 from pathlib import Path
 
 import pytest
+from dev10x.skills.permission.catalog_paths import load_catalog_document
 
 from dev10x.skills.permission import catalog_rules, enumerate_mcp
 from dev10x.skills.permission import catalog_write as mod
-from dev10x.skills.permission.catalog_paths import load_catalog_document
 
 
 @pytest.fixture(autouse=True)

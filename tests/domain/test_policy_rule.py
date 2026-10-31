@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 
 import pytest
-
 from dev10x.domain.documents.session_state import PlanSummary
 from dev10x.domain.friction_level import FrictionLevel
 from dev10x.domain.rules.policy_rule import PolicyRule

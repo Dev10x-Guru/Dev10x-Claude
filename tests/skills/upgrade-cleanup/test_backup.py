@@ -5,7 +5,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
 from dev10x.skills.permission.backup import (
     backed_up_write,
     create_backup,

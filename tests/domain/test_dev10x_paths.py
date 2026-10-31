@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR, ClaudeDir
 from dev10x.domain.dev10x_paths import (
     CONFIG_HOME_ENV_VAR,

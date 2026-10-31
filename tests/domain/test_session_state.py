@@ -3,7 +3,6 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 import pytest
-
 from dev10x.domain.documents.session_state import PlanContext, PlanSummary, SessionState
 
 

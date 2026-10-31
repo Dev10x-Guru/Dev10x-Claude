@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import pytest
-
 from dev10x.validators.bash_aggregation import BashAggregationValidator
+
 from tests.fakers import BashHookInputFaker
 
 

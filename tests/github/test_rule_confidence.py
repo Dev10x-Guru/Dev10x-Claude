@@ -14,7 +14,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
 from dev10x.domain.common.result import ErrorResult, SuccessResult
 
 rc = pytest.importorskip("dev10x.github.rule_confidence", reason="dev10x not installed")

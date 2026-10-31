@@ -7,7 +7,6 @@ from pathlib import Path
 
 import pytest
 import yaml
-
 from dev10x.domain.file_locks import (
     LOCK_TIMEOUT_SECONDS,
     CorruptYamlError,
@@ -19,6 +18,7 @@ from dev10x.domain.file_locks import (
     locked_json_update,
     locked_yaml_update,
 )
+
 from tests.lock_helpers import hold_sidecar
 
 

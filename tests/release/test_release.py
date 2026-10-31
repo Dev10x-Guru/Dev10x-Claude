@@ -4,7 +4,6 @@ import subprocess
 from unittest.mock import AsyncMock, patch
 
 import pytest
-
 from dev10x.domain.common.result import ErrorResult, SuccessResult
 
 rel_mod = pytest.importorskip("dev10x.release", reason="dev10x not installed")

@@ -7,9 +7,9 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from dev10x.validators.pipeline_allow import PipelineAllowValidator
 
 from dev10x.domain import HookAllow
-from dev10x.validators.pipeline_allow import PipelineAllowValidator
 from tests.fakers import BashHookInputFaker
 
 

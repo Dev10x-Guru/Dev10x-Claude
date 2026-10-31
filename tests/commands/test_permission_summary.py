@@ -7,10 +7,10 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
-
-from dev10x.commands.permission import clean, update_paths
 from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR
 from dev10x.domain.common.result import ok
+
+from dev10x.commands.permission import clean, update_paths
 
 
 @pytest.fixture

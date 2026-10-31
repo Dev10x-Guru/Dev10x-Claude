@@ -140,8 +140,8 @@ def _seed_worktree_defaults(result: dict) -> None:
     if "error" in result or not worktree_path:
         return
 
+    from dev10x.core.skills.permission import update_paths as paths_mod
     from dev10x.domain.common.result import SuccessResult
-    from dev10x.skills.permission import update_paths as paths_mod
 
     try:
         config_path = paths_mod.find_config()

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import factory
-
 from dev10x.domain.events.hook_input import HookInput
 
 

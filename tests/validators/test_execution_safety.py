@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from dev10x.validators.execution_safety import (
     INPLACE_EDIT_MSG,
     PYTHON3_INLINE_MSG,
@@ -11,6 +10,7 @@ from dev10x.validators.execution_safety import (
     SHELL_WRITE_MSG,
     ExecutionSafetyValidator,
 )
+
 from tests.fakers import BashHookInputFaker
 
 

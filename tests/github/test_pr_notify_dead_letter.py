@@ -5,9 +5,9 @@ from __future__ import annotations
 import subprocess
 
 import pytest
+from dev10x.domain.common.result import ErrorResult, SuccessResult
 
 import dev10x.github as gh
-from dev10x.domain.common.result import ErrorResult, SuccessResult
 
 
 @pytest.fixture

@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 
 import pytest
-
 from dev10x.skills.doctor.strategies import ask_shadows_allow
 from dev10x.skills.doctor.strategy import Context
 

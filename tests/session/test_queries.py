@@ -7,7 +7,6 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from dev10x.domain.documents.session_context import (
     SessionContextQuery,
     format_compaction_summary,

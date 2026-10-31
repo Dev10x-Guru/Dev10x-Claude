@@ -20,8 +20,6 @@ from __future__ import annotations
 import re
 
 import pytest
-
-from dev10x.domain import HookAllow, HookAsk
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.domain.profile_tier import ProfileTier
 from dev10x.domain.sensitivity import (
@@ -31,8 +29,10 @@ from dev10x.domain.sensitivity import (
     SensitivityLabel,
     SensitivityPattern,
 )
-from dev10x.validators import get_validators, reset_registry
 from dev10x.validators.sensitivity_target import SensitivityTargetValidator
+
+from dev10x.domain import HookAllow, HookAsk
+from dev10x.validators import get_validators, reset_registry
 from tests.fakers import BashHookInputFaker
 
 

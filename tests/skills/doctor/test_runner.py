@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from dev10x.domain.common.doctor_acceptance import AcceptedDoctorFinding
 from dev10x.domain.common.result import ErrorResult, SuccessResult
 from dev10x.skills.doctor.runner import run_doctor

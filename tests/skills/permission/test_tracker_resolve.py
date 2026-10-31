@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pytest
 import yaml
-
 from dev10x.domain.common.tracker_choice import (
     Tracker,
     apply_tracker_selection,

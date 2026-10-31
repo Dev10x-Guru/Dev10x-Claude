@@ -15,10 +15,10 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
-
-from dev10x.commands.permission import ensure_ignored as ensure_ignored_cmd
 from dev10x.domain.common.result import ok
 from dev10x.permission.service import PermissionContext
+
+from dev10x.commands.permission import ensure_ignored as ensure_ignored_cmd
 
 _TIMEOUT_SECONDS = 30
 

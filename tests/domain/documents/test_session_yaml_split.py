@@ -6,7 +6,6 @@ import ast
 from types import ModuleType
 
 import pytest
-
 from dev10x.domain.documents import config_yaml, friction_yaml, session_yaml
 
 MOVED = [

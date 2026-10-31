@@ -8,7 +8,6 @@ and floor invariants, and the D-9 guided-preset posture (GH-748).
 from __future__ import annotations
 
 import pytest
-
 from dev10x.domain.gate_policy import (
     AUTO_ADVANCE,
     AUTO_ADVANCE_IF_SAFE,

@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from dev10x.scope.norms_renderer import render_norms
 
 

@@ -11,7 +11,6 @@ from __future__ import annotations
 import re
 
 import pytest
-
 from dev10x.domain.sensitivity import (
     SENSITIVE_NAME_TOKENS,
     ExceptionEffect,

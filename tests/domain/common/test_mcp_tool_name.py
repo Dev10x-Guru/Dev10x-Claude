@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pytest
-
 from dev10x.domain.common.mcp_tool_name import (
     MCP_PREFIX,
     TOOL_NAME_PATTERN,

@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import pytest
-
 from dev10x.validators.prefix_friction import PrefixFrictionValidator
+
 from tests.fakers import BashHookInputFaker
 
 

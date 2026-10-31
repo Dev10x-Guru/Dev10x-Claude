@@ -7,7 +7,6 @@ import json
 from unittest.mock import patch
 
 import pytest
-
 from dev10x.skills.release.collect_prs import (
     MERGED_PR_FETCH_LIMIT,
     Commit,

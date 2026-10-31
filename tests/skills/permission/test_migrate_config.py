@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from dev10x.domain.documents.session_yaml import (
     FrictionYamlDocument,
     SessionYamlDocument,
@@ -14,6 +13,7 @@ from dev10x.domain.documents.session_yaml import (
 )
 from dev10x.domain.file_locks import LockTimeoutError, _lock_path_for
 from dev10x.domain.friction_level import FrictionLevel
+
 from dev10x.skills.permission import migrate_config as mod
 from tests.lock_helpers import hold_sidecar
 

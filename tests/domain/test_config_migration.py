@@ -13,7 +13,6 @@ from typing import Any
 
 import pytest
 import yaml
-
 from dev10x.domain.config_migration import (
     migrate_configs,
     migrate_friction_yaml,

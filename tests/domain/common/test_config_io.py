@@ -7,7 +7,6 @@ from pathlib import Path
 
 import pytest
 import yaml
-
 from dev10x.domain.common.config_io import ConfigIOError, load_json, load_yaml
 
 

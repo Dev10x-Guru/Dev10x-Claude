@@ -18,7 +18,6 @@ these tests rather than a user's machine.
 from __future__ import annotations
 
 import pytest
-
 from dev10x.skills.doctor.strategies.shell_equivalent_mcp_tools import (
     _looks_shell_equivalent,
 )

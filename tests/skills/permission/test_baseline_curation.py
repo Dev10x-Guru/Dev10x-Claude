@@ -11,10 +11,10 @@ from pathlib import Path
 
 import pytest
 import yaml
-
-import dev10x.skills.permission as permission_pkg
 from dev10x.skills.permission.manifest import Access, Sensitivity, classify_skill_access
 from dev10x.skills.permission.promote import classify_mcp_tool
+
+import dev10x.skills.permission as permission_pkg
 
 CATALOG = Path(permission_pkg.__file__).parent / "baseline-permissions.yaml"
 

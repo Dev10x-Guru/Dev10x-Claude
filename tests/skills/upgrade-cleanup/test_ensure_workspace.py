@@ -4,7 +4,6 @@ import json
 from pathlib import Path
 
 import pytest
-
 from dev10x.skills.permission.update_paths import (
     ensure_workspace,
     ensure_workspace_directories,

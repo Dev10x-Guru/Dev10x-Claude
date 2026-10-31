@@ -24,7 +24,6 @@ from __future__ import annotations
 import logging
 
 import pytest
-
 from dev10x.skills.permission.catalog_merge import (
     ASK_KEY,
     IDE_ALLOW_KEY,

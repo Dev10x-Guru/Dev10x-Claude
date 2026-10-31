@@ -14,7 +14,6 @@ from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
-
 from dev10x.domain.common.result import ErrorResult, SuccessResult, err, ok
 
 ll = pytest.importorskip("dev10x.github.learn_loop", reason="dev10x not installed")

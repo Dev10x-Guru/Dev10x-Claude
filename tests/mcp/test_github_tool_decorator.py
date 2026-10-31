@@ -6,8 +6,8 @@ import inspect
 from unittest.mock import patch
 
 import pytest
-
 from dev10x.domain.common.result import err, ok
+
 from dev10x.mcp import github_tools
 from dev10x.mcp import server_cli as cli_server
 

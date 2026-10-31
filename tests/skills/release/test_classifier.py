@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from dev10x.skills.release.classifier import (
     GITMOJI_CATEGORIES,
     classify_group,

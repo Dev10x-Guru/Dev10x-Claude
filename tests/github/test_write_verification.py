@@ -19,9 +19,9 @@ from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from dev10x.domain.common.result import ErrorResult, SuccessResult, err, ok
 
 import dev10x.github as gh
-from dev10x.domain.common.result import ErrorResult, SuccessResult, err, ok
 
 
 def _completed(*, returncode: int = 0, stdout: str = "{}", stderr: str = ""):

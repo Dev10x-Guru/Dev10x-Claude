@@ -39,7 +39,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from dev10x.domain.config_migration import schema_v2_pending
 
 _ENTRY_COUNT = 95

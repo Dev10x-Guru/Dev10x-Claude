@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 
 import pytest
-
 from dev10x.skills.doctor.strategies import mcp_horizontal_duplicates
 from dev10x.skills.doctor.strategy import Context
 

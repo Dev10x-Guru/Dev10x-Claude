@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
+from dev10x.domain.common.result import Result, err, ok
 
 from dev10x.cli import cli
-from dev10x.domain.common.result import Result, err, ok
 
 
 @pytest.fixture()

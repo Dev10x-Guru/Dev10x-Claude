@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from dev10x.domain.common.tool_signature import ACTION_TYPE_BY_TOOL, ToolSignature
 
 

@@ -10,8 +10,8 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-
 from dev10x.domain.gate_policy import BASELINE_PRESET, MIGRATOR_COMMAND
+
 from dev10x.mcp import gate_query
 from dev10x.mcp.gate_query import (
     _partition_context,

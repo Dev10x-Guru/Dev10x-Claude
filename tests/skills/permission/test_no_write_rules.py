@@ -20,10 +20,10 @@ from pathlib import Path
 
 import pytest
 import yaml
+from dev10x.skills.permission.catalog_paths import load_catalog_document
 
 import dev10x.skills.permission as permission_pkg
 from dev10x.skills.permission import doctor
-from dev10x.skills.permission.catalog_paths import load_catalog_document
 
 REPO_ROOT = Path(permission_pkg.__file__).resolve().parents[5]
 CATALOG = Path(permission_pkg.__file__).parent / "baseline-permissions.yaml"

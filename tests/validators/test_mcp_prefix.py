@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import pytest
-
 from dev10x.validators.mcp_prefix import McpPrefixValidator
+
 from tests.fakers import BashHookInputFaker
 
 

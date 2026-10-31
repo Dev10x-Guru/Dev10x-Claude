@@ -2,7 +2,6 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
-
 from dev10x.domain.friction_level import FrictionLevel
 from dev10x.hooks.session import (
     _format_decision_guidance,

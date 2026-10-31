@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pytest
-
 from dev10x.domain.profile_tier import ProfileTier
 
 
