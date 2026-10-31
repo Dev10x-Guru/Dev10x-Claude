@@ -233,9 +233,13 @@ cohesive, justified by scope):
   the new file. The caller-side half of the rule — a write is a
   request, not a receipt — went to `.claude/rules/mcp-tools.md`
   instead, since it binds every MCP caller and not only foreman crews.
-  `tool-surface.md` and `overseer-discipline.md` are now both AT the
+  `tool-surface.md` and `overseer-discipline.md` were both AT the
   200-line cap — the next addition to either needs an extraction, not
-  an append. GH-1109 applied the same trade once more: arming and
+  an append. GH-1599 did exactly that for `overseer-discipline.md`:
+  the overseer-tier fallback ladder moved to the new
+  `overseer-fallback-ladder.md` (33 lines), leaving a 3-line pointer,
+  and the freed room took the watchdog's never-`mv`/`cp`/`rm`-a-run-dir
+  rule (GH-1577) — the file is now 194 lines. GH-1109 applied the same trade once more: arming and
   tearing down the external wake timer is execution-gating (Phase 1
   step 2 and Phase 3 step 1, ~14 lines inline), while the evidence for why a
   paused session cannot observe its own quota reset went to

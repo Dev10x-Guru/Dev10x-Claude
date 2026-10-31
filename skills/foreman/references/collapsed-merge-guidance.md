@@ -13,8 +13,8 @@ whether it was allowed. It is.
 
 - **Rung 3 of the overseer fallback ladder** — two or more overseers
   fail the same way, or a respawn fails inside one chunk. See
-  `overseer-discipline.md` § Overseer-tier fallback ladder for rungs 1
-  and 2; do not skip to collapse on a first stale heartbeat.
+  `overseer-fallback-ladder.md` for rungs 1 and 2; do not skip to
+  collapse on a first stale heartbeat.
 - **In-session / attended runs**, where the watchdog is already
   reading everything the overseer would relay and the extra hop only
   adds latency.
