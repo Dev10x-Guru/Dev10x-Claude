@@ -472,6 +472,11 @@ fire the user-confirmation gate. Signals include:
 - "Resource not accessible by integration" (permissions)
 - Repeated identical failures after fixup attempts
   (monitor exhaustion)
+- "Claude review did not run" on a PR that edits
+  `.github/workflows/claude*.yml` — the action refuses a workflow
+  that differs from the default branch, so no commit can clear it
+  before merge (`references/pr-merge-policy.md` § Reading Review
+  Signals). Say in the question that no bot reviewed the PR
 
 Never auto-classify without evidence — if uncertain whether
 the failure is code or infra, default to the auto-fix loop
