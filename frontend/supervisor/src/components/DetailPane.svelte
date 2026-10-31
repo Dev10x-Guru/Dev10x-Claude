@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Toggle from "./Toggle.svelte";
   import ToolPreview from "./ToolPreview.svelte";
   import { approvedByHand, displayName } from "../lib/format";
   import type { RecentTool, Session, SessionDetail } from "../lib/types";
@@ -56,10 +57,11 @@
         <button class="ghost" disabled={pending} onclick={() => preapprove()}>Pre-approve all used</button>
       {/if}
     </header>
-    <label class="only">
-      <input type="checkbox" bind:checked={approvedOnly} />
-      Only ones I approved by hand <span class="n">{approvedCount}</span>
-    </label>
+    <div class="only">
+      <Toggle on={approvedOnly} onchange={(next) => (approvedOnly = next)}>
+        Only ones I approved by hand <span class="n">{approvedCount}</span>
+      </Toggle>
+    </div>
     {#if detail === null}
       <p class="quiet">Reading the transcript…</p>
     {:else if shownCalls.length}
@@ -136,17 +138,7 @@
   }
 
   .only {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
     margin: 0 0 var(--space-2);
-    color: var(--ink-soft);
-    font-size: var(--step--1);
-    cursor: pointer;
-  }
-
-  .only input {
-    accent-color: var(--amber-ink);
   }
 
   .n {
