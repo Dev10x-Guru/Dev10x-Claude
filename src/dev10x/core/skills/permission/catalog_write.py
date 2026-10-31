@@ -40,6 +40,7 @@ from dev10x.skills.permission.catalog_rules import (
 )
 from dev10x.skills.permission.policy_catalog_migration import migrate_flat_config
 from dev10x.skills.permission.policy_renderer import render_permissions
+from dev10x.skills.permission.settings_discovery import linked_worktree_roots
 
 
 def ensure_base_permissions(
@@ -519,6 +520,26 @@ def ensure_workspace_directories(
     return len(missing), messages
 
 
+DERIVE_WORKTREE_ROOTS_KEY = "derive_worktree_roots"
+
+
+def derived_worktree_roots(*, config: dict, settings_files: list[Path]) -> list[str]:
+    """Worktree roots to register when the user opted in (GH-1666).
+
+    A herdr worktree lives at ``<herdr-root>/worktrees/<repo>/<name>``, a
+    directory no Dev10x default names, so each user hand-maintained it
+    under ``additionalDirectories`` and a new layout was missed. With
+    ``derive_worktree_roots: true`` in the userspace catalog, the parent
+    of every linked worktree living outside its main checkout is added.
+    Opt-in, because each entry widens the Read/Edit scope of every
+    session that reads the file.
+    """
+    if config.get(DERIVE_WORKTREE_ROOTS_KEY) is not True:
+        return []
+    checkouts = [path.parent.parent for path in settings_files if path.parent.name == ".claude"]
+    return linked_worktree_roots(checkouts)
+
+
 def ensure_workspace(
     *,
     config: dict,
@@ -536,7 +557,9 @@ def ensure_workspace(
     messages: list[str] = []
     errors: list[str] = []
 
-    workspace_dirs = config.get("workspace_directories", [])
+    workspace_dirs = list(config.get("workspace_directories", []))
+    derived = derived_worktree_roots(config=config, settings_files=settings_files)
+    workspace_dirs.extend(root for root in derived if root not in workspace_dirs)
     if not workspace_dirs:
         if not quiet:
             messages.append("No workspace_directories defined in config.")

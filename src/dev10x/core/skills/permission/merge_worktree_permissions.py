@@ -24,7 +24,10 @@ from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.skills.permission.catalog_paths import shipped_projects_catalog
 from dev10x.skills.permission.config import parse_config, resolve_config
 from dev10x.skills.permission.policy_authoring import policy_from_accepted_prompt
-from dev10x.skills.permission.settings_discovery import git_registered_worktrees
+from dev10x.skills.permission.settings_discovery import (
+    git_registered_worktrees,
+    resolve_main_project,
+)
 
 MEMORY_CONFIG = Dev10xConfigDir.projects_yaml()
 USERSPACE_CONFIG = Dev10xConfigDir.upgrade_cleanup_projects_yaml()
@@ -90,6 +93,38 @@ def generalize_permission(entry: str) -> str:
     return entry
 
 
+def _herdr_sibling_pattern(*, main_project: Path) -> re.Pattern[str]:
+    """Any herdr worktree of this repo, live or retired, in ``~`` or absolute form."""
+    repo = re.escape(main_project.name)
+    return re.compile(rf"(?:~|/[^\s()'\"]*?)/\.herdr/worktrees/{repo}/[^/\s()'\"]+/")
+
+
+def reanchor_worktree_paths(
+    entry: str,
+    *,
+    main_project: Path,
+    worktree_roots: list[Path],
+) -> str:
+    """Point a rule pinned inside a worktree at the same path in the main checkout.
+
+    The ``/.worktrees/<name>/`` regex in :data:`GENERALIZE_PATTERNS` only
+    knows one layout (GH-1666). Herdr puts worktrees at
+    ``<herdr-root>/worktrees/<repo>/<name>``, so their rules synced to the
+    main checkout still named a worktree path — dead everywhere else, and
+    dead in the worktree too once it was retired. Every root git has
+    registered for the project is rewritten, in absolute and ``~`` form,
+    longest first so ``wt-10/`` is never consumed as ``wt-1/``; a herdr
+    path naming this repo is rewritten even when its worktree is gone.
+    """
+    main = f"{main_project}/"
+    home = f"{Path.home()}/"
+    for root in sorted({str(root) for root in worktree_roots}, key=len, reverse=True):
+        entry = entry.replace(f"{root}/", main)
+        if root.startswith(home):
+            entry = entry.replace(f"~/{root[len(home) :]}/", main)
+    return _herdr_sibling_pattern(main_project=main_project).sub(main, entry)
+
+
 def find_config() -> Result[Path]:
     candidates = [MEMORY_CONFIG, USERSPACE_CONFIG]
     if PLUGIN_CONFIG is not None:
@@ -125,21 +160,6 @@ def sync_candidates_as_policies(*, entries: list[str]) -> list[Policy]:
         for entry in entries
     ]
     return [policy for policy in candidates if not is_noise(policy.signature)]
-
-
-def resolve_main_project(worktree_dir: Path) -> Path | None:
-    git_file = worktree_dir / ".git"
-    if not git_file.is_file():
-        return None
-    content = git_file.read_text().strip()
-    if not content.startswith("gitdir:"):
-        return None
-    gitdir = content.split(":", 1)[1].strip()
-    gitdir_path = Path(gitdir)
-    if "/worktrees/" not in str(gitdir_path):
-        return None
-    main_git_dir = gitdir_path.parent.parent
-    return main_git_dir.parent
 
 
 def find_worktree_groups(roots: list[str]) -> dict[Path, list[Path]]:
@@ -200,17 +220,23 @@ def merge_permissions(
     main_data = load_permissions(main_settings)
     main_allow = extract_allow_set(main_data)
 
-    new_entries: set[str] = set()
+    worktree_roots = [*worktree_dirs, *git_registered_worktrees(main_project)]
+    generalized: set[str] = set()
     source_map: dict[str, list[Path]] = {}
     for wt_dir in worktree_dirs:
         wt_settings = wt_dir / ".claude" / "settings.local.json"
         wt_data = load_permissions(wt_settings)
         wt_allow = extract_allow_set(wt_data)
         for entry in wt_allow - main_allow:
-            new_entries.add(entry)
-            source_map.setdefault(entry, []).append(wt_settings)
+            anchored = reanchor_worktree_paths(
+                entry,
+                main_project=main_project,
+                worktree_roots=worktree_roots,
+            )
+            stable = generalize_permission(anchored)
+            generalized.add(stable)
+            source_map.setdefault(stable, []).append(wt_settings)
 
-    generalized = {generalize_permission(e) for e in new_entries}
     generalized -= main_allow
     candidates = sync_candidates_as_policies(entries=sorted(generalized))
     stable_entries = [policy.signature for policy in candidates]

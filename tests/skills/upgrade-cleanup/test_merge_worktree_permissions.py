@@ -1,5 +1,6 @@
 """Tests for merge_worktree_permissions module."""
 
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -157,3 +158,86 @@ class TestFindWorktreeGroups:
         _make_worktree(main=main, wt=wt, settings=False)
         monkeypatch.setattr(mod, "git_registered_worktrees", lambda root_path: [wt])
         assert mod.find_worktree_groups([str(main)]) == {}
+
+
+class TestReanchorWorktreePaths:
+    """GH-1666: rules pinned in any worktree layout point at the main checkout."""
+
+    MAIN = Path("/work/dx/Dev10x-Claude")
+
+    @pytest.mark.parametrize(
+        ("entry", "expected"),
+        [
+            (
+                "Bash(/work/.herdr/worktrees/Dev10x-Claude/wt-1/bin/release.sh:*)",
+                "Bash(/work/dx/Dev10x-Claude/bin/release.sh:*)",
+            ),
+            (
+                "Bash(/work/.herdr/worktrees/Dev10x-Claude/wt-10/bin/x.sh:*)",
+                "Bash(/work/dx/Dev10x-Claude/bin/x.sh:*)",
+            ),
+            (
+                "Read(/work/dx/.worktrees/dx-3/docs/**)",
+                "Read(/work/dx/Dev10x-Claude/docs/**)",
+            ),
+        ],
+        ids=["herdr-live", "no-prefix-collision", "dot-worktrees"],
+    )
+    def test_registered_worktree_root_is_rewritten(self, entry: str, expected: str) -> None:
+        roots = [
+            Path("/work/.herdr/worktrees/Dev10x-Claude/wt-1"),
+            Path("/work/.herdr/worktrees/Dev10x-Claude/wt-10"),
+            Path("/work/dx/.worktrees/dx-3"),
+        ]
+        assert (
+            mod.reanchor_worktree_paths(entry, main_project=self.MAIN, worktree_roots=roots)
+            == expected
+        )
+
+    def test_tilde_form_of_a_registered_root_is_rewritten(self) -> None:
+        root = Path.home() / ".herdr" / "worktrees" / "Dev10x-Claude" / "wt-2"
+        entry = "Bash(~/.herdr/worktrees/Dev10x-Claude/wt-2/skills/x/scaffold.sh:*)"
+
+        result = mod.reanchor_worktree_paths(entry, main_project=self.MAIN, worktree_roots=[root])
+
+        assert result == "Bash(/work/dx/Dev10x-Claude/skills/x/scaffold.sh:*)"
+
+    def test_retired_herdr_sibling_is_rewritten_without_registration(self) -> None:
+        entry = "Bash(~/.herdr/worktrees/Dev10x-Claude/retired-wt/skills/s.sh run:*)"
+
+        result = mod.reanchor_worktree_paths(entry, main_project=self.MAIN, worktree_roots=[])
+
+        assert result == "Bash(/work/dx/Dev10x-Claude/skills/s.sh run:*)"
+
+    def test_herdr_path_of_another_repo_is_left_alone(self) -> None:
+        entry = "Bash(/work/.herdr/worktrees/tt-pos/tt-pos-1/bin/x.sh:*)"
+
+        assert (
+            mod.reanchor_worktree_paths(entry, main_project=self.MAIN, worktree_roots=[]) == entry
+        )
+
+
+class TestMergePermissionsReanchor:
+    def test_herdr_worktree_rule_lands_on_main_checkout_path(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        main = tmp_path / "Dev10x-Claude"
+        (main / ".claude").mkdir(parents=True)
+        (main / ".claude" / "settings.local.json").write_text("{}")
+        wt = tmp_path / ".herdr" / "worktrees" / "Dev10x-Claude" / "wt-1"
+        _make_worktree(main=main, wt=wt)
+        (wt / ".claude" / "settings.local.json").write_text(
+            json.dumps({"permissions": {"allow": [f"Bash({wt}/bin/release.sh:*)"]}})
+        )
+        monkeypatch.setattr(mod, "git_registered_worktrees", lambda _root: [main, wt])
+
+        count, messages = mod.merge_permissions(main_project=main, worktree_dirs=[wt])
+
+        allow = json.loads((main / ".claude" / "settings.local.json").read_text())["permissions"][
+            "allow"
+        ]
+        assert count == 1
+        assert allow == [f"Bash({main}/bin/release.sh:*)"]
+        assert f"      from: {wt / '.claude' / 'settings.local.json'}" in messages

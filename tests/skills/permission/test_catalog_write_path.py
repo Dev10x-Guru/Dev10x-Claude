@@ -327,6 +327,61 @@ class TestEveryWriterHonoursTheGuard:
         assert result["total_added"] == 1
 
 
+class TestDerivedWorktreeRoots:
+    """GH-1666: opt-in registration of worktree roots no default names."""
+
+    @pytest.fixture
+    def herdr_worktree(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+        main = tmp_path / "proj"
+        (main / ".git" / "worktrees" / "wt-1").mkdir(parents=True)
+        worktree = tmp_path / ".herdr" / "worktrees" / "proj" / "wt-1"
+        (worktree / ".claude").mkdir(parents=True)
+        (worktree / ".git").write_text(f"gitdir: {main}/.git/worktrees/wt-1\n")
+        settings = worktree / ".claude" / "settings.local.json"
+        settings.write_text("{}\n")
+        monkeypatch.setattr(mod, "_is_git_tracked", lambda _path: False)
+        return settings
+
+    def test_opted_in_registers_the_worktree_parent(self, herdr_worktree: Path) -> None:
+        result = mod.ensure_workspace(
+            config={"derive_worktree_roots": True},
+            settings_files=[herdr_worktree],
+            dry_run=False,
+            quiet=True,
+        )
+
+        data = json.loads(herdr_worktree.read_text())
+        assert result["total_added"] == 1
+        assert data["permissions"]["additionalDirectories"] == [
+            str(herdr_worktree.parent.parent.parent)
+        ]
+
+    @pytest.mark.parametrize("value", [False, "yes", None], ids=["false", "string", "none"])
+    def test_without_explicit_true_nothing_is_derived(
+        self,
+        herdr_worktree: Path,
+        value: object,
+    ) -> None:
+        assert (
+            mod.derived_worktree_roots(
+                config={"derive_worktree_roots": value},
+                settings_files=[herdr_worktree],
+            )
+            == []
+        )
+
+    def test_global_settings_file_is_not_a_checkout(self, tmp_path: Path) -> None:
+        global_settings = tmp_path / "settings.json"
+
+        assert (
+            mod.derived_worktree_roots(
+                config={"derive_worktree_roots": True},
+                settings_files=[global_settings],
+            )
+            == []
+        )
+
+
 class TestRefusalsStayVisible:
     """GH-1150 follow-through: a refused rule must not look like a no-op."""
 

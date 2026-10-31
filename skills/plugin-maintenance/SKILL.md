@@ -333,6 +333,15 @@ every root (for example under `~/.herdr/worktrees/`) is still checked
 and seeded. `catalog-gap` lists those worktrees under
 "Out-of-roots worktrees".
 
+**Worktree roots outside the repo (GH-1666).** Set
+`derive_worktree_roots: true` in the userspace `projects.yaml` and
+`ensure-workspace` registers the parent of every linked worktree that
+lives outside its main checkout (a herdr root such as
+`/work/.herdr/worktrees/<repo>`) under `additionalDirectories`. It is
+opt-in because each entry widens the Read/Edit scope of every session.
+`merge-worktree` re-anchors rules pinned inside any worktree, whatever
+its layout, to the main checkout.
+
 ## Workflow
 
 The numbered headings below (1–13) match the **full** mode task
