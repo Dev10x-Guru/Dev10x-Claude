@@ -25,6 +25,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
+from dev10x.core.paths import skill_roots  # noqa: E402
 from dev10x.skills.audit import cli_friction  # noqa: E402
 
 
@@ -46,9 +47,12 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
 
 def _resolve_paths(args: argparse.Namespace) -> list[Path]:
     if args.all:
-        return cli_friction.find_target_files(
-            REPO_ROOT / "skills"
-        ) + cli_friction.find_shared_reference_files(REPO_ROOT / "references")
+        skill_docs = [
+            path
+            for root in skill_roots(repo_root=REPO_ROOT)
+            for path in cli_friction.find_target_files(root)
+        ]
+        return skill_docs + cli_friction.find_shared_reference_files(REPO_ROOT / "references")
     if args.paths:
         return list(args.paths)
     if sys.stdin.isatty():

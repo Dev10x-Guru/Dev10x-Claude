@@ -11,8 +11,6 @@ from dev10x.core.plugin_map import (
     parse_plugin_map,
     repo_skill_directories,
     skill_directories,
-    skill_files,
-    skill_roots,
 )
 from dev10x.subprocess_utils import get_plugin_root
 
@@ -37,16 +35,6 @@ def plugin_map() -> PluginMap:
 @pytest.fixture(scope="module")
 def skill_dirs() -> list[str]:
     return repo_skill_directories(repo_root=get_plugin_root())
-
-
-@pytest.fixture
-def split_repo(tmp_path: Path) -> Path:
-    for skill_dir in ("skills/afk", "plugins/qa/skills/tts", "plugins/infra/skills/k8s"):
-        (tmp_path / skill_dir).mkdir(parents=True)
-        (tmp_path / skill_dir / "SKILL.md").write_text("---\n")
-    (tmp_path / "plugins" / "infra" / "skills" / "notes.md").write_text("")
-    (tmp_path / "plugins" / "docs-only").mkdir()
-    return tmp_path
 
 
 @pytest.fixture
@@ -221,27 +209,6 @@ class TestSkillDirectories:
         (tmp_path / "loose.md").write_text("")
 
         assert skill_directories(skills_root=tmp_path) == ["real"]
-
-
-class TestSkillRoots:
-    def test_core_root_comes_first_then_satellites(self, split_repo: Path) -> None:
-        assert skill_roots(repo_root=split_repo) == [
-            split_repo / "skills",
-            split_repo / "plugins" / "infra" / "skills",
-            split_repo / "plugins" / "qa" / "skills",
-        ]
-
-    def test_a_repo_without_satellites_has_only_the_core_root(self, tmp_path: Path) -> None:
-        assert skill_roots(repo_root=tmp_path) == [tmp_path / "skills"]
-
-    def test_skill_files_span_every_root(self, split_repo: Path) -> None:
-        assert [
-            path.relative_to(split_repo).as_posix() for path in skill_files(repo_root=split_repo)
-        ] == [
-            "skills/afk/SKILL.md",
-            "plugins/infra/skills/k8s/SKILL.md",
-            "plugins/qa/skills/tts/SKILL.md",
-        ]
 
     def test_repo_skill_directories_merge_every_root(self, split_repo: Path) -> None:
         assert repo_skill_directories(repo_root=split_repo) == ["afk", "k8s", "tts"]

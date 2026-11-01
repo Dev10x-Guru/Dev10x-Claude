@@ -18,7 +18,8 @@ import yaml
 from dev10x.skills.permission.catalog_paths import catalog_fragments
 
 from dev10x.core.config.fragments import CORE_PLUGIN
-from dev10x.core.plugin_map import load_plugin_map, skill_files
+from dev10x.core.paths import skill_files
+from dev10x.core.plugin_map import load_plugin_map
 from dev10x.teach.skill_index.builder import extract_front_matter
 
 REPO_ROOT = Path(__file__).resolve().parents[3]

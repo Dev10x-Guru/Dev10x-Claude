@@ -4,7 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from dev10x.core.plugin_map import PluginMap, load_plugin_map, parse_plugin_map, skill_files
+from dev10x.core.paths import skill_files
+from dev10x.core.plugin_map import PluginMap, load_plugin_map, parse_plugin_map
 from dev10x.core.skill_path_edges import (
     SkillPathEdge,
     cross_plugin_edges,

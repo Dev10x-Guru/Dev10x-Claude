@@ -6,6 +6,7 @@ on:
     paths:
       - "src/**"
       - "skills/**"
+      - "plugins/**"
       - "bin/**"
       - "hooks/**"
       - "servers/**"

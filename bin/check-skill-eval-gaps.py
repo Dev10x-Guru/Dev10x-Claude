@@ -24,6 +24,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
+from dev10x.core.paths import skill_roots  # noqa: E402
 from dev10x.skills.audit import eval_gaps  # noqa: E402
 
 
@@ -57,9 +58,9 @@ def main(argv: list[str] | None = None) -> int:
             if gap is not None:
                 gaps.append(gap)
     else:
-        skills_root = REPO_ROOT / "skills"
-        gaps = eval_gaps.scan_skills_root(skills_root)
-        scanned = len(eval_gaps.find_skill_dirs(skills_root))
+        roots = skill_roots(repo_root=REPO_ROOT)
+        gaps = [gap for root in roots for gap in eval_gaps.scan_skills_root(root)]
+        scanned = sum(len(eval_gaps.find_skill_dirs(root)) for root in roots)
 
     if not gaps:
         print(f"OK — scanned {scanned} skill(s), no eval-coverage gaps found.")

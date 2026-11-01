@@ -10,13 +10,11 @@ from typing import Any
 
 import yaml
 
-from dev10x.core.paths import SKILLS_DIR
+from dev10x.core.paths import SKILL_FILE, skill_files
 
 PLUGIN_MAP_PATH = Path(__file__).with_name("plugins.yaml")
 CORE_PLUGIN_NAME = "dev10x"
 SATELLITE_NAME_PREFIX = f"{CORE_PLUGIN_NAME}-"
-SATELLITES_DIR = "plugins"
-SKILL_FILE = "SKILL.md"
 
 
 def expected_plugin_name(*, key: str) -> str:
@@ -133,21 +131,6 @@ def skill_directories(*, skills_root: Path) -> list[str]:
     )
 
 
-def skill_roots(*, repo_root: Path) -> list[Path]:
-    satellites = sorted(
-        path for path in (repo_root / SATELLITES_DIR).glob(f"*/{SKILLS_DIR}") if path.is_dir()
-    )
-    return [repo_root / SKILLS_DIR, *satellites]
-
-
-def skill_files(*, repo_root: Path) -> list[Path]:
-    return [
-        skill_file
-        for root in skill_roots(repo_root=repo_root)
-        for skill_file in sorted(root.glob(f"*/{SKILL_FILE}"))
-    ]
-
-
 def repo_skill_directories(*, repo_root: Path) -> list[str]:
     return sorted(skill_file.parent.name for skill_file in skill_files(repo_root=repo_root))
 
@@ -155,15 +138,11 @@ def repo_skill_directories(*, repo_root: Path) -> list[str]:
 __all__ = [
     "CORE_PLUGIN_NAME",
     "PLUGIN_MAP_PATH",
-    "SATELLITES_DIR",
     "SATELLITE_NAME_PREFIX",
-    "SKILL_FILE",
     "PluginMap",
     "expected_plugin_name",
     "load_plugin_map",
     "parse_plugin_map",
     "repo_skill_directories",
     "skill_directories",
-    "skill_files",
-    "skill_roots",
 ]
