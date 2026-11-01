@@ -20,6 +20,21 @@
       "id": "confidence-threshold-unattended",
       "name": "Unattended Confidence-Threshold Filtering",
       "description": "In unattended mode, only findings with confidence >= threshold (default 70) AND severity ERROR/WARNING are passed to dev10x:review-fix; below-threshold findings are logged as INFO, not silently dropped or auto-fixed."
+    },
+    {
+      "id": "parallel-domain-dispatch",
+      "name": "One Parallel Subagent per Routed Reviewer Spec (GH-1741)",
+      "description": "Step 4 routes changed files through .claude/rules/INDEX.md and dispatches one subagent per matched reviewer spec, all in a single message, with each subagent's files inlined. The orchestrator merges the reports; it does not apply reviewer specs inline itself."
+    },
+    {
+      "id": "spec-gate-short-circuit",
+      "name": "Phase 0 Failure Short-Circuits the Fan-Out (GH-1741)",
+      "description": "When spec-reviewer returns BLOCKED, no domain reviewer subagent is dispatched before the gate resolves, and none at all when the user picks 'Address spec gap first'."
+    },
+    {
+      "id": "findings-contract-unchanged",
+      "name": "Findings JSON Contract Unchanged (GH-1741)",
+      "description": "Merged subagent findings are written in the existing handoff format (severity ERROR/WARNING/INFO, confidence, source, file, line, description, suggested_fix, category) with no added keys, so dev10x:review-fix consumes them unchanged."
     }
   ],
   "evals": [
@@ -43,7 +58,7 @@
         {
           "dimension": "spec-gate-blocked",
           "check": "behavioral",
-          "signal": "Step 2 (automated checks) does NOT run before the gate resolves"
+          "signal": "Step 3 (automated checks) does NOT run before the gate resolves"
         }
       ]
     },
@@ -126,6 +141,86 @@
           "dimension": "confidence-threshold-unattended",
           "check": "behavioral",
           "signal": "Only the two confidence>=70 findings are passed to dev10x:review-fix; the confidence=40 finding appears as INFO in the summary, not sent to the fixer"
+        }
+      ]
+    },
+    {
+      "id": "routed-specs-dispatch-in-one-message",
+      "name": "Routed reviewer specs are dispatched in parallel",
+      "description": "A branch touching a Python module, a skill and a doc reaches several reviewer specs via INDEX.md; each gets its own subagent, all issued in one message.",
+      "input": "/dev10x:review --unattended (changes: src/dev10x/foo.py, skills/foo/SKILL.md, docs/foo.md)",
+      "assertions": [
+        {
+          "dimension": "parallel-domain-dispatch",
+          "check": "tool_called",
+          "tool": "Agent",
+          "signal": "Agent is called once per routed spec (reviewer-generic, reviewer-security, reviewer-silent-failures, reviewer-skill, reviewer-skill-behavior, reviewer-docs), and every one of those calls is in the same assistant message"
+        },
+        {
+          "dimension": "parallel-domain-dispatch",
+          "check": "behavioral",
+          "signal": "Each domain Agent prompt carries its files as inlined <file> blocks (diff + content) and the verbatim coverage-first instruction; no Agent call passes a model override"
+        },
+        {
+          "dimension": "parallel-domain-dispatch",
+          "check": "behavioral",
+          "signal": "The orchestrator does not Read .claude/agents/reviewer-*.md specs and apply their checklists itself in place of dispatch"
+        }
+      ]
+    },
+    {
+      "id": "spec-blocked-dispatches-no-domain-reviewer",
+      "name": "A failed spec gate dispatches no domain reviewer",
+      "description": "spec-reviewer returns BLOCKED: FAIL_SCOPE and the user picks 'Address spec gap first'; the domain fan-out never runs.",
+      "input": "/dev10x:review (spec-reviewer returns BLOCKED: FAIL_SCOPE; user picks Address spec gap first)",
+      "assertions": [
+        {
+          "dimension": "spec-gate-short-circuit",
+          "check": "behavioral",
+          "signal": "The only Agent call in the session is the spec-reviewer dispatch; no reviewer-* subagent is dispatched"
+        },
+        {
+          "dimension": "spec-gate-short-circuit",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "AskUserQuestion fires before any domain dispatch could happen"
+        }
+      ]
+    },
+    {
+      "id": "merged-findings-keep-handoff-shape",
+      "name": "Merged subagent findings keep the review-fix handoff shape",
+      "description": "Two subagents flag the same file:line, one as CRITICAL; the merged findings file has one entry for that line with severity ERROR and the existing keys only.",
+      "input": "/dev10x:review --unattended (reviewer-generic WARNING and reviewer-security CRITICAL on src/dev10x/foo.py:12)",
+      "assertions": [
+        {
+          "dimension": "findings-contract-unchanged",
+          "check": "behavioral",
+          "signal": "The findings JSON has exactly one entry for src/dev10x/foo.py:12, with severity ERROR"
+        },
+        {
+          "dimension": "findings-contract-unchanged",
+          "check": "behavioral",
+          "signal": "Every entry carries only severity, confidence, source, file, line, description, suggested_fix and category, and Skill(dev10x:review-fix) receives that file path"
+        }
+      ]
+    },
+    {
+      "id": "no-index-falls-back-to-plugin-reviewers",
+      "name": "A repo without INDEX.md routes by the plugin reviewers' Triggers",
+      "description": "In a consumer repo with no .claude/rules/INDEX.md and no .claude/agents/, a changed migration still reaches its domain reviewer through the plugin-distributed spec.",
+      "input": "/dev10x:review --unattended (consumer repo, no .claude/rules/INDEX.md or .claude/agents/; changes: app/migrations/0042_add_index.py, app/views.py)",
+      "assertions": [
+        {
+          "dimension": "parallel-domain-dispatch",
+          "check": "tool_called",
+          "tool": "Agent",
+          "signal": "Agent is called with subagent_type dev10x:reviewer-migration for app/migrations/0042_add_index.py, matched by that spec's Triggers: pattern"
+        },
+        {
+          "dimension": "parallel-domain-dispatch",
+          "check": "behavioral",
+          "signal": "app/views.py, which matches no plugin reviewer's Triggers, is reviewed by the orchestrator against references/review-checks-common.md, and the summary says so"
         }
       ]
     }

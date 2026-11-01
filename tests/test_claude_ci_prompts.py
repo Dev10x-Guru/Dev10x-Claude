@@ -303,6 +303,81 @@ class TestRoutingParity:
         assert routes[pattern]
 
 
+def _normalized(*, path: Path) -> str:
+    text = re.sub(r"^\s*>\s?", "", path.read_text(encoding="utf-8"), flags=re.MULTILINE)
+    return " ".join(text.split())
+
+
+_COVERAGE_FIRST: str = (
+    "Report every issue you find, including ones you are uncertain about or "
+    "consider low-severity. Do not filter for importance or confidence — the "
+    "orchestrator verifies and ranks findings. For each finding include "
+    "file:line, severity (CRITICAL / WARNING / INFO), confidence, and a "
+    "one-sentence rationale."
+)
+
+#: Each shared rule, paired with every document that must state it.
+_SHARED_RULES: list[tuple[str, str]] = [
+    (document, rule)
+    for rule, documents in [
+        (
+            _COVERAGE_FIRST,
+            [
+                "references/review-routing.md",
+                ".github/claude/prompts/code-review.core.md",
+                "skills/review/references/domain-dispatch.md",
+            ],
+        ),
+        (
+            "in ONE message so they run in parallel",
+            ["references/review-routing.md", ".github/claude/prompts/code-review.core.md"],
+        ),
+        (
+            "more than ~15 changed files",
+            ["references/review-routing.md", ".github/claude/prompts/code-review.core.md"],
+        ),
+        (
+            "File Patterns -> Agents",
+            ["references/review-routing.md", ".github/claude/prompts/code-review.core.md"],
+        ),
+        (
+            "the dropped count in the summary",
+            ["references/review-routing.md", ".github/claude/prompts/code-review.core.md"],
+        ),
+    ]
+    for document in documents
+]
+
+
+class TestSharedRouting:
+    """CI and the local self-review route by one written rule set (GH-1741)."""
+
+    _SKILL: ClassVar[Path] = _REPO_ROOT / "skills" / "review" / "SKILL.md"
+
+    @pytest.mark.parametrize(("document", "rule"), _SHARED_RULES)
+    def test_document_states_the_shared_rule(self, document: str, rule: str) -> None:
+        assert rule in _normalized(path=_REPO_ROOT / document), f"{document} lost: {rule!r}"
+
+    @pytest.mark.parametrize(
+        "relative",
+        [
+            ".github/claude/prompts/code-review.core.md",
+            "skills/review/SKILL.md",
+            "skills/review/references/domain-dispatch.md",
+        ],
+    )
+    def test_every_consumer_points_at_the_shared_doc(self, relative: str) -> None:
+        text = (_REPO_ROOT / relative).read_text(encoding="utf-8")
+
+        assert "references/review-routing.md" in text
+
+    def test_local_review_keeps_no_agent_list_of_its_own(self) -> None:
+        skill = self._SKILL.read_text(encoding="utf-8")
+
+        assert "→ reviewer-" not in skill
+        assert ".claude/rules/INDEX.md" in skill
+
+
 class TestReviewVerdict:
     """The CI review submits the state its verdict names (GH-1693)."""
 

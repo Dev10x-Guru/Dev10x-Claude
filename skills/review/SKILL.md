@@ -13,8 +13,12 @@ description: >
 user-invocable: true
 allowed-tools:
   - Skill(dev10x:review-fix)
+  - Agent
+  - Read
+  - mcp__plugin_dev10x_cli__issue_get
   - Bash(git log:*)
   - Bash(git diff:*)
+  - Bash(git rev-list:*)
   - Bash(git status:*)
   - Bash(git develop-log:*)
   - Bash(git develop-diff:*)
@@ -48,9 +52,10 @@ can consume to create fixup commits.
 **Not for remote PR review** — use `dev10x:gh-pr-review` to post
 findings to GitHub.
 
-**Not a CI replica** — its model, diff base, rules and routing differ
-from the Claude CI review; to see what CI would post on a PR, use
-`dev10x:ci-review` (GH-1621).
+**Not a CI replica** — it routes files to reviewer specs the same way
+the Claude CI review does (`references/review-routing.md`), but its
+model, diff base and rule copies differ; to see what CI would post on
+a PR, use `dev10x:ci-review` (GH-1621).
 
 ## No-Reviewer Auto-Skip Threshold (GH-161)
 
@@ -95,7 +100,7 @@ Never pause between steps to ask "should I continue?".
 1. `TaskCreate(subject="Verify branch state", activeForm="Checking branch")`
 2. `TaskCreate(subject="Run spec compliance gate", activeForm="Checking spec compliance")`
 3. `TaskCreate(subject="Run automated checks", activeForm="Running checks")`
-4. `TaskCreate(subject="Review changed files", activeForm="Reviewing files")`
+4. `TaskCreate(subject="Review changed files (one subagent per spec)", activeForm="Reviewing files")`
 5. `TaskCreate(subject="Present findings", activeForm="Presenting findings")`
 
 Set sequential dependencies.
@@ -132,60 +137,24 @@ short-circuits the rest of the pipeline.
 - The caller invoked `dev10x:review` with `--skip-spec` (reserved
   flag for explicit opt-out)
 
-**Pre-read inputs (controller side):** Read the linked ticket
-body (via `mcp__plugin_dev10x_cli__issue_get` or the appropriate
-tracker MCP) and the PR Job Story if present, plus the full
-`git develop-diff` output. Inline both into the dispatch prompt
-under `<ticket>` and `<diff>` blocks — `spec-reviewer` will not
-Read files dynamically (see `agents/spec-reviewer.md`).
-
-**Dispatch:**
-
-```
-Agent(
-    subagent_type="spec-reviewer",
-    description="Spec compliance check for current branch",
-    prompt="""Verify the following diff matches the linked ticket's
-    acceptance criteria and Job Story.
-
-    <ticket>
-    {inlined ticket body + AC}
-    </ticket>
-
-    <job_story>
-    {inlined Job Story from latest commit or PR body}
-    </job_story>
-
-    <diff>
-    {inlined output of `git develop-diff`}
-    </diff>
-
-    Follow the checklist in your spec. Return one paragraph per
-    finding (AC ref / file:line / verdict).
-
-    Report your final status as the LAST line of your output,
-    with exactly one of these prefixes:
-
-    - DONE                       — PASS
-    - DONE_WITH_CONCERNS: <text> — PARTIAL (proceed but flag)
-    - NEEDS_CONTEXT: <what>      — re-dispatch needed
-    - BLOCKED: <verdict>: <reason> — FAIL_SCOPE / FAIL_MISSING /
-                                     FAIL_OVER
-
-    Do not write anything after the status line.""")
-```
+**Dispatch** `spec-reviewer` with the ticket, Job Story and branch
+diff inlined — template and pre-read steps in
+[`references/spec-gate.md`](references/spec-gate.md).
 
 **Parse the trailing status line** and branch:
 
-- `DONE` → continue to Step 2 (automated checks)
+- `DONE` → continue to Step 2 (branch diff)
 - `DONE_WITH_CONCERNS: <text>` → continue, queue the concern for
   the final findings summary (severity WARNING, source `spec`)
 - `NEEDS_CONTEXT: <what>` → re-dispatch with the requested
   additional inline context once
-- `BLOCKED: <verdict>: <reason>` → short-circuit the review and
-  call `AskUserQuestion` with options:
+- `BLOCKED: <verdict>: <reason>` → short-circuit the review. No
+  Step 3 automated check runs and no Step 4 domain subagent is dispatched
+  until the gate resolves. **REQUIRED: Call `AskUserQuestion`**
+  (do NOT use plain text) with options:
   - **Address spec gap first (Recommended)** — stop and let the
-    user fix scope/missing AC before continuing
+    user fix scope/missing AC before continuing; the domain
+    fan-out never runs
   - **Continue review anyway** — proceed to Step 2; record the
     verdict as an INFO finding
 
@@ -244,17 +213,44 @@ config — run `pre-commit install` and add a `.pre-commit-config.yaml`
 with the project's ruff/mypy hooks") and skip the automated-check
 stage. Per-file manual review (Step 4) still runs.
 
-### Step 4: Review Each Changed File
+### Step 4: Review Changed Files — One Subagent per Reviewer Spec
 
-For each changed file in the diff:
+The orchestrator routes and merges. It does not apply reviewer specs
+itself: one agent holding the whole diff and every spec skims the
+specs it reads last (GH-1741). The routing, dispatch and merge rules
+are the same ones the CI review follows, written down once in
+`references/review-routing.md`; the local template and the mapping
+into findings are in
+[`references/domain-dispatch.md`](references/domain-dispatch.md).
 
-1. Read the full file (current version)
-2. Review the diff hunks for this file
-3. Apply review guidelines:
-   - `references/review-checks-common.md` — false positive prevention
-   - `.claude/agents/reviewer-*.md` — domain-specific checks based
-     on file type (see `.claude/rules/INDEX.md` for routing)
-4. For each issue found, create a structured finding
+**REQUIRED: Execute these steps in order.**
+
+1. **Route.** Match every changed file against
+   `.claude/rules/INDEX.md` § "File Patterns -> Agents" — the only
+   routing source; never keep an agent list in this skill. Group
+   files by agent. Use project specs (`.claude/agents/<name>.md`),
+   else plugin specs (`dev10x:<name>`). A repo without INDEX.md
+   routes by the plugin reviewers' `Triggers:` patterns.
+2. **Pre-read.** For each group, collect each file's diff hunks and
+   full content at HEAD, and inline them as `<file>` blocks so the
+   subagent needs no Read prompts.
+3. **Dispatch in parallel.** Issue every `Agent` call in ONE message,
+   in the foreground. Pass no `model:` — each spec's `model:`
+   frontmatter sets its tier. Split a group over ~15 files in two.
+   When the session returns the calls as background launches, wait
+   for every group's report before merging; a group still running
+   is pending, never re-dispatched.
+4. **Merge.** Deduplicate on `file:line`, apply the false-positive
+   gate below, Read the cited line to verify each survivor, and map
+   it into the findings format (CRITICAL → ERROR).
+5. **Cover the gaps yourself.** Files routed to an unregistered
+   agent, or matched by no row, are reviewed by the orchestrator
+   against `references/review-checks-common.md`. So are the
+   cross-cutting checks — dead code, call sites of a changed
+   signature — which need the whole diff.
+
+The summary (Step 7) names each agent dispatched and the files it
+covered.
 
 **False Positive Prevention Gate** (from `review-checks-common.md`):
 Before recording any finding, verify:
@@ -372,7 +368,9 @@ the findings file path.
 ### Step 7: Summary
 
 Report:
-- Total findings by severity
+- Reviewer agents dispatched, with the files each covered, and any
+  files the orchestrator reviewed itself
+- Total findings by severity, and the false-positive drop count
 - Which were sent to fixer (if any)
 - Any deferred findings (INFO severity or user-skipped)
 
