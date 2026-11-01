@@ -10,6 +10,7 @@ from collections.abc import Callable
 from typing import Any
 
 from dev10x.comm.supervisor import paths
+from dev10x.comm.supervisor.dev_checkout import load_dev_checkout
 from dev10x.core.hooks.base import load_hook_stdin
 
 POST_TIMEOUT_SECONDS = 1.0
@@ -55,6 +56,17 @@ class _Daemon:
         except (OSError, ValueError, http.client.HTTPException):
             return None
         return payload if isinstance(payload, dict) else None
+
+
+def _mirror_to_dev(*, body: dict[str, Any], timeout: float, opener: Opener) -> None:
+    dev = load_dev_checkout()
+    if dev is None:
+        return
+    token = paths.read_token(path=paths.token_path(instance=paths.Instance.DEV))
+    if not token:
+        return
+    daemon = _Daemon(port=dev.port, token=token, timeout=timeout, opener=opener)
+    daemon.post(path="/decisions", body={**body, "hold": False})
 
 
 def _wait_for_answers(
@@ -107,20 +119,17 @@ def supervisor_decision(
     questions = tool_input.get("questions") if isinstance(tool_input, dict) else None
     if not payload.get("session_id") or not isinstance(questions, list) or not questions:
         return
-    try:
-        token = paths.token_path().read_text(encoding="utf-8").strip()
-    except OSError:
+    body = {
+        "session_id": payload["session_id"],
+        "cwd": payload.get("cwd", ""),
+        "questions": questions,
+    }
+    _mirror_to_dev(body=body, timeout=timeout, opener=opener)
+    token = paths.read_token(path=paths.token_path())
+    if not token:
         return
     daemon = _Daemon(port=port or _port(), token=token, timeout=timeout, opener=opener)
-    reply = daemon.post(
-        path="/decisions",
-        body={
-            "session_id": payload["session_id"],
-            "cwd": payload.get("cwd", ""),
-            "questions": questions,
-            "hold": not in_herdr(),
-        },
-    )
+    reply = daemon.post(path="/decisions", body={**body, "hold": not in_herdr()})
     if not reply:
         return
     decision_ids = [str(item) for item in reply.get("decision_ids") or []]

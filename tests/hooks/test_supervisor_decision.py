@@ -213,6 +213,77 @@ class TestWaitsForThePage:
         assert (opener.paths, emitted) == (["/decisions"], [])
 
 
+class TestDevFanOut:
+    @pytest.fixture
+    def dev_token(self, config_home: Path) -> str:
+        path = paths.token_path(instance=paths.Instance.DEV)
+        path.parent.mkdir(parents=True)
+        path.write_text("dev-tok\n", encoding="utf-8")
+        return "dev-tok"
+
+    @pytest.fixture
+    def pinned(self, config_home: Path, tmp_path: Path) -> None:
+        checkout = tmp_path / "Dev10x-Claude"
+        checkout.mkdir()
+        (checkout / "pyproject.toml").write_text('[project]\nname = "Dev10x"\n', encoding="utf-8")
+        config_home.mkdir(parents=True, exist_ok=True)
+        (config_home / "overwatch.yaml").write_text(
+            f"dev:\n  checkout: {checkout}\n  port: 9300\n", encoding="utf-8"
+        )
+
+    def test_mirrors_to_dev_before_release(self, token: str, dev_token: str, pinned: None) -> None:
+        opener = FakeOpener()
+
+        supervisor_decision(PAYLOAD, opener=opener, in_herdr=lambda: True)
+
+        assert [
+            (request.full_url, request.get_header("X-supervisor-token"))
+            for request, _ in opener.requests
+        ] == [
+            ("http://127.0.0.1:9300/decisions", "dev-tok"),
+            ("http://127.0.0.1:8765/decisions", "tok-1"),
+        ]
+
+    def test_dev_copy_never_holds_the_session(
+        self, token: str, dev_token: str, pinned: None
+    ) -> None:
+        opener = FakeOpener()
+
+        supervisor_decision(PAYLOAD, opener=opener, in_herdr=lambda: False)
+
+        assert [
+            json.loads(request.data)["hold"]  # type: ignore[arg-type]
+            for request, _ in opener.requests
+        ] == [False, True]
+
+    def test_dev_still_gets_it_when_release_is_down(
+        self, config_home: Path, dev_token: str, pinned: None
+    ) -> None:
+        opener = FakeOpener()
+
+        supervisor_decision(PAYLOAD, opener=opener, in_herdr=lambda: True)
+
+        assert [request.full_url for request, _ in opener.requests] == [
+            "http://127.0.0.1:9300/decisions"
+        ]
+
+    def test_pinned_without_a_dev_token_posts_release_only(self, token: str, pinned: None) -> None:
+        opener = FakeOpener()
+
+        supervisor_decision(PAYLOAD, opener=opener, in_herdr=lambda: True)
+
+        assert [request.full_url for request, _ in opener.requests] == [
+            "http://127.0.0.1:8765/decisions"
+        ]
+
+    def test_no_pin_means_release_only(self, token: str, dev_token: str) -> None:
+        opener = FakeOpener()
+
+        supervisor_decision(PAYLOAD, opener=opener, in_herdr=lambda: True)
+
+        assert len(opener.requests) == 1
+
+
 class TestSilence:
     @pytest.mark.parametrize(
         "error",

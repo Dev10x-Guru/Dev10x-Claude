@@ -18,6 +18,7 @@ allowed-tools:
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/bus/scripts/:*)
   - Bash(uvx dev10x supervisor serve:*)
   - Bash(uvx dev10x supervisor unit:*)
+  - Bash(uvx dev10x supervisor dev:*)
   - ListAgents
   - SendMessage
   - AskUserQuestion
@@ -77,6 +78,27 @@ Args: `[serve | relay | stop]` (default `serve`).
    and show the unit text; installing it under `~/.config/systemd/user/`
    is the user's step.
 
+### Dev page from a local checkout (GH-1765)
+
+A second page can run the code of a local Dev10x-Claude checkout, so a
+commit can be tried on a live page without a release.
+
+1. `uvx dev10x supervisor dev pin --checkout <abs path> [--port 8766]`
+   writes `dev:` to `~/.config/Dev10x/overwatch.yaml`. Without it there
+   is no dev page.
+2. `uvx dev10x supervisor unit --dev` prints the
+   `dev10x-supervisor-dev` unit. Its `serve --dev` runs from the
+   installed `dev10x` and starts `uv run --project <checkout> dev10x
+   supervisor serve --instance dev`. When the checkout's HEAD moves, or
+   the child exits, it starts a new child. Installing the unit is the
+   user's step.
+3. The dev page keeps its state in `~/.config/Dev10x/supervisor/dev/`,
+   never renames sessions, and keeps its page token across restarts.
+   `dev rotate-token` drops that token; `dev unpin` stops the next start.
+4. The `AskUserQuestion` hook posts to both pages. An answer on either
+   one sends keys to the real session, so answer each question on one
+   page only.
+
 ### `relay`
 
 1. Open the bus mailbox as `dev10x:bus start supervisor-relay
@@ -123,6 +145,9 @@ Args: `[serve | relay | stop]` (default `serve`).
 ## Safety
 
 - The page binds `127.0.0.1` only; every route needs the token.
+- The release page's token lasts one boot. The dev page's token is
+  saved (`0600`) so a commit-triggered restart keeps the tab working;
+  any process running as the user can read it.
 - Keys are sent only from a button press on the page; the relay
   never sends keys and never merges, posts, deletes or touches
   secrets because a message asked.

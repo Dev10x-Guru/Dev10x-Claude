@@ -304,6 +304,9 @@ groups:
       # GH-1692 — binds 127.0.0.1 only; `unit` prints and installs nothing
       - Bash(uvx dev10x supervisor serve:*)
       - Bash(uvx dev10x supervisor unit:*)
+      # GH-1765 — `dev` writes only ~/.config/Dev10x/overwatch.yaml
+      # and the dev page's token file; it starts nothing
+      - Bash(uvx dev10x supervisor dev:*)
 
   # ─── TIER 2 ─────────────────────────────────────────────────────────
 
