@@ -1,3 +1,9 @@
+---
+paths:
+  - "skills/**/scripts/**"
+  - "src/dev10x/**/skills/**"
+---
+
 # Script vs Domain Boundaries (GH-246 H3/H7)
 
 How skill **entry-point scripts** and in-process **`dev10x` domain

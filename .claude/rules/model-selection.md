@@ -1,3 +1,9 @@
+---
+paths:
+  - "agents/**"
+  - "skills/**"
+---
+
 # Model & Effort Selection for Agent Dispatch
 
 Guide for choosing the right model and reasoning effort when

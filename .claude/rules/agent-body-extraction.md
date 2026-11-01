@@ -1,3 +1,9 @@
+---
+paths:
+  - "agents/**"
+  - "references/agents/**"
+---
+
 # Agent Body Extraction Pattern
 
 Reduce token consumption on sub-agent dispatch by moving stable
