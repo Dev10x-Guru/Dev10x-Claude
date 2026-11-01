@@ -6,15 +6,25 @@
   import { parseSteps, splitDialog } from "../lib/dialog";
   import { displayName, inHerdr, isStockExtra, optionText, waitingLabel } from "../lib/format";
   import { record } from "../lib/recent.svelte";
+  import type { AfterAnswer } from "../lib/prefs";
   import type { Decision, PromptOption, Session } from "../lib/types";
 
   interface Props {
     session: Session;
     pending: boolean;
     run: (path: string, body: Record<string, unknown>, what: string) => Promise<boolean>;
+    afterAnswer: AfterAnswer;
+    onafteranswer: (choice: AfterAnswer) => void;
+    onanswered: () => void;
+    otherQuestions: number;
   }
 
-  let { session, pending, run }: Props = $props();
+  let { session, pending, run, afterAnswer, onafteranswer, onanswered, otherQuestions }: Props = $props();
+
+  const AFTER_CHOICES: [AfterAnswer, string][] = [
+    ["stay", "Stay here"],
+    ["next", "Next question"],
+  ];
 
   const COMPACT_LABEL = 28;
   const LONG_QUESTION = 140;
@@ -58,6 +68,7 @@
       `Sent “${label}” to ${displayName(session)}`,
     );
     if (!sent || !prompt) return;
+    if (!isStockExtra(option)) onanswered();
     remembered(
       `${session.session_id}:${Date.now()}`,
       prompt.question || dialog?.title || "",
@@ -73,6 +84,7 @@
       `Answered “${decision.options[index]}” for ${displayName(session)}`,
     );
     if (!sent) return;
+    onanswered();
     remembered(
       decision.decision_id,
       decision.question,
@@ -83,7 +95,26 @@
 </script>
 
 <section class="dock" aria-label="Answer {displayName(session)}" in:fly={{ y: 10, duration: 260, easing: cubicOut }}>
-  <p class="waiting"><span aria-hidden="true">◆</span> {waitingLabel(session)}</p>
+  <div class="top">
+    <p class="waiting"><span aria-hidden="true">◆</span> {waitingLabel(session)}</p>
+    <div class="after" role="radiogroup" aria-label="After you answer">
+      <span class="after-label">After answering</span>
+      {#each AFTER_CHOICES as [choice, label] (choice)}
+        <button
+          type="button"
+          role="radio"
+          aria-checked={afterAnswer === choice}
+          class={["after-choice", { on: afterAnswer === choice }]}
+          title={choice === "next"
+            ? "Once this session's question is done, open the next session that is asking one"
+            : "Keep this session open after you answer"}
+          onclick={() => onafteranswer(choice)}
+        >
+          {label}{#if choice === "next" && otherQuestions}<span class="count">{otherQuestions}</span>{/if}
+        </button>
+      {/each}
+    </div>
+  </div>
 
   {#if session.prompt}
     {#if steps.length}
@@ -182,6 +213,68 @@
     border-top: 1px solid var(--amber);
     max-height: 60vh;
     overflow-y: auto;
+  }
+
+  .top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-1) var(--space-3);
+  }
+
+  .after {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    font-size: 0.72rem;
+  }
+
+  .after-label {
+    margin-right: var(--space-1);
+    color: var(--amber-ink);
+  }
+
+  .after-choice {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35em;
+    padding: 0.15rem 0.55rem;
+    background: transparent;
+    border: 1px solid var(--rule-strong);
+    border-radius: 999px;
+    color: var(--ink-soft);
+    font: inherit;
+    cursor: pointer;
+    transition:
+      background-color 160ms var(--ease-out),
+      color 160ms var(--ease-out);
+  }
+
+  .after-choice:hover {
+    color: var(--ink);
+  }
+
+  .after-choice.on {
+    background: var(--paper);
+    border-color: var(--amber);
+    color: var(--ink);
+    font-weight: 650;
+  }
+
+  .after-choice:focus-visible {
+    outline: 2px solid var(--amber);
+    outline-offset: 2px;
+  }
+
+  .count {
+    min-width: 1.1rem;
+    padding: 0 0.3em;
+    border-radius: 999px;
+    background: var(--amber);
+    color: var(--paper);
+    font-size: 0.68rem;
+    text-align: center;
   }
 
   .waiting {

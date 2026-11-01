@@ -13,6 +13,17 @@ export function saveHideStopped(hide: boolean, store: Store | null = storage()):
   write(HIDE_STOPPED_KEY, hide ? "1" : "0", store);
 }
 const VIEW_KEY = "supervisor.view";
+const AFTER_ANSWER_KEY = "supervisor.after-answer";
+
+export type AfterAnswer = "stay" | "next";
+
+export function loadAfterAnswer(store: Store | null = storage()): AfterAnswer {
+  return read(AFTER_ANSWER_KEY, store) === "next" ? "next" : "stay";
+}
+
+export function saveAfterAnswer(choice: AfterAnswer, store: Store | null = storage()): void {
+  write(AFTER_ANSWER_KEY, choice, store);
+}
 
 export interface Panel {
   key: string;

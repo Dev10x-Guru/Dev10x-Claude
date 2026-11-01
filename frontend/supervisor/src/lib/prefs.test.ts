@@ -8,6 +8,7 @@ import {
   PROJECT_PINS_KEY,
   SIDE,
   clampWidth,
+  loadAfterAnswer,
   loadHideStopped,
   loadList,
   loadPins,
@@ -15,6 +16,7 @@ import {
   loadWidth,
   moveBefore,
   moveBy,
+  saveAfterAnswer,
   saveHideStopped,
   saveList,
   savePins,
@@ -79,6 +81,23 @@ describe("view", () => {
     const store = memory();
     saveView("screen", store);
     expect(store.items.get("supervisor.view")).toBe("screen");
+  });
+});
+
+describe("after answer", () => {
+  it.each([
+    ["next", "next"],
+    ["stay", "stay"],
+    ["garbage", "stay"],
+  ])("reads %s", (raw, expected) => {
+    expect(loadAfterAnswer(memory({ "supervisor.after-answer": raw }))).toBe(expected);
+  });
+
+  it("round-trips and survives a blocked store", () => {
+    const store = memory();
+    saveAfterAnswer("next", store);
+    saveAfterAnswer("next", broken);
+    expect([loadAfterAnswer(store), loadAfterAnswer(broken)]).toEqual(["next", "stay"]);
   });
 });
 
