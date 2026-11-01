@@ -237,9 +237,8 @@ into findings are in
 3. **Dispatch in parallel.** Issue every `Agent` call in ONE message,
    in the foreground. Pass no `model:` — each spec's `model:`
    frontmatter sets its tier. Split a group over ~15 files in two.
-   When the session returns the calls as background launches, wait
-   for every group's report before merging; a group still running
-   is pending, never re-dispatched.
+   If the calls come back as background launches, wait for every
+   report before merging (shared doc, Rule 3).
 4. **Merge.** Deduplicate on `file:line`, apply the false-positive
    gate below, Read the cited line to verify each survivor, and map
    it into the findings format (CRITICAL → ERROR).

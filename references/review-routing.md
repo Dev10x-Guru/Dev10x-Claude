@@ -63,9 +63,14 @@ that match none of them are reviewed by the orchestrator against
 
 - Dispatch every matched subagent in ONE message so they run in
   parallel.
-- Run them in the foreground. Each call returns the subagent's full
-  report in that same message, so the orchestrator never ends its
-  turn to wait.
+- Run them in the foreground. In CI, where background tasks are
+  disabled, each call returns the subagent's full report in that same
+  message, so the orchestrator never ends its turn to wait. A session
+  that hands the calls back as background launches delivers reports
+  later instead
+  (`references/orchestration/subagent-status-protocol.md` § Delivery
+  channel): merge nothing until every launched subagent has reported,
+  and treat one still running as pending, never as failed.
 - Only dispatch agents for domains with changed files.
 - When a domain has more than ~15 changed files, split it across two
   subagents by directory.

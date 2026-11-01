@@ -44,18 +44,10 @@ the subagent may Read the cited ranges. Deleted files are not routed.
 
 Issue every `Agent` call in ONE message, in the foreground (no
 `run_in_background`). Pass no `model:` — the spec's frontmatter sets
-it.
-
-**Wait for every report before merging.** CI runs with background
-tasks disabled, so each call returns its report in the same message.
-A local session may instead return a launch acknowledgement per call
-and deliver each report later as a completion notification. Then:
-
-1. Record which groups were launched.
-2. Merge nothing until every launched group has delivered its
-   report.
-3. A group still running is pending, not failed — never re-dispatch
-   it (§5 applies only to a report that arrived and is unusable).
+it. If the session returns the calls as background launches, record
+which groups were launched and wait for every report before §4 — the
+shared doc's Rule 3. A group still running is pending; §5 applies only
+to a report that arrived.
 
 ```
 Agent(
@@ -76,9 +68,10 @@ Agent(
     Review only the changed lines and what they break; issues in
     untouched code are out of scope. Do not edit files.
 
-    End your report with exactly one status line: `DONE` when the
-    review ran (with or without findings), or `BLOCKED: <reason>`
-    when it could not. Write nothing after it.
+    {status-line block from
+     references/orchestration/subagent-status-protocol.md
+     § Prompt template — DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT /
+     BLOCKED; DONE means the review ran, with or without findings}
 
     <file path="<path>" change="modified">
     <diff>
@@ -122,7 +115,9 @@ descriptions.
 
 | Situation | Action |
 |-----------|--------|
-| A delivered report is an error, is empty, or lacks its status line (`BLOCKED` counts as unusable) | Re-dispatch that one group once; then review its files yourself and say so in the summary |
+| A report ends `NEEDS_CONTEXT`, or lacks a status line (read as `NEEDS_CONTEXT`) | Re-dispatch that one group once with the missing context; then review its files yourself and say so in the summary |
+| A report ends `BLOCKED` | Review its files yourself and say so in the summary |
+| A report ends `DONE_WITH_CONCERNS` | Merge its findings; carry the concern into the summary |
 | No changed file matches any row | Skip dispatch; review against `references/review-checks-common.md` yourself |
 | The `Agent` tool is unavailable | Review inline, spec by spec, and record an INFO finding naming the degraded mode |
 

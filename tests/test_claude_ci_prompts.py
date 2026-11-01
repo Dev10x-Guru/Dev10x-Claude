@@ -303,6 +303,7 @@ class TestRoutingParity:
         assert routes[pattern]
 
 
+@functools.cache
 def _normalized(*, path: Path) -> str:
     text = re.sub(r"^\s*>\s?", "", path.read_text(encoding="utf-8"), flags=re.MULTILINE)
     return " ".join(text.split())
@@ -316,36 +317,28 @@ _COVERAGE_FIRST: str = (
     "one-sentence rationale."
 )
 
+#: The shared doc and the CI prompt state every shared rule.
+_ROUTING_AND_CORE: list[str] = [
+    "references/review-routing.md",
+    ".github/claude/prompts/code-review.core.md",
+]
+
 #: Each shared rule, paired with every document that must state it.
 _SHARED_RULES: list[tuple[str, str]] = [
-    (document, rule)
-    for rule, documents in [
-        (
-            _COVERAGE_FIRST,
-            [
-                "references/review-routing.md",
-                ".github/claude/prompts/code-review.core.md",
-                "skills/review/references/domain-dispatch.md",
-            ],
-        ),
-        (
+    *[
+        (document, _COVERAGE_FIRST)
+        for document in [*_ROUTING_AND_CORE, "skills/review/references/domain-dispatch.md"]
+    ],
+    *[
+        (document, rule)
+        for rule in [
             "in ONE message so they run in parallel",
-            ["references/review-routing.md", ".github/claude/prompts/code-review.core.md"],
-        ),
-        (
             "more than ~15 changed files",
-            ["references/review-routing.md", ".github/claude/prompts/code-review.core.md"],
-        ),
-        (
             "File Patterns -> Agents",
-            ["references/review-routing.md", ".github/claude/prompts/code-review.core.md"],
-        ),
-        (
             "the dropped count in the summary",
-            ["references/review-routing.md", ".github/claude/prompts/code-review.core.md"],
-        ),
-    ]
-    for document in documents
+        ]
+        for document in _ROUTING_AND_CORE
+    ],
 ]
 
 
