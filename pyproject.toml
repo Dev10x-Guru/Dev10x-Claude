@@ -62,8 +62,8 @@ where = ["src"]
 [tool.setuptools.package-data]
 "dev10x" = [
     "**/*.yaml",
-    "comm/supervisor/static/*.html",
-    "comm/supervisor/static/assets/*",
+    "comm/overwatch/static/*.html",
+    "comm/overwatch/static/assets/*",
 ]
 
 [tool.pytest.ini_options]

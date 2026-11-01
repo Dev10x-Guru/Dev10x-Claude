@@ -60,6 +60,7 @@
   "my-skill-name": 2,
   "nonexistent": 1,
   "onboarding": 16,
+  "overwatch": 6,
   "park": 46,
   "park-discover": 30,
   "park-remind": 14,
@@ -114,7 +115,6 @@
   "spec-sync": 32,
   "spec-update": 27,
   "sql-handoff": 14,
-  "supervisor": 6,
   "target-name": 1,
   "ticket-branch": 56,
   "ticket-create": 63,
@@ -124,7 +124,7 @@
   "tts": 23,
   "upgrade-cleanup": 30,
   "verify-acc-dod": 54,
-  "voice-supervisor": 9,
+  "voice-channel": 9,
   "work-on": 170,
   "yt-upload": 41
 }

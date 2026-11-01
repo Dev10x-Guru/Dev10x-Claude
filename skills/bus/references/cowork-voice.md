@@ -58,7 +58,7 @@ When a request carries `Voice: yes`, the reply is read aloud:
   `--- for the text session (do not read aloud) ---`.
 
 A voice hub that supervises several sessions follows
-`dev10x:voice-supervisor` (one decision per turn, screen-only work
+`dev10x:voice-channel` (one decision per turn, screen-only work
 kept off the voice channel).
 
 ## Merging work requested over the bus

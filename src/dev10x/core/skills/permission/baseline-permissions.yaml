@@ -302,8 +302,8 @@ groups:
       # dev10x:skill-prune AskUserQuestion confirmation
       - Bash(uvx dev10x skill prune-overrides:*)
       # GH-1692 — binds 127.0.0.1 only; `unit` prints and installs nothing
-      - Bash(uvx dev10x supervisor serve:*)
-      - Bash(uvx dev10x supervisor unit:*)
+      - Bash(uvx dev10x overwatch serve:*)
+      - Bash(uvx dev10x overwatch unit:*)
 
   # ─── TIER 2 ─────────────────────────────────────────────────────────
 
