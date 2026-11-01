@@ -194,8 +194,9 @@ cohesive, justified by scope):
   candidate), `roster.md`, `tool-surface.md`, `durability-envelope.md`,
   `worktree-recovery.md`, `mcp-connectivity.md`, and — new in GH-987 —
   `preflight-checklist.md` (Phase 0.4 command-shape enumeration),
-  `gate-policy-detail.md` (Phase 0.3 durable-policy-check procedure
-  and the GH-978 worktree caveat), `generation-authority.md` (STALL
+  `gate-policy-detail.md` (Phase 0.3 durable-policy-check procedure;
+  the GH-978 worktree caveat retired with the fix, GH-1716),
+  `generation-authority.md` (STALL
   signal disambiguation and the `current-generation` authority-token
   contract), and `collapsed-merge-guidance.md` (the no-watcher-armed
   merge fallback), plus — new in GH-1059 — `worker-tool-shapes.md`
@@ -239,7 +240,8 @@ cohesive, justified by scope):
   the overseer-tier fallback ladder moved to the new
   `overseer-fallback-ladder.md` (33 lines), leaving a 3-line pointer,
   and the freed room took the watchdog's never-`mv`/`cp`/`rm`-a-run-dir
-  rule (GH-1577) — the file is now 194 lines. GH-1109 applied the same trade once more: arming and
+  rule (GH-1577) — 194 lines then, 158 after GH-1716 dropped the
+  merged GH-978 safety-net section (`instructions.md` 388). GH-1109 applied the same trade once more: arming and
   tearing down the external wake timer is execution-gating (Phase 1
   step 2 and Phase 3 step 1, ~14 lines inline), while the evidence for why a
   paused session cannot observe its own quota reset went to

@@ -68,22 +68,20 @@ unresolved-threads and review-requested checks. If humans genuinely do
 review this repo, the honest composition is `guided + afk` with merges
 held for morning.
 
-## The composed policy does not always reach a spawned worktree (GH-962 F1)
+## The composed policy reaches a spawned worktree (GH-962 F1, GH-978)
 
 A worker dispatched with `isolation="worktree"` gets a fresh checkout
 with no session policy, on an agent-generated path that matches no
-`projects[].match` glob — so `resolve_gate(gate="merge")` falls back
-to defaults and returns a phantom `ask` even under `adaptive + afk`.
+`projects[].match` glob. Before GH-978 that made
+`resolve_gate(gate="merge")` fall back to defaults and return a
+phantom `ask` even under `adaptive + afk`.
 
-**GH-978 has landed the code-level fix** (worktree-first probe with
-repo-root fallback) on branch `janusz/GH-978/worktree-gate-policy`;
-until it merges to `develop`, warn every worker at spawn that a
-phantom merge `ask` is an artifact of its checkout and not a
-supervisor decision, and record the standing authorization once in
-`DECISIONS.md`. Do not hand-write config into a worker's worktree as a
-substitute. Full wording and rationale:
-`overseer-discipline.md` § The merge gate reads `ask` in fresh
-worktrees.
+GH-978 is merged to `develop` (`fbc6a349`): `gate_query.py` probes the
+worktree toplevel first and falls back to the git common dir that
+`pin_gate_preset` keys the pin by, so a pinned repo policy reaches a
+linked agent worktree. A merge `ask` a worker reports now reflects the
+policy, so treat it as one. Do not hand-write config into a worker's
+worktree to change it — pin the repo policy in Phase 0.3 instead.
 
 ## Never YOLO
 
