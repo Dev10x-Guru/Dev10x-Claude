@@ -154,6 +154,11 @@ class Dev10xConfigDir:
         return cls._resolve("friction.yaml")
 
     @classmethod
+    def overwatch_yaml(cls) -> Path:
+        """Machine-wide supervisor preferences, e.g. the dev checkout (GH-1765)."""
+        return cls._resolve("overwatch.yaml")
+
+    @classmethod
     def task_index_yaml(cls, *, repo_name: str) -> Path:
         """Per-repo ephemeral task index for the park family (GH-1009).
 
