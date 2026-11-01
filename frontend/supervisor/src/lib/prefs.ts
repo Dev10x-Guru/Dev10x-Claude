@@ -12,6 +12,15 @@ export function loadHideStopped(store: Store | null = storage()): boolean {
 export function saveHideStopped(hide: boolean, store: Store | null = storage()): void {
   write(HIDE_STOPPED_KEY, hide ? "1" : "0", store);
 }
+const APPROVED_ONLY_KEY = "supervisor.approved-only";
+
+export function loadApprovedOnly(store: Store | null = storage()): boolean {
+  return read(APPROVED_ONLY_KEY, store) === "1";
+}
+
+export function saveApprovedOnly(only: boolean, store: Store | null = storage()): void {
+  write(APPROVED_ONLY_KEY, only ? "1" : "0", store);
+}
 const VIEW_KEY = "supervisor.view";
 const AFTER_ANSWER_KEY = "supervisor.after-answer";
 
