@@ -484,6 +484,14 @@ recovery, below) understood as the only recovery route.
 
 ### Swarm Dispatch (REQUIRED, GH-36)
 
+**Under Herdr (`HERDR_ENV=1`, GH-1702):** dispatch each item through
+`dev10x:git-worktree` Path C instead of `Agent(isolation="worktree")`,
+and collect its status from the status file its brief names — never
+by polling. Follow
+[`references/herdr-dispatch.md`](references/herdr-dispatch.md) end to
+end; the wave sizing, finish lines and Phase 4 verification below
+still apply. Everything else in this section is the non-Herdr path.
+
 **Every work item MUST be delegated to a worktree-isolated
 background `Agent` whose prompt invokes
 `Skill(dev10x:work-on)`.** Do NOT implement issues inline in
@@ -1045,7 +1053,10 @@ merged or surfaced as a failure mode in the result.
 Phase 4's job is therefore **collection**, not orchestration:
 
 1. As each background agent's completion notification
-   arrives, parse its result for: PR URL, status (DONE /
+   arrives (under Herdr: as each backgrounded `herdr agent prompt
+   … --wait` exits, read the
+   item's status file — `references/herdr-dispatch.md` § 4), parse
+   its result for: PR URL, status (DONE /
    DONE_WITH_CONCERNS / NEEDS_CONTEXT / BLOCKED), cost, and
    any sibling-coordination signals.
    **Stranded-work check (GH-1363, REQUIRED before any status
