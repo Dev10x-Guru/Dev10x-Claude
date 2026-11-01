@@ -1,5 +1,5 @@
 {
-  "description": "Communication hooks: hand a session's open questions to the local supervisor page",
+  "description": "Communication hooks: hand a session's open questions to the local Overwatch page",
   "hooks": {
     "PreToolUse": [
       {
@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$CLAUDE_PLUGIN_ROOT/hooks/scripts/audit-wrap supervisor-decision $CLAUDE_PLUGIN_ROOT/hooks/scripts/supervisor-decision.py",
+            "command": "$CLAUDE_PLUGIN_ROOT/hooks/scripts/audit-wrap overwatch-decision $CLAUDE_PLUGIN_ROOT/hooks/scripts/overwatch-decision.py",
             "timeout": 600
           }
         ]
