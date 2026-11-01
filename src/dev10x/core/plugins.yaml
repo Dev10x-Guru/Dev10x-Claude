@@ -85,6 +85,7 @@ plugins:
     - adr
     - adr-evaluate
     - ddd
+    - diagram-bpmn
     - diagram-c4
     - diagram-sequence
     - estimate

@@ -1,0 +1,5 @@
+# pnpm 11 reads build-script policy from here, not from package.json.
+# puppeteer's postinstall downloads its own Chrome; render.sh hands
+# bpmn-to-image the system Chrome instead, so the download is refused.
+allowBuilds:
+  puppeteer: false

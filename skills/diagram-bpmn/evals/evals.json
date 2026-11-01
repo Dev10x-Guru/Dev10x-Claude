@@ -1,0 +1,82 @@
+{
+  "skill_name": "dev10x:diagram-bpmn",
+  "eval_dimensions": [
+    {
+      "id": "semantic-only-source",
+      "name": "Semantic Model Only, No Hand-Written DI",
+      "description": "The agent writes process, lanes, nodes and sequenceFlows and leaves every bpmndi: coordinate to render.sh; no BPMNShape, BPMNEdge or dc:Bounds appears in what the agent wrote."
+    },
+    {
+      "id": "roles-and-types",
+      "name": "Roles Become Lanes, Steps Are Typed",
+      "description": "Each role named in the request is a lane holding exactly its steps; person steps are userTask, system steps serviceTask; gateways are questions and their outgoing flows are labeled answers."
+    },
+    {
+      "id": "rendered-and-read",
+      "name": "Laid Out, Rendered and Inspected",
+      "description": "scripts/render.sh exits 0 on the final file and the agent Reads the PNG before hand-back."
+    }
+  ],
+  "evals": [
+    {
+      "id": "pr-review-with-two-lanes",
+      "name": "Two-role review process is modeled with lanes and no coordinates",
+      "description": "RED baseline: without the skill the agent hand-computed every coordinate, produced overlapping labels and crossing edges, used plain task everywhere, and left a placeholder namespace.",
+      "input": "/dev10x:diagram-bpmn \"model our PR review: author opens a PR, CI runs, author fixes until green, reviewer approves or requests changes, then merge; lanes Author and Reviewer\"",
+      "assertions": [
+        {
+          "dimension": "semantic-only-source",
+          "check": "behavioral",
+          "signal": "no_hand_di — the .bpmn written by the agent before render.sh runs contains none of bpmndi:BPMNDiagram, bpmndi:BPMNShape, bpmndi:BPMNEdge or dc:Bounds"
+        },
+        {
+          "dimension": "roles-and-types",
+          "check": "behavioral",
+          "signal": "lanes_and_types — two lanes named Author and Reviewer; CI is a serviceTask, review a userTask; both gateways' outgoing flows carry names"
+        },
+        {
+          "dimension": "rendered-and-read",
+          "check": "tool_called",
+          "tool": "Bash",
+          "signal": "render_uses_tool — skills/diagram-bpmn/scripts/render.sh runs on the file and prints 'rendered:'"
+        },
+        {
+          "dimension": "rendered-and-read",
+          "check": "tool_called",
+          "tool": "Read",
+          "signal": "png_inspected — the rendered PNG is Read before completion"
+        }
+      ]
+    },
+    {
+      "id": "unassigned-node-is-fixed",
+      "name": "A node outside every lane is fixed, not shipped",
+      "description": "When render.sh reports '<id> is in no lane', the agent adds the node to the right lane and re-runs rather than dropping the lanes.",
+      "input": "/dev10x:diagram-bpmn \"model refund approval with lanes Support and Finance\" — first render reports Task_Notify is in no lane",
+      "assertions": [
+        {
+          "dimension": "roles-and-types",
+          "check": "behavioral",
+          "signal": "lane_assignment_fixed — Task_Notify gains a flowNodeRef in one lane and the laneSet is kept"
+        },
+        {
+          "dimension": "rendered-and-read",
+          "check": "behavioral",
+          "signal": "rerun_after_fix — a later render.sh call prints 'rendered:'"
+        }
+      ]
+    }
+  ],
+  "trigger_evals": {
+    "should_trigger": [
+      "Model the refund approval process in BPMN",
+      "Draw our onboarding workflow with a lane per team for Camunda",
+      "Show who does what when a tire order is returned"
+    ],
+    "should_not_trigger": [
+      "Draw the API call sequence for checkout",
+      "Draw a C4 container diagram",
+      "Write prose documentation of the process"
+    ]
+  }
+}

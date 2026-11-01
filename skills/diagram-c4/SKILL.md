@@ -8,8 +8,9 @@ description: >
   TRIGGER when: drawing system structure at C4 level 1-3, dynamic, or
   deployment.
   DO NOT TRIGGER when: drawing interactions over time (use
-  dev10x:diagram-sequence), or the repo already models C4 in
-  Structurizr DSL (edit its workspace.dsl instead).
+  dev10x:diagram-sequence), a business process across roles (use
+  dev10x:diagram-bpmn), or the repo already models C4 in Structurizr
+  DSL (edit its workspace.dsl instead).
 user-invocable: true
 invocation-name: dev10x:diagram-c4
 allowed-tools:

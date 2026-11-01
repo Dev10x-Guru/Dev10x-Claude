@@ -58,3 +58,34 @@ downloaded browser.
 
 Inline Mermaid in a PR body still goes through the script once: a
 broken block on GitHub renders as an error box in front of reviewers.
+
+## BPMN
+
+`dev10x:diagram-bpmn` installs a pinned toolchain (`bpmn-moddle`,
+`bpmn-auto-layout`, `bpmn-to-image`) once into
+`${XDG_CACHE_HOME:-~/.cache}/dev10x/diagram-bpmn` with `pnpm`, and
+reinstalls only when the skill's pinned `package.json` (or its
+`pnpm-workspace.yaml`) changes. The three direct dependencies are exact
+versions; their transitive dependencies still resolve at install time,
+since no lockfile ships. Set `DEV10X_BPMN_DEPS` to put the cache
+elsewhere.
+
+pnpm 11 refuses dependency build scripts unless told otherwise; the
+shipped `pnpm-workspace.yaml` answers `allowBuilds: {puppeteer:
+false}`, because rendering uses the system Chrome (same lookup as
+Mermaid) instead of the browser puppeteer would download.
+
+`bpmn-auto-layout` places nodes and edges but draws no pool or lane
+shapes; `layout.mjs` re-bands its output into the single pool and its
+lanes and re-routes the edges. Multi-pool collaborations are refused
+rather than drawn wrong.
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| `X is in no lane` | A flow node missing from every `flowNodeRef` | Add it to exactly one lane |
+| `only a single pool is laid out` | Second `participant` or a `messageFlow` | One file per pool |
+| `unparsable content …` / `unknown type` | Misspelled element; its `line:` is 0-based (add 1) | Fix the named element |
+| `unresolved reference <Id>` | A flow or lane points at an id that does not exist — often a knock-on of the row above | Fix the id, or the typo that hid it |
+| `kept existing layout` | The file already has DI (e.g. tuned in Camunda Modeler) | Pass `--relayout` to regenerate |
+| `could not install the BPMN toolchain` | No network or no `pnpm` on first run | Retry online; later runs are offline |
+| `no Chrome/Chromium on PATH` | Nothing to render with | Install one; the laid-out `.bpmn` is still valid |
