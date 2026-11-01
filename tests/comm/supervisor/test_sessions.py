@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+from datetime import UTC, datetime
+
 import pytest
 
 from dev10x.comm.skills.bus.maildir import SessionStatus
@@ -48,6 +51,15 @@ class TestParseClaudeAgents:
     def test_missing_waiting_for_is_empty(self, sessions: dict[str, ClaudeSession]) -> None:
         assert sessions[BUSY_ID].waiting_for == ""
 
+    def test_reads_started_at_from_epoch_millis(self, sessions: dict[str, ClaudeSession]) -> None:
+        assert sessions[IDLE_ID].started_at == datetime.fromtimestamp(1793434339.051, tz=UTC)
+
+    @pytest.mark.parametrize("raw", [None, "1793434339051", True], ids=["missing", "str", "bool"])
+    def test_unusable_started_at_is_none(self, raw: object) -> None:
+        entry = {"sessionId": "id-1", "startedAt": raw}
+
+        assert parse_claude_agents(raw=json.dumps([entry]))[0].started_at is None
+
     def test_rejects_garbage(self) -> None:
         with pytest.raises(ProbeParseError, match="claude agents"):
             parse_claude_agents(raw="not json")
@@ -64,6 +76,9 @@ class TestParseHerdrAgents:
 
     def test_keys_by_session_value(self, panes: list[HerdrPane]) -> None:
         assert {pane.session_id: pane.pane_id for pane in panes}[IDLE_ID] == "w12:p1"
+
+    def test_reads_agent_name(self, panes: list[HerdrPane]) -> None:
+        assert [pane.name for pane in panes] == ["", "mc-updates"]
 
     def test_skips_non_claude_agents(self, panes: list[HerdrPane]) -> None:
         assert [pane.pane_id for pane in panes] == ["w3:p1", "w12:p1"]

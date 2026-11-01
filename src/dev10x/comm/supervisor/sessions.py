@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
 
 from dev10x.comm.skills.bus.maildir import SessionStatus
@@ -21,6 +22,7 @@ class ClaudeSession:
     cwd: str
     status: str
     waiting_for: str
+    started_at: datetime | None = None
 
 
 @dataclass(frozen=True)
@@ -29,6 +31,7 @@ class HerdrPane:
     pane_id: str
     agent_status: str
     terminal_title: str
+    name: str = ""
 
 
 @dataclass(frozen=True)
@@ -52,6 +55,12 @@ def _load(*, raw: str, source: str) -> Any:
         raise ProbeParseError(f"{source} returned invalid JSON: {exc}") from exc
 
 
+def _started_at(*, raw: object) -> datetime | None:
+    if not isinstance(raw, int | float) or isinstance(raw, bool):
+        return None
+    return datetime.fromtimestamp(raw / 1000, tz=UTC)
+
+
 def parse_claude_agents(raw: str) -> list[ClaudeSession]:
     entries = _load(raw=raw, source="claude agents")
     if not isinstance(entries, list):
@@ -64,6 +73,7 @@ def parse_claude_agents(raw: str) -> list[ClaudeSession]:
             cwd=str(entry.get("cwd", "")),
             status=str(entry.get("status", "")),
             waiting_for=str(entry.get("waitingFor", "")),
+            started_at=_started_at(raw=entry.get("startedAt")),
         )
         for entry in entries
         if isinstance(entry, dict) and entry.get("sessionId")
@@ -82,6 +92,7 @@ def parse_herdr_agents(raw: str) -> list[HerdrPane]:
             pane_id=str(agent.get("pane_id", "")),
             agent_status=str(agent.get("agent_status", "")),
             terminal_title=str(agent.get("terminal_title", "")),
+            name=str(agent.get("name", "")),
         )
         for agent in agents
         if agent.get("agent") == "claude" and (agent.get("agent_session") or {}).get("value")
