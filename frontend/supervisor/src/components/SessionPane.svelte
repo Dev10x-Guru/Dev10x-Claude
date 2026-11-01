@@ -8,6 +8,7 @@
   import { SESSION_MIME, carriesSession, droppedPeer } from "../lib/drag";
   import { pinned } from "../lib/tail";
   import { markOf } from "../lib/tree";
+  import type { AfterAnswer } from "../lib/prefs";
   import type { ConversationEntry, Session, View } from "../lib/types";
 
   interface Props {
@@ -18,10 +19,27 @@
     onview: (view: View) => void;
     pending: boolean;
     run: (path: string, body: Record<string, unknown>, what: string) => Promise<boolean>;
+    afterAnswer: AfterAnswer;
+    onafteranswer: (choice: AfterAnswer) => void;
+    onanswered: (sessionId: string) => void;
+    otherQuestions: number;
     nameOf: (sessionId: string) => string;
   }
 
-  let { session, conversation, tail, view, onview, pending, run, nameOf }: Props = $props();
+  let {
+    session,
+    conversation,
+    tail,
+    view,
+    onview,
+    pending,
+    run,
+    afterAnswer,
+    onafteranswer,
+    onanswered,
+    otherQuestions,
+    nameOf,
+  }: Props = $props();
 
   const NAME_PATTERN = "[A-Za-z0-9][A-Za-z0-9._\\-]{0,63}";
   const COMMANDS = [
@@ -211,7 +229,15 @@
       </div>
     </section>
   {:else if waiting}
-    <AnswerDock {session} {pending} {run} />
+    <AnswerDock
+      {session}
+      {pending}
+      {run}
+      {afterAnswer}
+      {onafteranswer}
+      onanswered={() => onanswered(session.session_id)}
+      {otherQuestions}
+    />
   {/if}
 
   <form

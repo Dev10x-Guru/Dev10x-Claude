@@ -8,16 +8,19 @@
     ASIDE,
     SIDE,
     clampWidth,
+    loadAfterAnswer,
     loadPins,
     loadView,
     loadWidth,
+    saveAfterAnswer,
     savePins,
     saveView,
     saveWidth,
     togglePin,
+    type AfterAnswer,
     type Panel,
   } from "./lib/prefs";
-  import { pickSession } from "./lib/selection";
+  import { asksQuestion, nextQuestion, pickSession } from "./lib/selection";
   import type { ActionResult, SessionDetail, Snapshot, View } from "./lib/types";
 
   const TOAST_MS = 5000;
@@ -41,6 +44,8 @@
   let widths = $state<Record<Edge, number>>({ aside: loadWidth(ASIDE), side: loadWidth(SIDE) });
   let dragging = $state(false);
   let needsOnly = $state(false);
+  let afterAnswer = $state<AfterAnswer>(loadAfterAnswer());
+  let leaving = $state("");
   let pending = $state(false);
   let toast = $state<{ text: string; ok: boolean } | null>(null);
   let toastTimer: ReturnType<typeof setTimeout> | undefined;
@@ -51,6 +56,18 @@
   const listed = $derived(needsOnly && waitingCount ? groups["needs-you"] : sessions);
   const current = $derived(pickSession(sessions, chosen));
   const errors = $derived(Object.entries(snapshot?.errors ?? {}));
+  const otherQuestions = $derived(
+    sessions.filter((session) => session.session_id !== current?.session_id && asksQuestion(session)).length,
+  );
+
+  $effect(() => {
+    if (!leaving) return;
+    const answered = sessions.find((session) => session.session_id === leaving);
+    if (answered && asksQuestion(answered)) return;
+    const next = nextQuestion(sessions, leaving);
+    leaving = "";
+    if (next) select(next);
+  });
 
   $effect(() => {
     if (!token) return;
@@ -83,6 +100,7 @@
 
   function select(sessionId: string): void {
     if (sessionId === current?.session_id) return;
+    leaving = "";
     chosen = sessionId;
     detail = null;
     history.replaceState(null, "", `${location.search}#${encodeURIComponent(sessionId)}`);
@@ -91,6 +109,15 @@
   function pin(sessionId: string): void {
     pins = togglePin(pins, sessionId);
     savePins(pins);
+  }
+
+  function changeAfterAnswer(next: AfterAnswer): void {
+    afterAnswer = next;
+    saveAfterAnswer(next);
+  }
+
+  function answered(sessionId: string): void {
+    if (afterAnswer === "next") leaving = sessionId;
   }
 
   function changeView(next: View): void {
@@ -229,6 +256,10 @@
             onview={changeView}
             {pending}
             {run}
+            {afterAnswer}
+            onafteranswer={changeAfterAnswer}
+            onanswered={answered}
+            {otherQuestions}
             nameOf={(sessionId) => {
               const found = sessions.find((session) => session.session_id === sessionId);
               return found ? found.callsign || found.name : "that session";
