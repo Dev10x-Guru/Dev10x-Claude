@@ -40,6 +40,7 @@ from __future__ import annotations
 import fcntl
 import json
 import os
+import stat
 import tempfile
 import time
 from collections.abc import Generator
@@ -136,10 +137,16 @@ def file_lock(path: Path, *, timeout: float = LOCK_TIMEOUT_SECONDS) -> Generator
 
 
 def atomic_write_bytes(path: Path, content: bytes) -> None:
-    """Write ``content`` to ``path`` via ``mkstemp`` + ``os.rename``."""
+    """Write ``content`` to ``path`` via ``mkstemp`` + ``os.rename``.
+
+    An existing file keeps its permission bits; a new one gets ``mkstemp``'s
+    owner-only mode.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
     try:
+        if path.exists():
+            os.fchmod(fd, stat.S_IMODE(path.stat().st_mode))
         os.write(fd, content)
         os.fsync(fd)
         os.close(fd)
