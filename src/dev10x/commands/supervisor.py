@@ -19,6 +19,7 @@ from dev10x.comm.supervisor.decisions import DecisionStore
 from dev10x.comm.supervisor.delivery import RELAY_MAILBOX
 from dev10x.comm.supervisor.lessons import DEFAULT_KB_ROOT
 from dev10x.comm.supervisor.probes import Snapshot, take_snapshot
+from dev10x.comm.supervisor.rearm import RELAY_AGENT, RelayRearm, run_rearm
 from dev10x.comm.supervisor.server import SupervisorApp, make_server, run_collector
 from dev10x.comm.supervisor.settings import SettingsStore
 from dev10x.domain.file_locks import atomic_write_text
@@ -69,11 +70,14 @@ def run_service(
     stop: threading.Event,
     provider: Callable[[], Snapshot],
     announce: Callable[[str], None],
+    rearm: Callable[[], object] | None = None,
 ) -> None:
     server = make_server(app=app, port=port)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     announce(f"Supervisor page: http://127.0.0.1:{server.server_address[1]}/?token={app.token}")
+    if rearm is not None:
+        threading.Thread(target=rearm, daemon=True).start()
     try:
         run_collector(app=app, interval=interval, stop=stop, provider=provider)
     finally:
@@ -100,6 +104,12 @@ def supervisor() -> None:
     show_default=True,
     help="Once at start, rename idle sessions with a generated name after their branch.",
 )
+@click.option(
+    "--relay-agent",
+    default=RELAY_AGENT,
+    show_default=True,
+    help="Herdr agent name to re-arm once at boot; empty disables it.",
+)
 def serve(
     *,
     port: int,
@@ -108,6 +118,7 @@ def serve(
     bus_root: Path,
     relay_mailbox: str,
     auto_rename: bool,
+    relay_agent: str,
 ) -> None:
     """Serve the supervisor page on 127.0.0.1 until stopped."""
     hook_token = secrets.token_urlsafe(24)
@@ -134,7 +145,26 @@ def serve(
         stop=stop,
         provider=lambda: take_snapshot(bus_root=bus_root),
         announce=click.echo,
+        rearm=build_rearm(app=app, agent_name=relay_agent, interval=interval, stop=stop),
     )
+
+
+def build_rearm(
+    *,
+    app: SupervisorApp,
+    agent_name: str,
+    interval: float,
+    stop: threading.Event,
+) -> Callable[[], object] | None:
+    if not agent_name:
+        return None
+    rearm = RelayRearm(
+        bus_root=app.bus_root,
+        log_path=app.log_path,
+        relay_mailbox=app.relay_mailbox,
+        agent_name=agent_name,
+    )
+    return lambda: run_rearm(attempt=rearm.attempt, interval=interval, stop=stop)
 
 
 @supervisor.command(name="unit")

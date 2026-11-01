@@ -76,6 +76,9 @@ Args: `[serve | relay | stop]` (default `serve`).
 3. To keep it running across reboots, run `uvx dev10x supervisor unit`
    and show the unit text; installing it under `~/.config/systemd/user/`
    is the user's step.
+4. After a herdr restart the relay session resumes without its
+   watcher. On boot the daemon re-arms it once (see Safety), so
+   there is no need to prompt the relay by hand.
 
 ### `relay`
 
@@ -123,9 +126,16 @@ Args: `[serve | relay | stop]` (default `serve`).
 ## Safety
 
 - The page binds `127.0.0.1` only; every route needs the token.
-- Keys are sent only from a button press on the page; the relay
-  never sends keys and never merges, posts, deletes or touches
-  secrets because a message asked.
+- Keys are sent only from a button press on the page, with one
+  exception: once per daemon boot, the daemon sends the fixed prompt
+  `/dev10x:supervisor relay` with `herdr agent prompt` to the herdr
+  agent named `relay`, and to nothing else. It sends that prompt only
+  when the agent is `idle` or `done` and its `supervisor-relay` board
+  line predates the agent's process. The send is logged to
+  `actions.jsonl` as `confirmed_by: daemon-boot`. `--relay-agent ""`
+  turns it off.
+- The relay never sends keys and never merges, posts, deletes or
+  touches secrets because a message asked.
 - The daemon never reads `~/.claude/sessions/*.key` or the session
   messaging sockets.
 

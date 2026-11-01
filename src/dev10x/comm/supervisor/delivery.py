@@ -57,6 +57,24 @@ def deliver_keys(
     )
 
 
+def deliver_prompt(
+    *,
+    pane_id: str,
+    text: str,
+    confirmed_by: str,
+    log_path: Path,
+    sender: Callable[..., None] = submit_prompt,
+) -> None:
+    sender(pane_id=pane_id, text=text)
+    log_action(
+        log_path=log_path,
+        action="prompt",
+        target=pane_id,
+        detail=text,
+        confirmed_by=confirmed_by,
+    )
+
+
 SESSION_COMMANDS = {
     "reflect": "/my:reflect",
     "wrap-up": "/dev10x:session-wrap-up",

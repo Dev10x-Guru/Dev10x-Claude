@@ -13,6 +13,7 @@ from dev10x.comm.supervisor.delivery import (
     ANSWER_PREFIX,
     Peer,
     deliver_keys,
+    deliver_prompt,
     deliver_relay,
     introduce,
     introduction,
@@ -75,6 +76,39 @@ class TestDeliverKeys:
                 confirmed_by="janusz",
                 log_path=log_path,
                 sender=sender,
+            )
+
+        assert not log_path.exists()
+
+
+class TestDeliverPrompt:
+    def test_logs_after_send(self, log_path: Path) -> None:
+        sender = RecordingSender()
+
+        deliver_prompt(
+            pane_id="w7:p1",
+            text="/dev10x:supervisor relay",
+            confirmed_by="daemon-boot",
+            log_path=log_path,
+            sender=sender,
+        )
+        record = json.loads(log_path.read_text(encoding="utf-8"))
+
+        assert (sender.calls, record["action"], record["target"], record["confirmed_by"]) == (
+            [{"pane_id": "w7:p1", "text": "/dev10x:supervisor relay"}],
+            "prompt",
+            "w7:p1",
+            "daemon-boot",
+        )
+
+    def test_failed_send_logs_nothing(self, log_path: Path) -> None:
+        with pytest.raises(ProbeError):
+            deliver_prompt(
+                pane_id="w7:p1",
+                text="hi",
+                confirmed_by="daemon-boot",
+                log_path=log_path,
+                sender=RecordingSender(error=ProbeError("agent_blocked")),
             )
 
         assert not log_path.exists()

@@ -8,6 +8,8 @@ from pathlib import Path
 
 from dev10x.comm.skills.bus.maildir import SessionStatus, parse_status, status_files
 from dev10x.comm.supervisor.sessions import (
+    ClaudeSession,
+    HerdrPane,
     ProbeParseError,
     SessionView,
     merge_sessions,
@@ -53,9 +55,17 @@ def _call(*, args: list[str], runner: Runner) -> str:
     return result.stdout
 
 
-def _board(*, bus_root: Path) -> list[SessionStatus]:
+def get_board(*, bus_root: Path) -> list[SessionStatus]:
     statuses = [parse_status(path=path) for path in status_files(root=bus_root)]
     return [status for status in statuses if status is not None]
+
+
+def get_claude_sessions(*, runner: Runner = run) -> list[ClaudeSession]:
+    return parse_claude_agents(raw=_call(args=CLAUDE_AGENTS, runner=runner))
+
+
+def get_herdr_panes(*, runner: Runner = run) -> list[HerdrPane]:
+    return parse_herdr_agents(raw=_call(args=HERDR_AGENTS, runner=runner))
 
 
 def take_snapshot(*, bus_root: Path, runner: Runner = run) -> Snapshot:
@@ -63,15 +73,15 @@ def take_snapshot(*, bus_root: Path, runner: Runner = run) -> Snapshot:
     claude = []
     panes = []
     try:
-        claude = parse_claude_agents(raw=_call(args=CLAUDE_AGENTS, runner=runner))
+        claude = get_claude_sessions(runner=runner)
     except (ProbeError, ProbeParseError) as exc:
         errors["claude"] = str(exc)
     try:
-        panes = parse_herdr_agents(raw=_call(args=HERDR_AGENTS, runner=runner))
+        panes = get_herdr_panes(runner=runner)
     except (ProbeError, ProbeParseError) as exc:
         errors["herdr"] = str(exc)
     try:
-        board = _board(bus_root=bus_root)
+        board = get_board(bus_root=bus_root)
     except OSError as exc:
         errors["bus"] = str(exc)
         board = []
