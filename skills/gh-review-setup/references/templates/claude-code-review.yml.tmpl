@@ -20,7 +20,13 @@ concurrency:
 
 jobs:
   review:
-    if: github.event.pull_request.draft == false
+    # Switch off: set the CLAUDE_REVIEW_ENABLED Actions variable to
+    # 'false' (every PR) or add the skip-claude-review label (one PR).
+    # The job then reads as skipped, never as a failure.
+    if: >-
+      vars.CLAUDE_REVIEW_ENABLED != 'false'
+      && !contains(github.event.pull_request.labels.*.name, 'skip-claude-review')
+      && github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

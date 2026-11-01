@@ -19,8 +19,12 @@ jobs:
     # lost. Getting actual review coverage on fork PRs needs a
     # workflow_run split or pull_request_target, neither of which is a
     # trigger swap — see the issue.
+    # GH-1756: switched off by CLAUDE_REVIEW_ENABLED='false' or the
+    # skip-claude-review label; see claude-code-review.yml.
     if: >-
-      !github.event.pull_request.draft
+      vars.CLAUDE_REVIEW_ENABLED != 'false'
+      && !contains(github.event.pull_request.labels.*.name, 'skip-claude-review')
+      && !github.event.pull_request.draft
       && !github.event.pull_request.head.repo.fork
     runs-on: ubuntu-latest
     permissions:

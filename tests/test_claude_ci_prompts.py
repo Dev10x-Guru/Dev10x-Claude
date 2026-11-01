@@ -553,6 +553,64 @@ class TestReviewCadence:
         assert steps[step]["if"] == "steps.credentials.outputs.configured == 'true'"
 
 
+def _job_condition(*, workflow: str, job: str) -> str:
+    return " ".join(_load_workflow(workflow=workflow)["jobs"][job]["if"].split())
+
+
+#: Each paid review workflow and the job the kill switch must skip.
+_REVIEW_JOBS: list[tuple[str, str]] = [
+    ("claude-code-review.yml", "claude-review"),
+    ("claude-pr-hygiene.yml", "hygiene-review"),
+    ("claude-memory-review.yml", "lessons-learned"),
+]
+
+
+class TestKillSwitch:
+    """The supervisor can switch the Claude jobs off without a red check (GH-1756).
+
+    The switch sits in the job-level ``if:``, so a switched-off job reads as
+    skipped and the never-ran, posted-nothing and checklist guards inside it
+    never run. Only the literal ``'false'`` disables, so an unset variable
+    leaves every existing setup unchanged.
+    """
+
+    @pytest.mark.parametrize(("workflow", "job"), _REVIEW_JOBS)
+    def test_review_variable_skips_the_job(self, workflow: str, job: str) -> None:
+        condition = _job_condition(workflow=workflow, job=job)
+
+        assert condition.startswith("vars.CLAUDE_REVIEW_ENABLED != 'false' && ")
+
+    @pytest.mark.parametrize(("workflow", "job"), _REVIEW_JOBS)
+    def test_label_skips_one_pr(self, workflow: str, job: str) -> None:
+        condition = _job_condition(workflow=workflow, job=job)
+
+        assert (
+            "!contains(github.event.pull_request.labels.*.name, 'skip-claude-review')" in condition
+        )
+
+    def test_assistant_has_its_own_variable(self) -> None:
+        condition = _job_condition(workflow="claude.yml", job="claude")
+
+        assert condition.startswith("vars.CLAUDE_ASSISTANT_ENABLED != 'false' && (")
+        assert "CLAUDE_REVIEW_ENABLED" not in condition
+
+    @pytest.mark.parametrize(
+        "template",
+        [
+            "claude-code-review.yml.tmpl",
+            "claude-pr-hygiene.yml.tmpl",
+            "claude-second-opinion.yml.tmpl",
+        ],
+    )
+    def test_scaffolded_reviews_carry_the_switch(self, template: str) -> None:
+        text = (
+            _REPO_ROOT / "skills" / "gh-review-setup" / "references" / "templates" / template
+        ).read_text(encoding="utf-8")
+
+        assert "vars.CLAUDE_REVIEW_ENABLED != 'false'" in text
+        assert "'skip-claude-review'" in text
+
+
 class TestReviewChecklist:
     """Each review run stamps its id and sha into the PR body (GH-1694)."""
 

@@ -27,8 +27,13 @@ jobs:
     # fork PR, which is exactly the "trains reviewers to ignore red CI"
     # failure .claude/rules/github-workflows.md warns about. Matches the
     # guard on claude-code-review.yml and claude-pr-hygiene.yml.
+    #
+    # GH-1756: switched off by CLAUDE_REVIEW_ENABLED='false' or the
+    # skip-claude-review label, like the two review jobs.
     if: >-
-      github.event.pull_request.draft == false
+      vars.CLAUDE_REVIEW_ENABLED != 'false'
+      && !contains(github.event.pull_request.labels.*.name, 'skip-claude-review')
+      && github.event.pull_request.draft == false
       && !startsWith(github.event.pull_request.title, 'Revert ')
       && !github.event.pull_request.head.repo.fork
     runs-on: ubuntu-latest
