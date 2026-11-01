@@ -7,7 +7,6 @@ import sys
 import time
 import urllib.request
 from collections.abc import Callable
-from pathlib import Path
 from typing import Any
 
 from dev10x.comm.supervisor import paths
@@ -37,13 +36,6 @@ def _emit(text: str) -> None:
     sys.stdout.write(text + "\n")
 
 
-def _read_token(*, path: Path) -> str:
-    try:
-        return path.read_text(encoding="utf-8").strip()
-    except OSError:
-        return ""
-
-
 class _Daemon:
     def __init__(self, *, port: int, token: str, timeout: float, opener: Opener) -> None:
         self._base = f"http://127.0.0.1:{port}"
@@ -70,7 +62,7 @@ def _mirror_to_dev(*, body: dict[str, Any], timeout: float, opener: Opener) -> N
     dev = load_dev_checkout()
     if dev is None:
         return
-    token = _read_token(path=paths.token_path(instance=paths.Instance.DEV))
+    token = paths.read_token(path=paths.token_path(instance=paths.Instance.DEV))
     if not token:
         return
     daemon = _Daemon(port=dev.port, token=token, timeout=timeout, opener=opener)
@@ -133,7 +125,7 @@ def supervisor_decision(
         "questions": questions,
     }
     _mirror_to_dev(body=body, timeout=timeout, opener=opener)
-    token = _read_token(path=paths.token_path())
+    token = paths.read_token(path=paths.token_path())
     if not token:
         return
     daemon = _Daemon(port=port or _port(), token=token, timeout=timeout, opener=opener)

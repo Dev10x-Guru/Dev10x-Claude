@@ -13,12 +13,41 @@ PathFn = Callable[..., Path]
 
 
 @pytest.mark.parametrize(
-    ("instance", "port"),
-    [(paths.Instance.RELEASE, 8765), (paths.Instance.DEV, 8766)],
+    ("instance", "expected"),
+    [
+        (
+            paths.Instance.RELEASE,
+            paths.InstanceProfile(
+                default_port=8765, keeps_page_token=False, renames_sessions=True
+            ),
+        ),
+        (
+            paths.Instance.DEV,
+            paths.InstanceProfile(
+                default_port=8766, keeps_page_token=True, renames_sessions=False
+            ),
+        ),
+    ],
     ids=["release", "dev"],
 )
-def test_default_port(instance: paths.Instance, port: int) -> None:
-    assert paths.default_port(instance=instance) == port
+def test_profile(instance: paths.Instance, expected: paths.InstanceProfile) -> None:
+    assert paths.profile(instance=instance) == expected
+
+
+@pytest.mark.parametrize(
+    ("content", "expected"),
+    [("tok\n", "tok"), ("  \n", "")],
+    ids=["saved", "blank"],
+)
+def test_read_token(tmp_path: Path, content: str, expected: str) -> None:
+    path = tmp_path / "token"
+    path.write_text(content, encoding="utf-8")
+
+    assert paths.read_token(path=path) == expected
+
+
+def test_read_token_missing_file(tmp_path: Path) -> None:
+    assert paths.read_token(path=tmp_path / "gone") == ""
 
 
 @pytest.mark.parametrize(

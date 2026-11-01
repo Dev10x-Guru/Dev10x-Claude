@@ -27,7 +27,7 @@ from dev10x.comm.supervisor.dev_checkout import (
 from dev10x.comm.supervisor.dev_launcher import DevLauncher, child_command
 from dev10x.comm.supervisor.lessons import DEFAULT_KB_ROOT
 from dev10x.comm.supervisor.probes import Snapshot, take_snapshot
-from dev10x.comm.supervisor.server import SupervisorApp, make_server, run_collector
+from dev10x.comm.supervisor.server import HOST, SupervisorApp, make_server, run_collector
 from dev10x.comm.supervisor.settings import SettingsStore
 from dev10x.domain.file_locks import atomic_write_text
 
@@ -65,18 +65,19 @@ def write_token(*, token: str, path: Path) -> None:
 
 
 def page_token(*, instance: paths.Instance) -> str:
-    if instance is paths.Instance.RELEASE:
+    if not paths.profile(instance=instance).keeps_page_token:
         return secrets.token_urlsafe(24)
     path = paths.page_token_path(instance=instance)
-    try:
-        saved = path.read_text(encoding="utf-8").strip()
-    except OSError:
-        saved = ""
+    saved = paths.read_token(path=path)
     if saved:
         return saved
     fresh = secrets.token_urlsafe(24)
     write_token(token=fresh, path=path)
     return fresh
+
+
+def page_url(*, port: int) -> str:
+    return f"http://{HOST}:{port}/"
 
 
 def build_app(
@@ -113,7 +114,7 @@ def run_service(
     server = make_server(app=app, port=port)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
-    url = f"http://127.0.0.1:{server.server_address[1]}/"
+    url = page_url(port=server.server_address[1])
     announce(
         f"Supervisor page: {url}?token={app.token}"
         if token_file is None
@@ -226,6 +227,7 @@ def serve(
         run_launcher(launcher=launcher, stop=_stop_on_signals(), interval=interval)
         return
     scope = paths.Instance(instance)
+    traits = paths.profile(instance=scope)
     hook_token = secrets.token_urlsafe(24)
     write_token(token=hook_token, path=paths.token_path(instance=scope))
     app = build_app(
@@ -236,17 +238,15 @@ def serve(
         hook_token=hook_token,
         instance=scope,
     )
-    app.auto_rename = auto_rename and scope is paths.Instance.RELEASE
+    app.auto_rename = auto_rename and traits.renames_sessions
     run_service(
         app=app,
-        port=paths.default_port(instance=scope) if port is None else port,
+        port=traits.default_port if port is None else port,
         interval=interval,
         stop=_stop_on_signals(),
         provider=lambda: take_snapshot(bus_root=bus_root),
         announce=click.echo,
-        token_file=None
-        if scope is paths.Instance.RELEASE
-        else paths.page_token_path(instance=scope),
+        token_file=paths.page_token_path(instance=scope) if traits.keeps_page_token else None,
     )
 
 
@@ -302,13 +302,10 @@ def dev_status() -> None:
     if pinned is None:
         click.echo("No dev checkout is pinned.")
         return
-    try:
-        token = paths.page_token_path(instance=paths.Instance.DEV).read_text(encoding="utf-8")
-    except OSError:
-        token = ""
+    token = paths.read_token(path=paths.page_token_path(instance=paths.Instance.DEV))
     page = (
-        f"http://127.0.0.1:{pinned.port}/?token={token.strip()}"
-        if token.strip()
+        f"{page_url(port=pinned.port)}?token={token}"
+        if token
         else "no token yet; start the dev page first"
     )
     click.echo(

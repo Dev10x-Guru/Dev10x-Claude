@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 
@@ -16,8 +17,25 @@ class Instance(StrEnum):
     DEV = "dev"
 
 
-def default_port(*, instance: Instance) -> int:
-    return DEV_PORT if instance is Instance.DEV else DEFAULT_PORT
+@dataclass(frozen=True)
+class InstanceProfile:
+    default_port: int
+    keeps_page_token: bool
+    renames_sessions: bool
+
+
+PROFILES = {
+    Instance.RELEASE: InstanceProfile(
+        default_port=DEFAULT_PORT, keeps_page_token=False, renames_sessions=True
+    ),
+    Instance.DEV: InstanceProfile(
+        default_port=DEV_PORT, keeps_page_token=True, renames_sessions=False
+    ),
+}
+
+
+def profile(*, instance: Instance) -> InstanceProfile:
+    return PROFILES[instance]
 
 
 def state_dir(*, instance: Instance = Instance.RELEASE) -> Path:
@@ -43,3 +61,10 @@ def settings_path(*, instance: Instance = Instance.RELEASE) -> Path:
 
 def actions_log_path(*, instance: Instance = Instance.RELEASE) -> Path:
     return state_dir(instance=instance) / "actions.jsonl"
+
+
+def read_token(*, path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""

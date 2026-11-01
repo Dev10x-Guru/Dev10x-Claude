@@ -22,7 +22,7 @@ from dev10x.subprocess_utils import run
 
 HEAD_TIMEOUT_SECONDS = 10.0
 STOP_TIMEOUT_SECONDS = 10.0
-MAX_BACKOFF_TICKS = 12
+MAX_BACKOFF_TICKS = 11
 
 Runner = Callable[..., subprocess.CompletedProcess[str]]
 Spawner = Callable[..., subprocess.Popen[bytes]]
@@ -109,29 +109,27 @@ class DevLauncher:
             self._signal(child=child, signum=signal.SIGKILL)
             child.wait()
 
-    def _note_head(self, *, current: str | None, head: str | None, lost: bool) -> bool:
-        if current is None and not lost:
+    def _note_head(self, *, current: str | None, previous: str | None, head: str | None) -> None:
+        if current is None and previous is not None:
             self.announce(
                 f"Cannot read HEAD of {self.checkout} (`git rev-parse HEAD` failed); "
                 f"the dev page stays on {head}"
             )
-            return True
-        if current is not None and lost:
+        elif current is not None and previous is None:
             self.announce(f"HEAD of {self.checkout} is readable again at {current}")
-            return False
-        return lost
 
     def run(self, *, stop: threading.Event, interval: float) -> None:
         head = self.head_reader(checkout=self.checkout)
         self.announce(f"Dev supervisor page from {self.checkout} at {head or 'unknown HEAD'}")
-        lost = head is None
+        previous = head
         child = self._start()
         failures = 0
         wait_ticks = 0
         try:
             while not stop.wait(interval):
                 current = self.head_reader(checkout=self.checkout)
-                lost = self._note_head(current=current, head=head, lost=lost)
+                self._note_head(current=current, previous=previous, head=head)
+                previous = current
                 if current is not None and head is None:
                     head = current
                 elif current is not None and current != head:
@@ -162,4 +160,4 @@ class DevLauncher:
 
 
 def backoff_ticks(*, failures: int) -> int:
-    return min(2 ** max(failures - 1, 0), MAX_BACKOFF_TICKS) - 1
+    return min(2 ** max(failures - 1, 0) - 1, MAX_BACKOFF_TICKS)

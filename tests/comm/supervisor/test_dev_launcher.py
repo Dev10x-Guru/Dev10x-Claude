@@ -121,7 +121,7 @@ class TestRun:
 
         _launch(recorder=recorder, heads=["a", None, None])
 
-        assert [line for line in recorder.lines if line.startswith("Cannot read HEAD")] == [
+        assert recorder.lines[1:] == [
             "Cannot read HEAD of /w/dx (`git rev-parse HEAD` failed); the dev page stays on a"
         ]
 
@@ -154,8 +154,12 @@ class TestRun:
 
     def test_backs_off_a_crash_loop(self) -> None:
         recorder = Recorder(
-            children=[FakeChild(pid=pid, exit_code=1) for pid in (10, 11, 12)]
-            + [FakeChild(pid=13)]
+            children=[
+                FakeChild(pid=10, exit_code=1),
+                FakeChild(pid=11, exit_code=1),
+                FakeChild(pid=12, exit_code=1),
+                FakeChild(pid=13),
+            ]
         )
 
         _launch(recorder=recorder, heads=["a"] * 8)
