@@ -5,6 +5,10 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.112.0 — Switch the Reviews Off, Draw the Diagram
+
+Released 2026-11-01
+
 ### Breaking
 
 - **Four legacy config spellings are no longer read** — each reached its
@@ -34,6 +38,99 @@ This project adheres to [Semantic Versioning](https://semver.org/).
     `dev10x config migrate` to copy it to `~/.config/Dev10x/`
     ([GH-1035](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1035),
     [GH-1771](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1771))
+
+### Features
+
+- **Switch the Claude CI reviews off when they cannot help** — with
+  the API budget gone, federation auth broken (#1748) or reviews
+  already run locally, every PR still got red `claude-review` and
+  `hygiene-review` checks that meant nothing. A job-level
+  `CLAUDE_REVIEW_ENABLED=false` variable or a per-PR
+  `skip-claude-review` label now skips the review jobs, and
+  `CLAUDE_ASSISTANT_ENABLED` switches the `@claude` bot separately.
+  Unset keeps everything on. `gh-pr-monitor`, `gh-pr-merge` and the
+  merge policy read a skipped review as disabled, not missing, so it
+  never holds a merge; the `gh-review-setup` templates carry the same
+  switch
+  ([GH-1756](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1756))
+- **Draw sequence, C4 and BPMN diagrams that render on the first
+  try** — agents picked a notation by habit, hand-computed BPMN
+  coordinates and never looked at the result. Three new skills,
+  `dev10x:diagram-sequence` (Mermaid for GitHub Markdown, PlantUML
+  for image files), `dev10x:diagram-c4` (one C4 level per question,
+  typed containers, legend) and `dev10x:diagram-bpmn` (semantic model
+  only, layout and lanes computed by script), each with a render
+  script that validates, renders with a pinned toolchain and makes
+  the agent open the image
+  ([GH-1635](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1635),
+  [GH-1636](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1636),
+  [GH-1637](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1637))
+- **Post and compare a local CI review replay** — `dev10x ci-review`
+  was a dry run only. `--post` shares the replica on the PR as one
+  clearly marked comment, and `--compare-ci <run-id>` matches local
+  findings against the bot's comments from a real run with a
+  severity table; a changed-file set the workflow's `paths` filter
+  would skip now warns
+  ([GH-1721](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1721))
+- **Read MCP and skill diagnostics after the session has moved on** —
+  the MCP daemon and `dev10x skill` commands now log redacted JSONL
+  to `/tmp/Dev10x/log/` beside the hook audit log; secrets are
+  scrubbed by field name and value shape
+  ([GH-1639](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1639))
+- **Steer leading-flag `gog` commands before the prompt fires** —
+  `gog -a <account> --readonly chat …` missed every catalogued allow
+  rule. Advisory rules can now opt into a live hint the hook emits
+  as context, so the agent moves the flags before it is prompted
+  ([GH-1725](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1725))
+- **Refuse milestones with an unregistered initiative prefix** —
+  `milestone_create` and `milestones_bulk_create` now check the
+  registry in `references/milestone-naming.md` before any API call
+  ([GH-1690](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1690))
+
+### Fixes
+
+- **A timed-out `run_tests` call ends inside its 1080 s ceiling** —
+  a full-suite call stayed silent for an hour because the timeout
+  waited for pipe EOF from a descendant that escaped the kill. The
+  child is reaped with a bounded grace, the permit wait and the
+  extras retry count against one deadline
+  ([GH-1760](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1760))
+- **`dropdb`, `createdb` and their siblings can no longer write past
+  the database guard** — DX004 matched SQL spelling, not effect, so
+  the Postgres client binaries bypassed it. They are denied now, and
+  `pg_restore` only when it targets a database
+  ([GH-1732](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1732))
+- **Validators judge the command, not the words around it** — DX003
+  no longer reads a launcher's free text as python reading a heredoc,
+  and DX013/DX016 unwrap `timeout`, `env -i` and friends the same way
+  DX003 does
+  ([GH-1733](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1733))
+- **`gh-pr-monitor` updates the PR checklist again** — `pr_notify`
+  pointed at a script path that went stale in a move; a guard now
+  checks every `skill_script()` target exists
+  ([GH-1751](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1751))
+- **`verify-acc-dod`'s PR checks run past the plugin's own hook** —
+  "PR not draft" and "Review requested" read `pr_get` instead of the
+  blocked `gh pr view`; a deploy-time configuration check joins the
+  defaults, and `ci_check_status` reports the head SHA and merge
+  state so a green-but-behind PR no longer reads as mergeable
+  ([GH-1717](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1717),
+  [GH-1684](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1684))
+
+### Docs
+
+- **Always-loaded rules fit the 150k instruction limit again** —
+  they had reached ~170.8k. Ten conditional rules now carry `paths:`
+  and the MCP tool caveats moved to `references/mcp-tools/`; a test
+  holds the always-loaded set under 140k (~78.9k now)
+  ([GH-1606](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1606))
+- **Over-budget skill docs are back within budget or annotated** —
+  `diag-friction` and `ticket-create` moved depth to references, and
+  `ticket-create` gained the attended confirmation gate Step 4 always
+  promised
+  ([GH-1727](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1727),
+  [GH-1705](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1705),
+  [GH-1704](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1704))
 
 ## 0.111.0 — Answer From the Page, Wherever the Session Runs
 
