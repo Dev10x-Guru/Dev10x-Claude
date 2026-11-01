@@ -1,3 +1,8 @@
+---
+paths:
+  - "src/dev10x/**"
+---
+
 # CWD Discipline (GH-979)
 
 In-process package code must respect the caller's effective working

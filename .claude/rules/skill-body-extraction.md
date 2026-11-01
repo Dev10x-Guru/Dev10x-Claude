@@ -1,3 +1,8 @@
+---
+paths:
+  - "skills/**"
+---
+
 # Skill Body Extraction Pattern
 
 Reduce token consumption on skill invocation by moving reference

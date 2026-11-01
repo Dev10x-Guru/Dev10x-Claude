@@ -1,3 +1,11 @@
+---
+paths:
+  - "hooks/**"
+  - "src/dev10x/hooks/**"
+  - "src/dev10x/*/hooks/**"
+  - "src/dev10x/core/validators/**"
+---
+
 # Hook Input Parsing Patterns
 
 Safe patterns for hooks that parse tool input (JSON, commands, etc.).

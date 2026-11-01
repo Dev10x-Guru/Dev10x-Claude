@@ -2,29 +2,30 @@
 
 Central reference for MCP tool naming conventions and invocation patterns.
 
-> **[OVERRIDE DETECTED]** — well over the 200-line rule budget in
-> `.claude/rules/INDEX.md`, and the largest breach in `.claude/rules/`.
-> Kept whole under § Budget Overrides for two reasons that the two
-> reviewer agent specs split in the same PR (GH-1197) do **not** share:
+> **[OVERRIDE DETECTED]** — over the 200-line rule budget in
+> `.claude/rules/INDEX.md`. Kept as one file under § Budget Overrides
+> because it is one contract read as a unit: the naming format, the
+> `Result`/`to_wire` declaration pattern, the canonical parameter
+> shapes and the routed-CLI map all answer "how do I call this tool
+> correctly".
 >
-> 1. **Cohesion.** The file is one contract read as a unit — the naming
->    format, the `Result`/`to_wire` declaration pattern, the canonical
->    parameter shapes, the behavioural caveats, and the availability
->    table all answer "how do I call this tool correctly". A caller
->    checking a parameter shape usually needs the caveat two rows down.
-> 2. **Cost shape.** An agent spec's whole body loads into the
->    dispatched session's system prompt on **every** dispatch, which is
->    what makes 145 lines expensive there. This rule is path-scoped and
->    read on demand, so length costs only the readers who need it.
+> **This rule has no `paths:` front matter, so it loads in every
+> session** (GH-1606). An earlier note justified its size by calling it
+> "path-scoped and read on demand"; it never was, and at 56k characters
+> it was a third of the always-loaded instruction total. GH-1606 moved
+> the bulk out instead: the per-tool behavioural caveats and the
+> version-history table now live under
+> [`references/mcp-tools/`](../../references/mcp-tools/), read when a
+> caller reaches for the tool they describe.
+> `tests/test_always_loaded_instruction_budget.py` fails when the
+> always-loaded total grows past its budget again.
 >
-> **Conditional split plan.** If it passes ~800 lines, or the parameter
-> table and the availability table start disagreeing, split along the
-> seam that already exists: `mcp-tool-authoring.md` (name format,
-> declaration pattern, server registration, the three edits a new tool
-> needs) and `mcp-tool-reference.md` (parameter shapes, behavioural
-> caveats, availability table, routed-CLI map), with this file left as
-> a thin index. Do not split by tool family — that cuts across the
-> authoring/calling distinction readers actually use.
+> **Conditional split plan.** If this file passes ~600 lines, split
+> along the authoring/calling seam: `mcp-tool-authoring.md` (name
+> format, declaration pattern, concurrency, server registration, the
+> three edits a new tool needs) and `mcp-tool-calling.md` (parameter
+> shapes, write-receipt rule, routed-CLI map), with this file left as a
+> thin index. New caveats go to `references/mcp-tools/`, not here.
 
 ## Name Format
 
@@ -220,478 +221,18 @@ one session). Use these shapes verbatim:
 | `update_pr` | `pr_number`, plus at least one of `body` / `title` / `base_branch` / `milestone` | `gh pr edit --milestone` — routed here (GH-1098) |
 | `permission_triage` / `permission_grant` | `target` (the prompted command, or a rule); grant also needs `rule`, the triage rule echoed back so the approval prompt names it; optional `working_dirs` (absolute), and `dry_run` / `remember` on grant | expecting a grant to reach a worktree created later without `remember=true`, which also records the rule in `~/.config/Dev10x/granted-permissions.yaml` for `ensure-base` / `seed-worktree` (GH-1677); passing a hand-built rule for a command — pass the command so triage can see its shape (GH-1676); expecting grant to write on a non-`grant` verdict, or with a `rule` triage did not derive — it refuses and returns the triage; relative `working_dirs` — rejected (GH-1264) |
 
-Behavioral caveats:
+### Behavioral caveats
 
-- The `task_index_*` trio is the park family's only sanctioned write
-  path (GH-1009, ADR-0018 D5). The store lives at
-  `~/.config/Dev10x/task-index/<repo-stem>.yaml`, keyed by the git
-  **common dir**, so one index serves a repo and every worktree of it.
-  Reaching the file with `Write`/`Edit` — at the new path or the retired
-  `.claude/Dev10x/session.yaml` — is a defect twice over: under a repo's
-  `.claude/` it trips the self-settings consent gate that no allow rule
-  suppresses, and anywhere it bypasses the file lock, so two parallel
-  worktrees parking at once lose an entry.
-  The retired path is no longer read: the `task_index_get` fallback and the append fold-forward were removed in 0.112.0 (GH-1771).
+The per-tool caveats live in `references/mcp-tools/` (GH-1606). Read
+the file for the tool before relying on a payload field or a
+non-obvious default:
 
-- `pr_labels` carries the durable `review:cleared` signal (GH-1008).
-  `dev10x:gh-pr-request-review` reads it before the stand-by clearance
-  gate and skips asking when present; the two "I reviewed it" answers
-  write it. Because a sign-off covers the commits that were read,
-  `dev10x:git-groom` removes it after a force-push — a clearance must
-  not survive the rewrite that invalidated it. Both writes are
-  idempotent (`add` skips present labels, `remove` intersects against
-  the current set first, so clearing an unset label is a no-op rather
-  than a 404), so call them unconditionally instead of probing.
-
-  `remove` issues **one `PUT` of the surviving set** rather than a
-  `DELETE` per label (GH-1446) — the old loop paid a subprocess plus an
-  HTTP round trip each time, on a path `dev10x:git-groom` runs after
-  every force-push. Idempotence is unchanged. One property is: a `PUT`
-  is a read-modify-write, so a label added by another process between
-  the read and the write is dropped, where a per-label `DELETE` was
-  immune. The window is one round trip and the no-op guard keeps a
-  remove-nothing call from issuing a `PUT` at all — do not remove that
-  guard. `issue_labels` still uses the `DELETE` loop; it is not on a
-  hot path.
-
-- `notify_slack`, `notify_gchat`, and `pr_notify(action="send")` append
-  a failed notification to
-  `~/.config/Dev10x/undelivered-notifications.jsonl` (GH-1421,
-  GH-1479). The error used to exist only in the call's return value,
-  which is fine when an agent surfaces it to a user and useless under
-  `foreman`'s unattended crews — the one mode where a lost "crew
-  stalled" costs most and nobody is watching. **It is a dead-letter
-  log, not a retry queue**: nothing re-sends, nothing reads the file, a
-  person greps it. `record_undelivered` never raises, because losing
-  the caller on top of the notification turns a missed message into a
-  broken crew. `pr_notify(action="prepare")` dispatches nothing and so
-  records nothing. `notify_gchat` mirrors `notify_slack`'s retry loop
-  (`domain/retry.py`) and dead-letter call through the same shared
-  `domain/` policy modules — ADR-0029 deliberately keeps the two
-  provider transports as separate modules with no shared base class,
-  so `tests/skills/notifications/test_transport_parity.py` guards
-  against the next protocol-level fix landing on only one provider.
-
-- `issue_labels` is `pr_labels`'s issue-side counterpart (GH-1322),
-  with the same idempotence contract. `issue_edit`'s `labels`
-  parameter is additive-only — it calls `gh issue edit --add-label`,
-  which never removes or replaces — so its docstring no longer claims
-  "replacement label list" semantics. Use `issue_labels(action=
-  "remove", ...)` to remove a label and `issue_labels(action="list",
-  ...)` to read the current set; `issue_edit` still owns title, body,
-  and milestone writes.
-
-- `pr_ready` flips a PR in both directions: omit `undo` to publish a
-  draft, pass `undo=true` to convert a published PR back to draft
-  (GH-931). Raw `gh pr ready --undo` is hook-blocked like every other
-  form, so this parameter is the only sanctioned way to un-publish —
-  which is the *safe* direction when a problem surfaces after marking
-  ready. The success payload's `draft` is **read back from GitHub**
-  since GH-1424, with `draft_verified: true` alongside it; it used to
-  be the `undo` argument echoed back, which could never disagree with
-  the request. A PR still in the wrong state returns an `ErrorResult`
-  naming it, rather than a plausible receipt the caller acts on and
-  then fails to merge.
-
-- **`pr_ready` after a push (GH-958, GH-1731).** A
-  `--force-with-lease` push resets a published PR back to draft, so a
-  ready call that succeeded earlier — including a
-  `create_pr(draft=false)` — does not survive a later rebase, amend, or
-  groom. Call `pr_ready` after the FINAL push and confirm with a fresh
-  `pr_get` that `isDraft` is `false`; otherwise `merge_pr` fails with
-  `GraphQL: Pull Request is still a draft`, and the re-ready costs
-  another bot-CI round.
-
-  `pr-draft-on-push.yml` (GH-1694) extends this to **every** push, and
-  a draft gets no CI here. So any push path — a fixup push, a groom
-  force-push, a conflict rebase — reads `isDraft` via `pr_get` before
-  the push and again after it, and calls `pr_ready` only when the PR
-  was ready before and is a draft now. The rule is conditional on
-  purpose: it is a no-op while the workflow lacks its App credentials,
-  and a PR that was a draft before the push stays one, because
-  readiness was not the push's to grant (under `supervisor_review:
-  required` that call belongs to the supervisor). `push_safe` does not
-  report the draft state; reading it is the caller's job, since only
-  the caller knows which PR the branch belongs to.
-
-- `create_pr` rejects a `job_story` missing any of `**When**` /
-  `**<actor> wants**` / `**so <beneficiary> can**` with an
-  actionable error before the PR is opened, and `update_pr` moves any
-  content trailing the `Fixes:` line above it (GH-945) — so neither
-  path can emit a body that trips the hygiene bot.
-
-- `create_pr` always emits at least one `Fixes:` reference (GH-1256).
-  The trailer used to be derived from `fixes_url` alone, so linking an
-  issue the documented way — `issue_id` — produced a body with no
-  trailer, which the hygiene bot rejects. `issue_id` now seeds the
-  reference and every `closes=` member is added alongside it, because
-  `Closes #N` never fires on a merge to `develop` (GH-958). An explicit
-  `fixes_url` still leads, and prose such as `none — self-motivated`
-  passes through untouched.
-
-- `create_pr` now reads the created body back and refuses a PR whose
-  body carries no `Fixes:` trailer (GH-1274). Deriving a reference was
-  never proof one arrived, and a write is a request, not a receipt — so
-  the check is a fresh `pr_get`, not a local assertion. The refusal
-  names the PR number and URL, because the PR is already open at that
-  point and an error that does not identify it strands it; repair the
-  body with `update_pr` rather than opening a second PR. A successful
-  call carries `fixes_trailer_verified: true`. When the read-back
-  itself fails the call still succeeds, with
-  `fixes_trailer_verified: false` and a `warning` — an unreadable
-  verification is not evidence of a bad body.
-
-- **The trailer closes issues unreliably on a merge to `develop`**
-  (GH-1274). One merge closed two of three identical trailers, a later
-  session recorded 0 of 7 across two merges, and a third closed two of
-  three; both the full-URL and bare-`#N` spellings failed in the 0-of-7
-  run, so the form is not the variable. Never treat a merged bundle as
-  self-closing: `dev10x:gh-pr-monitor` Phase 3.6 reconciles each link
-  against the issue's real state after the merge
-  (`fixes_scope.reconcile_link_closure`), and a straggler is reported
-  for the supervisor to confirm — not closed silently.
-
-- `merge_pr(use_bot=…)` executes the merge under the GitHub App
-  identity so `merged_by` distinguishes a gated merge from a human one
-  (GH-1272). Omit it to read the durable `github_app.merge_bot` key.
-  It never fails the merge: the payload's `merged_as` is `"bot"` or
-  `"engineer"`, and `bot_fallback` names the reason whenever the bot
-  path was skipped — `not requested`, `admin/auto merge has no bot
-  transport` (neither flag has a REST equivalent), `no installation
-  token`, or `bot merge refused: …` when a ruleset excludes the bot.
-  Trust `merged_as`, not the parameter you passed: the installation
-  token is minted once and threaded into the request precisely so a
-  second resolution cannot fail into engineer credentials while the
-  payload still claims the bot merged. The bot path also reports
-  `branch_deletion_error`, since the REST merge does not delete the
-  head ref and a protected ref refuses the follow-up `DELETE`.
-
-- `pr_get` returns `files`, the complete changed-file list (GH-1265).
-  Callers previously hand-rolled `gh api repos/.../pulls/N/files`, whose
-  30-item default page silently truncated a 41-file PR and produced a
-  false-negative "did the frontend change?" merge gate. The field is
-  GraphQL-backed, so the REST page size does not apply.
-
-- `create_pr` assembles the body from `job_story` plus a generated
-  commit list — anything else the caller wanted in the body has
-  nowhere to go, so it was silently dropped (GH-1073). Pass `body=`
-  to supply the whole body instead: it is used verbatim, the
-  two-pass commit-list rewrite is skipped, and the JTBD marker check
-  runs against your text rather than `job_story`. `Fixes:` is still
-  normalized to the last line. Keep using `job_story=` for an
-  ordinary PR — `body=` is for callers that own the full body.
-
-- `create_pr(head=…)` names the branch to open the PR from (GH-1073).
-  Without it the branch comes from the invoking process's CWD, so a
-  caller acting for another checkout — the foreman watchdog opening a
-  PR for a worker, any cross-worktree orchestrator — had no way to
-  say which branch it meant. `head=` is honoured regardless of CWD,
-  and the base-branch refusal (GH-873 F1) applies to it. Omitting it
-  keeps the CWD-derived behaviour.
-
-- `create_pr(milestone=…)` / `update_pr(milestone=…)` assign a
-  milestone by title or number (GH-1098). Nothing on the MCP surface
-  could write that field before, so a PR opened through the
-  sanctioned path always had `milestone: null` and
-  `dev10x:gh-pr-monitor` Phase 3.5 (post-merge milestone cleanup)
-  silently took its skip branch on every milestone-bundle PR. The
-  write goes through the `issues/{n}` endpoint — the `pulls/{n}`
-  endpoint has no milestone field — so `gh pr edit --milestone` stays
-  routed to `update_pr`. Clearing a milestone is not supported.
-
-- For a PR that delivers only part of issue #N (GH-1604), pass
-  `fixes_url="none — part of #N"` (or end `body=` with that line).
-  The trailer is present, so the GH-1274 read-back passes.
-  It carries no closing reference, so #N stays open on merge.
-  Add `Part of #N` and the remaining steps to the body.
-
-- `run_node_tests` detects its runner when `runner` is omitted (GH-1683):
-  `vitest.config.*` → vitest; `jest.config.*` or a `jest` key in
-  `package.json` → jest; a `test` script → the lockfile's package manager;
-  otherwise jest.
-  The payload's `runner` reports what actually ran.
-  A non-zero exit of the default `test` script with no executed test is an
-  `ErrorResult` with `verdict: "no_tests_ran"` — a run that executed
-  nothing must not look clean.
-  Parsed test failures and a failing named script stay ordinary results.
-
-- `create_pr(closes=[...])` is NON-CLOSING (GH-958). The parameter
-  emits `Closes #N` lines into the PR body *above* the `Fixes:`
-  trailer, and GitHub's auto-close automation never fires on them on a
-  merge to `develop` — only the `Fixes:` trailer auto-closes its issue.
-  Treat `closes=` as informational cross-referencing: for a
-  milestone-bundle PR, close every non-`Fixes:` issue manually with
-  `issue_close` after the merge, and verify each one rather than
-  assuming the bundle self-closed.
-
-- `issue_create` / `issues_bulk_create` accept `milestone` and
-  `labels`, and filing is expected to POPULATE them (GH-1102). Reach
-  them through `dev10x:ticket-create`, whose Step 4 reads the live
-  roster via `triage_roster` and proposes a milestone plus label set;
-  calling `issue_create` bare is what left 11 of 16 open issues
-  unmilestoned and 10 of 13 unlabeled in the 2026-08-30 sweep. When no
-  milestone fits confidently, the skill files `needs-triage` rather
-  than nothing, so strays stay findable with one query. `triage_roster`
-  is read-only and returns `{"milestones": [...], "labels": [...]}` —
-  open milestones only.
-
-- `issue_close` called with a pull-request number fails loud with
-  `"N is a pull request; use pr_close"` instead of surfacing the raw
-  `gh issue close` rejection (GH-924) — reach for `pr_close` instead
-  of retrying `issue_close` with a different `reason`/`comment`.
-- `push_safe` failure returns `{"pushed": false, "blocked_reason":
-  "push_failed"}` with no further diagnostic; a successful push may
-  return `{}` — treat any non-`error` payload without
-  `"pushed": false` as success.
-
-- `push_safe` protection resolves in three tiers (GH-1031): a
-  non-empty `protected_branches` argument, else the durable
-  `protected_branches` key in the matching `projects[]` entry of
-  `~/.config/Dev10x/friction.yaml`, else the script default
-  `main master develop development staging trunk`. Each tier
-  REPLACES the one below rather than adding to it. A plain push is
-  always allowed and `--force` is blocked on a protected branch;
-  `--force-with-lease` is allowed on any branch, but a protected
-  target is fetched first and refused as `base_behind_remote` unless
-  the remote tip is already an ancestor of the pushed ref (GH-1270) —
-  a lease alone compares against the local remote-tracking ref, so a
-  stale one leases cleanly and drops every merge landed since. Prefer
-  the durable pref over a per-call list: an
-  unattended agent never passes one, which is when an unprotected
-  force-push costs the most. Three docs previously stated three
-  different defaults ("main, develop", "main master", and the real
-  six) — `tests/git/test_git.py` now pins the documented list to the
-  shell script so that drift cannot recur.
-- `unresolved_threads` runs in two modes: with `pr_number` it issues
-  a single per-PR `reviewThreads` GraphQL query (sub-2s, returns
-  `{"unresolved_threads": [...], "count": N}`); without it, it sweeps
-  up to `limit` merged PRs (slower — one subprocess pair per PR —
-  returns `{"prs": [...], "count": N}`). For a single-PR check always
-  pass `pr_number` (GH-710).
-- `ci_check_status(wait=true)` no longer ends its wait on a failed
-  NON-required check while other legs are pending (GH-1065). The
-  blended `verdict` flips to `failing` the moment ANY check fails, so
-  one environmentally-red advisory bot — `claude-review` during an
-  org-wide API cap — returned `failing` instantly with three legs still
-  pending, and the caller could only re-poll by hand. `wait_out_pending`
-  (default `true`) settles the remaining legs first, then returns the
-  full verdict with the failed leg named in `checks` and `pending: 0`. A
-  failed **required** check still returns immediately — it blocks the
-  merge however the other legs land — and the poll budget still bounds
-  the loop, so a leg that never settles ends the wait rather than
-  hanging it. Pass `wait_out_pending=false` for the old
-  return-on-first-failure behaviour.
-- `ci_check_status(wait=true)` takes `wait_for`, a list of check names
-  that must settle before the wait ends **even when a REQUIRED check
-  has already failed** (GH-1138). `wait_out_pending` does not cover
-  that case by design — a failed required leg blocks the merge however
-  the rest land, so returning at once is right for a caller deciding
-  whether to merge. It is wrong for a caller that must not rewrite
-  history until the review bots have anchored their comments: on any
-  branch carrying `fixup!` commits the required `git-history-linting`
-  leg fails **by design** until squash, so "required red + advisory
-  legs pending" is a routine mid-review state, not an edge case. A
-  Phase 4.6 dispatcher hit exactly that, read the contract correctly as
-  "this will not wait", and hand-rolled a `while … gh pr checks …
-  sleep 30` loop through the `Monitor` tool — which no Dev10x hook
-  validated — then stalled on a prompt. Pass
-  `wait_for=["claude-review", "hygiene-review"]` instead. The poll
-  budget still bounds the wait, and `conflicting` still returns
-  immediately. `Monitor` is on the same PreToolUse validator chain
-  as `Bash`, and both `ci-loop-handrolled` and `watch-loop-handrolled`
-  are `hook_block: true`.
-
-  **Regression window — GH-1138 through v0.96.0 (GH-1211, GH-1212).**
-  For that span the sentence above was aspirational. `hooks.json`
-  registered the `Monitor` matcher, but `_validate_bash_body` exited on
-  `tool_name != "Bash"` before a single validator ran, so the
-  registration was inert: DX001–DX016 never saw a Monitor command, and a
-  hand-rolled poll loop routed through `Monitor` reached the supervisor
-  as a raw permission prompt that no allow rule can answer. Two narrower
-  gaps closed alongside it — the loop patterns were single-line, so a
-  `sleep` several lines below `do` could not match (patterns compile
-  without `DOTALL`), and `skill_redirect.should_run`'s fast-path token
-  filter dropped any command naming none of `commit`/`push`/`checks`/…
-  before the rule engine saw it. A loop is matched on its shape now, not
-  on the command inside it. Which steer a *PR-shaped* loop receives is a
-  separate, still-open question: `gh pr view` is matched by an earlier
-  rule, so such a loop gets the one-shot `pr_get` steer rather than
-  `dev10x:gh-pr-monitor` (tracked on #1100 E21).
-- `ci_check_status(wait=true)` budgets its own wait against the
-  transport ceiling, and `max_polls` is a request rather than a grant
-  (GH-1288). The cap used to be summed inline as `initial_wait +
-  poll_interval * max_polls + 60` with nothing bounding it: the default
-  came to 1320s — above both deaths GH-1288 reports at ~1137s — and
-  `max_polls=500` bought a four-hour one. `dev10x.monitor` now asks
-  `polls_within_budget` what `MAX_TOOL_CALL_SECONDS` affords and passes
-  that down, so the default 40 is served as 32 (990s of polling under a
-  1080s cap). **A slow PR is covered by calling twice, not by asking for
-  longer** — the poll count is reduced rather than the subprocess merely
-  capped, precisely so the loop ends on its own terms and returns a
-  verdict instead of being killed mid-poll and surfacing as a non-zero
-  exit. This is the same clamp `run_tests` and `run_node_tests` take,
-  reaching the one long-running tool that had been left restating the
-  budget in prose.
-
-- `ci_check_status(wait=true)` survives a transient `gh` failure
-  mid-poll (GH-1420). `read_checks` exits on any unrecognised non-zero
-  `gh pr checks` exit and the loop called it every iteration, so one
-  rate limit at poll 30 of 40 discarded `initial_wait` plus thirty
-  intervals and reported a transient condition as an infrastructure
-  failure. A failed probe is now treated as "no news": the last good
-  result is kept and the wait continues, giving up only after **three
-  consecutive** failures — tolerating a blip is the goal, outlasting an
-  outage is not, and the poll budget still bounds the whole loop. The
-  up-front fast-path probe is tolerated on the same terms. A run where
-  *every* probe failed reports that explicitly rather than reporting
-  `empty`, which would read as "CI registered no checks at all".
-  A probe whose `gh` call hits its 30s subprocess timeout is tolerated
-  the same way (GH-1518). This is the one bounded exception to "never
-  retry a bounded timeout of our own": the next poll was already
-  scheduled, so nothing is re-run that the loop would not have run
-  anyway. Because a timed-out probe costs seconds the poll count never
-  budgeted, the loop also holds a wall-clock deadline (the poll budget
-  plus 60s grace, still under the 1080s cap), so alternating timeouts
-  end the wait on time instead of outliving the transport.
-
-- `ci_check_status(wait=true)`'s up-front probe honors `wait_for`
-  (GH-1609).
-  A required red on the first probe no longer ends the wait while a
-  named leg is unsettled.
-  The payload also carries `is_draft`.
-  A draft with skipped checks adds `verdict_caveat` (GH-1604).
-  The `verdict` itself is unchanged, so a draft can still read
-  `green` — check the caveat.
-
-- `ci_check_status(wait=true)` probes once before sleeping and returns
-  straight away when the verdict is already terminal (GH-1088; see the
-  GH-1609 `wait_for` exception above). A call
-  that lands after CI finished costs one API round trip instead of the
-  60s `initial_wait` it used to pay unconditionally, so a worker that
-  reaches the check late is no longer parked behind a wait for a
-  verdict GitHub had already decided. Checks that have not registered
-  yet summarize as `empty`, which is not terminal — a genuine
-  post-push call still waits normally.
-
-- `ci_check_status` corroborates a zero before reporting one, and says
-  which source produced it in `checks_source` (GH-1376). `gh pr checks`
-  under-reports: PR #1372 had a completed, successful `PR Hygiene
-  Review` run that the Actions runs API listed and the CLI did not,
-  persistently and across two sessions. Because this tool is the only
-  sanctioned CI-wait path — `ci-loop-handrolled` and
-  `watch-loop-handrolled` are `hook_block: true` — an uncorroborated
-  zero gets acted on. So a zero read is now cross-checked against
-  `repos/{repo}/actions/runs?branch=<head>`, filtered to the PR's head
-  SHA, and `checks_source` reports `confirmed-zero` (both sources
-  agree), `runs-api` (the CLI was wrong and the verdict is built from
-  the runs), or `gh-pr-checks`. A runs-API call that cannot be made
-  returns `{"error": …, "undetermined": true}` rather than a zero — an
-  unreadable second source is not evidence about the first. The two
-  extra calls are paid only on the zero path and on a green (next
-  bullet), so a pending or failing poll costs exactly what it did
-  before. `required_only` reads are exempt: an empty required set is
-  normal on an unprotected base (ADR-0024) and the runs API cannot say
-  which runs the host requires.
-
-- `ci_check_status` corroborates a **green** too (GH-1679). Right after
-  a force-push `gh pr checks` listed 8 of a head's 13 checks, all
-  passing, while the CI Gate run for that head was still `in_progress`
-  — a `wait=true` call returned `green` and an unattended merge would
-  have shipped ahead of the test suite. A green is now checked against
-  the Actions runs for the head SHA: any run not yet `completed` turns
-  it into `pending`, with `checks_source: "runs-api-pending"` and the
-  run names in `running_runs`, and the wait continues. A cross-check
-  that cannot be made leaves the green standing with a stderr note —
-  unlike the zero path, the green was itself observed. Separately, the
-  up-front fast-path probe now honours `wait_for` (it used to ignore
-  it, so a partial green returned before the named legs registered),
-  and a `wait_for` call reports `unregistered`: the named legs no check
-  carried, so a wait that ended on the budget does not read as settled.
-
-- **`required_verdict: "empty"` is a normal merge-time state on this
-  repo, not a pending one (GH-1381).** `develop` registers no required
-  status checks (ADR-0024), so `required_verdict` is `"empty"` on every
-  green, mergeable PR — it is the terminal value the field settles on,
-  never a step on the way to `"green"`. Two workers each sat on a
-  fully-passed PR without merging (#1362 at 7/7, #1360 at 6/6) because
-  they read `empty` as "required checks haven't passed yet"; both
-  needed orchestrator intervention. The blended `verdict` — not
-  `required_verdict` — is what a merge decision branches on here:
-  `verdict: "green"` means merge, regardless of what `required_verdict`
-  says. This is distinct from the transient `empty` two bullets up,
-  which describes `verdict` before GitHub has registered any checks at
-  all; `required_verdict: "empty"` persists for the PR's whole life on
-  an unprotected base.
-- `pin_tracker` / `tracker_status` carry the project's issue-tracker
-  choice (GH-768). `ensure-base` and `seed_worktree` seed only that
-  tracker's MCP rules, so a Jira user stops collecting ~35 inert
-  `mcp__claude_ai_Linear__*` allows while their own Atlassian tools
-  prompt on first use. The choice is a durable `tracker:` key in the
-  matching `projects[]` entry of `~/.config/Dev10x/friction.yaml` —
-  same repo-stem keying as `pin_gate_preset`, so one answer covers a
-  repo and every worktree of it. Gate the onboarding ask on
-  `tracker_status` → `pinned: false`; note that `pinned` reports
-  whether a *project entry* names one, while `tracker` always reports a
-  resolved value (defaulting to `linear`, the pre-GH-768 behaviour, so
-  upgrades lose nothing). v1 covers Linear / Jira / GitHub Issues;
-  GitLab and ClickUp are deliberately unsupported rather than shipped
-  as empty blocks.
-
-- `pin_ide` / `ide_status` carry the same fact for the project's IDE
-  (GH-1261), and `ensure-base` folds that IDE's block the way it folds
-  the tracker's. Two things differ from `pin_tracker`. First, the
-  resolved default is `none`, not a named IDE: every project has a
-  tracker, but most checkouts run no IDE MCP server, so an unpinned
-  repo folds nothing rather than seeding a guess — `pinned: false` is
-  the unanswered flag, and a resolved `none` is a real answer. Second,
-  an IDE block carries **denies** as well as allows: a tool that runs a
-  terminal command is a Bash call the PreToolUse chain never sees, so
-  its three shell-equivalent tools are denied unconditionally — in
-  `base_denies`, not only under the IDE's own key — because the hazard
-  does not depend on which IDE was pinned. `seed_worktree` folds
-  neither the IDE block nor the tracker block; that pre-existing
-  asymmetry is unchanged here.
-
-- `pin_gate_preset` persists a Phase-0 preset pick into the global
-  `~/.config/Dev10x/friction.yaml`, keyed by the repo stem read from the
-  git **common dir** — so a pick made inside worktree `<repo>-3` also
-  covers `<repo>` and a `<repo>-9` created later (GH-855). It is
-  idempotent: an entry already covering the checkout is replaced, never
-  duplicated. Gate the ask on `preset_pin_status` → `pinned: false`
-  (the first-pick condition); asking on every pick is the friction the
-  pair exists to remove. Nothing is written under a repo's `.claude/`
-  (ADR-0018), so the self-settings gate never fires.
-
-- `pin_supervisor_review` / `supervisor_review_status` carry the
-  ADR-0022 D-2 review-boundary fact — does the supervisor read this
-  repo's PRs before the next step is allowed (`required` | `none`)
-  (GH-1165). `pin_gate_preset` is **not** superseded: it still owns the
-  Phase-0 preset/overlay/per-gate-override triad (`_ENUM_TOGGLES`), and
-  `supervisor_review` is deliberately not one of those toggles — it is a
-  project-wide fact, not a gate-instance decision, so it needed its own
-  writer rather than a `gate_overrides` entry. Both pins share the same
-  repo-stem keying and the same `pin_project_prefs` writer, and both are
-  idempotent: an entry already covering the checkout is replaced, never
-  duplicated. Gate the onboarding ask on `supervisor_review_status` →
-  `pinned: false`. Only `supervisor_review` counts as pinned: the retired
-  `human_review` boolean key (ADR-0019) is no longer read (GH-1771), so
-  run `dev10x config migrate-schema` on a repo that still carries it.
-  Nothing is written under a repo's `.claude/` (ADR-0018).
-- `resolve_gate` returns `{gate, effect (ask|auto-advance|skip),
-  resolved_option, log_to, reason, floors_applied,
-  anchor_recommendations}`; on an `auto-advance` it adds a `record`
-  key carrying the visible D-7 line (`⚙ gate:… → "…" (reason)`),
-  absent for `ask`/`skip` (ADR-0016 #754). Session policy is read
-  from `.claude/Dev10x/session.yaml` through `gate_preset` /
-  `gate_overlays` / `gate_overrides` and nothing else — GH-1162
-  deleted the read-compat seam that used to translate the v1
-  `friction_level` / `active_modes` / `walk_away` keys, so a config
-  still carrying them is **refused** with an error naming
-  `dev10x config migrate-schema` rather than silently resolving to a
-  posture nobody wrote. An omitted `gate_overlays` inherits nothing.
-  The durable project pin lives at git-tracked
-  `.dev10x/gate-policy.yaml` (legacy `.claude/Dev10x/gate-policy.yaml`
-  still read as a fallback, #752).
+| File | Tools |
+|------|-------|
+| [`caveats-writes.md`](../../references/mcp-tools/caveats-writes.md) | `task_index_*`, `pr_labels`, `issue_labels`, `notify_*` / `pr_notify` dead-letter log, `pr_ready`, `create_pr` (body, trailer, `head`, `milestone`, partial delivery), `merge_pr(use_bot)`, `pr_get` `files` |
+| [`caveats-issues-and-push.md`](../../references/mcp-tools/caveats-issues-and-push.md) | `run_node_tests` runner detection, `create_pr(closes=…)`, `issue_create` / `issues_bulk_create`, `issue_close`, `push_safe` payload and protection tiers, `unresolved_threads` modes |
+| [`caveats-ci-check-status.md`](../../references/mcp-tools/caveats-ci-check-status.md) | `ci_check_status` — `wait_out_pending`, `wait_for`, poll budget, transient failures, zero/green corroboration, `required_verdict: "empty"` |
+| [`caveats-config-pins.md`](../../references/mcp-tools/caveats-config-pins.md) | `pin_tracker`, `pin_ide`, `pin_gate_preset`, `pin_supervisor_review` and their `*_status` readers, `resolve_gate` payload |
 
 Defaulting `repo` from CWD has landed for `unresolved_threads`,
 `check_top_level_comments` and `ci_check_status` (GH-1683). Parameter
@@ -699,103 +240,11 @@ normalization for aliases, `repo` defaulting on the remaining tools
 and richer `push_safe` diagnostics is tracked as follow-up work;
 until it lands, the table above is the contract.
 
-## Tool Availability by Plugin Version
+## Tool Availability
 
-MCP tools are added incrementally. Document the minimum plugin version
-supporting each tool:
-
-| Tool | Server | Introduced | Availability |
-|------|--------|------------|--------------|
-| `detect_tracker` | `cli` | PR #126 | v0.25.0+ |
-| `pr_detect` | `cli` | PR #126 | v0.25.0+ |
-| `issue_get` | `cli` | PR #126 | v0.25.0+ |
-| `issue_comments` | `cli` | PR #126 | v0.25.0+ |
-| `issue_create` | `cli` | PR #552 | v0.44.0+ |
-| `issue_close` | `cli` | GH-268 | v0.74.0+ |
-| `issue_reopen` | `cli` | GH-268 | v0.74.0+ |
-| `pr_get` | `cli` | GH-267 | v0.74.0+ |
-| `pr_comments` | `cli` | PR #126 | v0.25.0+ |
-| `pr_comment_reply` | `cli` | PR #399 | v0.37.0+ |
-| `pr_review_comment_edit` | `cli` | GH-304 | v0.76.0+ |
-| `pr_review_edit` | `cli` | GH-778 | v0.86.0+ |
-| `pr_ready` | `cli` | GH-779 | v0.86.0+ |
-| `pr_close` | `cli` | GH-924 | v0.92.0+ |
-| `pr_list` | `cli` | GH-1359 | v0.103.0+ |
-| `pr_issue_comment` | `cli` | GH-205 | v0.72.0+ |
-| `request_review` | `cli` | PR #126 | v0.25.0+ |
-| `detect_base_branch` | `cli` | PR #191 | v0.30.0+ |
-| `verify_pr_state` | `cli` | PR #191 | v0.30.0+ |
-| `pre_pr_checks` | `cli` | PR #191 | v0.30.0+ |
-| `create_pr` | `cli` | PR #191 | v0.30.0+ |
-| `update_pr` | `cli` | GH-60 | v0.70.0+ |
-| `merge_pr` | `cli` | GH-232 | v0.73.0+ |
-| `run_tests` | `cli` | GH-238 | v0.74.0+ |
-| `run_node_tests` | `cli` | GH-703 | v0.80.0+ |
-| `milestone_close` | `cli` | GH-187 | v0.71.0+ |
-| `milestone_create` | `cli` | GH-220 | v0.73.0+ |
-| `milestone_reopen` | `cli` | GH-850 | v0.90.0+ |
-| `milestone_edit` | `cli` | GH-850 | v0.90.0+ |
-| `milestone_list` | `cli` | GH-1319 | v0.103.0+ |
-| `issue_edit` | `cli` | GH-220 | v0.73.0+ |
-| `issue_comment` | `cli` | GH-220 | v0.73.0+ |
-| `issue_comment_edit` | `cli` | GH-283 | v0.75.0+ |
-| `issue_comment_delete` | `cli` | GH-283 | v0.75.0+ |
-| `issue_list` | `cli` | GH-220 | v0.73.0+ |
-| `triage_roster` | `cli` | GH-1102 | v0.96.0+ |
-| `slack_thread_is_forward` | `cli` | GH-218 | v0.73.0+ |
-| `milestones_bulk_create` | `cli` | GH-222 | v0.73.0+ |
-| `issues_bulk_create` | `cli` | GH-222 | v0.73.0+ |
-| `issues_bulk_edit` | `cli` | GH-222 | v0.73.0+ |
-| `generate_commit_list` | `cli` | PR #191 | v0.30.0+ |
-| `post_summary_comment` | `cli` | PR #191 | v0.30.0+ |
-| `pr_notify` | `cli` | PR #191 | v0.30.0+ |
-| `push_safe` | `cli` | PR #126 | v0.25.0+ |
-| `rebase_groom` | `cli` | PR #126 | v0.25.0+ |
-| `create_worktree` | `cli` | PR #126 | v0.25.0+ |
-| `mass_rewrite` | `cli` | PR #288 | v0.30.0+ |
-| `start_split_rebase` | `cli` | PR #288 | v0.30.0+ |
-| `next_worktree_name` | `cli` | PR #126 | v0.25.0+ |
-| `setup_aliases` | `cli` | PR #288 | v0.30.0+ |
-| `mktmp` | `cli` | PR #160 | v0.26.0+ |
-| `resolve_plugin_origin` | `cli` | GH-816 | v0.92.0+ |
-| `audit_hook_log_path` | `cli` | GH-29 | v0.69.0+ |
-| `audit_hook_recent` | `cli` | GH-29 | v0.69.0+ |
-| `record_upgrade` | `cli` | GH-109 | v0.72.0+ |
-| `cluster_review_comments` | `cli` | GH-346 | v0.80.0+ |
-| `candidate_rules_report` | `cli` | GH-347 | v0.80.0+ |
-| `validate_candidate_patterns` | `cli` | GH-348 | v0.80.0+ |
-| `author_reference_rules` | `cli` | GH-349 | v0.80.0+ |
-| `rule_confidence_report` | `cli` | GH-350 | v0.80.0+ |
-| `record_rule_feedback` | `cli` | GH-350 | v0.80.0+ |
-| `request_sampling` | `cli` | GH-343 | v0.80.0+ |
-| `background_preamble` | `cli` | GH-610 | v0.80.0+ |
-| `resolve_gate` | `cli` | GH-742 (ADR-0016 spike) | v0.83.0+ |
-| `preset_pin_status` | `cli` | GH-855 | v0.92.0+ |
-| `pin_gate_preset` | `cli` | GH-855 | v0.92.0+ |
-| `supervisor_review_status` | `cli` | GH-1161 | v0.97.0+ |
-| `pin_supervisor_review` | `cli` | GH-1165 | v0.97.0+ |
-| `tracker_status` | `cli` | GH-768 | v0.95.0+ |
-| `pin_tracker` | `cli` | GH-768 | v0.95.0+ |
-| `ide_status` | `cli` | GH-1261 | v0.99.0+ |
-| `pin_ide` | `cli` | GH-1261 | v0.99.0+ |
-| `pr_labels` | `cli` | GH-1008 | v0.94.0+ |
-| `issue_labels` | `cli` | GH-1322 | v0.102.0+ |
-| `ci_rerun` | `cli` | GH-1674 | v0.109.0+ |
-| `task_index_get` | `cli` | GH-1009 | v0.94.0+ |
-| `task_index_append` | `cli` | GH-1009 | v0.94.0+ |
-| `task_index_set` | `cli` | GH-1009 | v0.94.0+ |
-| `usage_blocks` | `cli` | GH-878 | v0.90.0+ |
-| `permission_catalog_gap` | `cli` | GH-1175 | v0.97.0+ |
-| `permission_triage` | `cli` | GH-1676 | v0.109.0+ |
-| `permission_grant` | `cli` | GH-1676 | v0.109.0+ (write; not seeded) |
-| `gchat_watch_arm` | `cli` | GH-1682 | v0.109.0+ |
-| `gchat_watch_disarm` | `cli` | GH-1682 | v0.109.0+ |
-| `gchat_watch_list` | `cli` | GH-1682 | v0.109.0+ |
-| `query` | `db` | PR #126 | v0.25.0+ |
-
-When adding a new tool, update this table and note any dependencies on
-specific CLI commands or external programs. Skills should declare required
-tools explicitly in `allowed-tools:` to catch availability mismatches early.
+The minimum plugin version for each tool is recorded in
+[`references/mcp-tools/availability.md`](../../references/mcp-tools/availability.md).
+When adding a new tool, add its row there.
 
 ### A Bash guardrail does not constrain an MCP tool that shells out (GH-1261)
 
@@ -820,7 +269,8 @@ flags them, but detection is by name and so is a floor, not a guarantee.
 
 ### A registered tool is not a pre-approved tool (GH-1153)
 
-Neither this table nor a skill's `allowed-tools:` grants permission.
+Neither the availability table nor a skill's `allowed-tools:` grants
+permission.
 The only thing `ensure-base` seeds into settings files is
 `base_permissions` in `skills/upgrade-cleanup/projects.yaml`, so a tool
 missing from that catalog prompts on **every** call, in every project,
@@ -828,8 +278,8 @@ forever — while looking fully wired up everywhere a reader would think
 to check.
 
 `triage_roster` was the worked example: registered, declared in
-`dev10x:ticket-create`'s front matter, and present in the table above
-— and still prompting. The guard that found six more of them
+`dev10x:ticket-create`'s front matter, and present in the availability
+table — and still prompting. The guard that found six more of them
 (`audit_hook_log_path`, `audit_hook_recent`, `background_preamble`,
 `resolve_plugin_origin`, `slack_thread_is_forward`, all read-only and
 all now catalogued) is
@@ -838,7 +288,7 @@ all now catalogued) is
 So a new tool needs **three** edits, not two:
 
 1. the `@server.tool()` registration,
-2. a row in the table above,
+2. a row in `references/mcp-tools/availability.md`,
 3. an entry in `base_permissions` — or, for a tool that mutates state,
    an entry in `dev10x.skills.permission.enumerate_mcp.WRITE_TOOLS_NOT_SEEDED`
    so it keeps prompting on purpose.
@@ -992,8 +442,9 @@ no allow-rule can suppress (GH-703).
 
 `run_node_tests` accepts a `runner` arg (`jest`, `vitest`, `yarn`,
 `npm`, `pnpm`). When omitted, the runner is detected from `cwd`, with
-`jest` only as the final fallback (see the runner-detection caveat
-above); `jest`/`vitest` get `--coverage` when `coverage=true`.
+`jest` only as the final fallback (see the runner-detection caveat in
+`references/mcp-tools/caveats-issues-and-push.md`); `jest`/`vitest`
+get `--coverage` when `coverage=true`.
 
 Its `cwd` — like every tool's — must be **absolute** (GH-1264). A
 relative path is now rejected at the `use_cwd` seam rather than

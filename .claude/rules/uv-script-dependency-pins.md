@@ -1,3 +1,12 @@
+---
+paths:
+  - "pyproject.toml"
+  - "bin/**"
+  - "hooks/**/*.py"
+  - "servers/**"
+  - "skills/**/*.py"
+---
+
 # uv-Script Dependency Pins (GH-916)
 
 Every PEP 723 uv-script dependency and every `pyproject.toml` dependency

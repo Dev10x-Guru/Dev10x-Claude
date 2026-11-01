@@ -1,8 +1,19 @@
+---
+paths:
+  - "hooks/**"
+  - "src/dev10x/hooks/**"
+  - "src/dev10x/*/hooks/**"
+  - "src/dev10x/core/validators/**"
+  - "tests/hooks/**"
+  - "tests/validators/**"
+---
+
 # Hook Implementation Patterns
 
-> **[OVERRIDE DETECTED]** — 541 lines against the 200-line rule-file
-> budget in `.claude/rules/INDEX.md` (GH-1438), the second-largest
-> unexplained breach after `mcp-tools.md`.
+> **[OVERRIDE DETECTED]** — ~560 lines against the 200-line rule-file
+> budget in `.claude/rules/INDEX.md` (GH-1438), the largest breach in
+> `.claude/rules/` since GH-1606 trimmed `mcp-tools.md`. Its `paths:`
+> front matter keeps it out of sessions that touch no hook code.
 >
 > **Cohesion justification.** The file reads as one contract for
 > "how does a hook get added or changed here": cross-language parity
