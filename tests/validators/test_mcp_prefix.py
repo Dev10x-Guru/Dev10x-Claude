@@ -26,6 +26,9 @@ def validator() -> McpPrefixValidator:
         "mcp__plugin_dev10x_db__query 'SELECT 1'",
         "FOO=bar mcp__plugin_dev10x_cli__pr_get pr_number=1",
         "FOO=bar BAZ=qux mcp__plugin_dev10x_cli__issue_get",
+        "timeout 30 mcp__plugin_dev10x_cli__pr_get pr_number=1",
+        "env -i mcp__plugin_dev10x_cli__issue_get number=1",
+        "lower=case mcp__plugin_dev10x_cli__mktmp",
     ],
 )
 def test_blocks_mcp_tool_as_command(validator: McpPrefixValidator, command: str) -> None:

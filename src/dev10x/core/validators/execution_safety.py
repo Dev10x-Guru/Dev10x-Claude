@@ -247,12 +247,24 @@ _LAUNCHER_VALUE_OPTIONS = frozenset(
     }
 )
 
+# Launcher options between a launcher word and what it runs: each an
+# option token optionally followed by one value token, mirroring
+# `_skip_launcher_options`. A free-text span here read an ARGUMENT as the
+# interpreter, so `uv run pytest -k python <<EOF` was denied (GH-1733).
+_ESCAPED_CHAR = r"\\."
+# An unquoted value may carry backslash escapes (`my\ dir`), and must not
+# start with `-`, or it would be the next option rather than a value.
+_BARE_VALUE = rf"(?:[^\s|;&\"'\\-]|{_ESCAPED_CHAR})(?:[^\s|;&\\]|{_ESCAPED_CHAR})*"
+_OPTION_VALUE = rf"(?:\"[^\"\n]*\"|'[^'\n]*'|{_BARE_VALUE})"
+_LAUNCHER_OPTIONS = rf"(?:-[^\s|;&]*\s+(?:{_OPTION_VALUE}\s+)?)*"
+
 # Regex twin of `_python_argv` for the two whole-command matchers
 # (heredoc, fail-closed). Interpreter name with an optional launcher in
-# front; the launcher's own options ride in the lazy middle span.
+# front.
 _PYTHON_PROGRAM = (
-    r"(?:(?:(?:uv\s(?:[^\n|;&]*?\s)?(?:tool\s+)?run|(?:poetry|pipenv)\s(?:[^\n|;&]*?\s)?run|uvx)"
-    r"\s(?:[^\n|;&]*?\s)?))?"
+    r"(?:(?:uv\s+" + _LAUNCHER_OPTIONS + r"(?:tool\s+)?run"
+    r"|(?:poetry|pipenv)\s+" + _LAUNCHER_OPTIONS + r"run"
+    r"|uvx)\s+" + _LAUNCHER_OPTIONS + r")?"
     r"(?:[\w./~-]*/)?python(?:\d+(?:\.\d+)*)?(?:@[\w.]+)?"
 )
 

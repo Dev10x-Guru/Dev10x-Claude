@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from typing import ClassVar
 
 from dev10x.domain import HookInput, HookResult
-from dev10x.domain.common.bash_tokens import ENV_VAR_RE
+from dev10x.domain.common.bash_tokens import strip_command_wrappers
 from dev10x.domain.common.mcp_tool_name import McpToolName
 from dev10x.domain.profile_tier import ProfileTier
 from dev10x.validators.base import ValidatorBase
@@ -42,13 +42,6 @@ belong only in `allowed-tools:` declarations and Claude tool-call
 invocations, never in bash blocks or shell scripts."""
 
 
-def _strip_env_prefix(parts: list[str]) -> list[str]:
-    i = 0
-    while i < len(parts) and ENV_VAR_RE.match(parts[i]):
-        i += 1
-    return parts[i:]
-
-
 @dataclass
 class McpPrefixValidator(ValidatorBase):
     name: ClassVar[str] = "mcp-prefix"
@@ -64,7 +57,7 @@ class McpPrefixValidator(ValidatorBase):
         except ValueError:
             return None
 
-        parts = _strip_env_prefix(parts)
+        parts = strip_command_wrappers(parts=parts)
 
         if not parts:
             return None

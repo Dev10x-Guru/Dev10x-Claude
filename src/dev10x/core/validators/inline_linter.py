@@ -23,7 +23,7 @@ from dataclasses import dataclass
 from typing import ClassVar
 
 from dev10x.domain import HookInput, HookResult
-from dev10x.domain.common.bash_tokens import ENV_VAR_RE
+from dev10x.domain.common.bash_tokens import strip_command_wrappers
 from dev10x.domain.profile_tier import ProfileTier
 from dev10x.validators.base import ValidatorBase
 
@@ -79,9 +79,9 @@ INLINE_LINTER_MSG = (
 _SEGMENT_SEPARATORS = frozenset({"|", "||", "&&", ";", "&"})
 
 # Tokens that may open a segment without being the program it runs.
-_SHELL_KEYWORDS = frozenset(
-    {"do", "then", "else", "elif", "{", "}", "(", ")", "!", "time", "exec", "command"}
-)
+# `time`/`exec`/`command` are process wrappers with options of their own,
+# so `strip_command_wrappers` owns them.
+_SHELL_KEYWORDS = frozenset({"do", "then", "else", "elif", "{", "}", "(", ")", "!"})
 
 
 def _command_segments(command: str) -> list[list[str]]:
@@ -116,13 +116,6 @@ def _command_segments(command: str) -> list[list[str]]:
         else:
             segments[-1].append(token)
     return segments
-
-
-def _strip_env_prefix(parts: list[str]) -> list[str]:
-    i = 0
-    while i < len(parts) and ENV_VAR_RE.match(parts[i]):
-        i += 1
-    return parts[i:]
 
 
 def _strip_runner(parts: list[str]) -> list[str]:
@@ -186,7 +179,9 @@ class InlineLinterValidator(ValidatorBase):
             # invocation to anchor on. Do not guess.
             return None
         for segment in segments:
-            parts = _strip_env_prefix(segment)
+            # Keywords first: `do timeout 5 ruff check` opens on `do`, and
+            # the wrapper strip only unwraps from the segment's first token.
+            parts = strip_command_wrappers(parts=_strip_keywords(segment))
             if not parts:
                 continue
             if _is_pm_lint_script(parts):

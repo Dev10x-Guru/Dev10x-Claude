@@ -199,6 +199,8 @@ class TestSeesPastShellKeywords:
             "{ ruff check .; }",
             "time ruff format src",
             "command eslint .",
+            "time -f %e ruff check .",
+            "do timeout 5 mypy src",
         ],
     )
     def test_blocks(self, validator: InlineLinterValidator, command: str) -> None:
@@ -211,6 +213,22 @@ class TestEdgeCases:
     def test_env_prefix_stripped_before_match(self, validator: InlineLinterValidator) -> None:
         # An `ENV=val` prefix must be stripped so the linter is still caught.
         result = validator.validate(inp=_make_input(command="FORCE_COLOR=1 ruff check ."))
+        assert result is not None
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "timeout 60 ruff check .",
+            "env -i ruff check .",
+            "nice -n 5 pnpm lint",
+            "stdbuf -o L uv run mypy src",
+        ],
+    )
+    def test_process_wrappers_stripped_before_match(
+        self, validator: InlineLinterValidator, command: str
+    ) -> None:
+        # GH-1733 (c): the shared canonicalizer unwraps what DX003 unwraps.
+        result = validator.validate(inp=_make_input(command=command))
         assert result is not None
 
     def test_unbalanced_quote_is_ignored(self, validator: InlineLinterValidator) -> None:
