@@ -42,7 +42,7 @@ def pre_split_entries() -> set[HookEntry]:
         (
             "PreToolUse",
             "AskUserQuestion",
-            _wrapped(name="supervisor-decision", script="supervisor-decision.py"),
+            _wrapped(name="overwatch-decision", script="overwatch-decision.py"),
             600,
         ),
         ("Stop", "*", _wrapped(name="session-stop", script="session-stop.py"), 10),
