@@ -30,6 +30,12 @@ export function optionText(option: PromptOption): { label: string; recommended: 
   };
 }
 
+const STOCK_EXTRAS = /^(type something|chat about this)\.?$/i;
+
+export function isStockExtra(option: PromptOption): boolean {
+  return STOCK_EXTRAS.test(option.label.trim());
+}
+
 export function waitingLabel(session: Session): string {
   if (session.waiting_for) return session.waiting_for;
   if (session.board_state === "needs-input") return "asked on the bus";

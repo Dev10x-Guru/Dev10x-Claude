@@ -3,8 +3,8 @@
   import { cubicOut } from "svelte/easing";
 
   import ToolPreview from "./ToolPreview.svelte";
-  import { splitDialog } from "../lib/dialog";
-  import { displayName, inHerdr, optionText, waitingLabel } from "../lib/format";
+  import { parseSteps, splitDialog } from "../lib/dialog";
+  import { displayName, inHerdr, isStockExtra, optionText, waitingLabel } from "../lib/format";
   import { record } from "../lib/recent.svelte";
   import type { Decision, PromptOption, Session } from "../lib/types";
 
@@ -16,7 +16,26 @@
 
   let { session, pending, run }: Props = $props();
 
+  const COMPACT_LABEL = 28;
+  const LONG_QUESTION = 140;
+
   const dialog = $derived(session.prompt ? splitDialog(session.prompt.context) : null);
+  const steps = $derived(parseSteps(dialog?.title ?? ""));
+  const title = $derived(steps.length ? "" : (dialog?.title ?? ""));
+  const asksQuestion = $derived(session.preview?.tool === "AskUserQuestion");
+  const preview = $derived(asksQuestion ? null : session.preview);
+  const wrapsQuestion = $derived(asksQuestion || steps.length > 0);
+  const question = $derived.by(() => {
+    const asked = session.prompt?.question ?? "";
+    if (!wrapsQuestion || !dialog) return asked;
+    return [...dialog.description, asked].filter(Boolean).join(" ");
+  });
+  const description = $derived(wrapsQuestion ? [] : (dialog?.description ?? []));
+  const choices = $derived((session.prompt?.options ?? []).filter((option) => !isStockExtra(option)));
+  const extras = $derived((session.prompt?.options ?? []).filter(isStockExtra));
+  const compact = $derived(
+    choices.every((option) => !option.detail && optionText(option).label.length <= COMPACT_LABEL),
+  );
 
   function remembered(id: string, question: string, options: string[], chosen: string): void {
     record({
@@ -67,21 +86,30 @@
   <p class="waiting"><span aria-hidden="true">◆</span> {waitingLabel(session)}</p>
 
   {#if session.prompt}
-    {#if dialog?.title}
+    {#if steps.length}
+      <ol class="steps" aria-label="Questions in this prompt">
+        {#each steps as step, index (index)}
+          <li class={["step", { done: step.done, current: step.current }]} aria-current={step.current ? "step" : undefined}>
+            <span class="mark" aria-hidden="true">{step.done ? "✓" : step.current ? "●" : "○"}</span>{step.label}
+          </li>
+        {/each}
+      </ol>
+    {/if}
+    {#if title || description.length}
       <div class="dialog">
-        <p class="title">{dialog.title}</p>
-        {#each dialog.description as line, index (index)}<p class="description">{line}</p>{/each}
+        {#if title}<p class="title">{title}</p>{/if}
+        {#each description as line, index (index)}<p class="description">{line}</p>{/each}
       </div>
     {/if}
-    {#if session.preview}
-      <ToolPreview preview={session.preview} />
+    {#if preview}
+      <ToolPreview {preview} />
     {:else if dialog?.body}
       <pre class="command">{dialog.body}</pre>
     {/if}
     {#each dialog?.notes ?? [] as note, index (index)}<p class="note">{note}</p>{/each}
-    {#if session.prompt.question}<p class="question">{session.prompt.question}</p>{/if}
-    <ol class="options">
-      {#each session.prompt.options as option (option.key)}
+    {#if question}<p class={["question", { long: question.length > LONG_QUESTION }]}>{question}</p>{/if}
+    <ol class={["options", { compact }]}>
+      {#each choices as option (option.key)}
         {@const text = optionText(option)}
         <li>
           <button class={["option", { recommended: text.recommended }]} disabled={pending} onclick={() => choose(option)}>
@@ -93,6 +121,16 @@
         </li>
       {/each}
     </ol>
+    {#if extras.length}
+      <p class="extras">
+        <span class="or">or, in the session's terminal:</span>
+        {#each extras as option (option.key)}
+          <button class="extra" disabled={pending} onclick={() => choose(option)}>
+            <kbd>{option.key}</kbd>{optionText(option).label.replace(/\.$/, "")}
+          </button>
+        {/each}
+      </p>
+    {/if}
   {:else if session.decisions.length}
     {#each session.decisions as decision (decision.decision_id)}
       <p class="question">
@@ -192,9 +230,17 @@
 
   .question {
     margin: 0;
+    max-width: 72ch;
     font-size: var(--step-1);
     line-height: 1.3;
     overflow-wrap: anywhere;
+    text-wrap: pretty;
+  }
+
+  .question.long {
+    font-size: var(--step-0);
+    font-weight: 550;
+    line-height: 1.5;
   }
 
   .header {
@@ -203,22 +249,54 @@
     font-weight: 650;
   }
 
+  .steps {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-3);
+    font-size: var(--step--1);
+    color: var(--ink-soft);
+  }
+
+  .step {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.35em;
+  }
+
+  .step.current {
+    color: var(--amber-ink);
+    font-weight: 650;
+  }
+
+  .step .mark {
+    font-size: 0.8em;
+  }
+
   .options {
     margin: 0;
     padding: 0;
     list-style: none;
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
     gap: var(--space-2);
+    max-width: 72ch;
+  }
+
+  .options.compact {
+    max-width: none;
+    display: flex;
+    flex-wrap: wrap;
   }
 
   .option {
     width: 100%;
-    height: 100%;
     display: grid;
     grid-template-columns: auto 1fr auto;
     align-items: baseline;
     column-gap: var(--space-2);
+    row-gap: 0.15rem;
     padding: var(--space-2) var(--space-3);
     text-align: left;
     background: var(--paper);
@@ -271,7 +349,66 @@
     grid-column: 2 / -1;
     color: var(--ink-soft);
     font-size: var(--step--1);
+    line-height: 1.45;
     overflow-wrap: anywhere;
+  }
+
+  .option:focus-visible,
+  .extra:focus-visible {
+    outline: 2px solid var(--amber);
+    outline-offset: 2px;
+  }
+
+  .extras {
+    margin: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-1) var(--space-3);
+    font-size: var(--step--1);
+    color: var(--ink-soft);
+  }
+
+  .extra {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.4em;
+    padding: 0.1rem 0;
+    background: none;
+    border: 0;
+    color: var(--ink-soft);
+    font: inherit;
+    text-decoration: underline;
+    text-decoration-color: var(--rule-strong);
+    text-underline-offset: 3px;
+    cursor: pointer;
+    transition: color 160ms var(--ease-out);
+  }
+
+  .extra:hover:not(:disabled) {
+    color: var(--ink);
+    text-decoration-color: currentColor;
+  }
+
+  .extra:disabled {
+    cursor: progress;
+    opacity: 0.6;
+  }
+
+  .extra kbd {
+    min-width: 1.1rem;
+    font-size: 0.72rem;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .option,
+    .extra {
+      transition: none;
+    }
+
+    .option:hover:not(:disabled) {
+      transform: none;
+    }
   }
 
   .note {
