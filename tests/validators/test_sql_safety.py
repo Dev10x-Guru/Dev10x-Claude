@@ -36,6 +36,115 @@ class TestShouldRun:
         inp = _make_input(command="git status")
         assert validator.should_run(inp=inp) is False
 
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "dropdb app",
+            "timeout 9 createdb x",
+            "pg_restore -l d",
+            'd""ropdb app',
+            "dr\\opdb app",
+            "'drop'db app",
+        ],
+    )
+    def test_should_run_for_postgres_client_binaries(
+        self, validator: SqlSafetyValidator, command: str
+    ) -> None:
+        assert validator.should_run(inp=_make_input(command=command)) is True
+
+
+class TestPostgresWriteBinaries:
+    """GH-1732: the deny is on effect, so the client binaries that write
+    a database are denied like the SQL that would do the same."""
+
+    @pytest.fixture()
+    def validator(self) -> SqlSafetyValidator:
+        return SqlSafetyValidator()
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "dropdb app",
+            "createdb scratch",
+            "dropuser reporter",
+            "createuser -s intruder",
+            "vacuumdb --all",
+            "reindexdb app",
+            "clusterdb app",
+            "/usr/lib/postgresql/16/bin/dropdb app",
+            "PGHOST=db dropdb app",
+            "env PGPASSWORD=x dropdb app",
+            "timeout 30 createdb scratch",
+            "nice -n 5 dropuser reporter",
+            "cd /tmp && dropdb app",
+            "echo go | dropdb app",
+            "docker exec pg dropdb app",
+            "op run -- createdb scratch",
+            "pg_restore -d app dump.bin",
+            "pg_restore --dbname=app dump.bin",
+            "pg_restore --clean -d app dump.bin",
+            "pg_restore -dapp dump.bin",
+            "pg_restore --db=app dump.bin",
+            "pg_restore --dbn app dump.bin",
+            'd""ropdb app',
+            "dr\\opdb app",
+            "'drop'db app",
+            "echo x;dropdb app",
+            "true & dropdb app",
+            "true &dropdb app",
+            "echo x\ndropdb app",
+            "(dropdb app)",
+            "{ dropdb app; }",
+            "echo $(dropdb app)",
+            "echo `createdb app`",
+            "if true; then dropdb app; fi",
+            "dropdb app # it's gone",
+            "FOO=1 createdb 'unterminated",
+            "sudo -u postgres dropdb app",
+            "doas -u postgres createdb app",
+            "su postgres -c 'dropdb app'",
+            "echo app | xargs dropdb",
+            "ssh db-host 'dropdb app'",
+            "kubectl exec pg-0 -- dropdb app",
+            "find . -name x -exec dropuser {} ;",
+            "pgbench -i app",
+            "pgbench -c 10 app",
+        ],
+    )
+    def test_denies_database_writing_binaries(
+        self, validator: SqlSafetyValidator, command: str
+    ) -> None:
+        result = validator.validate(inp=_make_input(command=command))
+
+        assert result is not None
+        assert "GH-1732" in result.message
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "pg_dump --schema-only app",
+            "pg_dumpall --globals-only",
+            "pg_restore -l dump.bin",
+            "pg_restore --clean -f out.sql dump.bin",
+            "pg_restore --data-only -f out.sql dump.bin",
+            "pg_restore --d -f out.sql dump.bin",
+            "rg -n dropdb src/",
+            "echo dropdb",
+            "git log --grep=createdb",
+            "pg_isready -h db",
+            "rg 'dropdb' src/ ; echo done",
+            "command -v dropdb",
+            "command -V createdb",
+            "sudo -u postgres pg_dump app",
+            "sudo ls /var/lib && echo dropdb",
+            "kubectl exec pg-0 -- pg_restore -l dump.bin",
+            'echo "it\'s the dropdb docs"',
+            "grep -n createdb 'unterminated",
+        ],
+    )
+    def test_allows_reads_and_mentions(self, validator: SqlSafetyValidator, command: str) -> None:
+        assert validator.validate(inp=_make_input(command=command)) is None
+
 
 class TestBigQueryReadOnly:
     """GH-1633: `bq query` gets the same read-only contract as db.sh."""

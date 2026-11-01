@@ -164,8 +164,7 @@ def substitution_bodies(command: str, *, include_backticks: bool) -> list[str]:
     a substitution actually runs.
 
     Only the outermost bodies are returned; a caller that also wants the
-    nested ones re-scans each result (see
-    ``execution_safety._command_units``).
+    nested ones re-scans each result (see :func:`command_units`).
 
     ``include_backticks`` selects whether legacy `` `…` `` spans count.
     The interpreter guard wants them; DX001's subshell allow-list is
@@ -202,3 +201,25 @@ def substitution_bodies(command: str, *, include_backticks: bool) -> list[str]:
         else:
             index += 1
     return bodies
+
+
+def command_units(*, command: str) -> tuple[str, ...]:
+    """``command`` plus every command it nests in a substitution (GH-986).
+
+    A substitution runs its body as its own command, so each body is a
+    unit a guard must judge on its own terms. Flatten once per check: the
+    guards run on every Bash call under a CI latency benchmark, so
+    re-deriving units per sub-check repeats the scan on ordinary commands.
+
+    The sweep re-scans every body because ``substitution_bodies`` returns
+    only the outermost ones; that is what reaches a nested
+    ``$(python3 -c "$(echo x)")``. Shared by DX003 and DX004 (GH-1732).
+    """
+    units = [command]
+    pending = [command]
+    while pending:
+        for body in substitution_bodies(pending.pop(), include_backticks=True):
+            if body.strip():
+                units.append(body)
+                pending.append(body)
+    return tuple(units)
