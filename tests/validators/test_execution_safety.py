@@ -266,6 +266,52 @@ class TestPythonInlineAcrossNamesAndLaunchers:
         assert validator.validate(inp=_make_input(command="uv run --project")) is None
 
 
+class TestLauncherRegexStopsAtFirstPositional:
+    """GH-1733 (a): the whole-command regexes must not read an argument as
+    the interpreter. Only launcher OPTIONS may sit between the launcher and
+    python; the first positional is the program the launcher runs."""
+
+    @pytest.fixture()
+    def validator(self) -> ExecutionSafetyValidator:
+        return ExecutionSafetyValidator()
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "uv run pytest -k python <<'EOF'\nx\nEOF",
+            "poetry run alembic --name python <<EOF\nx\nEOF",
+            "uvx cowsay python <<<'hi'",
+            'uv run pytest -k python "unbalanced',
+            "uv run mytool tests/python/x 'unbalanced",
+        ],
+    )
+    def test_allows_python_named_as_an_argument(
+        self, validator: ExecutionSafetyValidator, command: str
+    ) -> None:
+        assert validator.validate(inp=_make_input(command=command)) is None
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "uv run --with requests python <<'PY'\nprint(1)\nPY",
+            "uv --project apps/api run python3 <<<'print(1)'",
+            'uv --project "my dir" run python <<PY\nprint(1)\nPY',
+            "poetry -P apps/api run python <<PY\nprint(1)\nPY",
+            "uv run --directory my\\ dir python <<PY\nprint(1)\nPY",
+            "uv --project apps/api run python -c 'print(\"x)",
+            "uv run --frozen python -c 'print(\"x)",
+            "uvx --from foo python -c 'print(\"x)",
+        ],
+    )
+    def test_still_blocks_python_after_launcher_options(
+        self, validator: ExecutionSafetyValidator, command: str
+    ) -> None:
+        result = validator.validate(inp=_make_input(command=command))
+
+        assert result is not None
+        assert result.message == PYTHON3_INLINE_MSG
+
+
 class TestInplaceEdit:
     @pytest.fixture()
     def validator(self) -> ExecutionSafetyValidator:
