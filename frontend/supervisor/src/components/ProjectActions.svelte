@@ -11,7 +11,7 @@
     name: string;
     token: string;
     pending: boolean;
-    run: (path: string, body: Record<string, unknown>, what: string) => Promise<void>;
+    run: (path: string, body: Record<string, unknown>, what: string) => Promise<boolean>;
     onclose: () => void;
   }
 

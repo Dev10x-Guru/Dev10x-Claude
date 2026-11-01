@@ -17,7 +17,7 @@
     view: View;
     onview: (view: View) => void;
     pending: boolean;
-    run: (path: string, body: Record<string, unknown>, what: string) => Promise<void>;
+    run: (path: string, body: Record<string, unknown>, what: string) => Promise<boolean>;
     nameOf: (sessionId: string) => string;
   }
 

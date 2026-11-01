@@ -132,11 +132,12 @@
     setWidth(edge, widths[edge] + PANELS[edge].grows * delta);
   }
 
-  async function run(path: string, body: Record<string, unknown>, what: string): Promise<void> {
+  async function run(path: string, body: Record<string, unknown>, what: string): Promise<boolean> {
     pending = true;
     const result = await post(path, body, token);
     pending = false;
     report(result, what);
+    return result.ok;
   }
 
   function report(result: ActionResult, what: string): void {
@@ -241,7 +242,13 @@
 
     <div class="side">
       {#if current}
-        <DetailPane session={current} detail={detail?.session_id === current.session_id ? detail : null} {pending} {run} />
+        <DetailPane
+          session={current}
+          detail={detail?.session_id === current.session_id ? detail : null}
+          {pending}
+          live={(sessionId) => sessions.some((session) => session.session_id === sessionId)}
+          {run}
+        />
       {/if}
     </div>
   </div>

@@ -5,31 +5,60 @@
   import ToolPreview from "./ToolPreview.svelte";
   import { splitDialog } from "../lib/dialog";
   import { displayName, optionText, waitingLabel } from "../lib/format";
+  import { record } from "../lib/recent.svelte";
   import type { Decision, PromptOption, Session } from "../lib/types";
 
   interface Props {
     session: Session;
     pending: boolean;
-    run: (path: string, body: Record<string, unknown>, what: string) => Promise<void>;
+    run: (path: string, body: Record<string, unknown>, what: string) => Promise<boolean>;
   }
 
   let { session, pending, run }: Props = $props();
 
   const dialog = $derived(session.prompt ? splitDialog(session.prompt.context) : null);
 
-  function choose(option: PromptOption): void {
-    run(
+  function remembered(id: string, question: string, options: string[], chosen: string): void {
+    record({
+      id,
+      session_id: session.session_id,
+      session_name: displayName(session),
+      question: question || "Untitled question",
+      options,
+      chosen,
+      at: new Date().toISOString(),
+    });
+  }
+
+  async function choose(option: PromptOption): Promise<void> {
+    const prompt = session.prompt;
+    const label = optionText(option).label;
+    const sent = await run(
       "/keys",
       { session_id: session.session_id, key: option.key, label: option.label },
-      `Sent “${optionText(option).label}” to ${displayName(session)}`,
+      `Sent “${label}” to ${displayName(session)}`,
+    );
+    if (!sent || !prompt) return;
+    remembered(
+      `${session.session_id}:${Date.now()}`,
+      prompt.question || dialog?.title || "",
+      prompt.options.map((each) => optionText(each).label),
+      label,
     );
   }
 
-  function answer(decision: Decision, index: number): void {
-    run(
+  async function answer(decision: Decision, index: number): Promise<void> {
+    const sent = await run(
       "/answer",
       { decision_id: decision.decision_id, option_index: index },
       `Answered “${decision.options[index]}” for ${displayName(session)}`,
+    );
+    if (!sent) return;
+    remembered(
+      decision.decision_id,
+      decision.question,
+      decision.options.map((option) => optionText({ key: "", label: option, detail: "", selected: false }).label),
+      optionText({ key: "", label: decision.options[index], detail: "", selected: false }).label,
     );
   }
 </script>

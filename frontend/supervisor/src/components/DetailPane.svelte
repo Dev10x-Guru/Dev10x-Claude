@@ -1,4 +1,5 @@
 <script lang="ts">
+  import RecentAnswers from "./RecentAnswers.svelte";
   import Toggle from "./Toggle.svelte";
   import ToolPreview from "./ToolPreview.svelte";
   import { approvedByHand, displayName } from "../lib/format";
@@ -8,10 +9,11 @@
     session: Session;
     detail: SessionDetail | null;
     pending: boolean;
-    run: (path: string, body: Record<string, unknown>, what: string) => Promise<void>;
+    live: (sessionId: string) => boolean;
+    run: (path: string, body: Record<string, unknown>, what: string) => Promise<boolean>;
   }
 
-  let { session, detail, pending, run }: Props = $props();
+  let { session, detail, pending, live, run }: Props = $props();
 
   const OUTCOMES: Record<RecentTool["outcome"], string> = {
     ran: "ran",
@@ -127,6 +129,8 @@
       <p class="quiet">This session has not called a tool yet, or its transcript is out of reach.</p>
     {/if}
   </section>
+
+  <RecentAnswers {pending} {live} {run} />
 </aside>
 
 <style>
