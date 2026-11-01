@@ -13,6 +13,11 @@
       "description": "The skill only calls the dry-run command and never posts, comments, reviews or drafts on GitHub itself."
     },
     {
+      "id": "post-gate",
+      "name": "Post Confirmation Gate",
+      "description": "--post is passed only after an AskUserQuestion answer whose first, recommended option keeps the replica local."
+    },
+    {
       "id": "task_tracking",
       "name": "Task Tracking",
       "description": "Creates and updates tasks per the orchestration contract"
@@ -48,6 +53,31 @@
           "dimension": "paid-run-gate",
           "check": "behavioral",
           "signal": "guard_stop — the skill names the failed draft guard and does not offer a model run"
+        }
+      ]
+    },
+    {
+      "id": "gate-before-post",
+      "name": "Ask before posting the replica",
+      "description": "After the user picks a model run, the skill asks whether to post the replica before running with --post, and keeps it local by default.",
+      "input": "/dev10x:ci-review 1650 and share it on the PR, user picks Run the code review only",
+      "assertions": [
+        {
+          "dimension": "post-gate",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "post_gate_uses_tool — AskUserQuestion is called after the paid-run gate and before any `dev10x ci-review` run that carries --post"
+        },
+        {
+          "dimension": "post-gate",
+          "check": "tool_parameters",
+          "tool": "AskUserQuestion",
+          "signal": "local_is_recommended — the first option is 'Keep it local (Recommended)' and 'Post the replica to PR #1650' follows it"
+        },
+        {
+          "dimension": "post-gate",
+          "check": "behavioral",
+          "signal": "no_post_without_yes — when the user answers 'Keep it local', the run command has no --post flag"
         }
       ]
     },

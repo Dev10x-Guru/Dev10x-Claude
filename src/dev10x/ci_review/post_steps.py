@@ -5,8 +5,9 @@ from pathlib import Path
 from typing import Any
 
 from dev10x.ci_review.outbox import append_entry, read_entries
+from dev10x.ci_review.process import run_checked
 from dev10x.ci_review.workspace import HYGIENE_MARKER
-from dev10x.core.domain.common.result import Result, err, ok
+from dev10x.core.domain.common.result import ErrorResult, Result, err, ok
 
 PROBE_STEP: str = "Delete probe inline comments"
 DRAFT_STEP: str = "Convert to draft when the review left findings"
@@ -108,6 +109,16 @@ def hygiene_post_step(
             body=body,
         )
     return ok(entry)
+
+
+def post_replica(*, repo: str, pr: int, body_path: Path) -> Result[str]:
+    posted = run_checked(
+        args=["gh", "pr", "comment", str(pr), "--repo", repo, "--body-file", str(body_path)],
+        timeout=60,
+    )
+    if isinstance(posted, ErrorResult):
+        return posted
+    return ok(posted.value.strip())
 
 
 def _record(*, outbox: Path, step: str, branch: str, **fields: Any) -> dict[str, Any]:

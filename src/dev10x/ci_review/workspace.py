@@ -90,6 +90,16 @@ def read_blob(*, repo_root: Path, sha: str, path: str) -> Result[str]:
     return _git(repo_root=repo_root, args=["git", "show", f"{sha}:{path}"])
 
 
+def changed_files(*, repo_root: Path, merge_sha: str) -> Result[list[str]]:
+    listed = _git(
+        repo_root=repo_root,
+        args=["git", "diff", "--name-only", f"{merge_sha}^1", merge_sha],
+    )
+    if isinstance(listed, ErrorResult):
+        return listed
+    return ok([line for line in listed.value.splitlines() if line])
+
+
 def require_base_scripts(*, repo_root: Path, base: str, base_sha: str) -> Result[None]:
     found = _git(
         repo_root=repo_root, args=["git", "cat-file", "-e", f"{base_sha}:{BUILD_SCRIPT_PATH}"]

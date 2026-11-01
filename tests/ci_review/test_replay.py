@@ -1,16 +1,19 @@
 from __future__ import annotations
 
+import json
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from dev10x.ci_review import cli_pin, gh_shim, post_steps, replay, runner, workspace
+from dev10x.ci_review import cli_pin, compare, gh_shim, post_steps, replay, runner, workspace
+from dev10x.ci_review.compare import CiPosted
 from dev10x.ci_review.render import RenderedInputs
 from dev10x.ci_review.replay import ReplayOptions, ReplayOutcome, run_replay
+from dev10x.ci_review.report import LOCAL_REPLICA_MARKER
 from dev10x.ci_review.workflow import ReviewJob
 from dev10x.core.domain.common.result import ErrorResult, Result, SuccessResult, err, ok
 
@@ -24,6 +27,7 @@ _JOB: ReviewJob = ReviewJob(
     keep_pr_head=True,
 )
 _PROMPT: str = "Review the PR.\nRUN CONTEXT:\n- PR: 7\n"
+_REAL_FETCH_CI_POSTED = compare.fetch_ci_posted
 
 
 @dataclass
@@ -40,6 +44,9 @@ class Pipeline:
     failed_guards: list[str] = field(default_factory=list)
     prior_comment_id: int | None = 41
     real_gh: str | None = "/usr/bin/gh"
+    job: ReviewJob = _JOB
+    changed: list[str] = field(default_factory=lambda: ["src/a.py"])
+    ci: CiPosted = field(default_factory=lambda: CiPosted(run_id=42, findings=[], verdicts=[]))
 
     def result(self, *, name: str, value: Any) -> Result[Any]:
         self.calls.append(name)
@@ -89,8 +96,19 @@ def pipeline(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Pipeline:
     patches: dict[tuple[Any, str], Any] = {
         (replay, "fetch_pr"): lambda **_: fake.result(name="fetch_pr", value=fake.pr),
         (replay, "evaluate_guards"): lambda **_: fake.failed_guards,
-        (replay, "load_review_job"): lambda **_: fake.result(name="load_review_job", value=_JOB),
+        (replay, "load_review_job"): lambda **_: fake.result(
+            name="load_review_job", value=fake.job
+        ),
         (workspace, "fetch_refs"): lambda **_: fake.result(name="fetch_refs", value=_REFS),
+        (workspace, "changed_files"): lambda **_: fake.result(
+            name="changed_files", value=fake.changed
+        ),
+        (compare, "fetch_ci_posted"): lambda **_: fake.result(
+            name="fetch_ci_posted", value=fake.ci
+        ),
+        (post_steps, "post_replica"): lambda **_: fake.result(
+            name="post_replica", value="https://github.com/owner/name/pull/7#issuecomment-1"
+        ),
         (workspace, "read_blob"): read_blob,
         (workspace, "require_base_scripts"): lambda **_: fake.result(
             name="require_base_scripts", value=None
@@ -200,6 +218,153 @@ class TestModelRun:
         self, outcome: ReplayOutcome, pipeline: Pipeline
     ) -> None:
         assert {"write_shim", "write_mcp_config"} <= set(pipeline.calls)
+
+
+class TestTriggerFilter:
+    @pytest.fixture
+    def filtered(self, pipeline: Pipeline) -> Pipeline:
+        pipeline.job = replace(_JOB, paths=("**/*.py",))
+        return pipeline
+
+    def test_unfiltered_workflow_lists_no_files(self, pipeline: Pipeline) -> None:
+        result = _replay(render_only=True)
+
+        assert isinstance(result, SuccessResult)
+        assert result.value.trigger_warning is None
+        assert "changed_files" not in pipeline.calls
+
+    def test_matching_file_raises_no_warning(self, filtered: Pipeline) -> None:
+        result = _replay(render_only=True)
+
+        assert isinstance(result, SuccessResult)
+        assert result.value.trigger_warning is None
+
+    def test_warns_when_ci_would_not_trigger(self, filtered: Pipeline) -> None:
+        filtered.changed = ["README.md", "docs/a.md"]
+
+        result = _replay()
+
+        assert isinstance(result, SuccessResult)
+        assert result.value.trigger_warning == (
+            "none of PR #7's 2 changed files match the code-review workflow's paths filter; "
+            "CI would never have triggered it"
+        )
+        assert "run_claude" in filtered.calls
+
+    def test_unlisted_files_only_log(
+        self, filtered: Pipeline, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        filtered.failures["changed_files"] = err("diff broke")
+
+        with caplog.at_level(logging.WARNING, logger=replay.__name__):
+            result = _replay(render_only=True)
+
+        assert isinstance(result, SuccessResult)
+        assert result.value.trigger_warning is None
+        assert "could not list PR #7's changed files: diff broke" in caplog.text
+
+
+class TestPost:
+    def test_dry_run_posts_nothing(self, pipeline: Pipeline) -> None:
+        result = _replay()
+
+        assert isinstance(result, SuccessResult)
+        assert result.value.posted_url is None
+        assert "post_replica" not in pipeline.calls
+
+    def test_posts_the_marked_replica(self, pipeline: Pipeline) -> None:
+        result = _replay(post=True)
+
+        assert isinstance(result, SuccessResult)
+        assert result.value.posted_url == "https://github.com/owner/name/pull/7#issuecomment-1"
+        body = (pipeline.run_dir / "replica-comment.md").read_text(encoding="utf-8")
+        assert body.endswith(f"{LOCAL_REPLICA_MARKER}\n")
+
+    def test_failed_post_names_the_run_dir(self, pipeline: Pipeline) -> None:
+        pipeline.failures["post_replica"] = err("forbidden")
+
+        result = _replay(post=True)
+
+        assert isinstance(result, ErrorResult)
+        assert (result.error, result.details["run_dir"]) == ("forbidden", str(pipeline.run_dir))
+        assert (pipeline.run_dir / "report.md").is_file()
+
+
+class TestCompareCi:
+    def test_appends_the_comparison(self, pipeline: Pipeline) -> None:
+        result = _replay(compare_ci=42)
+
+        assert isinstance(result, SuccessResult)
+        assert "### Compared with CI run 42" in (result.value.report or "")
+        assert "| (no inline findings on either side) | | |" in (result.value.report or "")
+
+    def test_failed_fetch_keeps_the_report(self, pipeline: Pipeline) -> None:
+        pipeline.failures["fetch_ci_posted"] = err("run not found")
+
+        result = _replay(compare_ci=42)
+
+        assert isinstance(result, SuccessResult)
+        assert "- Comparison unavailable: run not found" in (result.value.report or "")
+
+    def test_report_is_on_disk_with_the_comparison(self, pipeline: Pipeline) -> None:
+        result = _replay(compare_ci=42)
+
+        assert isinstance(result, SuccessResult)
+        assert (pipeline.run_dir / "report.md").read_text(encoding="utf-8") == result.value.report
+
+    def test_not_fetched_without_the_flag(self, pipeline: Pipeline) -> None:
+        _replay()
+
+        assert "fetch_ci_posted" not in pipeline.calls
+
+
+_CI_RUN: str = json.dumps(
+    {
+        "head_sha": "head1",
+        "run_started_at": "2026-10-31T12:00:00Z",
+        "updated_at": "2026-10-31T12:10:00Z",
+    }
+)
+
+
+class TestMalformedCiData:
+    @pytest.fixture(
+        params=[
+            {"line": "three", "created_at": "2026-10-31T12:05:00Z"},
+            {"line": 3, "created_at": "yesterday"},
+        ],
+        ids=["line", "timestamp"],
+    )
+    def result(
+        self,
+        request: pytest.FixtureRequest,
+        pipeline: Pipeline,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> Result[ReplayOutcome]:
+        comment = {"path": "a.py", "body": "WARNING", "commit": "head1", "bot": True}
+        replies = {
+            "runs": _CI_RUN,
+            "comments": json.dumps({**comment, **request.param}) + "\n",
+            "reviews": "",
+        }
+
+        def fake_run(*, args: list[str], timeout: float) -> Result[str]:
+            url = next(arg for arg in args if arg.startswith("repos/"))
+            return ok(next(reply for key, reply in replies.items() if key in url))
+
+        monkeypatch.setattr(compare, "fetch_ci_posted", _REAL_FETCH_CI_POSTED)
+        monkeypatch.setattr(compare, "run_checked", fake_run)
+        return _replay(compare_ci=42)
+
+    def test_reports_the_comparison_unavailable(self, result: Result[ReplayOutcome]) -> None:
+        assert isinstance(result, SuccessResult)
+        assert "- Comparison unavailable: CI run 42 posted" in (result.value.report or "")
+
+    def test_keeps_the_report_on_disk(
+        self, result: Result[ReplayOutcome], pipeline: Pipeline
+    ) -> None:
+        assert isinstance(result, SuccessResult)
+        assert (pipeline.run_dir / "report.md").read_text(encoding="utf-8") == result.value.report
 
 
 class TestHygiene:
