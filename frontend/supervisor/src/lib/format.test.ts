@@ -9,6 +9,7 @@ import {
   displayName,
   headline,
   inHerdr,
+  isStockExtra,
   optionText,
   shortPath,
   waitingLabel,
@@ -82,6 +83,18 @@ describe("optionText", () => {
     ["mc-updates", "mc-updates", false],
   ])("%s", (label, text, recommended) => {
     expect(optionText({ key: "1", label, detail: "", selected: false })).toEqual({ label: text, recommended });
+  });
+});
+
+describe("isStockExtra", () => {
+  it.each([
+    ["Type something.", true],
+    ["Chat about this", true],
+    ["chat about this.", true],
+    ["Type something else entirely", false],
+    ["Apply (Recommended)", false],
+  ])("%j → %s", (label, expected) => {
+    expect(isStockExtra({ key: "4", label, detail: "", selected: false })).toBe(expected);
   });
 });
 

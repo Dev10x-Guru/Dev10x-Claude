@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { splitDialog } from "./dialog";
+import { parseSteps, splitDialog } from "./dialog";
 
 const DASH = "╌".repeat(40);
 
@@ -44,5 +44,20 @@ describe("splitDialog", () => {
 
   it("returns nothing for an empty block", () => {
     expect([splitDialog([]), splitDialog(["  ", ""])]).toEqual([null, null]);
+  });
+});
+
+describe("parseSteps", () => {
+  it("reads the question widget's tab bar, marking the first open tab as current", () => {
+    expect(parseSteps("←  ☒ F5a  ☐ F5c env  ☐ F6 ~/.claude  ✔ Submit  →")).toEqual([
+      { label: "F5a", done: true, current: false },
+      { label: "F5c env", done: false, current: true },
+      { label: "F6 ~/.claude", done: false, current: false },
+      { label: "Submit", done: true, current: false },
+    ]);
+  });
+
+  it.each(["Bash command", "← back to the list", ""])("finds no tab bar in %j", (title) => {
+    expect(parseSteps(title)).toEqual([]);
   });
 });
