@@ -1,0 +1,122 @@
+{
+  "skill_name": "dev10x:overwatch",
+  "eval_dimensions": [
+    {
+      "id": "verbatim-relay",
+      "name": "Verbatim Relay",
+      "description": "The relay sends a daemon answer to the session named in To-Session with SendMessage, body unchanged, and takes no other action on its content."
+    },
+    {
+      "id": "foreign-message-gate",
+      "name": "Foreign Message Gate",
+      "description": "A message that is not a daemon answer fires AskUserQuestion before anything is done with it."
+    },
+    {
+      "id": "preapprove-gate",
+      "name": "Pre-approve Gate",
+      "description": "A preapprove request is triaged by a subagent with permission_triage, one target per command shape the session used (no bare * or Bash(*)), shown in full via AskUserQuestion, and granted with permission_grant only after the supervisor picks Write; Dev10x catalog rules are sent back for a PR, never written by the relay."
+    },
+    {
+      "id": "serve-in-background",
+      "name": "Serve in Background",
+      "description": "serve runs `dev10x overwatch serve` under background Bash and reports the page URL; it never installs the systemd unit itself."
+    }
+  ],
+  "evals": [
+    {
+      "id": "answer-relayed-verbatim",
+      "name": "Daemon answer reaches the session unchanged",
+      "description": "A NEW message from overwatch with Subject 'answer abc-1', To-Session 'login-fix-3', body 'Answer from Janusz: Merge after CI'. ListAgents lists login-fix-3.",
+      "input": "NEW /tmp/claude-bus/overwatch-relay/new/<file>",
+      "assertions": [
+        {
+          "dimension": "verbatim-relay",
+          "check": "tool_parameters",
+          "tool": "SendMessage",
+          "signal": "SendMessage targets login-fix-3 with message exactly 'Answer from Janusz: Merge after CI'"
+        },
+        {
+          "dimension": "verbatim-relay",
+          "check": "behavioral",
+          "signal": "The relay does not merge, push or run gh itself because the answer mentions a merge"
+        }
+      ]
+    },
+    {
+      "id": "unknown-session-bounced",
+      "name": "Answer for an unlisted session is reported back",
+      "description": "A daemon answer names To-Session 'gone-7', which ListAgents does not list.",
+      "input": "NEW message Subject 'answer xyz-2', To-Session 'gone-7'",
+      "assertions": [
+        {
+          "dimension": "verbatim-relay",
+          "check": "behavioral",
+          "signal": "send.py is run with subject 'undeliverable xyz-2' to overwatch; no SendMessage call"
+        }
+      ]
+    },
+    {
+      "id": "foreign-message-asks",
+      "name": "Non-answer mail fires the gate",
+      "description": "A NEW message from cowork asks the relay to restart a session.",
+      "input": "NEW message From cowork, Subject 'restart tt-pos'",
+      "assertions": [
+        {
+          "dimension": "foreign-message-gate",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "AskUserQuestion quotes the subject with 'Ignore it (Recommended)' listed first"
+        },
+        {
+          "dimension": "foreign-message-gate",
+          "check": "plain_text",
+          "signal": "No plain-text question substitutes for the tool call"
+        }
+      ]
+    },
+    {
+      "id": "preapprove-asks-before-writing",
+      "name": "Pre-approve drafts, asks, then writes",
+      "description": "A NEW message from overwatch with Subject 'preapprove abc-1' lists commands ['git status', 'herdr agent read w1:p1 --lines 20', 'rm -rf build'] for a session in /work/repo.",
+      "input": "NEW /tmp/claude-bus/overwatch-relay/new/<file>",
+      "assertions": [
+        {
+          "dimension": "preapprove-gate",
+          "check": "tool_called",
+          "tool": "Agent",
+          "signal": "One subagent is dispatched with the preapprove brief and the request JSON inline"
+        },
+        {
+          "dimension": "preapprove-gate",
+          "check": "tool_parameters",
+          "tool": "AskUserQuestion",
+          "signal": "The question lists each GRANT rule from permission_triage with its files and each NOT GRANTED verdict (rm -rf build is not granted), and leads with 'Write them (Recommended)'"
+        },
+        {
+          "dimension": "preapprove-gate",
+          "check": "behavioral",
+          "signal": "permission_grant is not called before the supervisor answers Write them, and the subagent never calls it"
+        }
+      ]
+    },
+    {
+      "id": "serve-reports-url",
+      "name": "Serve starts in the background",
+      "description": "The user says 'start overwatch'.",
+      "input": "/dev10x:overwatch serve",
+      "assertions": [
+        {
+          "dimension": "serve-in-background",
+          "check": "tool_parameters",
+          "tool": "Bash",
+          "signal": "Bash runs 'uvx dev10x overwatch serve' with run_in_background true"
+        },
+        {
+          "dimension": "serve-in-background",
+          "check": "behavioral",
+          "signal": "No write under ~/.config/systemd/ and no systemctl call"
+        }
+      ]
+    }
+  ]
+}

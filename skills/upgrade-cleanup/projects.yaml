@@ -86,8 +86,8 @@ command_spellings:
       - dev10x playbook diff
       - dev10x skill count-instructions
       - dev10x skill prune-overrides
-      - dev10x supervisor serve
-      - dev10x supervisor unit
+      - dev10x overwatch serve
+      - dev10x overwatch unit
       - dev10x config
       - dev10x platform
       - dev10x init
