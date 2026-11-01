@@ -5,8 +5,8 @@ description: >
   request/response timeline, or "who calls whom" between services,
   agents, or APIs — for a PR description, issue, ADR, or design doc.
   TRIGGER when: drawing interactions between participants over time.
-  DO NOT TRIGGER when: drawing system structure or a business process
-  with lanes and gateways.
+  DO NOT TRIGGER when: drawing system structure (use
+  dev10x:diagram-c4) or a business process with lanes and gateways.
 user-invocable: true
 invocation-name: dev10x:diagram-sequence
 allowed-tools:

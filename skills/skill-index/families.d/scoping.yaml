@@ -12,3 +12,4 @@ families:
     description: "Draw sequence, C4, and BPMN diagrams"
     skills:
       - dev10x:diagram-sequence
+      - dev10x:diagram-c4
