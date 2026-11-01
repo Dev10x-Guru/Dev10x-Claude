@@ -501,7 +501,7 @@ def clean_file(
         return result, []
 
     if not dry_run and (result.total_removed > 0 or result.repaired):
-        _write(path=path, kept_allow=result.kept if result.total_removed > 0 else None)
+        _write(path=path, remove_allow=set(allow_list) - set(result.kept))
 
     messages = _format_messages(result, verbose=verbose)
     return result, messages
@@ -514,23 +514,28 @@ def _repair(data: dict) -> tuple[dict, NamespaceMigration, StarPrefixRepair]:
     return repaired, migration, star_repair
 
 
-def _write(*, path: Path, kept_allow: list[str] | None) -> None:
+def _write(*, path: Path, remove_allow: set[str]) -> None:
     """Back up ``path``, then apply the rule repairs and any pruning.
 
     The repairs are re-derived from the live document inside the lock
     rather than written from the snapshot read above, so a concurrent
-    writer's unrelated keys survive.
+    writer's unrelated keys survive. Pruning is a set of rules to drop,
+    applied to the live allow list, so an allow another writer appended
+    after the snapshot survives too (GH-1712).
     """
-    from dev10x.skills.permission.backup import create_backup
+    from dev10x.skills.permission import backup
     from dev10x.skills.permission.file_lock import locked_json_update
 
-    create_backup(path)
+    backup.create_backup(path)
     with locked_json_update(path=path) as live_data:
         repaired, _, _ = _repair(live_data)
         live_data.clear()
         live_data.update(repaired)
-        if kept_allow is not None:
-            live_data["permissions"]["allow"] = kept_allow
+        allow = live_data.get("permissions", {}).get("allow")
+        if remove_allow and isinstance(allow, list):
+            live_data["permissions"]["allow"] = [
+                rule for rule in allow if rule not in remove_allow
+            ]
 
 
 def migrate_file(
@@ -555,7 +560,7 @@ def migrate_file(
     if not result.repaired:
         return result, []
     if not dry_run:
-        _write(path=path, kept_allow=None)
+        _write(path=path, remove_allow=set())
     return result, [*_format_migration(migration), *_format_star_repair(star_repair)]
 
 
