@@ -26,7 +26,7 @@
     pending: boolean;
     onselect: (sessionId: string) => void;
     onpin: (sessionId: string) => void;
-    run: (path: string, body: Record<string, unknown>, what: string) => Promise<void>;
+    run: (path: string, body: Record<string, unknown>, what: string) => Promise<boolean>;
   }
 
   let { sessions, selected, pins, token, pending, onselect, onpin, run }: Props = $props();
