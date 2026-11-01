@@ -24,10 +24,14 @@ from pathlib import Path
 
 import pytest
 import yaml
+from dev10x.domain.events.hook_input import HookResult
 from dev10x.domain.session_rules import (
     CompletionRecommendation,
     completion_gate_recommendation,
 )
+from tests.fakers import BashHookInputFaker
+
+from dev10x.validators import get_chain
 
 SKILL_DIR = Path(__file__).resolve().parents[3] / "skills" / "verify-acc-dod"
 DEFAULTS = SKILL_DIR / "references" / "defaults.yaml"
@@ -224,6 +228,64 @@ def test_skip_when_merged_is_documented(skill_body: str) -> None:
 def test_skill_routing_accepts_node_test_runner(defaults: dict, work_type: str) -> None:
     check = _check_by_name(defaults[work_type]["checks"], "Skill routing compliance")
     assert "run_node_tests" in check["prompt"]
+
+
+_PLACEHOLDERS = {"{pr_number}": "1717", "{repo}": "o/r", "{base_branch}": "develop"}
+_NON_SHELL_CHECKS = {"prompt", "manual"}
+
+
+def _shell_checks() -> list[tuple[str, str, str]]:
+    defaults = yaml.safe_load(DEFAULTS.read_text())["defaults"]
+    rendered = []
+    for work_type, spec in defaults.items():
+        for check in spec.get("checks", []):
+            command = check["check"].strip()
+            for placeholder, value in _PLACEHOLDERS.items():
+                command = command.replace(placeholder, value)
+            rendered.append((work_type, check["name"], command))
+    return [entry for entry in rendered if entry[2] not in _NON_SHELL_CHECKS]
+
+
+def _blocking_results(*, command: str) -> list[HookResult]:
+    inp = BashHookInputFaker.build(
+        tool_name="Bash",
+        command=command,
+        raw={"tool_name": "Bash", "tool_input": {"command": command}},
+    )
+    return [result for result in get_chain().run(inp=inp) if isinstance(result, HookResult)]
+
+
+@pytest.mark.parametrize(
+    ("work_type", "name", "command"),
+    _shell_checks(),
+    ids=[f"{work_type}:{name}" for work_type, name, _ in _shell_checks()],
+)
+def test_shell_check_passes_the_bash_validator(work_type: str, name: str, command: str) -> None:
+    # GH-1717: YAML strips a `# cli-friction: allow ...` comment before the
+    # runner sees the command, so a default check the plugin's own hook
+    # denies can never run as written. Route such reads through an MCP
+    # wrapper in a `prompt` check instead.
+    assert _blocking_results(command=command) == []
+
+
+def test_the_validator_guard_would_catch_a_blocked_command() -> None:
+    assert _blocking_results(command="gh pr view 1717 --repo o/r --json isDraft") != []
+
+
+@pytest.mark.parametrize("work_type", REVIEW_WORK_TYPES)
+def test_pr_state_checks_read_through_pr_get(defaults: dict, work_type: str) -> None:
+    check = _check_by_name(defaults[work_type]["checks"], "PR not draft")
+
+    assert (check["check"], "pr_get" in check["prompt"]) == ("prompt", True)
+
+
+@pytest.mark.parametrize("work_type", REVIEW_WORK_TYPES)
+def test_deploy_time_configuration_check_present(defaults: dict, work_type: str) -> None:
+    # GH-1684 F1: a feature gated on an env var unset in production passed
+    # every other default check and auto-completed while invisible there.
+    check = _check_by_name(defaults[work_type]["checks"], "Deploy-time configuration in place")
+
+    assert check["check"] == "prompt"
 
 
 @pytest.mark.parametrize("work_type", REVIEW_WORK_TYPES)

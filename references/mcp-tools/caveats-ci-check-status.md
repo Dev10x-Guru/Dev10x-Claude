@@ -3,6 +3,19 @@
 Behavioural caveats for the only sanctioned CI-wait path, moved out of
 `.claude/rules/mcp-tools.md` § Canonical Parameter Shapes (GH-1606).
 
+- `ci_check_status` names the head its verdict was read for and
+  whether the PR can merge (GH-1684): `head_sha` is the PR's
+  `headRefOid` at read time, `merge_state` is GitHub's
+  `mergeStateStatus`. Compare `head_sha` with the head you pushed or
+  updated to before trusting a green read right after
+  `update-branch`. Checks that are all green on a `BEHIND` branch
+  report `verdict: "pending"` with a `verdict_caveat`: the head cannot
+  merge under strict up-to-date merging until it is updated, and the
+  update starts a new CI run. A `wait=true` call on a BEHIND PR
+  therefore waits out its budget — update the branch, then wait.
+  The PR state is read before and after the checks; when the head
+  moved in between, the verdict is `pending` and the caveat names both
+  heads. An unreadable PR state prints a `[pr-state]` note on stderr.
 - `ci_check_status(wait=true)` no longer ends its wait on a failed
   NON-required check while other legs are pending (GH-1065). The
   blended `verdict` flips to `failing` the moment ANY check fails, so

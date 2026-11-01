@@ -39,9 +39,11 @@ Output (JSON):
                                        # from, so an "empty" verdict says
                                        # whether the zero was corroborated
         "mergeable": "MERGEABLE",      # "MERGEABLE", "CONFLICTING", "UNKNOWN"
+        "merge_state": "BEHIND",       # GitHub mergeStateStatus (GH-1684)
+        "head_sha": "<40-char sha>",   # head the verdict was read for (GH-1684)
         "is_draft": False,             # read alongside mergeable (GH-1604)
-        "verdict_caveat": "...",       # only on a draft with skipped checks —
-                                       # "green" there is not a real verdict
+        "verdict_caveat": "...",       # on a draft with skipped checks, or a
+                                       # green head BEHIND its base (GH-1684)
         "total": 5,
         "pass": 3,
         "fail": 0,
@@ -174,6 +176,8 @@ class ChecksRead:
 class PrState:
     mergeable: str = "UNKNOWN"
     is_draft: bool = False
+    head_sha: str = ""
+    merge_state: str = "UNKNOWN"
 
 
 def get_pr_state(
@@ -189,21 +193,32 @@ def get_pr_state(
         "--repo",
         repo,
         "--json",
-        "mergeable,isDraft",
+        "mergeable,isDraft,headRefOid,mergeStateStatus",
     ]
     result = subprocess.run(
         cmd, capture_output=True, text=True, timeout=_SUBPROCESS_TIMEOUT_SECONDS
     )
     if result.returncode != 0:
-        return PrState()
+        return _unread_pr_state(reason=f"gh pr view exited {result.returncode}")
     try:
         payload = json.loads(result.stdout or "{}")
     except json.JSONDecodeError:
-        return PrState()
+        return _unread_pr_state(reason="gh pr view returned non-JSON output")
     return PrState(
         mergeable=payload.get("mergeable") or "UNKNOWN",
         is_draft=bool(payload.get("isDraft", False)),
+        head_sha=payload.get("headRefOid") or "",
+        merge_state=payload.get("mergeStateStatus") or "UNKNOWN",
     )
+
+
+def _unread_pr_state(*, reason: str) -> PrState:
+    # GH-1684: an empty head_sha must not pass silently for "no head".
+    print(
+        f"[pr-state] {reason}: mergeability, head and merge state unknown",
+        file=sys.stderr,
+    )
+    return PrState()
 
 
 def read_checks(
@@ -589,6 +604,8 @@ def compute_verdict(
     mergeable: str = "UNKNOWN",
     checks_source: str = SOURCE_GH_CLI,
     is_draft: bool = False,
+    head_sha: str = "",
+    merge_state: str = "UNKNOWN",
 ) -> dict:
     verdict, counts = _summarize(checks)
     required_verdict, _ = _summarize([c for c in checks if c.get("required")])
@@ -604,6 +621,15 @@ def compute_verdict(
             f"draft PR: {counts['skipping']} checks skipped — CI has not run them; "
             "mark ready to get a real verdict"
         )
+    # GH-1684: under strict up-to-date merging a green head that is behind
+    # its base cannot merge, and updating the branch starts a new CI run, so
+    # "green" would be read as "merge now" by every caller that skips caveats.
+    elif verdict == "green" and merge_state == "BEHIND":
+        verdict = "pending"
+        caveat["verdict_caveat"] = (
+            "branch is behind its base: checks are green for this head, but the PR "
+            "cannot merge until it is updated, and the update re-runs CI"
+        )
 
     return {
         "verdict": verdict,
@@ -611,6 +637,8 @@ def compute_verdict(
         **caveat,
         "checks_source": checks_source,
         "mergeable": mergeable,
+        "merge_state": merge_state,
+        "head_sha": head_sha,
         "is_draft": is_draft,
         "total": len(checks),
         **counts,
@@ -715,7 +743,13 @@ def probe_once(
     repo: str,
     required_only: bool = False,
 ) -> dict:
-    """Fetch checks and mergeability once and derive the verdict."""
+    """Fetch checks and mergeability once and derive the verdict.
+
+    The PR state is read on both sides of the checks read: a push landing
+    between two separate `gh` calls would otherwise pair one head's checks
+    with another head's SHA (GH-1684).
+    """
+    before = get_pr_state(pr_number=pr_number, repo=repo)
     read = get_annotated_checks(
         pr_number=pr_number,
         repo=repo,
@@ -727,7 +761,18 @@ def probe_once(
         mergeable=state.mergeable,
         checks_source=read.source,
         is_draft=state.is_draft,
+        head_sha=state.head_sha,
+        merge_state=state.merge_state,
     )
+    if before.head_sha and state.head_sha and before.head_sha != state.head_sha:
+        return {
+            **result,
+            "verdict": "pending",
+            "verdict_caveat": (
+                f"head moved from {before.head_sha[:8]} to {state.head_sha[:8]} while "
+                "the checks were read; the checks may belong to the old head"
+            ),
+        }
     if required_only or result["verdict"] != "green":
         return result
     return corroborate_green(result=result, pr_number=pr_number, repo=repo)

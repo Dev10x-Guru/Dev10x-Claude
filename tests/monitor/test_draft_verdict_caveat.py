@@ -83,7 +83,18 @@ def test_get_pr_state_reads_mergeable_and_draft_in_one_call(
     monkeypatch.setattr(ci_check_status_module.subprocess, "run", run)
 
     assert get_pr_state(pr_number=7, repo="o/r") == expected
-    assert calls == [["gh", "pr", "view", "7", "--repo", "o/r", "--json", "mergeable,isDraft"]]
+    assert calls == [
+        [
+            "gh",
+            "pr",
+            "view",
+            "7",
+            "--repo",
+            "o/r",
+            "--json",
+            "mergeable,isDraft,headRefOid,mergeStateStatus",
+        ]
+    ]
 
 
 def test_probe_once_threads_draft_state_into_the_verdict(monkeypatch: pytest.MonkeyPatch):
