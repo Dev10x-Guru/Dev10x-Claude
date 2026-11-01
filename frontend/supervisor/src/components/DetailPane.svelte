@@ -22,6 +22,9 @@
 
   let approvedOnly = $state(false);
 
+  const openTasks = $derived(detail?.tasks.filter((task) => task.status !== "completed") ?? []);
+  const doneCount = $derived(detail?.tasks.filter((task) => task.status === "completed").length ?? 0);
+
   const preview = $derived(detail?.preview ?? session.preview);
   const commandCount = $derived(detail?.recent.filter((tool) => tool.command).length ?? 0);
   const approvedCount = $derived(detail?.recent.filter(approvedByHand).length ?? 0);
@@ -41,6 +44,42 @@
 </script>
 
 <aside class="detail" aria-label="Details for {displayName(session)}">
+  <section class="tasks">
+    <header class="recent-head">
+      <h2>Tasks</h2>
+      {#if detail?.tasks.length}
+        <span class="n">{doneCount}/{detail.tasks.length} done</span>
+      {/if}
+    </header>
+    {#if detail === null}
+      <p class="quiet">Reading the task list…</p>
+    {:else if openTasks.length || doneCount}
+      <ol>
+        {#each openTasks as task (task.id)}
+          <li class={["task", task.status]}>
+            <span class="tick" aria-hidden="true">{task.status === "in_progress" ? "◐" : "○"}</span>
+            <span class="subject">{task.status === "in_progress" && task.active_form ? task.active_form : task.subject}</span>
+          </li>
+        {/each}
+      </ol>
+      {#if doneCount}
+        <details>
+          <summary>{doneCount} completed</summary>
+          <ol>
+            {#each detail.tasks.filter((task) => task.status === "completed") as task (task.id)}
+              <li class="task completed">
+                <span class="tick" aria-hidden="true">✓</span>
+                <span class="subject">{task.subject}</span>
+              </li>
+            {/each}
+          </ol>
+        </details>
+      {/if}
+    {:else}
+      <p class="quiet">This session keeps no task list.</p>
+    {/if}
+  </section>
+
   <section>
     <h2>Waiting to run</h2>
     {#if preview}
@@ -139,6 +178,42 @@
 
   .only {
     margin: 0 0 var(--space-2);
+  }
+
+  .task {
+    display: grid;
+    grid-template-columns: 1rem minmax(0, 1fr);
+    gap: var(--space-2);
+    padding: 0.2rem 0;
+    font-size: var(--step--1);
+  }
+
+  .tick {
+    color: var(--ink-faint);
+    text-align: center;
+  }
+
+  .task.in_progress .tick,
+  .task.in_progress .subject {
+    color: var(--amber-ink);
+    font-weight: 650;
+  }
+
+  .task.completed .subject {
+    color: var(--ink-faint);
+    text-decoration: line-through;
+    text-decoration-color: var(--rule-strong);
+  }
+
+  .subject {
+    overflow-wrap: anywhere;
+  }
+
+  .tasks details summary {
+    margin-top: var(--space-1);
+    color: var(--ink-soft);
+    font-size: 0.74rem;
+    cursor: pointer;
   }
 
   .n {

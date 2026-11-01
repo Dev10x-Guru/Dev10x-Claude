@@ -30,6 +30,7 @@ from dev10x.comm.supervisor.server import (
     run_collector,
     snapshot_payload,
 )
+from dev10x.comm.supervisor.session_tasks import SessionTask
 from dev10x.comm.supervisor.sessions import SessionView
 from dev10x.comm.supervisor.workspace import Workspace
 from tests.comm.supervisor.conftest import NOW
@@ -80,6 +81,13 @@ RECENT = {
 CONVERSATION = {
     "sid-perm": [
         ConversationEntry(role="user", kind="text", text="Clean up", at="2026-10-31T20:00:00Z")
+    ]
+}
+TASKS = {
+    "sid-perm": [
+        SessionTask(
+            id="2", subject="Clean the build", status="in_progress", active_form="Cleaning"
+        )
     ]
 }
 WORKSPACES = {
@@ -153,6 +161,7 @@ def app(tmp_path: Path, keys: KeySender, panes: dict[str, str], static_dir: Path
         commands_reader=lambda session_id: COMMANDS.get(session_id, []),
         recent_reader=lambda session_id: RECENT.get(session_id, []),
         conversation_reader=lambda session_id: CONVERSATION.get(session_id, []),
+        tasks_reader=lambda session_id: TASKS.get(session_id, []),
         workspace_reader=lambda cwd: WORKSPACES.get(cwd, Workspace(project=cwd, root=cwd)),
         today=lambda: date(2026, 10, 31),
         static_dir=static_dir,
@@ -1246,6 +1255,14 @@ class TestSessionDetail:
                     "tool": "",
                     "outcome": "",
                     "result": "",
+                }
+            ],
+            "tasks": [
+                {
+                    "id": "2",
+                    "subject": "Clean the build",
+                    "status": "in_progress",
+                    "active_form": "Cleaning",
                 }
             ],
             "tail": "",
