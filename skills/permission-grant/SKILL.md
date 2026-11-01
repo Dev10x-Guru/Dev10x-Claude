@@ -89,7 +89,7 @@ writing anything:
 | `use-alternative` | Name the route from `advice` (skill, MCP tool or alias) and use it from now on |
 | `normalize` | Quote each `advice` line. The command needs rewriting; no rule can match its shape |
 | `outside-workdir` | Offer the `additionalDirectories` entry or the `Read()` rule from `advice`. A Bash rule would not help |
-| `already-allowed` | Every readable file covers it, so the prompt has another cause. Hand over with `Skill(skill="dev10x:diag-friction")` |
+| `already-allowed` | Every readable file covers it, so the prompt has another cause. Hand over with `Skill(skill="dev10x:diag-friction")`. When the supervisor only wants an earlier grant to reach new checkouts, run Step 3 with that one option: `remember=true` accepts this verdict and writes no settings file |
 | `grant` | Continue to Step 3 |
 
 On every verdict, also relay any "Repair or remove unreadable settings
@@ -97,9 +97,14 @@ file" line from `advice`: Claude Code cannot load those files either.
 
 ### Step 3: Confirm the grant
 
-Reach this step only on `verdict == "grant"`, which triage returns only
+Reach this step on `verdict == "grant"`, which triage returns only
 when `files_missing` is non-empty. That state is what makes granting
 the recommended option.
+
+The one exception is `already-allowed` when the supervisor asked for the
+rule to reach new checkouts. Then offer only **Grant and remember for
+new checkouts (Recommended)** and **Cancel**: there is no file to write,
+and `remember=true` is the only call that accepts that verdict.
 
 **REQUIRED: Call `AskUserQuestion`** (do NOT use plain text). Question:
 "Pre-approve `<rule>` for `<target>` in <N> settings file(s)?
@@ -107,8 +112,12 @@ the recommended option.
 order:
 
 1. **Grant everywhere (Recommended)**: write `<rule>` to every listed file.
-2. **Dry run only**: show what would change and write nothing.
-3. **Cancel**: leave every file as it is.
+2. **Grant and remember for new checkouts**: also record `<rule>` in
+   `~/.config/Dev10x/granted-permissions.yaml`, which `ensure-base` and
+   `seed-worktree` merge into the catalog, so worktrees and projects
+   created later start with it (GH-1677).
+3. **Dry run only**: show what would change and write nothing.
+4. **Cancel**: leave every file as it is.
 
 This gate does not go through `resolve_gate`. It guards a write outside
 the repository that no gate toggle covers, so an auto-advance posture
@@ -128,6 +137,9 @@ exact rule being written. Do not remove either one as a duplicate.
   calling it would prompt again for a call that writes nothing.
 - **Grant everywhere**:
   1. `mcp__plugin_dev10x_cli__permission_grant(target=<target>, rule=<rule from Step 2>, working_dirs=[...], cwd=<primary working dir>)`
+- **Grant and remember for new checkouts**: the same call with
+  `remember=true`. Report `remembered.added`; `false` means the rule was
+  already remembered.
 
   Report `granted`, `failed` and every line of `messages`, including
   the `REDIRECT (git-tracked)` lines. A git-tracked `settings.json` is
@@ -154,5 +166,8 @@ prompting until it is restarted.
 - It does not edit the plugin catalog. A rule that every Dev10x user
   should have belongs in `skills/upgrade-cleanup/projects.yaml` through
   a PR. File one with `dev10x:ticket-create`.
-- It does not reach checkouts created after the grant. A new worktree
-  is seeded from the catalog, not from sibling settings files (GH-1677).
+- It does not reach checkouts created after the grant unless the
+  supervisor picks "remember". A new worktree is seeded from the catalog,
+  not from sibling settings files (GH-1677). Remembered rules show as
+  user-only in `dev10x permission catalog-diff`; remove one by editing
+  `~/.config/Dev10x/granted-permissions.yaml`.

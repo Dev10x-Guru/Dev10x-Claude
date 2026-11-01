@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 import pytest
+import yaml
 from dev10x.domain.common.result import ErrorResult, SuccessResult
 from dev10x.domain.rules.validation_rule import Compensation, MatchingRule
 from dev10x.skills.permission.grant import Verdict
@@ -870,3 +871,223 @@ class TestGrantEverywhere:
         )
         assert isinstance(result, ErrorResult)
         assert result.details["failed"] == [str(local)]
+
+
+@pytest.fixture
+def granted_file(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
+    config_home = tmp_path / "config"
+    monkeypatch.setenv("DEV10X_CONFIG_HOME", str(config_home))
+    return config_home / "granted-permissions.yaml"
+
+
+def _remembered(path: Path) -> list[str]:
+    return yaml.safe_load(path.read_text())["base_permissions"]
+
+
+class TestGrantRemember:
+    """GH-1677: a remembered grant reaches checkouts created later."""
+
+    def _grant(
+        self,
+        *,
+        target: str,
+        settings_files: list[Path],
+        workdir: Path,
+        skill_map: list[MatchingRule],
+        dry_run: bool = False,
+        remember: bool = True,
+    ) -> SuccessResult | ErrorResult:
+        return mod.grant_everywhere(
+            target=target,
+            settings_files=settings_files,
+            working_dirs=[workdir],
+            skill_map_rules=skill_map,
+            dry_run=dry_run,
+            remember=remember,
+        )
+
+    def test_records_rule_for_new_checkouts(
+        self,
+        granted_file: Path,
+        settings_files: list[Path],
+        workdir: Path,
+        skill_map: list[MatchingRule],
+    ) -> None:
+        self._grant(
+            target="make test",
+            settings_files=settings_files,
+            workdir=workdir,
+            skill_map=skill_map,
+        )
+        assert _remembered(granted_file) == ["Bash(make:*)"]
+
+    def test_reports_remembered_payload(
+        self,
+        granted_file: Path,
+        settings_files: list[Path],
+        workdir: Path,
+        skill_map: list[MatchingRule],
+    ) -> None:
+        result = self._grant(
+            target="make test",
+            settings_files=settings_files,
+            workdir=workdir,
+            skill_map=skill_map,
+        )
+        assert isinstance(result, SuccessResult)
+        assert result.value["remembered"] == {
+            "path": str(granted_file),
+            "rule": "Bash(make:*)",
+            "added": True,
+        }
+
+    def test_without_flag_remembers_nothing(
+        self,
+        granted_file: Path,
+        settings_files: list[Path],
+        workdir: Path,
+        skill_map: list[MatchingRule],
+    ) -> None:
+        result = self._grant(
+            target="make test",
+            settings_files=settings_files,
+            workdir=workdir,
+            skill_map=skill_map,
+            remember=False,
+        )
+        assert isinstance(result, SuccessResult)
+        assert (result.value["remembered"], granted_file.exists()) == (None, False)
+
+    def test_dry_run_remembers_nothing(
+        self,
+        granted_file: Path,
+        settings_files: list[Path],
+        workdir: Path,
+        skill_map: list[MatchingRule],
+    ) -> None:
+        result = self._grant(
+            target="make test",
+            settings_files=settings_files,
+            workdir=workdir,
+            skill_map=skill_map,
+            dry_run=True,
+        )
+        assert isinstance(result, SuccessResult)
+        assert (granted_file.exists(), result.value["messages"][-1]) == (
+            False,
+            f"  would remember Bash(make:*)  {granted_file}",
+        )
+
+    def test_remembers_an_already_allowed_rule(
+        self,
+        granted_file: Path,
+        tmp_path: Path,
+        workdir: Path,
+        skill_map: list[MatchingRule],
+    ) -> None:
+        covered = _settings(tmp_path / "covered.json", allow=["Bash(make:*)"])
+        result = self._grant(
+            target="make test",
+            settings_files=[covered],
+            workdir=workdir,
+            skill_map=skill_map,
+        )
+        assert isinstance(result, SuccessResult)
+        assert (result.value["granted"], _remembered(granted_file)) == ([], ["Bash(make:*)"])
+
+    def test_already_allowed_still_refused_without_flag(
+        self,
+        tmp_path: Path,
+        workdir: Path,
+        skill_map: list[MatchingRule],
+    ) -> None:
+        covered = _settings(tmp_path / "covered.json", allow=["Bash(make:*)"])
+        result = self._grant(
+            target="make test",
+            settings_files=[covered],
+            workdir=workdir,
+            skill_map=skill_map,
+            remember=False,
+        )
+        assert isinstance(result, ErrorResult)
+        assert result.details["triage"]["verdict"] == "already-allowed"
+
+    def test_refused_verdict_remembers_nothing(
+        self,
+        granted_file: Path,
+        settings_files: list[Path],
+        workdir: Path,
+        skill_map: list[MatchingRule],
+    ) -> None:
+        result = self._grant(
+            target="cat ~/.aws/credentials",
+            settings_files=settings_files,
+            workdir=workdir,
+            skill_map=skill_map,
+        )
+        assert (isinstance(result, ErrorResult), granted_file.exists()) == (True, False)
+
+    def test_second_remember_reports_not_added(
+        self,
+        granted_file: Path,
+        settings_files: list[Path],
+        workdir: Path,
+        skill_map: list[MatchingRule],
+    ) -> None:
+        self._grant(
+            target="make test",
+            settings_files=settings_files,
+            workdir=workdir,
+            skill_map=skill_map,
+        )
+        result = self._grant(
+            target="make test",
+            settings_files=settings_files,
+            workdir=workdir,
+            skill_map=skill_map,
+        )
+        assert isinstance(result, SuccessResult)
+        assert (result.value["remembered"]["added"], _remembered(granted_file)) == (
+            False,
+            ["Bash(make:*)"],
+        )
+
+    def test_remember_failure_on_already_allowed_claims_no_grant(
+        self,
+        granted_file: Path,
+        tmp_path: Path,
+        workdir: Path,
+        skill_map: list[MatchingRule],
+    ) -> None:
+        granted_file.parent.mkdir(parents=True)
+        granted_file.write_text("- not a mapping\n")
+        covered = _settings(tmp_path / "covered.json", allow=["Bash(make:*)"])
+        result = self._grant(
+            target="make test",
+            settings_files=[covered],
+            workdir=workdir,
+            skill_map=skill_map,
+        )
+        assert isinstance(result, ErrorResult)
+        assert result.error.startswith("Not remembered: ")
+
+    def test_remember_failure_is_an_error_after_the_grant(
+        self,
+        granted_file: Path,
+        settings_files: list[Path],
+        workdir: Path,
+        skill_map: list[MatchingRule],
+    ) -> None:
+        granted_file.parent.mkdir(parents=True)
+        granted_file.write_text("- not a mapping\n")
+        result = self._grant(
+            target="make test",
+            settings_files=settings_files,
+            workdir=workdir,
+            skill_map=skill_map,
+        )
+        assert isinstance(result, ErrorResult)
+        assert (
+            result.error.startswith("Granted Bash(make:*), but not remembered"),
+            [_allow(path) for path in settings_files],
+        ) == (True, [["Bash(make:*)"], ["Bash(make:*)"]])

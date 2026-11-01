@@ -35,13 +35,14 @@ from dev10x.domain.common.bash_tokens import (
     strip_quoted_spans,
 )
 from dev10x.domain.common.mcp_tool_name import McpToolName
-from dev10x.domain.common.result import Result, err, ok
+from dev10x.domain.common.result import ErrorResult, Result, err, ok
 from dev10x.domain.rules.validation_rule import Compensation, MatchingRule
 from dev10x.domain.sensitivity import SensitivityClassifier, name_is_sensitive, operand_tokens
 from dev10x.skills.permission.backup import backed_up_write
 from dev10x.skills.permission.catalog_write import partition_writable
 from dev10x.skills.permission.exec_capable import exec_flag, is_interpreter
 from dev10x.skills.permission.generalize import generalize_rule_shape
+from dev10x.skills.permission.granted_catalog import granted_path, remember_granted_rule
 
 SKILL_MAP_PATH = Path(_validators.__file__).parent / "command-skill-map.yaml"
 
@@ -679,6 +680,7 @@ def grant_everywhere(
     dry_run: bool = False,
     confirmed_rule: str | None = None,
     skill_map_rules: list[MatchingRule] | None = None,
+    remember: bool = False,
 ) -> Result[dict[str, Any]]:
     """Grant ``target``'s rule to every settings file that lacks it.
 
@@ -695,6 +697,11 @@ def grant_everywhere(
     rule overlaps is a decision the grant must not route around (GH-972).
     One file failing to write does not stop the others; the call then
     returns an error naming each failure so the partial grant is visible.
+
+    ``remember`` also appends the rule to ``granted-permissions.yaml`` so
+    checkouts created later are seeded with it (GH-1677). It accepts an
+    ``already-allowed`` verdict too, since that verdict passed every gate a
+    grant does and only means today's files need no write.
     """
     result = triage(
         target=target,
@@ -703,7 +710,8 @@ def grant_everywhere(
         base_denies=base_denies,
         skill_map_rules=skill_map_rules,
     )
-    if result.verdict is not Verdict.GRANT:
+    accepted = (Verdict.GRANT, Verdict.ALREADY_ALLOWED) if remember else (Verdict.GRANT,)
+    if result.verdict not in accepted:
         return err(
             f"Not granted ({result.verdict}): {result.reason}",
             triage=result.to_dict(),
@@ -736,6 +744,7 @@ def grant_everywhere(
         "granted": granted,
         "failed": failed,
         "dry_run": dry_run,
+        "remembered": None,
         "messages": messages,
         "triage": result.to_dict(),
     }
@@ -744,6 +753,23 @@ def grant_everywhere(
             f"Granted {result.rule} in {len(granted)} file(s); {len(failed)} failed.",
             **payload,
         )
+    if remember:
+        return _remember(rule=result.rule, dry_run=dry_run, payload=payload)
+    return ok(payload)
+
+
+def _remember(*, rule: str, dry_run: bool, payload: dict[str, Any]) -> Result[dict[str, Any]]:
+    target = granted_path()
+    if dry_run:
+        payload["messages"].append(f"  would remember {rule}  {target}")
+        return ok(payload)
+    remembered = remember_granted_rule(rule=rule)
+    if isinstance(remembered, ErrorResult):
+        lead = f"Granted {rule}, but not remembered" if payload["granted"] else "Not remembered"
+        return err(f"{lead}: {remembered.error}", **payload)
+    payload["remembered"] = remembered.value
+    verb = "remembered" if remembered.value["added"] else "already remembered"
+    payload["messages"].append(f"  {verb} {rule}  {target}")
     return ok(payload)
 
 

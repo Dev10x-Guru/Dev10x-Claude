@@ -2244,6 +2244,11 @@
           "title": "Dry Run",
           "type": "boolean"
         },
+        "remember": {
+          "default": false,
+          "title": "Remember",
+          "type": "boolean"
+        },
         "rule": {
           "title": "Rule",
           "type": "string"
