@@ -4,7 +4,7 @@
 
   import ToolPreview from "./ToolPreview.svelte";
   import { splitDialog } from "../lib/dialog";
-  import { displayName, optionText, waitingLabel } from "../lib/format";
+  import { displayName, inHerdr, optionText, waitingLabel } from "../lib/format";
   import { record } from "../lib/recent.svelte";
   import type { Decision, PromptOption, Session } from "../lib/types";
 
@@ -121,7 +121,17 @@
       {/if}
     {/each}
   {:else}
-    <p class="note">{session.summary || "No readable question on screen. Read the tail above, or reply below."}</p>
+    {#if session.preview}
+      <ToolPreview preview={session.preview} />
+    {/if}
+    {#if !inHerdr(session)}
+      <p class="note">
+        This session runs outside Herdr, so the page cannot press its keys. Answer the prompt in the session's own
+        terminal; a reply sent from here waits until the prompt is answered.
+      </p>
+    {:else}
+      <p class="note">{session.summary || "No readable question on screen. Read the tail above, or reply below."}</p>
+    {/if}
   {/if}
 </section>
 

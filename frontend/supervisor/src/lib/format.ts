@@ -36,6 +36,10 @@ export function waitingLabel(session: Session): string {
   return session.status;
 }
 
+export function inHerdr(session: Session): boolean {
+  return session.pane_id !== "";
+}
+
 export function headline(groups: Record<Group, Session[]>): string {
   const waiting = groups["needs-you"].length;
   if (waiting === 0) return "Nothing needs you.";
