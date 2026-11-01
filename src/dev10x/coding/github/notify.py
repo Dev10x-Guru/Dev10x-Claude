@@ -7,13 +7,13 @@ test patches ``dev10x.github._gateway.<name>`` and intercepts every caller.
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import Any
 
 from dev10x.core.github import _gateway
 from dev10x.core.paths import skill_script
 from dev10x.domain.common.result import Result, err, ok
 from dev10x.domain.dead_letter import record_undelivered
+from dev10x.subprocess_utils import resolve_script_path
 
 
 async def generate_commit_list(
@@ -75,8 +75,7 @@ async def pr_notify(
     skip_reviewers: bool = False,
     skip_checklist: bool = False,
 ) -> Result[dict[str, Any]]:
-    plugin_root = Path(__file__).parents[3]
-    script_path = plugin_root / "skills" / "gh-pr-monitor" / "scripts" / "pr-notify.py"
+    script_path = resolve_script_path(skill_script(skill="gh-pr-monitor", rel="pr-notify.py"))
 
     if not script_path.exists():
         return err(f"Script not found: {script_path}")
