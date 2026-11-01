@@ -21,12 +21,22 @@
     type AfterAnswer,
     type Panel,
   } from "./lib/prefs";
-  import { asksQuestion, nextQuestion, pickSession } from "./lib/selection";
+  import {
+    ACK_GRACE_MS,
+    asksQuestion,
+    awaitingAck,
+    nextQuestion,
+    pickSession,
+    pruneSent,
+    questionKey,
+    type SentAnswers,
+  } from "./lib/selection";
   import type { ActionResult, SessionDetail, Snapshot, View } from "./lib/types";
 
   const TOAST_MS = 5000;
   const DETAIL_POLL_MS = 2500;
   const RESIZE_STEP_PX = 16;
+  const ACK_TICK_MS = 5000;
   const PANELS = {
     aside: { panel: ASIDE, grows: 1 },
     side: { panel: SIDE, grows: -1 },
@@ -46,7 +56,8 @@
   let dragging = $state(false);
   let needsOnly = $state(false);
   let afterAnswer = $state<AfterAnswer>(loadAfterAnswer());
-  let leaving = $state("");
+  let sent = $state<SentAnswers>({});
+  let now = $state(Date.now());
   let pending = $state(false);
   let toast = $state<{ text: string; ok: boolean } | null>(null);
   let toastTimer: ReturnType<typeof setTimeout> | undefined;
@@ -58,16 +69,22 @@
   const current = $derived(pickSession(sessions, chosen));
   const errors = $derived(Object.entries(snapshot?.errors ?? {}));
   const otherQuestions = $derived(
-    sessions.filter((session) => session.session_id !== current?.session_id && asksQuestion(session)).length,
+    sessions.filter((session) => {
+      if (session.session_id === current?.session_id || !asksQuestion(session)) return false;
+      const entry = awaitingAck(session, sent);
+      return !entry || now - entry.at >= ACK_GRACE_MS;
+    }).length,
   );
+  const ackSince = $derived(current ? (awaitingAck(current, sent)?.at ?? null) : null);
 
   $effect(() => {
-    if (!leaving) return;
-    const answered = sessions.find((session) => session.session_id === leaving);
-    if (answered && asksQuestion(answered)) return;
-    const next = nextQuestion(sessions, leaving);
-    leaving = "";
-    if (next) select(next);
+    const timer = setInterval(() => (now = Date.now()), ACK_TICK_MS);
+    return () => clearInterval(timer);
+  });
+
+  $effect(() => {
+    const kept = pruneSent(sessions, sent);
+    if (Object.keys(kept).length !== Object.keys(sent).length) sent = kept;
   });
 
   $effect(() => {
@@ -101,7 +118,6 @@
 
   function select(sessionId: string): void {
     if (sessionId === current?.session_id) return;
-    leaving = "";
     chosen = sessionId;
     detail = null;
     history.replaceState(null, "", `${location.search}#${encodeURIComponent(sessionId)}`);
@@ -118,7 +134,11 @@
   }
 
   function answered(sessionId: string): void {
-    if (afterAnswer === "next") leaving = sessionId;
+    const session = sessions.find((each) => each.session_id === sessionId);
+    if (session) sent = { ...sent, [sessionId]: { key: questionKey(session), at: Date.now() } };
+    if (afterAnswer !== "next") return;
+    const next = nextQuestion(sessions, sessionId, sent, Date.now());
+    if (next) select(next);
   }
 
   function changeView(next: View): void {
@@ -264,6 +284,7 @@
             onafteranswer={changeAfterAnswer}
             onanswered={answered}
             {otherQuestions}
+            {ackSince}
             nameOf={(sessionId) => {
               const found = sessions.find((session) => session.session_id === sessionId);
               return found ? found.callsign || found.name : "that session";

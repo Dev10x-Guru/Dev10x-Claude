@@ -23,6 +23,7 @@
     onafteranswer: (choice: AfterAnswer) => void;
     onanswered: (sessionId: string) => void;
     otherQuestions: number;
+    ackSince: number | null;
     nameOf: (sessionId: string) => string;
   }
 
@@ -38,6 +39,7 @@
     onafteranswer,
     onanswered,
     otherQuestions,
+    ackSince,
     nameOf,
   }: Props = $props();
 
@@ -237,6 +239,7 @@
       {onafteranswer}
       onanswered={() => onanswered(session.session_id)}
       {otherQuestions}
+      {ackSince}
     />
   {/if}
 
