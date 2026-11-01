@@ -155,6 +155,17 @@ the next round — `dev10x:gh-pr-fixup`, `dev10x:git-groom` and
 the workflow `GITHUB_TOKEN` fires no `pull_request` event, and a fork
 PR's run gets no secrets, so neither is drafted — flip those by hand.
 
+## Switching the reviews off (GH-1756)
+
+`CLAUDE_REVIEW_ENABLED=false` (Actions variable; repo overrides org)
+skips the code review, hygiene and memory review; the
+`skip-claude-review` label skips them for one PR, read when it is
+opened or flipped ready. `CLAUDE_ASSISTANT_ENABLED=false` turns off
+`claude.yml` alone; unset leaves both on. The guard is job-level so
+the check reads `skipped`: a step-level skip concludes `success` with
+no review behind it (GH-1691). A skipped round leaves no review or
+checklist — disabled, not missing; re-flip ready to review it later.
+
 ## Where each file comes from (GH-1620)
 
 A review runs the PR's code under the base branch's instructions: the
