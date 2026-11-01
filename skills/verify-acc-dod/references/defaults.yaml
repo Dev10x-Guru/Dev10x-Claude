@@ -56,8 +56,12 @@ defaults:
         expect_contains: "All checks were successful"
         skip_when_merged: true
       - name: PR not draft
-        check: gh pr view {pr_number} --repo {repo} --json isDraft -q .isDraft  # cli-friction: allow raw-gh-pr — DoD runner executes this shell template directly
-        expect: "false"
+        check: prompt
+        prompt: >
+          Call mcp__plugin_dev10x_cli__pr_get(number={pr_number},
+          repo="{repo}") and read `isDraft`. PASS when it is false; FAIL
+          otherwise. A mechanical read — never substitute a raw
+          `gh pr view`, which the skill-redirect hook blocks (GH-1717).
       - name: No fixup commits
         check: git log --oneline origin/{base_branch}..HEAD
         expect_not_contains: "fixup!"
@@ -86,6 +90,19 @@ defaults:
           too. On failure, recommend: drop or narrow the Fixes: link, or
           split the undelivered scope into a tracked follow-up issue
           before merge.
+      - name: Deploy-time configuration in place
+        check: prompt
+        prompt: >
+          Read the diff (git diff origin/{base_branch}..HEAD) for gates
+          that only take effect at deploy time: a new or renamed
+          environment variable, feature flag, secret, or config key the
+          change reads. PASS when there are none. When there are, PASS
+          only if the session shows the value is set in every
+          environment the change ships to (a read-only listing, a
+          linked config PR, or the supervisor's confirmation); FAIL
+          otherwise, naming each unset key and environment. A merged
+          PR whose gate is unset in production is invisible there, and
+          every other check here would still pass (GH-1684 F1).
       - name: No unresolved review threads
         check: prompt
         prompt: >
@@ -100,10 +117,12 @@ defaults:
           review-deferred:
             skip: true
       - name: Review requested
-        check: >
-          gh pr view {pr_number} --repo {repo}
-          --json reviewRequests -q '.reviewRequests | length'  # cli-friction: allow raw-gh-pr — DoD runner executes this shell template directly
-        expect_gt: 0
+        check: prompt
+        prompt: >
+          Call mcp__plugin_dev10x_cli__pr_get(number={pr_number},
+          repo="{repo}") and read `reviewRequests`. PASS when it holds at
+          least one reviewer; FAIL when it is empty or absent. Never
+          substitute a raw `gh pr view` (GH-1717).
         requires_human_review: true
         skip_when_merged: true
         modes:
@@ -122,8 +141,12 @@ defaults:
         expect_contains: "All checks were successful"
         skip_when_merged: true
       - name: PR not draft
-        check: gh pr view {pr_number} --repo {repo} --json isDraft -q .isDraft  # cli-friction: allow raw-gh-pr — DoD runner executes this shell template directly
-        expect: "false"
+        check: prompt
+        prompt: >
+          Call mcp__plugin_dev10x_cli__pr_get(number={pr_number},
+          repo="{repo}") and read `isDraft`. PASS when it is false; FAIL
+          otherwise. A mechanical read — never substitute a raw
+          `gh pr view`, which the skill-redirect hook blocks (GH-1717).
       - name: Regression test present
         check: git diff origin/{base_branch}..HEAD --stat
         expect_contains: "test_"
@@ -152,6 +175,19 @@ defaults:
           too. On failure, recommend: drop or narrow the Fixes: link, or
           split the undelivered scope into a tracked follow-up issue
           before merge.
+      - name: Deploy-time configuration in place
+        check: prompt
+        prompt: >
+          Read the diff (git diff origin/{base_branch}..HEAD) for gates
+          that only take effect at deploy time: a new or renamed
+          environment variable, feature flag, secret, or config key the
+          change reads. PASS when there are none. When there are, PASS
+          only if the session shows the value is set in every
+          environment the change ships to (a read-only listing, a
+          linked config PR, or the supervisor's confirmation); FAIL
+          otherwise, naming each unset key and environment. A merged
+          PR whose gate is unset in production is invisible there, and
+          every other check here would still pass (GH-1684 F1).
       - name: No unresolved review threads
         check: prompt
         prompt: >
@@ -166,10 +202,12 @@ defaults:
           review-deferred:
             skip: true
       - name: Review requested
-        check: >
-          gh pr view {pr_number} --repo {repo}
-          --json reviewRequests -q '.reviewRequests | length'  # cli-friction: allow raw-gh-pr — DoD runner executes this shell template directly
-        expect_gt: 0
+        check: prompt
+        prompt: >
+          Call mcp__plugin_dev10x_cli__pr_get(number={pr_number},
+          repo="{repo}") and read `reviewRequests`. PASS when it holds at
+          least one reviewer; FAIL when it is empty or absent. Never
+          substitute a raw `gh pr view` (GH-1717).
         requires_human_review: true
         skip_when_merged: true
         modes:
@@ -188,8 +226,12 @@ defaults:
         expect_contains: "All checks were successful"
         skip_when_merged: true
       - name: PR not draft
-        check: gh pr view {pr_number} --repo {repo} --json isDraft -q .isDraft  # cli-friction: allow raw-gh-pr — DoD runner executes this shell template directly
-        expect: "false"
+        check: prompt
+        prompt: >
+          Call mcp__plugin_dev10x_cli__pr_get(number={pr_number},
+          repo="{repo}") and read `isDraft`. PASS when it is false; FAIL
+          otherwise. A mechanical read — never substitute a raw
+          `gh pr view`, which the skill-redirect hook blocks (GH-1717).
       - name: No fixup commits
         check: git log --oneline origin/{base_branch}..HEAD
         expect_not_contains: "fixup!"
@@ -213,6 +255,19 @@ defaults:
           too. On failure, recommend: drop or narrow the Fixes: link, or
           split the undelivered scope into a tracked follow-up issue
           before merge.
+      - name: Deploy-time configuration in place
+        check: prompt
+        prompt: >
+          Read the diff (git diff origin/{base_branch}..HEAD) for gates
+          that only take effect at deploy time: a new or renamed
+          environment variable, feature flag, secret, or config key the
+          change reads. PASS when there are none. When there are, PASS
+          only if the session shows the value is set in every
+          environment the change ships to (a read-only listing, a
+          linked config PR, or the supervisor's confirmation); FAIL
+          otherwise, naming each unset key and environment. A merged
+          PR whose gate is unset in production is invisible there, and
+          every other check here would still pass (GH-1684 F1).
       - name: No unresolved review threads
         check: prompt
         prompt: >
@@ -227,10 +282,12 @@ defaults:
           review-deferred:
             skip: true
       - name: Re-review requested
-        check: >
-          gh pr view {pr_number} --repo {repo}
-          --json reviewRequests -q '.reviewRequests | length'  # cli-friction: allow raw-gh-pr — DoD runner executes this shell template directly
-        expect_gt: 0
+        check: prompt
+        prompt: >
+          Call mcp__plugin_dev10x_cli__pr_get(number={pr_number},
+          repo="{repo}") and read `reviewRequests`. PASS when it holds at
+          least one reviewer; FAIL when it is empty or absent. Never
+          substitute a raw `gh pr view` (GH-1717).
         requires_human_review: true
         skip_when_merged: true
         modes:

@@ -118,6 +118,41 @@ class TestOpenWorkEndsTheTurnQuietly:
         assert verdict.signal == StopSignal.OPEN_WORK
 
 
+class TestAQueuedAuditDoesNotDemandToRun:
+    """GH-1684 F3: `dev10x:skill-audit-queue` records intent only.
+
+    The audit it queues waits for the supervisor to invoke it, so the
+    hook must not block each turn-end demanding the agent run it. Under
+    the GH-1377 block it did, about ten times in a row, and the agent
+    could neither comply without breaking the queue's contract nor close
+    the task.
+    """
+
+    _QUEUED_AUDIT = {
+        "tasks": [
+            {"subject": "Monitor CI", "status": "completed"},
+            {
+                "subject": "Invoke dev10x:skill-audit to diagnose recent friction",
+                "status": "pending",
+            },
+            {"subject": "Verify acceptance criteria", "status": "pending"},
+        ]
+    }
+
+    def test_a_queued_audit_ends_the_turn_without_a_block(
+        self, tmp_path: Path, isolated_markers: Path
+    ) -> None:
+        verdict = decide(
+            data={
+                "session_id": "gh1684f3",
+                "transcript_path": _transcript(tmp_path=tmp_path, closing="Merged."),
+            },
+            plan=self._QUEUED_AUDIT,
+        )
+
+        assert (verdict.block, verdict.reason) == (False, "")
+
+
 class TestTheTerminalGateIsNotWork:
     """GH-149 keeps it open, so it cannot mean "keep working"."""
 
