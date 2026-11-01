@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import subprocess
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from dev10x.domain.common.result import ErrorResult, SuccessResult
 from dev10x.domain.transport_budget import MAX_TOOL_CALL_SECONDS
 
 from dev10x import runner
-from dev10x.subprocess_utils import use_cwd
+from dev10x.subprocess_utils import TimedOutProcess, use_cwd
 
 
 def _completed(
@@ -294,6 +294,21 @@ class TestRunTests:
 
     @pytest.mark.asyncio
     @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    async def test_a_queued_timeout_is_not_reported_as_a_test_timeout(
+        self,
+        mock_run: AsyncMock,
+    ) -> None:
+        """GH-1760: no test ran, so narrowing the run would not help."""
+        mock_run.return_value = TimedOutProcess(args=[], queued=True)
+
+        result = await runner.run_tests(timeout=5)
+
+        assert isinstance(result, ErrorResult)
+        assert result.to_dict()["verdict"] == "queue_timeout"
+        assert "never started" in result.error
+
+    @pytest.mark.asyncio
+    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
     async def test_missing_uv_returns_error(
         self,
         mock_run: AsyncMock,
@@ -448,6 +463,89 @@ class TestMissingDependencyRetry:
         assert isinstance(result, SuccessResult)
         assert result.value["retried_with_extras"] is False
         assert mock_run.await_count == 1
+
+
+class TestRetrySharesOneDeadline:
+    """GH-1760: the retry spends what the first run left, not a fresh budget."""
+
+    @pytest.fixture
+    def clock(self) -> MagicMock:
+        """First read sets the deadline, the second is taken after the first run."""
+        with patch("dev10x.runner.time") as fake_time:
+            yield fake_time.monotonic
+
+    @pytest.mark.asyncio
+    @patch("dev10x.runner.resolve_test_extras", return_value=[])
+    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    async def test_the_retry_gets_only_the_remaining_budget(
+        self,
+        mock_run: AsyncMock,
+        _resolve: object,
+        clock: MagicMock,
+    ) -> None:
+        clock.side_effect = [1000.0, 1400.0]
+        mock_run.side_effect = [
+            _completed(returncode=2, stdout=MISSING_DEP_STDOUT),
+            _completed(stdout=PASS_STDOUT),
+        ]
+
+        await runner.run_tests()
+
+        assert mock_run.await_args.kwargs["timeout"] == MAX_TOOL_CALL_SECONDS - 400
+
+    @pytest.mark.asyncio
+    @patch("dev10x.runner.resolve_test_extras", return_value=[])
+    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    async def test_an_exhausted_budget_skips_the_retry(
+        self,
+        mock_run: AsyncMock,
+        _resolve: object,
+        clock: MagicMock,
+    ) -> None:
+        clock.side_effect = [1000.0, 1000.0 + MAX_TOOL_CALL_SECONDS]
+        mock_run.return_value = _completed(returncode=2, stdout=MISSING_DEP_STDOUT)
+
+        result = await runner.run_tests()
+
+        assert result.value["retried_with_extras"] is False
+        assert mock_run.await_count == 1
+
+    @pytest.mark.asyncio
+    @patch("dev10x.runner.resolve_test_extras", return_value=[])
+    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    async def test_a_sliver_of_budget_keeps_the_import_error(
+        self,
+        mock_run: AsyncMock,
+        _resolve: object,
+        clock: MagicMock,
+    ) -> None:
+        clock.side_effect = [1000.0, 1000.0 + MAX_TOOL_CALL_SECONDS - 10]
+        mock_run.return_value = _completed(returncode=2, stdout=MISSING_DEP_STDOUT)
+
+        result = await runner.run_tests()
+
+        assert result.value["retried_with_extras"] is False
+        assert result.value["stdout"] == MISSING_DEP_STDOUT
+
+    @pytest.mark.asyncio
+    @patch("dev10x.runner.resolve_test_extras", return_value=[])
+    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    async def test_a_retry_that_times_out_reports_the_timeout(
+        self,
+        mock_run: AsyncMock,
+        _resolve: object,
+        clock: MagicMock,
+    ) -> None:
+        clock.side_effect = [1000.0, 1010.0]
+        mock_run.side_effect = [
+            _completed(returncode=2, stdout=MISSING_DEP_STDOUT),
+            _completed(returncode=-1, stderr="Process timed out"),
+        ]
+
+        result = await runner.run_tests()
+
+        assert isinstance(result, ErrorResult)
+        assert result.to_dict()["verdict"] == "timeout"
 
 
 POETRY_PYPROJECT = '[tool.poetry]\nname = "demo"\nversion = "0"\n'

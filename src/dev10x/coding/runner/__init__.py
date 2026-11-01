@@ -14,6 +14,7 @@ import json
 import os
 import re
 import subprocess
+import time
 import tomllib
 from pathlib import Path
 from typing import Any
@@ -79,6 +80,9 @@ _MISSING_MODULE_RE = re.compile(r"ModuleNotFoundError: No module named", re.MULT
 _UV_ERROR_RE = re.compile(r"^error: .+$", re.MULTILINE)
 
 _RETRY_EXTRA = "dev"
+
+# A retry with less than this left would time out before collecting.
+_MIN_RETRY_SECONDS = 30.0
 
 
 def _requirement_name(*, requirement: str) -> str:
@@ -242,6 +246,7 @@ async def run_tests(
     pyproject = read_pyproject()
     extras = resolve_test_extras()
     budget = clamp_tool_timeout(timeout)
+    deadline = time.monotonic() + budget.seconds
 
     # GH-1730: with no PEP 621 [project] table (poetry, a bare tool-config
     # file) uv ignores the repo's Python pin and cannot see its
@@ -279,21 +284,9 @@ async def run_tests(
             "test skill's documented fallback."
         )
 
-    if proc.returncode == -1 and "timed out" in proc.stderr.lower():
-        return err(
-            _timed_out_message(
-                runner="pytest",
-                budget=budget,
-                narrowing=(
-                    "Narrow the run (-k, a path) or invoke pytest through the "
-                    "test skill's documented fallback for a full serial suite."
-                ),
-            ),
-            verdict="timeout",
-            elapsed=budget.seconds,
-            timeout_clamped=budget.was_clamped,
-            stdout=proc.stdout,
-            stderr=proc.stderr,
+    if _did_time_out(proc=proc):
+        return _timeout_error(
+            runner="pytest", narrowing=_PYTEST_NARROWING, proc=proc, budget=budget
         )
 
     # Safety net for the case resolution cannot see: a group that carries the
@@ -302,18 +295,29 @@ async def run_tests(
     # reaching for the raw command. Only when the extra exists: uv rejects
     # an undeclared one outright, which replaced a useful collection error
     # with a misleading one (GH-1730).
+    #
+    # GH-1760: the retry spends what the first run left of one budget, not
+    # a fresh one — two full budgets back to back is twice the ceiling the
+    # transport will sit through. Too little left and the retry would only
+    # time out, replacing the first run's import error with a timeout.
     retried = False
+    remaining = deadline - time.monotonic()
     can_retry = python is None and _RETRY_EXTRA in _optional_dependency_groups(pyproject=pyproject)
-    if not extras and can_retry and _looks_like_missing_dependency(proc=proc):
+    worth_retrying = remaining >= _MIN_RETRY_SECONDS
+    if not extras and can_retry and worth_retrying and _looks_like_missing_dependency(proc=proc):
         retried = True
         extras = [_RETRY_EXTRA]
         try:
             proc = await async_run(
                 args=_pytest_command(extras=extras, coverage=coverage, extra_args=extra_args),
-                timeout=budget.seconds,
+                timeout=remaining,
             )
         except FileNotFoundError:  # pragma: no cover - first call already proved uv exists
             pass
+        if _did_time_out(proc=proc):
+            return _timeout_error(
+                runner="pytest", narrowing=_PYTEST_NARROWING, proc=proc, budget=budget
+            )
 
     parsed = _parse(proc.stdout)
     payload: dict[str, Any] = {
@@ -327,6 +331,48 @@ async def run_tests(
         **parsed,
     }
     return ok(payload)
+
+
+def _did_time_out(*, proc: subprocess.CompletedProcess[str]) -> bool:
+    return proc.returncode == -1 and "timed out" in proc.stderr.lower()
+
+
+_PYTEST_NARROWING = (
+    "Narrow the run (-k, a path) or invoke pytest through the "
+    "test skill's documented fallback for a full serial suite."
+)
+_NODE_NARROWING = "Narrow the run (a test-name filter, a path) or split the suite across calls."
+
+
+def _timeout_error(
+    *,
+    runner: str,
+    narrowing: str,
+    proc: subprocess.CompletedProcess[str],
+    budget: ClampedTimeout,
+) -> Result[dict[str, Any]]:
+    """Report a timed-out run — or one that never started (GH-1760).
+
+    A call that spent its budget waiting for a subprocess slot ran nothing,
+    so narrowing advice would send the caller after the wrong problem.
+    """
+    if getattr(proc, "queued", False):
+        return err(
+            f"{runner} never started — every subprocess slot "
+            "(DEV10X_MCP_MAX_SUBPROCESSES) stayed busy for the whole budget. "
+            "Retry once the other in-flight tool calls finish.",
+            verdict="queue_timeout",
+            stdout=proc.stdout,
+            stderr=proc.stderr,
+        )
+    return err(
+        _timed_out_message(runner=runner, budget=budget, narrowing=narrowing),
+        verdict="timeout",
+        elapsed=budget.seconds,
+        timeout_clamped=budget.was_clamped,
+        stdout=proc.stdout,
+        stderr=proc.stderr,
+    )
 
 
 def _looks_like_missing_dependency(*, proc: subprocess.CompletedProcess[str]) -> bool:
@@ -511,20 +557,9 @@ async def run_node_tests(
             f"test via the documented fallback."
         )
 
-    if proc.returncode == -1 and "timed out" in proc.stderr.lower():
-        return err(
-            _timed_out_message(
-                runner="node tests",
-                budget=budget,
-                narrowing=(
-                    "Narrow the run (a test-name filter, a path) or split the suite across calls."
-                ),
-            ),
-            verdict="timeout",
-            elapsed=budget.seconds,
-            timeout_clamped=budget.was_clamped,
-            stdout=proc.stdout,
-            stderr=proc.stderr,
+    if _did_time_out(proc=proc):
+        return _timeout_error(
+            runner="node tests", narrowing=_NODE_NARROWING, proc=proc, budget=budget
         )
 
     # jest/vitest write their summary to stderr; scan both streams.
