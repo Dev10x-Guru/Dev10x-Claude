@@ -295,7 +295,7 @@ Behavioral caveats:
   naming it, rather than a plausible receipt the caller acts on and
   then fails to merge.
 
-- `pr_ready` must be re-run after ANY force-push (GH-958). A
+- **`pr_ready` after a push (GH-958, GH-1731).** A
   `--force-with-lease` push resets a published PR back to draft, so a
   ready call that succeeded earlier — including a
   `create_pr(draft=false)` — does not survive a later rebase, amend, or
@@ -303,6 +303,18 @@ Behavioral caveats:
   `pr_get` that `isDraft` is `false`; otherwise `merge_pr` fails with
   `GraphQL: Pull Request is still a draft`, and the re-ready costs
   another bot-CI round.
+
+  `pr-draft-on-push.yml` (GH-1694) extends this to **every** push, and
+  a draft gets no CI here. So any push path — a fixup push, a groom
+  force-push, a conflict rebase — reads `isDraft` via `pr_get` before
+  the push and again after it, and calls `pr_ready` only when the PR
+  was ready before and is a draft now. The rule is conditional on
+  purpose: it is a no-op while the workflow lacks its App credentials,
+  and a PR that was a draft before the push stays one, because
+  readiness was not the push's to grant (under `supervisor_review:
+  required` that call belongs to the supervisor). `push_safe` does not
+  report the draft state; reading it is the caller's job, since only
+  the caller knows which PR the branch belongs to.
 
 - `create_pr` rejects a `job_story` missing any of `**When**` /
   `**<actor> wants**` / `**so <beneficiary> can**` with an
