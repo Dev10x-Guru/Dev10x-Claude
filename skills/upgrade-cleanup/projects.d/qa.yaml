@@ -4,6 +4,9 @@
 # header for the catalog itself.
 
 base_permissions:
+  # --- dev10x-qa skills (GH-1564) ---
+  - "Skill(dev10x-qa:*)"
+
   # --- QA evidence inspection (GH-1141) ---
   # `identify` is read-only and already required by qa-self's
   # verify-evidence.py, which shells out to

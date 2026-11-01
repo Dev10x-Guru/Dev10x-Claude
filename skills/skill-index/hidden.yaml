@@ -17,7 +17,7 @@ hidden:
   - dev10x:park-todo
   - dev10x:park-remind
   - dev10x:py-uv
-  - dev10x:playwright
+  - dev10x-qa:playwright
   - dev10x:slack
   - dev10x:ticket-jtbd
   - dev10x:gh-pr-review

@@ -11,7 +11,7 @@
     {
       "name": "dev10x",
       "source": "./",
-      "description": "v0.113.0.dev0 — 105 skills for structured commits, PR lifecycle, branch hygiene, ticket management, task tracking, code review, scoping, and QA automation in Claude Code.",
+      "description": "v0.113.0.dev0 — 99 skills for structured commits, PR lifecycle, branch hygiene, ticket management, task tracking, code review, and scoping in Claude Code.",
       "version": "0.113.0.dev0",
       "keywords": [
         "git", "commits", "pull-requests", "code-review",
@@ -20,6 +20,13 @@
         "session-persistence", "MCP", "github-action",
         "automated-review", "learned-rules"
       ]
+    },
+    {
+      "name": "dev10x-qa",
+      "source": "./plugins/qa",
+      "description": "v0.113.0.dev0 — 6 skills for self-QA walkthroughs: Playwright capture, narration, evidence publishing, YouTube upload, and review packs.",
+      "version": "0.113.0.dev0",
+      "keywords": ["qa", "playwright", "tts", "youtube", "review"]
     }
   ]
 }

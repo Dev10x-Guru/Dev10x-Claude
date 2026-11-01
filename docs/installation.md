@@ -17,9 +17,9 @@
 |------|---------|
 | [PostgreSQL client (`psql`)](https://www.postgresql.org/download/) | `dev10x:db-psql` — database queries |
 | Linux: [`libsecret` (`secret-tool`)](https://gitlab.gnome.org/GNOME/libsecret); macOS: Keychain (built-in) | Keyring lookups for DB DSNs, Slack tokens, Linear API keys |
-| [`ffmpeg`](https://ffmpeg.org/download.html) | `dev10x:qa-self` — video evidence conversion |
-| [ImageMagick](https://imagemagick.org/script/download.php) (`convert`) | `dev10x:qa-self` — screenshot conversion |
-| [Playwright](https://playwright.dev/python/docs/intro#installing-playwright) | `dev10x:playwright` — browser QA (auto-installed via `uv`) |
+| [`ffmpeg`](https://ffmpeg.org/download.html) | `dev10x-qa:qa-self` — video evidence conversion |
+| [ImageMagick](https://imagemagick.org/script/download.php) (`convert`) | `dev10x-qa:qa-self` — screenshot conversion |
+| [Playwright](https://playwright.dev/python/docs/intro#installing-playwright) | `dev10x-qa:playwright` — browser QA (auto-installed via `uv`) |
 | [`bump-my-version`](https://github.com/callowayproject/bump-my-version#installation) | `bin/release.sh` — plugin releases |
 
 > **Python dependencies** are handled automatically. Scripts use
@@ -36,6 +36,18 @@ the in-session `/plugin` slash commands are unreliable for install):
 claude plugin marketplace add Dev10x-Guru/dev10x-claude
 claude plugin install dev10x@Dev10x-Guru
 ```
+
+The self-QA walkthrough skills (`qa-self`, `playwright`, `qa-publish`,
+`tts`, `yt-upload`, `review-pack`) ship as a separate plugin. Install it
+where you record walkthroughs; it brings `dev10x` with it:
+
+```bash
+claude plugin install dev10x-qa@Dev10x-Guru
+```
+
+Upgrading from a release where those skills were part of `dev10x`
+and carried its `dev10x:` prefix: install `dev10x-qa` as above, then run
+`/dev10x:upgrade-cleanup` to rewrite the old names in your configs.
 
 Update to the latest version:
 

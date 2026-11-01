@@ -16,6 +16,7 @@ import pytest
 from dev10x.core.domain.common.result import ErrorResult, SuccessResult
 from dev10x.core.domain.deprecations import REGISTER
 from dev10x.core.domain.file_locks import LockTimeoutError
+from dev10x.core.plugin_map import load_plugin_map
 from dev10x.core.skills.upgrade_cleanup import skill_names
 from dev10x.core.skills.upgrade_cleanup.skill_names import (
     SKILL_NAME_ALIASES,
@@ -168,8 +169,20 @@ class TestRegister:
     def entry_removed_in(self) -> str:
         return {entry.name: entry for entry in REGISTER}["SKILL_NAME_ALIASES"].removed_in
 
-    def test_stage_a_ships_no_aliases(self) -> None:
-        assert SKILL_NAME_ALIASES == ()
+    def test_shipped_aliases_rewrite_a_moved_qa_name(self) -> None:
+        assert migrate_text(
+            text="steps:\n  - skill: dev10x:qa-self\n", aliases=SKILL_NAME_ALIASES
+        ) == ("steps:\n  - skill: dev10x-qa:qa-self\n", 1)
+
+    def test_every_extracted_skill_keeps_its_old_name_as_an_alias(self) -> None:
+        plugin_map = load_plugin_map()
+        expected = {
+            (f"dev10x:{skill}", f"{plugin_map.plugin_name(key=key)}:{skill}")
+            for key in plugin_map.extracted
+            for skill in plugin_map.plugins[key]
+        }
+
+        assert {(alias.old, alias.new) for alias in SKILL_NAME_ALIASES} == expected
 
     def test_no_shipped_alias_outlives_the_register_entry(self, entry_removed_in: str) -> None:
         assert aliases_outliving(aliases=SKILL_NAME_ALIASES, removed_in=entry_removed_in) == []

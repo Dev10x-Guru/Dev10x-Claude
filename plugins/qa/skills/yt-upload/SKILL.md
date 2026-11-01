@@ -1,5 +1,5 @@
 ---
-name: dev10x:yt-upload
+name: dev10x-qa:yt-upload
 description: >
   Publish a recording to YouTube as unlisted and hand back the embed form each
   destination can actually use — a bare watch URL for Linear (the only thing
@@ -7,18 +7,18 @@ description: >
   (which strips iframes).
   TRIGGER when: a video file needs to become a shareable link — a QA
   walkthrough, a demo recording, a bug repro.
-  DO NOT TRIGGER when: capturing the recording (use dev10x:qa-self),
+  DO NOT TRIGGER when: capturing the recording (use dev10x-qa:qa-self),
   converting or verifying evidence files (use qa-self's own scripts), or
   publishing a full QA evidence set to a ticket and PR (use
-  dev10x:qa-publish, which calls this skill).
+  dev10x-qa:qa-publish, which calls this skill).
 user-invocable: true
-invocation-name: dev10x:yt-upload
+invocation-name: dev10x-qa:yt-upload
 allowed-tools:
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/yt-upload/scripts/upload-video.py:*)
   - AskUserQuestion
 ---
 
-# dev10x:yt-upload — publish a recording as unlisted
+# dev10x-qa:yt-upload — publish a recording as unlisted
 
 Everything runs through `scripts/upload-video.py`. Never call `gog` or the
 YouTube API directly — the wrapper owns token borrowing, scope verification,
@@ -50,7 +50,7 @@ world-readable*.
 ## Review the footage locally first
 
 An upload cannot be quietly withdrawn. When invoked from
-`dev10x:qa-self`, its Phase 4.4 gate has already shown the frames — but this
+`dev10x-qa:qa-self`, its Phase 4.4 gate has already shown the frames — but this
 skill re-reads the narration manifest itself rather than assuming a caller
 gated, because it can also be invoked directly.
 
@@ -185,10 +185,9 @@ and nothing secret in the repo or the config file.
 Run `check` after each setup step rather than working the list top to bottom
 blind — it names the next thing to fix.
 
-**Full setup:
-[`dev10x:gog` § YouTube](../gog/references/youtube.md)**, with the shared
-OAuth traps in
-[`references/auth-setup.md`](../gog/references/auth-setup.md). The four
+**Full setup: `dev10x:gog` § YouTube** (its `references/youtube.md`, in
+the core `dev10x` plugin), with the shared OAuth traps in the same skill's
+`references/auth-setup.md`. The four
 that decide whether a first-time setup succeeds:
 
 1. **The OAuth client must be a *Desktop app*.** gog binds a random
@@ -216,8 +215,8 @@ gog owns auth but **cannot carry a media body** — there is no
 `youtube videos insert`, and `api call` takes JSON only — so the resumable
 `videos.insert` is hand-rolled here with gog's exported token. Everything
 gog *can* do stays with gog: warming the token, minting the credential, and
-confirming the upload landed. See
-[`dev10x:gog` § There is no upload command](../gog/references/youtube.md).
+confirming the upload landed. See `dev10x:gog` § There is no upload
+command (`references/youtube.md`).
 
 **Re-check on a gog upgrade.** If a media flag appears, move the transfer to
 gog and delete the hand-rolled `open_session`/`upload` pair — it exists only
@@ -275,4 +274,4 @@ Shredding is best-effort, not a secure erase — on CoW filesystems, SSDs with
 wear levelling, or an encrypted volume the original blocks may survive. That
 is an accepted trade-off for a token that lives for seconds and that gog can
 revoke and reissue. This is the worked reference for the token-handling rule
-in [`dev10x:gog` § Tokens](../gog/references/auth-setup.md).
+in `dev10x:gog` § Tokens (`references/auth-setup.md`).

@@ -4,7 +4,9 @@ A skill that names ``${CLAUDE_PLUGIN_ROOT}/skills/<other>/`` reaches into
 another skill's folder. Inside one plugin that is harmless; once Stage B
 gives each plugin its own root, a path into a sibling plugin stops
 resolving. A skill may therefore reach only its own plugin's folders or
-core's, mirroring the Python import boundary.
+core's, mirroring the Python import boundary. Once its plugin is
+extracted (GH-1564) the root is the satellite's own, so even core's
+folders are out of reach.
 """
 
 from __future__ import annotations
@@ -39,8 +41,11 @@ def cross_plugin_edges(
     for skill_file in skill_files:
         skill = skill_file.parent.name
         own = plugin_map.plugin_for(skill=skill)
+        reachable: set[str | None] = {own}
+        if not (own and plugin_map.is_extracted(key=own)):
+            reachable.add(CORE_PLUGIN)
         for target in skill_folder_targets(text=skill_file.read_text()):
-            if plugin_map.plugin_for(skill=target) not in {own, CORE_PLUGIN}:
+            if plugin_map.plugin_for(skill=target) not in reachable:
                 edges.append(SkillPathEdge(skill=skill, target=target))
     return sorted(edges)
 

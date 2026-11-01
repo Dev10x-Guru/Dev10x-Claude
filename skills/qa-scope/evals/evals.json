@@ -100,7 +100,7 @@
     "should_not_trigger": [
       {
         "query": "run the QA test cases on staging",
-        "rationale": "Executing QA — use dev10x:qa-self, not qa-scope"
+        "rationale": "Executing QA — use dev10x-qa:qa-self, not qa-scope"
       },
       {
         "query": "this PR only touches internal config, no user-facing change",

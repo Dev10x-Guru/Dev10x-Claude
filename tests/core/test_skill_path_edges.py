@@ -77,6 +77,18 @@ class TestCrossPluginEdges:
             SkillPathEdge(skill="ticket", target="pr"),
         ]
 
+    def test_an_extracted_plugin_cannot_reach_core_folders(self, toy_skills: Path) -> None:
+        extracted = parse_plugin_map(
+            data={
+                "plugins": {"core": ["helper"], "scoping": ["ticket", "spec"], "coding": ["pr"]},
+                "extracted": ["coding"],
+            }
+        )
+
+        assert cross_plugin_edges(
+            skill_files=[toy_skills / "pr" / "SKILL.md"], plugin_map=extracted
+        ) == [SkillPathEdge(skill="pr", target="helper")]
+
     @pytest.mark.parametrize(
         ("text", "expected"),
         [

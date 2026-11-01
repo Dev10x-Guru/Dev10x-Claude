@@ -1,5 +1,5 @@
 ---
-name: dev10x:review-pack
+name: dev10x-qa:review-pack
 description: >
   Build the review pack a human reviewer opens before the diff — the
   change shown in screenshots, video or before/after API evidence, a
@@ -8,20 +8,20 @@ description: >
   change without checking out the branch.
   TRIGGER when: requesting human review, flipping a PR out of draft,
   or asked to make a change "easy to review".
-  DO NOT TRIGGER when: capturing a QA run (use dev10x:qa-self),
-  publishing a QA verdict to a ticket (use dev10x:qa-publish), or
+  DO NOT TRIGGER when: capturing a QA run (use dev10x-qa:qa-self),
+  publishing a QA verdict to a ticket (use dev10x-qa:qa-publish), or
   assigning reviewers and notifying chat (use dev10x:request-review).
 user-invocable: true
-invocation-name: dev10x:review-pack
+invocation-name: dev10x-qa:review-pack
 allowed-tools:
   - Read
   - Write
   - AskUserQuestion
-  - Skill(dev10x:qa-self)
-  - Skill(dev10x:tts)
-  - Skill(dev10x:yt-upload)
-  - Skill(dev10x:qa-publish)
-  - Skill(dev10x:playwright)
+  - Skill(dev10x-qa:qa-self)
+  - Skill(dev10x-qa:tts)
+  - Skill(dev10x-qa:yt-upload)
+  - Skill(dev10x-qa:qa-publish)
+  - Skill(dev10x-qa:playwright)
   - Skill(dev10x:request-review)
   - Bash(gh repo view:*)
   - Bash(gh repo clone:*)
@@ -35,9 +35,9 @@ allowed-tools:
   - mcp__plugin_dev10x_cli__mktmp
 ---
 
-# dev10x:review-pack — make reviewing effortless
+# dev10x-qa:review-pack — make reviewing effortless
 
-**Announce:** "Using dev10x:review-pack to build the review pack for [PR]."
+**Announce:** "Using dev10x-qa:review-pack to build the review pack for [PR]."
 
 The bar: a reviewer understands what changed, sees it, and knows how to
 test it — **without checking out the branch**.
@@ -49,18 +49,17 @@ It owns no capture, narration or upload mechanics:
 
 | Concern | Owner |
 |---|---|
-| Browser capture, cursor overlay, captions | `dev10x:qa-self` (+ `dev10x:playwright`) |
-| Voice narration | `dev10x:tts` |
-| Video → unlisted link + per-destination embed | `dev10x:yt-upload` |
-| QA verdict to ticket and PR | `dev10x:qa-publish` |
+| Browser capture, cursor overlay, captions | `dev10x-qa:qa-self` (+ `dev10x-qa:playwright`) |
+| Voice narration | `dev10x-qa:tts` |
+| Video → unlisted link + per-destination embed | `dev10x-qa:yt-upload` |
+| QA verdict to ticket and PR | `dev10x-qa:qa-publish` |
 | Reviewer assignment + chat ping | `dev10x:request-review` |
 | Pack content, hosting, PR link, pre-send gate | **this skill** |
 
 ## Configuration
 
-Read `<Dev10x config>/review-pack.yaml` (see
-[`config-resolution.md`](../../references/config-resolution.md) for the
-root per platform).
+Read `<Dev10x config>/review-pack.yaml` (the core `dev10x` plugin's
+`references/config-resolution.md` gives the root per platform).
 Repo-addressed, first matching `projects[].match_repo` wins, then
 `defaults`:
 
@@ -126,10 +125,10 @@ Options:
 
 ## Video — a full qa-self capture, never a silent screen recording
 
-Every review video is a `dev10x:qa-self` capture with **all three**:
+Every review video is a `dev10x-qa:qa-self` capture with **all three**:
 a visible cursor (the qa-self overlay), an on-screen caption per step,
-and `dev10x:tts` voice narration muxed over it.
-Publish through `dev10x:yt-upload` (or `dev10x:qa-publish` when a ticket
+and `dev10x-qa:tts` voice narration muxed over it.
+Publish through `dev10x-qa:yt-upload` (or `dev10x-qa:qa-publish` when a ticket
 write-up is wanted too) — no hand-rolled upload or embed code.
 
 **Fallback — external failures only.** When a piece fails for a reason
@@ -142,7 +141,7 @@ silently missing.
 Never use this for a failure you caused: a broken script or a wrong
 locator is a bug to fix, not a piece to drop.
 
-**Staging footage only, never production** (`dev10x:yt-upload` gates
+**Staging footage only, never production** (`dev10x-qa:yt-upload` gates
 this). Anything else in frame is your organisation's disclosure policy.
 
 **Evidence expires with the UI.** When a later commit changes UI the

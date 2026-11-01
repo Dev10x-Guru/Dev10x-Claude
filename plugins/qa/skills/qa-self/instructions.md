@@ -15,7 +15,8 @@ Linear.
 
 ## Orchestration
 
-This skill follows `references/task-orchestration.md` patterns.
+This skill follows the core `dev10x` plugin's
+`references/task-orchestration.md` patterns.
 
 **Auto-advance:** Complete each phase, immediately start the next — no checkpoints the resolver did not ask for.
 Never pause between phases to ask "should I continue?".
@@ -543,7 +544,7 @@ Full recipe, timing model and the licence gate:
 [`skills/tts/references/qa-self-narration.md`](../tts/references/qa-self-narration.md).
 
 **Redact anything that must not reach the recording.** The
-`dev10x:yt-upload` provenance gate asks the operator to *state* that no
+`dev10x-qa:yt-upload` provenance gate asks the operator to *state* that no
 production data is on screen — it cannot verify it, and "I recognised
 the fixture from sampled frames" does not generalise. Declare the list
 once, at the top:
@@ -1143,7 +1144,7 @@ files fail to load.
 **When the walkthrough also has to reach a PR**, Linear-hosted assets
 are not enough: `uploads.linear.app` 401s for anyone on GitHub, and
 GitHub strips the iframe a player would need. Delegate to
-`dev10x:yt-upload` for a shareable link rather than restating upload
+`dev10x-qa:yt-upload` for a shareable link rather than restating upload
 mechanics here — it owns the production-recording gate, the token
 handling, and the per-destination embed forms:
 
@@ -1159,15 +1160,15 @@ invocation cannot skip them.
 
 **The 4.4 gate does not carry over to YouTube.** Approving *that the
 footage is good* is a different decision from approving *that it may
-become world-readable to any link-holder*, so `dev10x:yt-upload` fires
+become world-readable to any link-holder*, so `dev10x-qa:yt-upload` fires
 its own provenance gate. That is by design — do not try to satisfy it
 with 4.4's answer.
 
-**Publishing to a PR is `dev10x:qa-publish`, not something to assemble
+**Publishing to a PR is `dev10x-qa:qa-publish`, not something to assemble
 here.** For a full write-up to both a ticket and a PR — verdict,
 threaded Jira-synced comment, per-destination screenshots — use
-`dev10x:qa-publish`, which composes this skill's scripts with
-`dev10x:yt-upload`.
+`dev10x-qa:qa-publish`, which composes this skill's scripts with
+`dev10x-qa:yt-upload`.
 
 It also owns two rules that are easy to miss when reaching for the PR by
 hand (GH-1213): the PR comment must **lead** with a caveat whenever the
@@ -1265,7 +1266,7 @@ If tests are blocked, leave in current status and note the blocker.
 ## Integration with Other Skills
 
 ```
-dev10x:qa-self
+dev10x-qa:qa-self
 ├── Prereq: dev10x:qa-scope (creates the QA ticket with test cases)
 ├── Uses: Linear MCP (read ticket, post results)
 ├── Scripts:

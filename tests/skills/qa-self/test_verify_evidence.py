@@ -16,7 +16,7 @@ import pytest
 _repo_root = Path(__file__).resolve().parent.parent.parent.parent
 _spec = importlib.util.spec_from_file_location(
     "verify_evidence",
-    _repo_root / "skills" / "qa-self" / "scripts" / "verify-evidence.py",
+    _repo_root / "plugins" / "qa" / "skills" / "qa-self" / "scripts" / "verify-evidence.py",
 )
 assert _spec is not None and _spec.loader is not None
 _mod = importlib.util.module_from_spec(_spec)

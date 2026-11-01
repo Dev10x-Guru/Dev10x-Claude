@@ -8,9 +8,9 @@ name readable as a deprecated alias until the row's ``removed_in``. The
 register entry for ``SKILL_NAME_ALIASES`` in
 :mod:`dev10x.core.domain.deprecations` must outlive every row.
 
-Stage A renames nothing, so the table ships empty; fixtures prove the
-mechanism. Every write takes the file's lock and lands atomically, and
-a second run finds nothing left to rewrite.
+B1 (GH-1564) adds the six QA skills that moved to ``dev10x-qa``. Every
+write takes the file's lock and lands atomically, and a second run finds
+nothing left to rewrite.
 """
 
 from __future__ import annotations
@@ -39,7 +39,12 @@ class SkillNameAlias:
         return _invocation(text=self.old), _invocation(text=self.new)
 
 
-SKILL_NAME_ALIASES: tuple[SkillNameAlias, ...] = ()
+QA_ALIAS_REMOVED_IN = "0.114.0"
+
+SKILL_NAME_ALIASES: tuple[SkillNameAlias, ...] = tuple(
+    SkillNameAlias(old=f"dev10x:{skill}", new=f"dev10x-qa:{skill}", removed_in=QA_ALIAS_REMOVED_IN)
+    for skill in ("playwright", "qa-publish", "qa-self", "review-pack", "tts", "yt-upload")
+)
 
 
 @dataclass(frozen=True)

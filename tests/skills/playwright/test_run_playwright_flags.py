@@ -17,7 +17,13 @@ from pathlib import Path
 import pytest
 
 RUNNER = (
-    Path(__file__).resolve().parents[3] / "skills" / "playwright" / "scripts" / "run-playwright.sh"
+    Path(__file__).resolve().parents[3]
+    / "plugins"
+    / "qa"
+    / "skills"
+    / "playwright"
+    / "scripts"
+    / "run-playwright.sh"
 )
 
 SECRETS = "CF_ACCESS_CLIENT_ID=id\nCF_ACCESS_CLIENT_SECRET=secret\nCRM_PASSWORD=pw\n"
