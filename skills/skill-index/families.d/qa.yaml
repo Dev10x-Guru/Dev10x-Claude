@@ -5,4 +5,4 @@ families:
   - label: QA
     description: "Self-QA walkthroughs"
     skills:
-      - dev10x:qa-self
+      - dev10x-qa:qa-self

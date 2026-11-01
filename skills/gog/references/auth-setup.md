@@ -167,7 +167,7 @@ a credential: create its directory with `mkdtemp` (mode `0700`, atomic)
 rather than building a path in world-writable `/tmp`, tighten the umask
 before invoking gog so the file is owner-only from creation, use it as a
 Bearer header, and shred it in a `finally` plus a `SIGTERM` handler.
-`skills/yt-upload/scripts/upload-video.py` is the worked reference
+`dev10x-qa:yt-upload`'s `scripts/upload-video.py` is the worked reference
 implementation.
 
 Never log the token, never pass it in a gog argv, and never include it in

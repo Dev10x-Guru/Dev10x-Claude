@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
-_INSTRUCTIONS = _REPO_ROOT / "skills" / "qa-self" / "instructions.md"
+_INSTRUCTIONS = _REPO_ROOT / "plugins" / "qa" / "skills" / "qa-self" / "instructions.md"
 
 _KNOBS = (
     "QA_ARGOCD_REPO",

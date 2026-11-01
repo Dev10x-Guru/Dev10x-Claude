@@ -167,7 +167,7 @@ EXPECTED_FAMILIES = {
     "Reports": "coding",
 }
 
-DEV10X_PREFIX = "dev10x:"
+DEV10X_PLUGIN_NAMES = frozenset(load_plugin_map().known_plugin_names())
 
 
 def _shipped_family_files() -> list[tuple[str, Path]]:
@@ -180,9 +180,10 @@ def _shipped_family_files() -> list[tuple[str, Path]]:
 
 
 def _skill_directory(*, name: str) -> str:
-    # A name outside the dev10x: namespace keeps its full spelling, which
+    # A name outside every Dev10x plugin keeps its full spelling, which
     # names no skill directory, so the ownership test below reports it.
-    return name.removeprefix(DEV10X_PREFIX) if name.startswith(DEV10X_PREFIX) else name
+    plugin, _, skill = name.partition(":")
+    return skill if plugin in DEV10X_PLUGIN_NAMES else name
 
 
 def _family_members() -> list[tuple[str, str, str]]:

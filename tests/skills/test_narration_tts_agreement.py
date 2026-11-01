@@ -32,8 +32,9 @@ def _load(name: str, path: Path):
     return module
 
 
-_narration = _load("narration", _repo_root / "skills" / "playwright" / "lib" / "narration.py")
-_synthesize = _load("synthesize", _repo_root / "skills" / "tts" / "scripts" / "synthesize.py")
+_qa_skills = _repo_root / "plugins" / "qa" / "skills"
+_narration = _load("narration", _qa_skills / "playwright" / "lib" / "narration.py")
+_synthesize = _load("synthesize", _qa_skills / "tts" / "scripts" / "synthesize.py")
 
 
 # Every shape a narration line has actually arrived in: copy pasted out of

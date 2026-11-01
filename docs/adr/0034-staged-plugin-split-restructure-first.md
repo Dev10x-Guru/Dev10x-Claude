@@ -441,6 +441,22 @@ The supervisor decided the Stage B open decisions on 2026-10-19
    - Core-only installs list the git and GitHub tools without the
      skills that drive them. Gated registration is revisited only if
      tool-list size becomes a measured problem.
+4. **Config fragments stay in core's tree (GH-1564).** Stage B step 2
+   says to `git mv` a plugin's config fragments too. B1 does not.
+   - Every reader of a fragment (`command-skill-map.d/`,
+     `families.d/`, `projects.d/`) runs from core's package and globs
+     core's own directories, so a fragment moved under `plugins/<p>/`
+     would stop loading.
+   - The fragments load whether or not their plugin is enabled. For
+     QA that is harmless: its DX006 rules are advisory
+     (`hook_block: false`), and a family or allow rule naming a skill
+     that is not installed matches nothing.
+   - Moving them waits for readers that search each enabled
+     satellite's root, gated on `plugin_enablement`. Until then a
+     fragment records its owner by file name only.
+5. **Old names stay readable until `0.114.0` (GH-1564).** Each moved
+   skill gets one `SKILL_NAME_ALIASES` row, and
+   `dev10x config migrate-skill-names` rewrites user configs.
 
 ### Open decisions (record before the dependent step)
 

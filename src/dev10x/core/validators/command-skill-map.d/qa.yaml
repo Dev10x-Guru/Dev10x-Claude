@@ -13,7 +13,7 @@ rules:
     hook_block: false
     compensations:
       - type: use-skill
-        skill: dev10x:playwright
+        skill: dev10x-qa:playwright
     reason: >
       Direct playwright calls skip CF Access header injection
       and credential management for staging environments.
@@ -41,4 +41,4 @@ rules:
       bounded by the run directory, which is what makes the narrow
       script rule sufficient.
     related:
-      - dev10x:qa-self
+      - dev10x-qa:qa-self

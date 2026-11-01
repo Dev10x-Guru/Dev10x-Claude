@@ -82,8 +82,25 @@ class TestRepositoryPluginMap:
     def test_marketplace_is_the_core_install_marketplace(self, plugin_map: PluginMap) -> None:
         assert plugin_map.marketplace == "Dev10x-Guru"
 
-    def test_nothing_is_extracted_during_stage_a(self, plugin_map: PluginMap) -> None:
-        assert plugin_map.extracted == ()
+    def test_extracted_skills_live_in_their_satellite(self, plugin_map: PluginMap) -> None:
+        root = get_plugin_root()
+
+        assert [
+            f"{key}/{skill}"
+            for key in plugin_map.extracted
+            for skill in plugin_map.plugins[key]
+            if not (root / "plugins" / key / "skills" / skill / "SKILL.md").is_file()
+        ] == []
+
+    def test_core_skills_root_holds_no_extracted_skill(self, plugin_map: PluginMap) -> None:
+        core_dirs = set(skill_directories(skills_root=get_plugin_root() / "skills"))
+
+        assert [
+            skill
+            for key in plugin_map.extracted
+            for skill in plugin_map.plugins[key]
+            if skill in core_dirs
+        ] == []
 
     def test_extracted_keys_are_known_plugins(self, plugin_map: PluginMap) -> None:
         assert plugin_map.unknown_extracted() == []

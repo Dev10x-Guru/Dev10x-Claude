@@ -19,8 +19,11 @@ SATELLITES_DIR = "plugins"
 SKILL_FILE = "SKILL.md"
 
 
-def skill_script(*, skill: str, rel: str) -> str:
-    return f"{SKILLS_DIR}/{skill}/{SCRIPTS_DIR}/{rel}"
+def skill_script(*, skill: str, rel: str, plugin: str | None = None) -> str:
+    """``plugin`` names the satellite a skill moved to (GH-1564); the path
+    is then relative to the repo checkout rather than a plugin root."""
+    path = f"{SKILLS_DIR}/{skill}/{SCRIPTS_DIR}/{rel}"
+    return f"{SATELLITES_DIR}/{plugin}/{path}" if plugin else path
 
 
 def skill_roots(*, repo_root: Path) -> list[Path]:

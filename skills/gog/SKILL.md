@@ -8,7 +8,7 @@ description: >
   TRIGGER when: reading or writing Google Workspace data from a session
   (fetching a Chat thread, listing Drive files, publishing to YouTube), or
   when a `gog auth` grant is missing, refused, or needs re-authorizing.
-  DO NOT TRIGGER when: publishing a recording (use dev10x:yt-upload, which
+  DO NOT TRIGGER when: publishing a recording (use dev10x-qa:yt-upload, which
   owns token borrowing and channel assertion), posting to a Chat space via
   the notification bot (use dev10x:gchat), or sending Slack (use
   dev10x:slack).
