@@ -5,6 +5,36 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Breaking
+
+- **Four legacy config spellings are no longer read** — each reached its
+  `0.112.0` removal in the ADR-0028 deprecation register.
+  `dev10x config doctor` reports all but the task-index file; migrate
+  before upgrading:
+  - `human_review: true|false` in `~/.config/Dev10x/friction.yaml` is
+    ignored, so a project that set `human_review: false` falls back to
+    `supervisor_review: required` and parks for review again. Run
+    `dev10x config migrate-schema`, which rewrites it to
+    `supervisor_review: required|none`, or set that key by hand.
+    `supervisor_review_status` no longer reports such an entry as pinned
+    ([GH-1161](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1161))
+  - `match:` no longer selects an entry in repo-addressed config files
+    (playbooks, `gitmoji.yaml`, `settings-pr-merge.yaml` and the other
+    prose-resolved files). Rename it to `match_repo:`. `match:` in
+    `friction.yaml` is the path key and is unaffected
+    ([GH-1375](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1375))
+  - `task_index_get` no longer reads parked tasks from a repo's
+    `.claude/Dev10x/session.yaml`. Earlier appends folded it forward
+    only into an empty store, so compare it with
+    `~/.config/Dev10x/task-index/<repo-stem>.yaml` and re-park anything
+    missing
+    ([GH-1009](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1009))
+  - `dev10x:verify-acc-dod` no longer reads
+    `~/.claude/memory/Dev10x/dod-acceptance-criteria.yaml`. Run
+    `dev10x config migrate` to copy it to `~/.config/Dev10x/`
+    ([GH-1035](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1035),
+    [GH-1771](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1771))
+
 ## 0.111.0 — Answer From the Page, Wherever the Session Runs
 
 Released 2026-11-01

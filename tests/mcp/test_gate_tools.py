@@ -42,7 +42,7 @@ class TestResolveGateForToplevel:
     async def test_adaptive_solo_maintainer_session_auto_merges(self, tmp_path: Path) -> None:
         _write_session_yaml(
             tmp_path,
-            "gate_overlays: [solo-maintainer]\nhuman_review: false\n",
+            "gate_overlays: [solo-maintainer]\nsupervisor_review: none\n",
         )
         result = await resolve_gate_for_toplevel(gate="merge", context={}, toplevel=str(tmp_path))
         payload = result.to_dict()
@@ -50,17 +50,14 @@ class TestResolveGateForToplevel:
         assert "preset:adaptive" in payload["reason"]
 
     @pytest.mark.asyncio
-    async def test_legacy_human_review_key_still_floors_the_merge_gate(
+    async def test_retired_human_review_key_cannot_lift_the_merge_floor(
         self, tmp_path: Path
     ) -> None:
-        # ADR-0019 behaviour 3 (GH-1000), renamed by ADR-0022 D-2: the
-        # precondition is read from the durable prefs by the query itself, so
-        # a caller that passes no context still gets the repo's review
-        # posture applied — and the deprecated `human_review: true` spelling
-        # still resolves to `supervisor_review: required` (GH-1161).
+        # GH-1771: the boolean is no longer read, so `human_review: false`
+        # alone leaves `supervisor_review` unset — which reads as `required`.
         _write_session_yaml(
             tmp_path,
-            "gate_overlays: [solo-maintainer]\nhuman_review: true\n",
+            "gate_overlays: [solo-maintainer]\nhuman_review: false\n",
         )
         result = await resolve_gate_for_toplevel(gate="merge", context={}, toplevel=str(tmp_path))
         payload = result.to_dict()
@@ -77,9 +74,7 @@ class TestResolveGateForToplevel:
         assert result.to_dict()["effect"] == "ask"
 
     @pytest.mark.asyncio
-    async def test_explicit_key_outranks_the_deprecated_alias(self, tmp_path: Path) -> None:
-        # Both spellings present: the new key wins, so a half-migrated file
-        # does not silently keep the old answer.
+    async def test_explicit_key_is_read_beside_a_stale_human_review(self, tmp_path: Path) -> None:
         _write_session_yaml(
             tmp_path,
             "gate_overlays: [solo-maintainer]\nhuman_review: true\nsupervisor_review: none\n",
@@ -123,11 +118,11 @@ class TestResolveGateForToplevel:
     async def test_caller_supplied_human_review_ignored_on_the_permissive_pole(
         self, tmp_path: Path
     ) -> None:
-        # The override is inert in both directions — the durable `false`
+        # The override is inert in both directions — the durable `none`
         # decides, and the attempted `true` is reported as ignored.
         _write_session_yaml(
             tmp_path,
-            "gate_overlays: [solo-maintainer]\nhuman_review: false\n",
+            "gate_overlays: [solo-maintainer]\nsupervisor_review: none\n",
         )
         result = await resolve_gate_for_toplevel(
             gate="merge", context={"human_review": True}, toplevel=str(tmp_path)
@@ -147,7 +142,7 @@ class TestResolveGateForToplevel:
     async def test_session_gate_override_outranks_project_pin(self, tmp_path: Path) -> None:
         _write_session_yaml(
             tmp_path,
-            "human_review: false\ngate_overrides:\n  merge: auto-advance\n",
+            "supervisor_review: none\ngate_overrides:\n  merge: auto-advance\n",
         )
         _write_project_policy(tmp_path, "overrides:\n  merge: ask\n")
         result = await resolve_gate_for_toplevel(gate="merge", context={}, toplevel=str(tmp_path))
@@ -504,7 +499,7 @@ class TestAutoAdvanceRecordEmission:
     async def test_auto_advance_payload_carries_record_and_writes_sink(
         self, tmp_path: Path
     ) -> None:
-        _write_session_yaml(tmp_path, "gate_preset: adaptive\nhuman_review: false\n")
+        _write_session_yaml(tmp_path, "gate_preset: adaptive\nsupervisor_review: none\n")
         result = await resolve_gate_for_toplevel(gate="merge", context={}, toplevel=str(tmp_path))
         payload = result.to_dict()
         assert payload["effect"] == "auto-advance"
@@ -530,7 +525,7 @@ class TestAutoAdvanceRecordEmission:
 
         monkeypatch.setattr(fp, "load_shipped_presets", lambda: {})
         monkeypatch.setattr(fp, "load_shipped_overlays", lambda: {})
-        _write_session_yaml(tmp_path, "gate_preset: adaptive\nhuman_review: false\n")
+        _write_session_yaml(tmp_path, "gate_preset: adaptive\nsupervisor_review: none\n")
         result = await resolve_gate_for_toplevel(gate="merge", context={}, toplevel=str(tmp_path))
         assert result.to_dict()["effect"] == "auto-advance"
 
@@ -538,7 +533,7 @@ class TestAutoAdvanceRecordEmission:
     async def test_sink_write_failure_is_swallowed(self, tmp_path: Path) -> None:
         # The doubt_sink write is best-effort — an OSError must not break
         # the resolution (the record still returns in the payload).
-        _write_session_yaml(tmp_path, "gate_preset: adaptive\nhuman_review: false\n")
+        _write_session_yaml(tmp_path, "gate_preset: adaptive\nsupervisor_review: none\n")
         sink = tmp_path / DOUBT_SINK_RELPATH
         sink.parent.mkdir(parents=True, exist_ok=True)
         sink.mkdir()  # a directory where the record file goes → append raises
@@ -668,7 +663,7 @@ class TestSupervisorReviewStatusTool:
         assert (await supervisor_review_status())["supervisor_review"] == "required"
 
     @pytest.mark.asyncio
-    async def test_legacy_config_key_still_reads_as_none(
+    async def test_retired_config_key_is_ignored(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
         from dev10x.mcp.gate_tools import supervisor_review_status
@@ -681,7 +676,7 @@ class TestSupervisorReviewStatusTool:
 
         payload = await supervisor_review_status()
 
-        assert payload["supervisor_review"] == "none"
+        assert payload["supervisor_review"] == "required"
         assert payload["repo_root"] == str(tmp_path)
 
     @pytest.mark.asyncio
@@ -713,7 +708,9 @@ class TestSupervisorReviewStatusTool:
             yaml.safe_dump(
                 {
                     "defaults": {},
-                    "projects": [{"match": ["*/bl-zebra", "*/bl-zebra-*"], "human_review": False}],
+                    "projects": [
+                        {"match": ["*/bl-zebra", "*/bl-zebra-*"], "supervisor_review": "none"}
+                    ],
                 }
             )
         )
@@ -730,7 +727,7 @@ class TestSupervisorReviewStatusTool:
     ) -> None:
         from dev10x.mcp.gate_tools import supervisor_review_status
 
-        _write_session_yaml(tmp_path, 'human_review: "no"\n')
+        _write_session_yaml(tmp_path, 'supervisor_review: "no"\n')
         monkeypatch.setattr(
             "dev10x.domain.git_context.GitContext.toplevel",
             property(lambda self: str(tmp_path)),
@@ -787,8 +784,10 @@ class TestSupervisorReviewPinTool:
         assert after["supervisor_review"] == "none"
 
     @pytest.mark.asyncio
-    async def test_legacy_human_review_key_also_counts_as_pinned(self, zebra_repo: Path) -> None:
-        """A repo migrated before this tool existed must not report unset."""
+    async def test_retired_human_review_key_does_not_count_as_pinned(
+        self, zebra_repo: Path
+    ) -> None:
+        """GH-1771: only `supervisor_review` pins; run `migrate-schema` first."""
         from dev10x.session.preset_pin import pin_project_prefs
 
         from dev10x.mcp.gate_tools import supervisor_review_status
@@ -797,8 +796,8 @@ class TestSupervisorReviewPinTool:
 
         payload = await supervisor_review_status(cwd=str(zebra_repo))
 
-        assert payload["pinned"] is True
-        assert payload["supervisor_review"] == "none"
+        assert payload["pinned"] is False
+        assert payload["supervisor_review"] == "required"
 
     @pytest.mark.asyncio
     async def test_pin_rejects_an_unknown_value_at_the_wire(self, zebra_repo: Path) -> None:

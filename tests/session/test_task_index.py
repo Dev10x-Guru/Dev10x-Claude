@@ -1,8 +1,8 @@
 """Rehomed park/session task index — read, append, wrap-up state (GH-1009).
 
 The behaviour that matters: the store lives outside every repo, one index per
-repo (not per worktree), and items parked before the rehome are folded forward
-on the first write rather than orphaned.
+repo (not per worktree), and a leftover retired `.claude/Dev10x/session.yaml`
+is ignored since its read fallback was removed (GH-1771).
 """
 
 from __future__ import annotations
@@ -55,7 +55,7 @@ def legacy_file() -> Any:
     """Write a retired-location file under an arbitrary checkout root."""
 
     def write(root: Path, content: dict[str, Any]) -> Path:
-        path = root / task_index.LEGACY_RELATIVE_PATH
+        path = root / ".claude" / "Dev10x" / "session.yaml"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(yaml.safe_dump(content))
         return path
@@ -88,7 +88,6 @@ def test_read_index_on_a_missing_store_returns_empty_sections(repo: Path) -> Non
     assert payload["insights"] == []
     assert payload["tickets"] == []
     assert payload["continuation_prompt"] is None
-    assert payload["legacy_read"] is False
 
 
 def test_read_index_returns_stored_sections(store: Path, repo: Path) -> None:
@@ -117,60 +116,19 @@ def test_read_index_returns_stored_sections(store: Path, repo: Path) -> None:
     assert payload["wrapped_at"] == "2026-08-03T10:00:00Z"
 
 
-def test_read_index_falls_back_to_the_retired_location(
-    repo: Path, worktree: Path, legacy_file: Any
+@pytest.mark.parametrize("checkout", ["repo", "worktree"])
+def test_read_index_ignores_a_leftover_retired_file(
+    request: pytest.FixtureRequest, repo: Path, legacy_file: Any, checkout: str
 ) -> None:
-    """One release of read-compat: pre-rehome parked items still surface."""
-    legacy = legacy_file(worktree, {"tasks": [{"subject": "Old item", "source": "park"}]})
+    """GH-1771: the retired per-checkout file is no longer a fallback."""
+    root = request.getfixturevalue(checkout)
+    legacy_file(root, {"tasks": [{"subject": "Old item", "source": "park"}]})
 
-    payload = task_index.read_index(cwd=str(worktree)).value
+    payload = task_index.read_index(cwd=str(root)).value
 
-    assert payload["legacy_read"] is True
-    assert payload["legacy_path"] == str(legacy)
-    assert payload["tasks"] == [{"subject": "Old item", "source": "park"}]
-
-
-def test_read_index_prefers_the_invocation_tree_legacy_file(
-    repo: Path, worktree: Path, legacy_file: Any
-) -> None:
-    """A worktree's own parked item wins over the main checkout's."""
-    legacy_file(repo, {"tasks": [{"subject": "Main item", "source": "park"}]})
-    legacy_file(worktree, {"tasks": [{"subject": "Worktree item", "source": "park"}]})
-
-    payload = task_index.read_index(cwd=str(worktree)).value
-
-    assert payload["tasks"] == [{"subject": "Worktree item", "source": "park"}]
-
-
-def test_read_index_ignores_retired_durable_pref_keys(
-    repo: Path, worktree: Path, legacy_file: Any
-) -> None:
-    """GH-1001 removed the ambiguity; folding prefs back would resurrect it."""
-    legacy_file(worktree, {"friction_level": "adaptive", "active_modes": ["afk"]})
-
-    payload = task_index.read_index(cwd=str(worktree)).value
-
-    assert payload["legacy_read"] is False
-    assert "friction_level" not in payload
-
-
-def test_read_index_skips_an_unreadable_legacy_file(repo: Path, worktree: Path) -> None:
-    path = worktree / task_index.LEGACY_RELATIVE_PATH
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("tasks: [unclosed\n")
-
-    payload = task_index.read_index(cwd=str(worktree)).value
-
-    assert payload["legacy_read"] is False
+    assert payload["exists"] is False
     assert payload["tasks"] == []
-
-
-def test_read_index_skips_a_non_mapping_legacy_file(repo: Path, worktree: Path) -> None:
-    path = worktree / task_index.LEGACY_RELATIVE_PATH
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("- just\n- a list\n")
-
-    assert task_index.read_index(cwd=str(worktree)).value["legacy_read"] is False
+    assert "legacy_read" not in payload
 
 
 def test_read_index_errors_on_a_corrupt_store(store: Path, repo: Path) -> None:
@@ -237,32 +195,17 @@ def test_append_task_accumulates_across_worktrees_of_one_repo(
     assert [task["subject"] for task in stored()["tasks"]] == ["First", "Second"]
 
 
-def test_append_task_folds_the_retired_file_forward(
+def test_append_task_does_not_fold_a_leftover_retired_file(
     repo: Path, worktree: Path, legacy_file: Any, stored: Any
 ) -> None:
-    """Without this the first post-rehome append orphans every parked item."""
-    legacy = legacy_file(worktree, {"tasks": [{"subject": "Old item", "source": "park"}]})
+    legacy_file(worktree, {"tasks": [{"subject": "Old item", "source": "park"}]})
 
     result = task_index.append_task(
         entry={"subject": "New item", "source": "park"}, cwd=str(worktree)
     )
 
-    assert result.value["folded_legacy"] == str(legacy)
-    assert [task["subject"] for task in stored()["tasks"]] == ["Old item", "New item"]
-
-
-def test_append_task_folds_only_once(
-    repo: Path, worktree: Path, legacy_file: Any, stored: Any
-) -> None:
-    legacy_file(worktree, {"tasks": [{"subject": "Old item", "source": "park"}]})
-
-    task_index.append_task(entry={"subject": "First", "source": "park"}, cwd=str(worktree))
-    second = task_index.append_task(
-        entry={"subject": "Second", "source": "park"}, cwd=str(worktree)
-    )
-
-    assert second.value["folded_legacy"] is None
-    assert [task["subject"] for task in stored()["tasks"]] == ["Old item", "First", "Second"]
+    assert "folded_legacy" not in result.value
+    assert [task["subject"] for task in stored()["tasks"]] == ["New item"]
 
 
 def test_append_task_errors_on_a_non_list_tasks_key(store: Path, repo: Path) -> None:
@@ -347,15 +290,15 @@ def test_set_session_state_preserves_parked_tasks(repo: Path, stored: Any) -> No
     assert stored()["continuation_prompt"] == "Resume"
 
 
-def test_set_session_state_folds_the_retired_file_forward(
+def test_set_session_state_does_not_fold_a_leftover_retired_file(
     repo: Path, worktree: Path, legacy_file: Any, stored: Any
 ) -> None:
-    legacy = legacy_file(worktree, {"tasks": [{"subject": "Old item", "source": "park"}]})
+    legacy_file(worktree, {"tasks": [{"subject": "Old item", "source": "park"}]})
 
     result = task_index.set_session_state(continuation_prompt="Resume", cwd=str(worktree))
 
-    assert result.value["folded_legacy"] == str(legacy)
-    assert stored()["tasks"] == [{"subject": "Old item", "source": "park"}]
+    assert "folded_legacy" not in result.value
+    assert "tasks" not in stored()
 
 
 def test_set_session_state_needs_at_least_one_field(repo: Path) -> None:

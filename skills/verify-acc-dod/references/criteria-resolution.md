@@ -51,18 +51,13 @@ Read overrides from a single global file:
 ~/.config/Dev10x/dod-acceptance-criteria.yaml
 ```
 
-**Read-compat fallback (until removal in `0.112.0` per the
-deprecation register, GH-1035, ADR-0028).** When that file is absent,
-fall back to the GH-941-retired
-`~/.claude/memory/Dev10x/dod-acceptance-criteria.yaml`. When the
-fallback fires, say so in the run's output — e.g.
-`legacy_read: ~/.claude/memory/Dev10x/dod-acceptance-criteria.yaml` —
-and tell the user to move the file to `~/.config/Dev10x/`
-(`dev10x config migrate` folds it forward). A silent fallback is what
-let the two locations diverge in the first place (GH-1035): the user
-edits the documented copy and sees no effect because the skill read
-the other one. Never *write* to the legacy path — writes always target
-`~/.config/Dev10x/` (see SKILL.md Decision Gate).
+**No fallback (removed in `0.112.0`, GH-1771).** The GH-941-retired
+`~/.claude/memory/Dev10x/dod-acceptance-criteria.yaml` is no longer
+read.
+When that file is absent, there are no repo overrides.
+A user who still keeps overrides at the old path moves them with
+`dev10x config migrate`.
+Writes always target `~/.config/Dev10x/` (see SKILL.md Decision Gate).
 
 This file maps repositories to their override deltas:
 

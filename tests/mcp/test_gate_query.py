@@ -35,11 +35,11 @@ def _write_config(toplevel: Path, body: str) -> None:
 def _write_friction(projects: list[dict]) -> None:
     """Write the global friction.yaml (isolated to a tmp home by conftest).
 
-    ``human_review: false`` and ``supervisor_review: none`` sit in
-    ``defaults`` — and so merge into every matched entry — because these
-    tests probe policy INHERITANCE through the merge gate. Left at their
-    safe poles the ADR-0019 precondition floor (GH-1000) and the ADR-0022
-    supervisor park would resolve every one of them to ``ask``, hiding
+    ``supervisor_review: none`` sits in ``defaults`` — and so merges into
+    every matched entry — because these tests probe policy INHERITANCE
+    through the merge gate. Left at its safe pole the precondition floor
+    (GH-1000) and the ADR-0022 supervisor park would resolve every one of
+    them to ``ask``, hiding
     whatever the preset actually inherited. Both floors' own behaviour is
     covered in ``tests/domain/test_gate_policy.py``,
     ``tests/mcp/test_gate_tools.py``, and ``TestSupervisorSignOffSignal``
@@ -61,7 +61,6 @@ def _write_friction(projects: list[dict]) -> None:
                 "defaults": {
                     "gate_preset": "adaptive",
                     "gate_overrides": {"merge": "ask"},
-                    "human_review": False,
                     "supervisor_review": "none",
                 },
                 "projects": [

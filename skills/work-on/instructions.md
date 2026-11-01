@@ -1794,9 +1794,9 @@ the scope decision explicit so the DoD reflects it:
    Whether the supervisor reads PRs here is a **durable project fact**,
    not a session flag: it lives as `supervisor_review: required|none` in
    the matching `projects[]` entry of the global
-   `~/.config/Dev10x/friction.yaml` (ADR-0022 D-2; the deprecated
-   `human_review: true|false` spelling is still read until removal in
-   `0.112.0` per the deprecation register, GH-1161, ADR-0028).
+   `~/.config/Dev10x/friction.yaml` (ADR-0022 D-2).
+   The retired `human_review: true|false` key is no longer read
+   (GH-1771); run `dev10x config migrate-schema` to convert it.
    Resolve the current value via
    `mcp__plugin_dev10x_cli__supervisor_review_status()` (default
    `required`) — never by reading the durable file directly — and branch:
@@ -1811,13 +1811,13 @@ the scope decision explicit so the DoD reflects it:
      auto-advance decision): "Open review threads remain and this
      project is configured for human review. How should the DoD treat
      them?" with options "Resolve threads now (Recommended)", "Change
-     the project posture — set `human_review: false` in
+     the project posture — set `supervisor_review: none` in
      `~/.config/Dev10x/friction.yaml`", and "Hand over with the check
      red — record the open threads in Verify-AC".
 3. Re-run the verify-acc-dod gate. When the checks are out of scope
-   (`human_review: false`), a green run resolves honestly to **Work
+   (`supervisor_review: none`), a green run resolves honestly to **Work
    complete** / **Monitor for review** per the table below —
-   `verify-acc-dod` reports them as "skipped (human_review: false)",
+   `verify-acc-dod` reports them as "skipped (supervisor_review: none)",
    *removed from scope* rather than silently passed.
 
 If the project is configured for human review and the supervisor has not

@@ -20,17 +20,16 @@ async def task_index_get(cwd: str | None = None) -> Result[dict]:
 
     Replaces reading `.claude/Dev10x/session.yaml` directly. Keyed by the
     repo's git common dir, so every worktree of a repo shares one index.
-    Falls back to the retired per-checkout file until its removal version
-    in `dev10x.domain.deprecations`; when that
-    happens `legacy_read` is true and `legacy_path` names the file.
+    The retired per-checkout file is ignored; its read fallback was removed
+    in 0.112.0 (GH-1771).
 
     Args:
         cwd: Effective working directory (GH-979).
 
     Returns:
-        Dictionary with keys: path, repo_name, exists, legacy_read,
-        legacy_path, tasks, continuation_prompt, insights, branch, tickets,
-        wrapped_at. `{"error": "Not in a git repository"}` outside a repo.
+        Dictionary with keys: path, repo_name, exists, tasks,
+        continuation_prompt, insights, branch, tickets, wrapped_at.
+        `{"error": "Not in a git repository"}` outside a repo.
     """
     from dev10x.tasks.session import task_index
 
@@ -42,9 +41,7 @@ async def task_index_append(entry: dict[str, Any], cwd: str | None = None) -> Re
     """Append one deferral entry to the repo's task index (GH-1009).
 
     The write the park family performs instead of Write/Edit-ing
-    `.claude/Dev10x/session.yaml`. On the first write after the rehome, any
-    entries still in the retired file are folded forward first, so parked
-    items are not orphaned; `folded_legacy` names that file when it happens.
+    `.claude/Dev10x/session.yaml`.
 
     Args:
         entry: Task entry. `subject` and `source` are required; `status` and
@@ -54,7 +51,7 @@ async def task_index_append(entry: dict[str, Any], cwd: str | None = None) -> Re
         cwd: Effective working directory (GH-979).
 
     Returns:
-        Dictionary with keys: path, repo_name, task_count, folded_legacy.
+        Dictionary with keys: path, repo_name, task_count.
     """
     from dev10x.tasks.session import task_index
 
@@ -87,7 +84,7 @@ async def task_index_set(
         cwd: Effective working directory (GH-979).
 
     Returns:
-        Dictionary with keys: path, repo_name, updated_keys, folded_legacy.
+        Dictionary with keys: path, repo_name, updated_keys.
     """
     from dev10x.tasks.session import task_index
 

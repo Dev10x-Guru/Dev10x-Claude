@@ -82,7 +82,8 @@ class TestScanProjectsLists:
         )
         report = _report_for(scan_projects_lists(), name="work-on.yaml")
         assert report.scheme is MatchScheme.REPO
-        assert report.deprecated_alias_indexes == (0,)
+        assert report.status is ProjectsStatus.NO_MATCH
+        assert report.retired_key_indexes == (0,)
 
     def test_no_origin_remote_reports_unresolved_not_no_match(self, tmp_path: Path) -> None:
         """A repo-addressed list that was never evaluated says so (ADR-0026)."""

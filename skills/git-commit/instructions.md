@@ -469,9 +469,8 @@ check for a strategy override:
    an HTTPS remote (ADR-0026). No `origin` remote → the `projects`
    list is not evaluated; skip to step 4.
 3. Walk the `projects` list — first `match_repo` glob that fits
-   `org/repo` selects the named `strategy` (`match:` is read as a
-   deprecated alias until removal in `0.112.0` per the deprecation
-   register, GH-1375, ADR-0028)
+   `org/repo` selects the named `strategy` (an entry with only
+   `match:` is skipped — that key is no longer read here, GH-1771)
 4. If no match, check `default-strategy`
 5. If still no match, check for a semantic-release config in
    the project root (see `references/semantic-release.md`).

@@ -77,50 +77,6 @@ class Deprecation:
 
 REGISTER: tuple[Deprecation, ...] = (
     Deprecation(
-        name="human_review",
-        audience=Audience.CONFIG,
-        since="0.97.0",
-        removed_in="0.112.0",
-        replacement="supervisor_review",
-        issue="GH-1161",
-        locations=(
-            "src/dev10x/core/domain/documents/session_yaml.py",
-            "src/dev10x/core/domain/documents/friction_yaml.py",
-            "src/dev10x/core/mcp/gate_tools.py",
-        ),
-    ),
-    Deprecation(
-        name="match",
-        audience=Audience.CONFIG,
-        since="0.104.0",
-        removed_in="0.112.0",
-        replacement="match_repo",
-        issue="GH-1375",
-        locations=("src/dev10x/core/domain/project_match.py",),
-    ),
-    Deprecation(
-        name=".claude/Dev10x/session.yaml",
-        audience=Audience.CONFIG,
-        since="0.94.0",
-        removed_in="0.112.0",
-        replacement="~/.config/Dev10x/task-index/<repo-stem>.yaml",
-        issue="GH-1009",
-        locations=(
-            "src/dev10x/tasks/session/task_index.py",
-            "src/dev10x/tasks/mcp/task_index_tools.py",
-            "src/dev10x/core/domain/dev10x_paths.py",
-        ),
-    ),
-    Deprecation(
-        name="memory/Dev10x/dod-acceptance-criteria.yaml",
-        audience=Audience.CONFIG,
-        since="0.94.0",
-        removed_in="0.112.0",
-        replacement="~/.config/Dev10x/dod-acceptance-criteria.yaml",
-        issue="GH-1035",
-        locations=("skills/verify-acc-dod/SKILL.md",),
-    ),
-    Deprecation(
         name="SKILL_NAME_ALIASES",
         audience=Audience.CONFIG,
         since="0.108.0",

@@ -91,9 +91,9 @@ ask` pin and the `allowed_overlays` guard remain independent vetoes.
 The `review:cleared` PR label (GH-1008, GH-1163) is the positive
 sign-off signal that lifts the floor for the commits under review.
 
-> `human_review` is the deprecated v1 spelling, retained for one
-> release as a read alias. `human_review: false` reads as
-> `supervisor_review: none`; anything else reads as `required`.
+> `human_review` is the retired v1 spelling and is no longer read; an
+> entry carrying only it resolves to `required`.
+> Run `dev10x config migrate-schema` to convert it.
 
 ### `active_modes`
 

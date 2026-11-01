@@ -28,11 +28,15 @@ class TestReadPatterns:
         entry = {"match_repo": ["org/*"], "match": ["*/legacy"]}
         assert read_patterns(entry, scheme=MatchScheme.REPO) == (("org/*",), False)
 
-    def test_repo_entry_falls_back_to_the_deprecated_alias(self) -> None:
+    def test_repo_entry_no_longer_reads_the_retired_key(self) -> None:
         entry = {"match": ["org/*"]}
-        assert read_patterns(entry, scheme=MatchScheme.REPO) == (("org/*",), True)
+        assert read_patterns(entry, scheme=MatchScheme.REPO) == ((), True)
 
-    def test_path_entry_never_reports_an_alias(self) -> None:
+    @pytest.mark.parametrize("raw", [[], None, {"a": 1}])
+    def test_empty_retired_key_is_not_flagged(self, raw: object) -> None:
+        assert read_patterns({"match": raw}, scheme=MatchScheme.REPO) == ((), False)
+
+    def test_path_entry_never_reports_a_retired_key(self) -> None:
         entry = {"match": ["/work/dx/**"]}
         assert read_patterns(entry, scheme=MatchScheme.PATH) == (("/work/dx/**",), False)
 
@@ -161,21 +165,38 @@ class TestEvaluateProjects:
         assert report.status is ProjectsStatus.UNRESOLVED
         assert report.entries and report.matched_index is None
 
-    def test_deprecated_alias_is_reported_even_when_it_matches(self) -> None:
+    def test_retired_key_no_longer_selects_and_is_reported(self) -> None:
         document = {"projects": [{"match": ["org/*"]}]}
         report = evaluate_projects(
             document, scheme=MatchScheme.REPO, source="f.yaml", target="org/repo"
         )
-        assert report.status is ProjectsStatus.MATCHED
-        assert report.deprecated_alias_indexes == (0,)
+        assert report.status is ProjectsStatus.NO_MATCH
+        assert report.retired_key_indexes == (0,)
         assert report.needs_attention is True
 
-    def test_an_entry_with_no_globs_is_not_an_alias_use(self) -> None:
+    def test_retired_key_is_reported_alongside_a_match(self) -> None:
+        document = {"projects": [{"match": ["other/*"]}, {"match_repo": ["org/*"]}]}
+        report = evaluate_projects(
+            document, scheme=MatchScheme.REPO, source="f.yaml", target="org/repo"
+        )
+        assert report.matched_index == 1
+        assert report.retired_key_indexes == (0,)
+        assert report.needs_attention is True
+
+    def test_path_scheme_still_reads_match(self) -> None:
+        document = {"projects": [{"match": ["*/repo"]}]}
+        report = evaluate_projects(
+            document, scheme=MatchScheme.PATH, source="friction.yaml", target="/work/repo"
+        )
+        assert report.status is ProjectsStatus.MATCHED
+        assert report.retired_key_indexes == ()
+
+    def test_an_entry_with_no_globs_is_not_a_retired_key_use(self) -> None:
         document = {"projects": [{"strategy": "rebase"}]}
         report = evaluate_projects(
             document, scheme=MatchScheme.REPO, source="f.yaml", target="org/repo"
         )
-        assert report.deprecated_alias_indexes == ()
+        assert report.retired_key_indexes == ()
 
     def test_shape_warning_survives_an_unresolved_target(self) -> None:
         document = {"projects": [{"match": ["Dev10x-Guru/*"]}]}
@@ -229,11 +250,14 @@ class TestDescribe:
         assert "2 `projects:` entries NOT evaluated" in rendered
         assert "target could not be determined" in rendered
 
-    def test_alias_and_shape_findings_are_rendered(self) -> None:
-        document = {"projects": [{"match": ["/work/dx/**"]}]}
+    def test_retired_key_and_shape_findings_are_rendered(self) -> None:
+        document = {"projects": [{"match": ["org/*"]}, {"match_repo": ["/work/dx/**"]}]}
         report = evaluate_projects(
             document, scheme=MatchScheme.REPO, source="f.yaml", target="org/repo"
         )
         rendered = "\n".join(describe(report))
-        assert "deprecated alias" in rendered
-        assert "directory-path glob under `match_repo:`" in rendered
+        assert (
+            "entry 0: `match:` is no longer read in this file — rename it to `match_repo:`"
+            in rendered
+        )
+        assert "entry 1: '/work/dx/**' looks like a directory-path glob" in rendered

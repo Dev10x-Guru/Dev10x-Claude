@@ -191,7 +191,7 @@ resolve_gate(gate="merge", context={})
 
 `effect: "auto-advance"` means merges land unattended tonight. Anything
 else means the first `MERGE REQUEST` freezes the run on an
-`AskUserQuestion` no one is awake to answer — and the `human_review`
+`AskUserQuestion` no one is awake to answer — and the `supervisor_review`
 floor produces exactly that on a repo whose policy reads
 `adaptive + [solo-maintainer, afk]` but carries no explicit
 `merge: auto-advance` override (GH-1056).

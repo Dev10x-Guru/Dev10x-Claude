@@ -291,7 +291,7 @@ class TestPlaybookDiffCliProjectsList:
         assert "`projects:` list needs attention" in result.output
         assert "no `match_repo:` glob matched 'org/repo'" in result.output
 
-    def test_deprecated_alias_is_reported_even_when_it_matches(
+    def test_retired_match_key_no_longer_selects_and_is_reported(
         self, plugin_root: Path, project_root: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         from dev10x.domain.common.result import ok
@@ -303,7 +303,8 @@ class TestPlaybookDiffCliProjectsList:
             project_root=project_root,
             monkeypatch=monkeypatch,
         )
-        assert "deprecated alias" in result.output
+        assert "no `match_repo:` glob matched 'org/repo'" in result.output
+        assert "`match:` is no longer read in this file" in result.output
 
     def test_unresolved_repo_is_not_reported_as_no_match(
         self, plugin_root: Path, project_root: Path, monkeypatch: pytest.MonkeyPatch
