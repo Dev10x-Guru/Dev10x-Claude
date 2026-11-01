@@ -59,6 +59,7 @@ from dev10x.comm.supervisor.prompts import (
     parse_status_line_ansi,
     strip_ansi,
 )
+from dev10x.comm.supervisor.session_tasks import SessionTask, read_session_tasks
 from dev10x.comm.supervisor.sessions import SessionView
 from dev10x.comm.supervisor.workspace import (
     Workspace,
@@ -106,6 +107,7 @@ class SupervisorApp:
     commands_reader: Callable[..., list[str]] = read_session_commands
     recent_reader: Callable[..., list[RecentTool]] = read_recent_tools
     conversation_reader: Callable[..., list[ConversationEntry]] = read_conversation
+    tasks_reader: Callable[..., list[SessionTask]] = read_session_tasks
     workspace_reader: Callable[..., Workspace] = read_workspace
     renamer: Callable[..., None] = rename_session
     commander: Callable[..., None] = run_session_command
@@ -567,11 +569,13 @@ class SupervisorHandler(BaseHTTPRequestHandler):
         preview = self.app.preview_reader(session_id=view.session_id)
         recent = self.app.recent_reader(session_id=view.session_id)
         conversation = self.app.conversation_reader(session_id=view.session_id)
+        tasks = self.app.tasks_reader(session_id=view.session_id)
         self._json(
             status=HTTPStatus.OK,
             payload={
                 "session_id": view.session_id,
                 "conversation": [asdict(entry) for entry in conversation],
+                "tasks": [asdict(task) for task in tasks],
                 "tail": _excerpt(text=tail, lines=TAIL_LINES),
                 "preview": asdict(preview) if preview else None,
                 "recent": [asdict(tool) for tool in recent],

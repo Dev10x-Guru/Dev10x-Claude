@@ -105,9 +105,17 @@ export interface ConversationEntry {
   result: string;
 }
 
+export interface SessionTask {
+  id: string;
+  subject: string;
+  status: "pending" | "in_progress" | "completed" | string;
+  active_form: string;
+}
+
 export interface SessionDetail {
   session_id: string;
   conversation: ConversationEntry[];
+  tasks: SessionTask[];
   tail: string;
   preview: ToolCallPreview | null;
   recent: RecentTool[];
