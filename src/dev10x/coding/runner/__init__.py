@@ -73,10 +73,35 @@ _EXTRA_PREFERENCE = ("test", "tests", "dev", "develop", "testing")
 # Collection died because an import was missing, rather than a test failing.
 _MISSING_MODULE_RE = re.compile(r"ModuleNotFoundError: No module named", re.MULTILINE)
 
+# GH-1730: uv reports its own failures (an undefined extra, a Python it
+# cannot download) on one `error:` line. Without it the caller sees only
+# a non-zero exit and empty stdout.
+_UV_ERROR_RE = re.compile(r"^error: .+$", re.MULTILINE)
+
+_RETRY_EXTRA = "dev"
+
 
 def _requirement_name(*, requirement: str) -> str:
     """Return the bare package name from a PEP 508 requirement string."""
     return re.split(r"[\s\[<>=!~;(]", requirement.strip(), maxsplit=1)[0].lower()
+
+
+def _project_root(*, cwd: str | None = None) -> Path:
+    return Path(cwd or effective_cwd() or os.getcwd())
+
+
+def read_pyproject(*, cwd: str | None = None) -> dict[str, Any] | None:
+    """Return the parsed ``pyproject.toml``, or None when absent or unparseable."""
+    try:
+        text = (_project_root(cwd=cwd) / _PYPROJECT).read_text(encoding="utf-8")
+        return tomllib.loads(text)
+    except (OSError, tomllib.TOMLDecodeError):
+        return None
+
+
+def _optional_dependency_groups(*, pyproject: dict[str, Any] | None) -> dict[str, Any]:
+    groups = (pyproject or {}).get("project", {}).get("optional-dependencies", {})
+    return groups if isinstance(groups, dict) else {}
 
 
 def resolve_test_extras(*, cwd: str | None = None) -> list[str]:
@@ -86,15 +111,7 @@ def resolve_test_extras(*, cwd: str | None = None) -> list[str]:
     optional-dependency group declares pytest -- all of which mean a bare
     ``uv run pytest`` is the right command and nothing needs adding.
     """
-    root = Path(cwd or effective_cwd() or os.getcwd())
-    try:
-        parsed = tomllib.loads((root / _PYPROJECT).read_text(encoding="utf-8"))
-    except (OSError, tomllib.TOMLDecodeError):
-        return []
-
-    groups = parsed.get("project", {}).get("optional-dependencies", {})
-    if not isinstance(groups, dict):
-        return []
+    groups = _optional_dependency_groups(pyproject=read_pyproject(cwd=cwd))
 
     qualifying = [
         name
@@ -114,11 +131,37 @@ def resolve_test_extras(*, cwd: str | None = None) -> list[str]:
     return [sorted(qualifying)[0]]
 
 
-def _pytest_command(*, extras: list[str], coverage: bool, extra_args: list[str]) -> list[str]:
-    cmd = ["uv", "run"]
-    for extra in extras:
-        cmd += ["--extra", extra]
-    cmd += ["pytest"]
+def _uv_can_resolve(*, pyproject: dict[str, Any]) -> bool:
+    # Virtual uv projects carry [tool.uv] or [dependency-groups] but no [project].
+    has_tool_uv = "uv" in pyproject.get("tool", {})
+    return "project" in pyproject or has_tool_uv or "dependency-groups" in pyproject
+
+
+def _venv_python(*, root: Path) -> Path | None:
+    candidate = root / ".venv" / "bin" / "python"
+    return candidate if candidate.is_file() else None
+
+
+def _uv_error_line(*, stderr: str) -> str | None:
+    """uv's own ``error:`` line, e.g. "No interpreter found" or an undefined extra."""
+    match = _UV_ERROR_RE.search(stderr)
+    return match.group(0).strip() if match else None
+
+
+def _pytest_command(
+    *,
+    extras: list[str],
+    coverage: bool,
+    extra_args: list[str],
+    python: Path | None = None,
+) -> list[str]:
+    if python is not None:
+        cmd = [str(python), "-m", "pytest"]
+    else:
+        cmd = ["uv", "run"]
+        for extra in extras:
+            cmd += ["--extra", extra]
+        cmd += ["pytest"]
     if coverage:
         cmd += ["--cov", "--cov-report=term-missing"]
     cmd += ["--tb=short", "--color=no"]
@@ -182,21 +225,52 @@ async def run_tests(
             "missing_coverage": [{"file": str, "percent": int, "lines": str}, ...],
             "extras": list[str],       # optional-dependency extras applied
             "retried_with_extras": bool,
+            "launcher": "uv" | "venv", # how pytest was started (GH-1730)
+            "uv_error": str | None,    # uv's own `error:` line, if any
             "stdout": str,
             "stderr": str,
         })
 
-        err(...) only when ``uv`` itself is missing or the subprocess
-        times out. A non-zero pytest returncode is *not* an MCP-level
-        error — the caller reads ``returncode`` and ``failed_tests``.
+        err(...) when ``uv`` itself is missing, the subprocess times out,
+        or the ``pyproject.toml`` has no ``[project]`` table and no
+        ``.venv`` to fall back on (``verdict: "no_project_table"``). A
+        non-zero pytest returncode is *not* an MCP-level error — the
+        caller reads ``returncode`` and ``failed_tests``.
     """
     extra_args = list(args) if args else []
+    root = _project_root()
+    pyproject = read_pyproject()
     extras = resolve_test_extras()
     budget = clamp_tool_timeout(timeout)
 
+    # GH-1730: with no PEP 621 [project] table (poetry, a bare tool-config
+    # file) uv ignores the repo's Python pin and cannot see its
+    # dependencies, so `uv run pytest` fails with nothing pointing at the
+    # layout. An existing virtualenv is the environment the project's own
+    # tooling built; without one, say what is wrong.
+    python: Path | None = None
+    if pyproject is not None and not _uv_can_resolve(pyproject=pyproject):
+        python = _venv_python(root=root)
+        if python is None:
+            return err(
+                f"{root / _PYPROJECT} has no [project] table (poetry or a "
+                "tool-config-only file), so `uv run pytest` cannot resolve "
+                "its Python version or dependencies. Create the project's "
+                "virtualenv at .venv (e.g. `poetry install` with "
+                "virtualenvs.in-project) and retry, or add a PEP 621 "
+                "[project] table.",
+                verdict="no_project_table",
+            )
+        extras = []
+
     try:
         proc = await async_run(
-            args=_pytest_command(extras=extras, coverage=coverage, extra_args=extra_args),
+            args=_pytest_command(
+                extras=extras,
+                coverage=coverage,
+                extra_args=extra_args,
+                python=python,
+            ),
             timeout=budget.seconds,
         )
     except FileNotFoundError:
@@ -224,12 +298,15 @@ async def run_tests(
 
     # Safety net for the case resolution cannot see: a group that carries the
     # test deps without declaring pytest itself (a shared `conftest` import
-    # like factory-boy), or a project whose pyproject is unreadable. Retrying
-    # once here is what keeps the caller from reaching for the raw command.
+    # like factory-boy). Retrying once here is what keeps the caller from
+    # reaching for the raw command. Only when the extra exists: uv rejects
+    # an undeclared one outright, which replaced a useful collection error
+    # with a misleading one (GH-1730).
     retried = False
-    if not extras and _looks_like_missing_dependency(proc=proc):
+    can_retry = python is None and _RETRY_EXTRA in _optional_dependency_groups(pyproject=pyproject)
+    if not extras and can_retry and _looks_like_missing_dependency(proc=proc):
         retried = True
-        extras = ["dev"]
+        extras = [_RETRY_EXTRA]
         try:
             proc = await async_run(
                 args=_pytest_command(extras=extras, coverage=coverage, extra_args=extra_args),
@@ -243,6 +320,8 @@ async def run_tests(
         "returncode": proc.returncode,
         "extras": extras,
         "retried_with_extras": retried,
+        "launcher": "uv" if python is None else "venv",
+        "uv_error": _uv_error_line(stderr=proc.stderr) if python is None else None,
         "stdout": proc.stdout,
         "stderr": proc.stderr,
         **parsed,

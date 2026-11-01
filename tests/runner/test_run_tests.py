@@ -8,6 +8,7 @@ from dev10x.domain.common.result import ErrorResult, SuccessResult
 from dev10x.domain.transport_budget import MAX_TOOL_CALL_SECONDS
 
 from dev10x import runner
+from dev10x.subprocess_utils import use_cwd
 
 
 def _completed(
@@ -447,3 +448,160 @@ class TestMissingDependencyRetry:
         assert isinstance(result, SuccessResult)
         assert result.value["retried_with_extras"] is False
         assert mock_run.await_count == 1
+
+
+POETRY_PYPROJECT = '[tool.poetry]\nname = "demo"\nversion = "0"\n'
+
+UV_EXTRA_ERROR = (
+    "warning: No `requires-python` value found in the workspace.\n"
+    "error: Extra `dev` is not defined in any project's `optional-dependencies` table\n"
+)
+
+
+@pytest.fixture()
+def poetry_project(tmp_path) -> object:
+    (tmp_path / "pyproject.toml").write_text(POETRY_PYPROJECT, encoding="utf-8")
+    return tmp_path
+
+
+@pytest.fixture()
+def poetry_venv_python(poetry_project) -> object:
+    python = poetry_project / ".venv" / "bin" / "python"
+    python.parent.mkdir(parents=True)
+    python.write_text("", encoding="utf-8")
+    return python
+
+
+class TestProjectWithoutAProjectTable:
+    """GH-1730: a poetry-style pyproject is not a project uv can run."""
+
+    @pytest.mark.asyncio
+    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    async def test_without_a_venv_returns_an_actionable_error(
+        self,
+        mock_run: AsyncMock,
+        poetry_project,
+    ) -> None:
+        with use_cwd(str(poetry_project)):
+            result = await runner.run_tests()
+
+        assert isinstance(result, ErrorResult)
+        assert "[project]" in result.error
+        assert result.details["verdict"] == "no_project_table"
+
+    @pytest.mark.asyncio
+    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    async def test_without_a_venv_runs_nothing(
+        self,
+        mock_run: AsyncMock,
+        poetry_project,
+    ) -> None:
+        with use_cwd(str(poetry_project)):
+            await runner.run_tests()
+
+        mock_run.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    async def test_an_existing_venv_runs_pytest_directly(
+        self,
+        mock_run: AsyncMock,
+        poetry_venv_python,
+        poetry_project,
+    ) -> None:
+        mock_run.return_value = _completed(stdout=PASS_STDOUT)
+
+        with use_cwd(str(poetry_project)):
+            result = await runner.run_tests()
+
+        assert mock_run.await_args.kwargs["args"][:3] == [str(poetry_venv_python), "-m", "pytest"]
+        assert result.value["launcher"] == "venv"
+
+    @pytest.mark.asyncio
+    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    async def test_the_venv_run_is_never_retried_with_an_extra(
+        self,
+        mock_run: AsyncMock,
+        poetry_venv_python,
+        poetry_project,
+    ) -> None:
+        mock_run.return_value = _completed(returncode=2, stdout=MISSING_DEP_STDOUT)
+
+        with use_cwd(str(poetry_project)):
+            result = await runner.run_tests()
+
+        assert result.value["retried_with_extras"] is False
+        assert mock_run.await_count == 1
+
+
+class TestVirtualUvProjectsStillRunThroughUv:
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "content",
+        [
+            '[tool.uv.workspace]\nmembers = ["packages/*"]\n',
+            '[dependency-groups]\ndev = ["pytest>=8,<9"]\n',
+        ],
+        ids=["workspace-root", "dependency-groups-only"],
+    )
+    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    async def test_runs_through_uv(self, mock_run: AsyncMock, tmp_path, content: str) -> None:
+        (tmp_path / "pyproject.toml").write_text(content, encoding="utf-8")
+        mock_run.return_value = _completed(stdout=PASS_STDOUT)
+
+        with use_cwd(str(tmp_path)):
+            result = await runner.run_tests()
+
+        assert result.value["launcher"] == "uv"
+        assert mock_run.await_args.kwargs["args"][:2] == ["uv", "run"]
+
+
+class TestRetryNeedsADeclaredExtra:
+    @pytest.mark.asyncio
+    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    async def test_no_optional_dependencies_table_skips_the_retry(
+        self,
+        mock_run: AsyncMock,
+        tmp_path,
+    ) -> None:
+        (tmp_path / "pyproject.toml").write_text(
+            '[project]\nname = "demo"\nversion = "0"\n', encoding="utf-8"
+        )
+        mock_run.return_value = _completed(returncode=2, stdout=MISSING_DEP_STDOUT)
+
+        with use_cwd(str(tmp_path)):
+            result = await runner.run_tests()
+
+        assert result.value["retried_with_extras"] is False
+        assert mock_run.await_count == 1
+
+
+class TestUvErrorIsSurfaced:
+    @pytest.mark.asyncio
+    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    async def test_uvs_error_line_is_reported(self, mock_run: AsyncMock) -> None:
+        mock_run.return_value = _completed(returncode=2, stderr=UV_EXTRA_ERROR)
+
+        result = await runner.run_tests()
+
+        assert result.value["uv_error"] == (
+            "error: Extra `dev` is not defined in any project's `optional-dependencies` table"
+        )
+
+    @pytest.mark.asyncio
+    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    async def test_a_clean_run_reports_no_uv_error(self, mock_run: AsyncMock) -> None:
+        mock_run.return_value = _completed(stdout=PASS_STDOUT)
+
+        result = await runner.run_tests()
+
+        assert result.value["uv_error"] is None
+        assert result.value["launcher"] == "uv"
+
+
+class TestReadPyproject:
+    def test_missing_file_reads_as_none(self, tmp_path) -> None:
+        assert runner.read_pyproject(cwd=str(tmp_path)) is None
+
+    def test_a_poetry_file_parses_without_a_project_table(self, poetry_project) -> None:
+        assert "project" not in runner.read_pyproject(cwd=str(poetry_project))
