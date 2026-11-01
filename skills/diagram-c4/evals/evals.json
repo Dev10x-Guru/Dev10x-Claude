@@ -1,0 +1,95 @@
+{
+  "skill_name": "dev10x:diagram-c4",
+  "eval_dimensions": [
+    {
+      "id": "level-follows-question",
+      "name": "One C4 Level, Chosen From the Question",
+      "description": "The diagram uses exactly one C4 include, picked from what the request asks (context / container / component / dynamic / deployment); a request spanning levels yields one file per level."
+    },
+    {
+      "id": "elements-fully-specified",
+      "name": "Elements and Relationships Carry Their Meaning",
+      "description": "Every Container/Component has a technology argument, every data store (including files) is a ContainerDb, every Rel has a verb-phrase label, and SHOW_LEGEND() closes the diagram."
+    },
+    {
+      "id": "rendered-and-read",
+      "name": "Rendered Through render.sh and Inspected",
+      "description": "scripts/render.sh exits 0 on the final source and the agent Reads the PNG before hand-back, catching swallowed labels such as a bare ~."
+    },
+    {
+      "id": "existing-model-respected",
+      "name": "Existing Structurizr Model Is Not Duplicated",
+      "description": "When the repo already has a workspace.dsl, the agent edits that model instead of drawing a second, hand-made C4 picture."
+    }
+  ],
+  "evals": [
+    {
+      "id": "container-view-is-fully-specified",
+      "name": "Container view names technologies, stores, and labeled edges",
+      "description": "RED baseline: without the skill the agent guessed macros, omitted the legend, and never looked at the PNG. With the skill every element is typed and the image is read.",
+      "input": "/dev10x:diagram-c4 \"container diagram of the Dev10x plugin: skills, hooks, an MCP server calling GitHub, state in ~/.config/Dev10x\"",
+      "assertions": [
+        {
+          "dimension": "level-follows-question",
+          "check": "behavioral",
+          "signal": "single_container_include — the source has exactly one include line, '!include <C4/C4_Container>'"
+        },
+        {
+          "dimension": "elements-fully-specified",
+          "check": "behavioral",
+          "signal": "store_is_containerdb — the ~/.config/Dev10x store is a ContainerDb with a technology argument, and the source ends with SHOW_LEGEND()"
+        },
+        {
+          "dimension": "rendered-and-read",
+          "check": "tool_called",
+          "tool": "Read",
+          "signal": "png_inspected — the PNG printed by skills/diagram-c4/scripts/render.sh is Read before completion"
+        }
+      ]
+    },
+    {
+      "id": "structurizr-repo-is-edited-not-duplicated",
+      "name": "Repo with workspace.dsl gets a model edit, not a new .puml",
+      "description": "In a repo whose root holds workspace.dsl, a request for a container view edits the Structurizr model.",
+      "input": "/dev10x:diagram-c4 \"add the new billing service to our container diagram\" — repo root contains workspace.dsl",
+      "assertions": [
+        {
+          "dimension": "existing-model-respected",
+          "check": "tool_called",
+          "tool": "Glob",
+          "signal": "model_detected — a Glob for workspace.dsl runs before any .puml is written"
+        },
+        {
+          "dimension": "existing-model-respected",
+          "check": "behavioral",
+          "signal": "no_parallel_puml — no new C4 .puml file is created; the change lands in a .dsl file"
+        }
+      ]
+    },
+    {
+      "id": "multi-level-request-splits-files",
+      "name": "Context plus component request yields two files",
+      "description": "A request for both the big picture and the inside of one service produces a context diagram and a component diagram, not one mixed picture.",
+      "input": "/dev10x:diagram-c4 \"show how the platform fits together and what's inside the payments service\"",
+      "assertions": [
+        {
+          "dimension": "level-follows-question",
+          "check": "behavioral",
+          "signal": "one_level_per_file — two .puml files are written, one including C4_Context and one including C4_Component"
+        }
+      ]
+    }
+  ],
+  "trigger_evals": {
+    "should_trigger": [
+      "Draw a C4 container diagram of the platform",
+      "Show what talks to what in our system for the ADR",
+      "Diagram where the services are deployed"
+    ],
+    "should_not_trigger": [
+      "Draw the login request flow step by step",
+      "Model the refund approval process with lanes",
+      "Explain the architecture in prose"
+    ]
+  }
+}
