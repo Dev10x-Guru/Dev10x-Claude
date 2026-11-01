@@ -368,7 +368,12 @@ def triage(*, target: str, working_dirs: tuple[str, ...]) -> None:
     help="Session working directory (repeatable; default: CWD)",
 )
 @click.option("--dry-run", is_flag=True, help="Show changes without modifying files")
-def grant(*, target: str, working_dirs: tuple[str, ...], dry_run: bool) -> None:
+@click.option(
+    "--remember",
+    is_flag=True,
+    help="Also seed the rule into checkouts created later (GH-1677)",
+)
+def grant(*, target: str, working_dirs: tuple[str, ...], dry_run: bool, remember: bool) -> None:
     """Pre-approve a command's rule in every settings file at once (GH-1676).
 
     Exits non-zero when nothing was written, so a scripted grant cannot
@@ -386,6 +391,7 @@ def grant(*, target: str, working_dirs: tuple[str, ...], dry_run: bool) -> None:
         working_dirs=_working_dirs(values=working_dirs),
         base_denies=catalog_denies(config=ctx.config),
         dry_run=dry_run,
+        remember=remember,
     )
     if isinstance(result, ErrorResult):
         click.echo(f"ERROR: {result.error}", err=True)

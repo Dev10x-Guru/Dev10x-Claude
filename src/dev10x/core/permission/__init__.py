@@ -89,12 +89,14 @@ async def grant(
     rule: str,
     working_dirs: list[str] | None = None,
     dry_run: bool = False,
+    remember: bool = False,
 ) -> Result[dict[str, Any]]:
     """Grant the triaged rule to every settings file that lacks it (GH-1676).
 
     Refuses unless triage returns ``grant`` and derives exactly ``rule``,
     so a better fix is never skipped and the approved rule is the one
-    written. Writes through the backup + git-tracked guard.
+    written. Writes through the backup + git-tracked guard. ``remember``
+    also records the rule for checkouts created later (GH-1677).
     """
     return await asyncio.to_thread(
         _run_grant,
@@ -102,6 +104,7 @@ async def grant(
         rule=rule,
         working_dirs=working_dirs,
         dry_run=dry_run,
+        remember=remember,
     )
 
 
@@ -149,6 +152,7 @@ def _run_grant(
     rule: str,
     working_dirs: list[str] | None,
     dry_run: bool,
+    remember: bool = False,
 ) -> Result[dict[str, Any]]:
     from dev10x.skills.permission.grant import grant_everywhere
 
@@ -167,6 +171,7 @@ def _run_grant(
         base_denies=catalog_denies(config=ctx.value.config),
         dry_run=dry_run,
         confirmed_rule=rule,
+        remember=remember,
     )
 
 

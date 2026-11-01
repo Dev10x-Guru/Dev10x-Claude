@@ -190,6 +190,7 @@ async def permission_grant(
     working_dirs: list[str] | None = None,
     dry_run: bool = False,
     cwd: str | None = None,
+    remember: bool = False,
 ) -> dict:
     """Pre-approve a command's rule in every settings file at once (GH-1676).
 
@@ -208,12 +209,17 @@ async def permission_grant(
         working_dirs: Absolute session working directories; defaults to cwd
         dry_run: Report the files that would change without writing
         cwd: Effective working directory (GH-979)
+        remember: Also record the rule in
+            `~/.config/Dev10x/granted-permissions.yaml`, so worktrees and
+            projects created later are seeded with it (GH-1677). Accepts
+            an `already-allowed` verdict, to remember an earlier grant
 
     Returns:
         Dictionary with keys: rule, granted (list[str]), failed
-        (list[str]), dry_run, messages, triage. `{"error": ...,
-        "triage": {...}}` when triage recommends a different fix, the
-        rule differs, or any file failed to write.
+        (list[str]), dry_run, remembered (`{"path", "rule", "added"}`
+        or null), messages, triage. `{"error": ..., "triage": {...}}`
+        when triage recommends a different fix, the rule differs, any
+        file failed to write, or the rule could not be remembered.
     """
     from dev10x import permission as perm
     from dev10x.subprocess_utils import use_cwd
@@ -225,6 +231,7 @@ async def permission_grant(
                 rule=rule,
                 working_dirs=working_dirs,
                 dry_run=dry_run,
+                remember=remember,
             )
         )
 
