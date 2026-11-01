@@ -17,7 +17,12 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-SHELL_SCRIPTS = sorted(REPO_ROOT.glob("skills/**/scripts/*.sh"))
+SHELL_SCRIPTS = sorted(
+    [
+        *REPO_ROOT.glob("skills/**/scripts/*.sh"),
+        *REPO_ROOT.glob("plugins/*/skills/**/scripts/*.sh"),
+    ]
+)
 
 
 @pytest.mark.parametrize("script", SHELL_SCRIPTS, ids=lambda p: str(p.relative_to(REPO_ROOT)))

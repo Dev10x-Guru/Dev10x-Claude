@@ -25,6 +25,8 @@ from pathlib import Path
 
 import pytest
 
+from dev10x.core.plugin_map import skill_roots
+
 _SKILLS = Path(__file__).parents[2] / "skills"
 
 _ENFORCEMENT_MARKER = "End-to-end read enforcement"
@@ -57,7 +59,11 @@ _SINGLE_READ_BYTES = int(_CHARS_PER_TOKEN * _READ_TOKEN_CAP * _SAFETY_MARGIN)
 
 
 def _instruction_files() -> list[Path]:
-    return sorted(_SKILLS.glob("*/instructions.md"))
+    return [
+        path
+        for root in skill_roots(repo_root=_SKILLS.parent)
+        for path in sorted(root.glob("*/instructions.md"))
+    ]
 
 
 def _oversized() -> list[Path]:

@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from dev10x.core.plugin_map import PluginMap, load_plugin_map, parse_plugin_map
+from dev10x.core.plugin_map import PluginMap, load_plugin_map, parse_plugin_map, skill_files
 from dev10x.core.skill_path_edges import (
     SkillPathEdge,
     cross_plugin_edges,
@@ -49,7 +49,7 @@ def toy_skills(tmp_path: Path) -> Path:
 class TestRepositoryEdges:
     def test_only_known_edges_cross_plugins(self) -> None:
         edges = cross_plugin_edges(
-            skills_root=get_plugin_root() / "skills",
+            skill_files=skill_files(repo_root=get_plugin_root()),
             plugin_map=load_plugin_map(),
         )
 
@@ -69,7 +69,9 @@ class TestRepositoryEdges:
 
 class TestCrossPluginEdges:
     def test_flags_only_sibling_plugin_targets(self, toy_skills: Path, toy_map: PluginMap) -> None:
-        assert cross_plugin_edges(skills_root=toy_skills, plugin_map=toy_map) == [
+        files = sorted(toy_skills.glob("*/SKILL.md"), reverse=True)
+
+        assert cross_plugin_edges(skill_files=files, plugin_map=toy_map) == [
             SkillPathEdge(skill="helper", target="pr"),
             SkillPathEdge(skill="ticket", target="pr"),
         ]

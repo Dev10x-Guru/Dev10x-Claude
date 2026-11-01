@@ -64,7 +64,8 @@ def _snapshot(*, root: Path) -> dict[str, bytes]:
 
 def _copy_repository(*, source: Path, target: Path) -> None:
     for directory in SCANNED_DIRS:
-        shutil.copytree(source / directory, target / directory, symlinks=True)
+        if (source / directory).is_dir():
+            shutil.copytree(source / directory, target / directory, symlinks=True)
     for relative in SCANNED_FILES:
         (target / relative).parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source / relative, target / relative)

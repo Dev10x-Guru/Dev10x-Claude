@@ -25,7 +25,10 @@ HOOK_SCRIPTS = sorted(
 )
 
 SKILL_SCRIPTS = sorted(
-    REPO_ROOT.glob("skills/**/scripts/*.py"),
+    [
+        *REPO_ROOT.glob("skills/**/scripts/*.py"),
+        *REPO_ROOT.glob("plugins/*/skills/**/scripts/*.py"),
+    ]
 )
 
 SKILL_STANDALONE_SCRIPTS = [
@@ -124,6 +127,7 @@ class TestScriptLoadability:
 
 EXECUTABLE_SCRIPTS = sorted(
     [p for p in REPO_ROOT.glob("skills/**/scripts/*") if p.suffix in (".py", ".sh")]
+    + [p for p in REPO_ROOT.glob("plugins/*/skills/**/scripts/*") if p.suffix in (".py", ".sh")]
     + [p for p in (REPO_ROOT / "hooks" / "scripts").iterdir() if p.suffix in (".py", ".sh")]
 )
 

@@ -62,7 +62,9 @@ STUB_GH_PR = (
 
 
 def _shipped_shell_scripts() -> list[Path]:
-    return sorted((REPO_ROOT / "skills").glob("**/*.sh"))
+    return sorted(
+        [*(REPO_ROOT / "skills").glob("**/*.sh"), *REPO_ROOT.glob("plugins/*/skills/**/*.sh")]
+    )
 
 
 def _install(bin_dir: Path, name: str, body: str) -> None:

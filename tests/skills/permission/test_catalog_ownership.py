@@ -18,7 +18,7 @@ import yaml
 from dev10x.skills.permission.catalog_paths import catalog_fragments
 
 from dev10x.core.config.fragments import CORE_PLUGIN
-from dev10x.core.plugin_map import load_plugin_map
+from dev10x.core.plugin_map import load_plugin_map, skill_files
 from dev10x.teach.skill_index.builder import extract_front_matter
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -42,7 +42,7 @@ def _declared_tools(*, skill_md: Path) -> list[str]:
 def _tool_users() -> dict[str, set[str]]:
     plugin_map = load_plugin_map()
     users: dict[str, set[str]] = defaultdict(set)
-    for skill_md in sorted((REPO_ROOT / "skills").glob("*/SKILL.md")):
+    for skill_md in skill_files(repo_root=REPO_ROOT):
         plugin = plugin_map.plugin_for(skill=skill_md.parent.name)
         for tool in _declared_tools(skill_md=skill_md):
             users[tool].add(plugin)

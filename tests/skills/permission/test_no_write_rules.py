@@ -23,12 +23,12 @@ import yaml
 from dev10x.skills.permission.catalog_paths import load_catalog_document
 
 import dev10x.skills.permission as permission_pkg
+from dev10x.core.plugin_map import skill_files
 from dev10x.skills.permission import doctor
 
 REPO_ROOT = Path(permission_pkg.__file__).resolve().parents[5]
 CATALOG = Path(permission_pkg.__file__).parent / "baseline-permissions.yaml"
 PROJECTS_YAML = REPO_ROOT / "skills" / "upgrade-cleanup" / "projects.yaml"
-SKILLS_DIR = REPO_ROOT / "skills"
 
 
 def _is_write_rule(rule: object) -> bool:
@@ -36,7 +36,7 @@ def _is_write_rule(rule: object) -> bool:
 
 
 def _skill_files() -> list[Path]:
-    return sorted(SKILLS_DIR.glob("*/SKILL.md"))
+    return skill_files(repo_root=REPO_ROOT)
 
 
 def _allowed_tools(skill_md: Path) -> list[str]:
