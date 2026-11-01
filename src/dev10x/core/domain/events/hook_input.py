@@ -82,6 +82,26 @@ class HookAsk:
 
 
 @dataclass(frozen=True)
+class HookHint:
+    """Steer the agent without deciding anything (GH-1725).
+
+    Carries no permission decision: the call proceeds exactly as it would
+    have, and ``message`` reaches the agent as ``additionalContext``. It is
+    the live counterpart of an advisory rule — a nudge before the prompt
+    fires rather than a diagnosis after it.
+    """
+
+    message: str
+    rule_id: str = ""
+
+    def to_dict(self) -> dict[str, str]:
+        payload = {"message": self.message, "decision": "hint"}
+        if self.rule_id:
+            payload["rule_id"] = self.rule_id
+        return payload
+
+
+@dataclass(frozen=True)
 class HookRetry:
     message: str
 

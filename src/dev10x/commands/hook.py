@@ -46,7 +46,7 @@ def validate_bash() -> None:
 
 
 def _validate_bash_body() -> None:
-    from dev10x.hooks.hook_transport import emit, read_hook_input
+    from dev10x.hooks.hook_transport import emit, read_hook_input, select_result
     from dev10x.validators import get_chain
 
     inp = read_hook_input()
@@ -55,7 +55,8 @@ def _validate_bash_body() -> None:
     if not inp.command:
         sys.exit(0)
 
-    for result in get_chain().run(inp=inp):
+    result = select_result(get_chain().run(inp=inp))
+    if result is not None:
         emit(result)
 
     sys.exit(0)

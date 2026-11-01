@@ -25,9 +25,11 @@ rules:
       - "gog --version"
       - "gog --help"
     # Advisory: a leading flag is not unsafe, it only stops the catalogued
-    # read rules from matching. permission_triage and diag-friction read
-    # advisory rules; the hook never sees them.
+    # read rules from matching, so the hook must not deny or ask. It
+    # steers live instead (GH-1725): the compensation below reaches the
+    # agent as additionalContext before the permission prompt fires.
     hook_block: false
+    live_hint: true
     compensations:
       - type: use-alternative
         description: >

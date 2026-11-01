@@ -6,6 +6,7 @@ from dev10x.domain.documents.plan import Plan
 from dev10x.domain.events.hook_input import (
     HookAllow,
     HookAsk,
+    HookHint,
     HookInput,
     HookResult,
     HookRetry,
@@ -23,6 +24,7 @@ __all__ = [
     "ConfigLoader",
     "HookAllow",
     "HookAsk",
+    "HookHint",
     "HookInput",
     "HookResult",
     "HookRetry",

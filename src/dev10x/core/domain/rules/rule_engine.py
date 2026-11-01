@@ -26,27 +26,35 @@ class RuleMatch:
 class RuleEngine:
     edit_rules: list[MatchingRule] = field(default_factory=list)
     command_rules: list[MatchingRule] = field(default_factory=list)
+    # Advisory Bash rules that opted into a live, non-blocking steer
+    # (GH-1725). Every other advisory rule is still dropped here.
+    hint_rules: list[MatchingRule] = field(default_factory=list)
 
     @classmethod
     def from_yaml(cls, *, path: Path) -> RuleEngine:
         data = load_yaml(path, strict=True)
+        # A file read here has always treated a missing `hook_block` as
+        # advisory, unlike MatchingRule's own default of blocking.
         rules = [
-            MatchingRule.from_yaml_entry(entry=entry)
+            MatchingRule.from_yaml_entry(entry={"hook_block": False, **entry})
             for entry in data.get("rules", [])
-            if entry.get("hook_block", False)
         ]
         return cls._split_rules(rules=rules)
 
     @classmethod
     def from_config(cls, config: Config) -> RuleEngine:
-        rules = [r for r in config.rules if r.hook_block]
-        return cls._split_rules(rules=rules)
+        return cls._split_rules(rules=config.rules)
 
     @classmethod
     def _split_rules(cls, *, rules: list[MatchingRule]) -> RuleEngine:
-        edit_rules = [r for r in rules if r.matcher == "Edit|Write"]
-        command_rules = [r for r in rules if r.matcher == "Bash"]
-        return cls(edit_rules=edit_rules, command_rules=command_rules)
+        blocking = [r for r in rules if r.hook_block]
+        return cls(
+            edit_rules=[r for r in blocking if r.matcher == "Edit|Write"],
+            command_rules=[r for r in blocking if r.matcher == "Bash"],
+            hint_rules=[
+                r for r in rules if not r.hook_block and r.live_hint and r.matcher == "Bash"
+            ],
+        )
 
     def evaluate(
         self,
@@ -70,3 +78,6 @@ class RuleEngine:
 
     def evaluate_command(self, *, command: str) -> MatchingRule | None:
         return next(self.matching_command_rules(command=command), None)
+
+    def matching_hint_rule(self, *, command: str) -> MatchingRule | None:
+        return next((r for r in self.hint_rules if r.matches_command(command=command)), None)

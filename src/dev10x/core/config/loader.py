@@ -135,6 +135,7 @@ def _dict_to_config(*, raw: dict[str, Any]) -> Config:
             except_=r.get("except_", []),
             compensations=[Compensation(**c) for c in r.get("compensations", [])],
             hook_block=r.get("hook_block", True),
+            live_hint=r.get("live_hint", False),
             reason=r.get("reason", ""),
             message=r.get("message", ""),
             related=r.get("related", []),

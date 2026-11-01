@@ -339,6 +339,7 @@ class MatchingRule:
     except_: list[str] = field(default_factory=list)
     compensations: list[Compensation] = field(default_factory=list)
     hook_block: bool = True
+    live_hint: bool = False
     reason: str = ""
     message: str = ""
     related: list[str] = field(default_factory=list)
@@ -424,6 +425,7 @@ class MatchingRule:
             except_=entry.get("except", []),
             compensations=compensations,
             hook_block=entry.get("hook_block", True),
+            live_hint=entry.get("live_hint", False),
             reason=entry.get("reason", ""),
             message=entry.get("message", ""),
             related=entry.get("related", []),

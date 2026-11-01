@@ -1,7 +1,9 @@
 """Validator: redirect raw CLI commands to their skill/tool equivalents.
 
 Loads validation rules from command-skill-map.yaml at module level.
-Only processes rules where matcher=Bash and hook_block=true.
+Blocking Bash rules (hook_block=true) deny. Advisory Bash rules that opt
+in with live_hint=true produce a non-blocking HookHint steer instead
+(GH-1725); every other advisory rule is ignored here.
 
 Supports three friction levels:
 
@@ -23,7 +25,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
 
-from dev10x.domain import HookInput, HookResult
+from dev10x.domain import HookHint, HookInput, HookResult
 from dev10x.domain.common.bash_tokens import split_tokens
 from dev10x.domain.common.branch_name import PROTECTED_BRANCHES
 from dev10x.domain.documents.config_document import Config
@@ -251,6 +253,24 @@ def _first_enforced_rule(*, engine: RuleEngine, inp: HookInput) -> MatchingRule 
     )
 
 
+def _live_hint(*, engine: RuleEngine, inp: HookInput) -> HookHint | None:
+    """A non-blocking steer from an advisory rule that opted in (GH-1725).
+
+    Only reached when no blocking rule matched, so a hint never softens a
+    deny. It carries the rule's own compensation text — the same words
+    ``permission_triage`` shows after the prompt, delivered before it.
+    """
+    rule = engine.matching_hint_rule(command=inp.command)
+    if rule is None:
+        return None
+    advice = " ".join(
+        " ".join((comp.description or "").split()) for comp in rule.compensations
+    ).strip()
+    if not advice:
+        return None
+    return HookHint(message=f"💡 Dev10x steer ({rule.name}): {advice}")
+
+
 def _format_correction_msg(
     *,
     label: str,
@@ -396,6 +416,8 @@ def _get_config_and_engine() -> tuple[Config, RuleEngine]:
 # the routed-CLI map in .claude/rules/mcp-tools.md has claimed all along
 # were steered to pr_get / pr_ready — GH-1211 reasoned from that claim.
 # "--git-dir" and "--work-tree" gate git-dir-worktree-pinning (GH-1496).
+# "gog" gates the gog-global-flags-first live hint (GH-1725): a hint rule
+# is dropped by this fast path exactly as a blocking rule would be.
 # test_literal_pattern_contains_a_quick_token pins the invariant so a new
 # blocking rule cannot ship inert.
 # The fast-path filter is intentionally broad — evaluate_command() still
@@ -420,6 +442,7 @@ _QUICK_TOKENS = frozenset(
         "pr ready",
         "--git-dir",
         "--work-tree",
+        "gog",
     ]
 )
 
@@ -621,13 +644,13 @@ class SkillRedirectValidator(ValidatorBase):
         cmd_lower = inp.command.lower()
         return any(token in cmd_lower for token in _QUICK_TOKENS)
 
-    def validate(self, inp: HookInput) -> HookResult | None:
+    def validate(self, inp: HookInput) -> HookResult | HookHint | None:
         if BOOLEAN_SKIP_RE.match(inp.command):
             return HookResult(message=UNRATIONALIZED_SKIP_MSG)
         config, engine = _get_config_and_engine()
         rule = _first_enforced_rule(engine=engine, inp=inp)
         if rule is None:
-            return None
+            return _live_hint(engine=engine, inp=inp)
         comp = rule.compensations[0] if rule.compensations else None
         if not comp:
             return None

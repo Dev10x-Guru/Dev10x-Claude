@@ -123,6 +123,58 @@ class TestRuleEngineFromConfig:
         assert engine.command_rules[0].name == "active"
 
 
+class TestHintRules:
+    """GH-1725: advisory rules that opt in become a live, non-blocking lane."""
+
+    @pytest.fixture()
+    def engine(self) -> RuleEngine:
+        return RuleEngine.from_config(
+            config=Config(
+                rules=[
+                    MatchingRule(name="block", hook_block=True, patterns=["^git push"]),
+                    MatchingRule(
+                        name="hint", hook_block=False, live_hint=True, patterns=["^gog -a"]
+                    ),
+                    MatchingRule(name="quiet", hook_block=False, patterns=["^echo"]),
+                    MatchingRule(
+                        name="edit-hint",
+                        hook_block=False,
+                        live_hint=True,
+                        matcher="Edit|Write",
+                        file_names=[".env"],
+                    ),
+                    MatchingRule(
+                        name="blocking-hint", hook_block=True, live_hint=True, patterns=["^rm"]
+                    ),
+                ]
+            )
+        )
+
+    def test_only_opted_in_advisory_bash_rules_hint(self, engine: RuleEngine) -> None:
+        assert [rule.name for rule in engine.hint_rules] == ["hint"]
+
+    def test_a_blocking_rule_stays_blocking_even_with_live_hint(self, engine: RuleEngine) -> None:
+        assert [rule.name for rule in engine.command_rules] == ["block", "blocking-hint"]
+
+    def test_matching_hint_rule_finds_the_match(self, engine: RuleEngine) -> None:
+        rule = engine.matching_hint_rule(command="gog -a me chat spaces list")
+
+        assert rule is not None
+        assert rule.name == "hint"
+
+    def test_matching_hint_rule_is_none_without_a_match(self, engine: RuleEngine) -> None:
+        assert engine.matching_hint_rule(command="echo hi") is None
+
+
+def test_from_yaml_still_treats_a_missing_hook_block_as_advisory(tmp_path: Path) -> None:
+    path = tmp_path / "rules.yaml"
+    path.write_text(yaml.dump({"rules": [{"name": "implicit", "patterns": ["^echo"]}]}))
+
+    engine = RuleEngine.from_yaml(path=path)
+
+    assert engine.command_rules == []
+
+
 class TestRuleEngineEvaluate:
     @pytest.fixture()
     def engine(self) -> RuleEngine:

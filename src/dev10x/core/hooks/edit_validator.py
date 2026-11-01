@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from dev10x.domain.events.hook_input import HookInput, HookResult
-from dev10x.hooks.hook_transport import emit
+from dev10x.hooks.hook_transport import emit, select_result
 
 if TYPE_CHECKING:
     from dev10x.domain.rules.rule_engine import RuleEngine
@@ -71,15 +71,17 @@ def _run_python_validators(*, data: dict[str, Any], debug: bool = False) -> None
     from dev10x.validators import get_chain
 
     inp = HookInput.from_dict(data=data)
-    for result in get_chain().run(inp=inp):
-        if debug:
-            import sys as _sys
+    result = select_result(get_chain().run(inp=inp))
+    if result is None:
+        return
+    if debug:
+        import sys as _sys
 
-            print(
-                f"[DEBUG] Python validator blocked: {result}",
-                file=_sys.stderr,
-            )
-        emit(result)
+        print(
+            f"[DEBUG] Python validator blocked: {result}",
+            file=_sys.stderr,
+        )
+    emit(result)
 
 
 def validate_edit_write(
