@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import multiprocessing as mp
+import stat
 import time
 from pathlib import Path
 
@@ -46,6 +47,23 @@ class TestAtomicWriteBytes:
         target = tmp_path / "out.bin"
         atomic_write_bytes(target, b"\x00\x01\x02")
         assert target.read_bytes() == b"\x00\x01\x02"
+
+    @pytest.mark.parametrize("mode", [0o755, 0o644, 0o600])
+    def test_overwrite_keeps_the_existing_mode(self, tmp_path: Path, mode: int) -> None:
+        target = tmp_path / "script.sh"
+        target.write_bytes(b"old")
+        target.chmod(mode)
+
+        atomic_write_bytes(target, b"new")
+
+        assert stat.S_IMODE(target.stat().st_mode) == mode
+
+    def test_a_new_file_is_owner_only(self, tmp_path: Path) -> None:
+        target = tmp_path / "secret.yaml"
+
+        atomic_write_bytes(target, b"token: x")
+
+        assert stat.S_IMODE(target.stat().st_mode) == 0o600
 
 
 class TestAtomicAppendLine:
