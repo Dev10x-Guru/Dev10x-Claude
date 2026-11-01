@@ -22,14 +22,21 @@ class InstanceProfile:
     default_port: int
     keeps_page_token: bool
     renames_sessions: bool
+    rearms_relay: bool
 
 
 PROFILES = {
     Instance.RELEASE: InstanceProfile(
-        default_port=DEFAULT_PORT, keeps_page_token=False, renames_sessions=True
+        default_port=DEFAULT_PORT,
+        keeps_page_token=False,
+        renames_sessions=True,
+        rearms_relay=True,
     ),
     Instance.DEV: InstanceProfile(
-        default_port=DEV_PORT, keeps_page_token=True, renames_sessions=False
+        default_port=DEV_PORT,
+        keeps_page_token=True,
+        renames_sessions=False,
+        rearms_relay=False,
     ),
 }
 

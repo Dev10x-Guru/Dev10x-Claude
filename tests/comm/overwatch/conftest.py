@@ -48,14 +48,22 @@ CLAUDE_AGENTS = [
 ]
 
 
-def _herdr_agent(*, agent: str, session_id: str, pane_id: str, status: str) -> dict[str, object]:
-    return {
+def _herdr_agent(
+    *,
+    agent: str,
+    session_id: str,
+    pane_id: str,
+    status: str,
+    name: str = "",
+) -> dict[str, object]:
+    entry: dict[str, object] = {
         "agent": agent,
         "agent_session": {"agent": agent, "kind": "id", "value": session_id},
         "agent_status": status,
         "pane_id": pane_id,
         "terminal_title": f"title {pane_id}",
     }
+    return {**entry, "name": name} if name else entry
 
 
 HERDR_AGENTS = {
@@ -63,7 +71,13 @@ HERDR_AGENTS = {
     "result": {
         "agents": [
             _herdr_agent(agent="claude", session_id=WAITING_ID, pane_id="w3:p1", status="blocked"),
-            _herdr_agent(agent="claude", session_id=IDLE_ID, pane_id="w12:p1", status="done"),
+            _herdr_agent(
+                agent="claude",
+                session_id=IDLE_ID,
+                pane_id="w12:p1",
+                status="done",
+                name="mc-updates",
+            ),
             _herdr_agent(agent="codex", session_id="codex-1", pane_id="w9:p1", status="idle"),
         ]
     },

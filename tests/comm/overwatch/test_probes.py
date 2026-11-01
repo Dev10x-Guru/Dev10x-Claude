@@ -195,6 +195,10 @@ class TestPaneCommands:
 
         assert runner.calls[0][0] == ["herdr", "agent", "send-keys", "w1:p1", "2"]
 
+    def test_submit_prompt_raises_on_failure(self) -> None:
+        with pytest.raises(ProbeError, match="boom"):
+            submit_prompt(pane_id="w7:p1", text="hi", runner=FakeRunner(returncode=1))
+
     def test_send_keys_raises_on_failure(self) -> None:
         with pytest.raises(ProbeError, match="boom"):
             send_keys(pane_id="w1:p1", keys=["1"], runner=FakeRunner(returncode=1))

@@ -150,7 +150,99 @@ def test_serve_wires_service(
         seen["stop"].is_set(),  # type: ignore[attr-defined]
         set(handlers) == {command.signal.SIGTERM, command.signal.SIGINT},
         app.auto_rename,  # type: ignore[attr-defined]
-    ) == (0, 0, True, True, True, True, True)
+        callable(seen["rearm"]),
+    ) == (0, 0, True, True, True, True, True, True)
+
+
+def test_run_service_starts_rearm(config_home: Path, tmp_path: Path) -> None:
+    app = command.build_app(
+        kb_root=tmp_path / "kb", bus_root=tmp_path / "bus", relay_mailbox="relay", token="t"
+    )
+    stop = threading.Event()
+    rearmed = threading.Event()
+
+    service = threading.Thread(
+        daemon=True,
+        target=command.run_service,
+        kwargs={
+            "app": app,
+            "port": 0,
+            "interval": 0.01,
+            "stop": stop,
+            "provider": lambda: Snapshot(sessions=[]),
+            "announce": lambda line: None,
+            "rearm": rearmed.set,
+        },
+    )
+    service.start()
+    try:
+        fired = rearmed.wait(timeout=5)
+    finally:
+        stop.set()
+        service.join(timeout=5)
+
+    assert fired is True
+
+
+def test_build_rearm_disabled_by_empty_name(config_home: Path, tmp_path: Path) -> None:
+    app = command.build_app(
+        kb_root=tmp_path / "kb", bus_root=tmp_path / "bus", relay_mailbox="relay", token="t"
+    )
+
+    assert (
+        command.build_rearm(app=app, agent_name="", interval=1.0, stop=threading.Event()) is None
+    )
+
+
+def test_build_rearm_runs_until_stopped(
+    config_home: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = command.build_app(
+        kb_root=tmp_path / "kb", bus_root=tmp_path / "bus", relay_mailbox="relay", token="t"
+    )
+    stop = threading.Event()
+    stop.set()
+    seen: dict[str, object] = {}
+
+    def fake_run_rearm(**kwargs: object) -> None:
+        seen.update(kwargs)
+
+    monkeypatch.setattr(command, "run_rearm", fake_run_rearm)
+    rearm = command.build_rearm(app=app, agent_name="relay", interval=2.0, stop=stop)
+    rearm()  # type: ignore[misc]
+    owner = seen["attempt"].__self__  # type: ignore[attr-defined]
+
+    assert (owner.agent_name, owner.relay_mailbox, seen["interval"], seen["stop"]) == (
+        "relay",
+        "relay",
+        2.0,
+        stop,
+    )
+
+
+@pytest.mark.parametrize(
+    "args",
+    [["--relay-agent", ""], ["--instance", "dev"]],
+    ids=["empty-agent-name", "dev-instance"],
+)
+def test_serve_without_rearm(
+    config_home: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    args: list[str],
+) -> None:
+    seen: dict[str, object] = {}
+    monkeypatch.setattr(command, "run_service", lambda **kwargs: seen.update(kwargs))
+    monkeypatch.setattr(command.signal, "signal", lambda signum, handler: None)
+
+    CliRunner().invoke(
+        cli,
+        ["overwatch", "serve", "--port", "0", "--bus-root", str(tmp_path / "bus"), *args],
+    )
+
+    assert seen["rearm"] is None
 
 
 def test_serve_can_skip_the_start_rename(

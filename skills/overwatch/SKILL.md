@@ -77,6 +77,11 @@ Args: `[serve | relay | stop]` (default `serve`).
 3. To keep it running across reboots, run `uvx dev10x overwatch unit`
    and show the unit text; installing it under `~/.config/systemd/user/`
    is the user's step.
+4. After a herdr restart the relay session resumes without its
+   watcher.
+   Once per start, the release daemon re-arms it as soon as the relay
+   is `idle` or `done` (see Safety).
+   A relay stuck on a prompt still needs that prompt answered by hand.
 
 ### Dev page from a local checkout (GH-1765)
 
@@ -148,9 +153,19 @@ commit can be tried on a live page without a release.
 - The release page's token lasts one boot. The dev page's token is
   saved (`0600`) so a commit-triggered restart keeps the tab working;
   any process running as the user can read it.
-- Keys are sent only from a button press on the page; the relay
-  never sends keys and never merges, posts, deletes or touches
-  secrets because a message asked.
+- Input reaches a session only from a button press on the page, with
+  one exception.
+  Once per daemon start, the release daemon sends the fixed prompt
+  `/dev10x:overwatch relay` with `herdr agent prompt` to the herdr
+  agent named `relay`, and to nothing else.
+  It waits until that agent is `idle` or `done`, then skips the send
+  only when the `overwatch-relay` board line shows the relay already
+  watching: not `done`, and updated at or after the agent's start.
+  A missing board line or an unknown start time counts as not watching.
+  The send is logged to `actions.jsonl` as `confirmed_by: daemon-boot`.
+  The dev page never sends it, and `--relay-agent ""` turns it off.
+- The relay never sends keys and never merges, posts, deletes or
+  touches secrets because a message asked.
 - The daemon never reads `~/.claude/sessions/*.key` or the session
   messaging sockets.
 
