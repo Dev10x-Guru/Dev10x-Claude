@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   ASIDE,
+  MODAL_HEIGHT,
+  MODAL_WIDTH,
   PROJECT_ORDER_KEY,
   PROJECT_PINS_KEY,
   SIDE,
@@ -83,18 +85,20 @@ describe("view", () => {
 describe.each([
   ["session list", ASIDE],
   ["detail panel", SIDE],
-])("%s width", (_name, panel) => {
+  ["project modal width", MODAL_WIDTH],
+  ["project modal height", MODAL_HEIGHT],
+])("%s size", (_name, panel) => {
   it.each([
     [50, panel.min],
     [9999, panel.max],
-    [300.4, 300],
+    [panel.min + 10.4, panel.min + 10],
   ])("clamps %d", (px, expected) => {
     expect(clampWidth(panel, px)).toBe(expected);
   });
 
   it("round-trips through the store, clamped", () => {
     const store = memory();
-    saveWidth(panel, 1200, store);
+    saveWidth(panel, panel.max + 100, store);
     expect([store.items.has(panel.key), loadWidth(panel, store)]).toEqual([true, panel.max]);
   });
 
@@ -154,6 +158,6 @@ describe("hide stopped", () => {
   });
 });
 
-it("keeps the two panel widths under separate keys", () => {
-  expect(ASIDE.key).not.toBe(SIDE.key);
+it("keeps every remembered size under its own key", () => {
+  expect(new Set([ASIDE.key, SIDE.key, MODAL_WIDTH.key, MODAL_HEIGHT.key]).size).toBe(4);
 });

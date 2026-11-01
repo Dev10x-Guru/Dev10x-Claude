@@ -23,6 +23,8 @@ export interface Panel {
 
 export const ASIDE: Panel = { key: "supervisor.aside-width", min: 200, max: 560, fallback: 288 };
 export const SIDE: Panel = { key: "supervisor.side-width", min: 240, max: 760, fallback: 384 };
+export const MODAL_WIDTH: Panel = { key: "supervisor.modal-width", min: 480, max: 1600, fallback: 832 };
+export const MODAL_HEIGHT: Panel = { key: "supervisor.modal-height", min: 320, max: 1200, fallback: 560 };
 
 type Store = Pick<Storage, "getItem" | "setItem">;
 

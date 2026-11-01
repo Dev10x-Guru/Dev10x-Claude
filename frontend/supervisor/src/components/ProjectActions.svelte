@@ -3,6 +3,7 @@
   import { fetchProject } from "../lib/api";
   import { countByDay, inRange, keyOf, type Range } from "../lib/calendar";
   import { ago, shortPath } from "../lib/format";
+  import { MODAL_HEIGHT, MODAL_WIDTH, loadWidth, saveWidth } from "../lib/prefs";
   import type { ProjectDetail } from "../lib/types";
 
   interface Props {
@@ -43,9 +44,26 @@
     };
   });
 
+  const SAVE_SIZE_MS = 250;
+
   function modal(node: HTMLDialogElement): () => void {
+    node.style.width = `${loadWidth(MODAL_WIDTH)}px`;
+    node.style.height = `${loadWidth(MODAL_HEIGHT)}px`;
     node.showModal();
-    return () => node.close();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const watcher = new ResizeObserver(() => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        saveWidth(MODAL_WIDTH, node.offsetWidth);
+        saveWidth(MODAL_HEIGHT, node.offsetHeight);
+      }, SAVE_SIZE_MS);
+    });
+    watcher.observe(node);
+    return () => {
+      watcher.disconnect();
+      clearTimeout(timer);
+      node.close();
+    };
   }
 
   async function launch(body: Record<string, unknown>, what: string): Promise<void> {
@@ -175,9 +193,14 @@
 
 <style>
   .project-modal {
-    width: min(52rem, calc(100vw - 2rem));
-    max-height: min(42rem, calc(100dvh - 2rem));
+    min-width: 30rem;
+    min-height: 20rem;
+    max-width: calc(100vw - 2rem);
+    max-height: calc(100dvh - 2rem);
+    margin: auto;
     padding: 0;
+    overflow: hidden;
+    resize: both;
     background: var(--paper);
     color: var(--ink);
     border: 1px solid var(--rule-strong);
@@ -192,7 +215,7 @@
   .frame {
     display: grid;
     grid-template-rows: auto auto minmax(0, 1fr);
-    max-height: inherit;
+    height: 100%;
   }
 
   .head {
