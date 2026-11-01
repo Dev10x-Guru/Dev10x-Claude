@@ -49,8 +49,6 @@ async def test_get_returns_the_documented_success_keys(repo: Path) -> None:
         "path",
         "repo_name",
         "exists",
-        "legacy_read",
-        "legacy_path",
         "tasks",
         "continuation_prompt",
         "insights",

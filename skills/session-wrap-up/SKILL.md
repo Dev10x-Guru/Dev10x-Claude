@@ -284,10 +284,8 @@ continue."
 > regardless of allow rules (ADR-0018 RC-A) — so the exception was
 > paying the exact cost the ADR exists to remove. The index now lives
 > outside every repo and only the `task_index_*` MCP tools write it.
-> The retired path is read until removal in `0.112.0` per the
-> deprecation register (GH-1009,
-> [ADR-0028](../../docs/adr/0028-deprecations-carry-a-removal-version.md)),
-> then deleted by `dev10x:plugin-doctor`.
+> The retired path is no longer read; `dev10x:plugin-doctor` deletes
+> it.
 
 ## Phase 4: Summary
 

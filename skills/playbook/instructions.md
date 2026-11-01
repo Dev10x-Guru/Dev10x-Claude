@@ -34,10 +34,10 @@ Where `<key>` is the skill directory name (e.g., `work-on`,
 
 **Tier 2 (global)** uses `projects[].match_repo` globs — matched
 against the repo's `nameWithOwner` (`org/repo`) — so one file can
-serve multiple repos. `match:` is accepted here as a deprecated
-alias (ADR-0026) until removal in `0.112.0` per the deprecation
-register (GH-1375, ADR-0028); it means a **directory path** in
-`friction.yaml`, so do not copy a glob between the two files. See
+serve multiple repos. `match:` is no longer read here (ADR-0026,
+GH-1771) — an entry carrying only `match:` selects nothing. That key
+means a **directory path** in `friction.yaml`, so do not copy a glob
+between the two files. See
 `references/config-resolution.md` for the YAML format, the portable
 `*/<repo>` form, and the no-`origin`-remote case.
 

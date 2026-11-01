@@ -167,9 +167,7 @@ class Dev10xConfigDir:
         Keyed by the repo stem from the git **common dir**, so every worktree
         of a repo shares one index — matching the park family's "resurfaces
         next session in the same project" contract. No lazy migration: the
-        retired per-repo file is a read-only fallback until its removal
-        version in :mod:`dev10x.domain.deprecations`, folded forward on
-        first write rather than copied on path resolution.
+        retired per-repo file is not read at all since 0.112.0 (GH-1771).
         """
         return cls._resolve("task-index", f"{repo_name}.yaml")
 
@@ -381,6 +379,7 @@ _legacy_github_app_yaml = ClaudeDir.github_app_yaml
 _legacy_gitmoji_yaml = ClaudeDir.gitmoji_yaml
 _legacy_github_reviewers_config_yaml = ClaudeDir.github_reviewers_config_yaml
 _legacy_settings_pr_merge_yaml = ClaudeDir.settings_pr_merge_yaml
+_legacy_dod_acceptance_criteria_yaml = ClaudeDir.dod_acceptance_criteria_yaml
 
 
 def _legacy_plugin_maintenance_prefs_yaml() -> Path:
@@ -424,6 +423,10 @@ def _migration_pairs() -> list[tuple[Path, Path]]:
         (
             _legacy_plugin_maintenance_prefs_yaml(),
             Dev10xConfigDir._resolve("plugin-maintenance-prefs.yaml"),
+        ),
+        (
+            _legacy_dod_acceptance_criteria_yaml(),
+            Dev10xConfigDir._resolve("dod-acceptance-criteria.yaml"),
         ),
     ]
 

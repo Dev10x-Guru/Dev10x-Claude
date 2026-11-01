@@ -117,10 +117,8 @@ mcp__plugin_dev10x_cli__task_index_append(entry={
 2. Do NOT read-modify-write the store yourself. The tool owns the
    read-modify-write cycle; doing it by hand reintroduces both the
    lost-update race and the self-settings gate.
-3. On the first append after the GH-1009 rehome, the tool folds any
-   entries still sitting in the retired `.claude/Dev10x/session.yaml`
-   forward automatically and reports the file in `folded_legacy` —
-   nothing parked before the move is orphaned.
+3. The tool never reads the retired `.claude/Dev10x/session.yaml`.
+   Its fold-forward was removed in 0.112.0 (GH-1771).
 
 **Retired durable keys are not the index's business.** `friction_level`
 and `active_modes` are durable preferences that live in

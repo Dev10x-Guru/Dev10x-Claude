@@ -337,8 +337,8 @@ class TestReadSupervisorReview:
 
     ``human_review``'s name conflated the session supervisor with the wider
     team, which is why it could only ever gate ``merge``. The enum splits
-    them, keeps the boolean readable as a deprecated alias for one release,
-    and preserves the unset → safe-pole direction exactly.
+    them and preserves the unset → safe-pole direction exactly. GH-1771
+    stopped reading the boolean; ``dev10x config migrate-schema`` converts it.
     """
 
     def test_reads_the_declared_value(self, tmp_path: Path) -> None:
@@ -355,22 +355,21 @@ class TestReadSupervisorReview:
         toplevel = _write_config(tmp_path=tmp_path, content=f"supervisor_review: {raw}\n")
         assert SessionYamlDocument(toplevel=toplevel).read_supervisor_review() == "required"
 
-    @pytest.mark.parametrize(("legacy", "expected"), [("true", "required"), ("false", "none")])
-    def test_legacy_human_review_alias_is_honoured(
-        self, tmp_path: Path, legacy: str, expected: str
-    ) -> None:
+    @pytest.mark.parametrize("legacy", ["true", "false"])
+    def test_retired_human_review_key_is_ignored(self, tmp_path: Path, legacy: str) -> None:
+        # GH-1771: the boolean no longer reaches the gate, so `false` alone
+        # cannot lift the review floor.
         toplevel = _write_config(tmp_path=tmp_path, content=f"human_review: {legacy}\n")
-        assert SessionYamlDocument(toplevel=toplevel).read_supervisor_review() == expected
+        assert SessionYamlDocument(toplevel=toplevel).read_supervisor_review() == "required"
 
-    def test_explicit_key_outranks_the_legacy_alias(self, tmp_path: Path) -> None:
-        # A half-migrated file must not silently keep the old answer.
+    def test_explicit_key_is_read_beside_a_stale_human_review(self, tmp_path: Path) -> None:
         toplevel = _write_config(
             tmp_path=tmp_path, content="human_review: true\nsupervisor_review: none\n"
         )
         assert SessionYamlDocument(toplevel=toplevel).read_supervisor_review() == "none"
 
 
-class TestReadSupervisorReviewLegacyHumanReviewKey:
+class TestReadSupervisorReviewPrecedence:
     """ADR-0019 / GH-950: the durable, project-wide review posture.
 
     Replaces the ephemeral ``review-deferred`` mode, which was written to
@@ -379,31 +378,12 @@ class TestReadSupervisorReviewLegacyHumanReviewKey:
     to ``required`` — a bad value fails toward MORE oversight, never less.
     """
 
-    def test_reads_false_from_config(self, tmp_path: Path) -> None:
-        toplevel = _write_config(tmp_path=tmp_path, content="human_review: false\n")
-        assert SessionYamlDocument(toplevel=toplevel).read_supervisor_review() == "none"
-
-    def test_reads_true_from_config(self, tmp_path: Path) -> None:
-        toplevel = _write_config(tmp_path=tmp_path, content="human_review: true\n")
-        assert SessionYamlDocument(toplevel=toplevel).read_supervisor_review() == "required"
-
     def test_defaults_to_required_when_unset(self, tmp_path: Path) -> None:
         toplevel = _write_config(tmp_path=tmp_path, content="friction_level: guided\n")
         assert SessionYamlDocument(toplevel=toplevel).read_supervisor_review() == "required"
 
-    def test_defaults_to_required_when_both_missing(self, tmp_path: Path) -> None:
-        assert SessionYamlDocument(toplevel=str(tmp_path)).read_supervisor_review() == "required"
-
-    def test_non_boolean_string_reads_as_required(self, tmp_path: Path) -> None:
-        toplevel = _write_config(tmp_path=tmp_path, content='human_review: "no"\n')
-        assert SessionYamlDocument(toplevel=toplevel).read_supervisor_review() == "required"
-
-    def test_explicit_null_reads_as_required(self, tmp_path: Path) -> None:
-        toplevel = _write_config(tmp_path=tmp_path, content="human_review: null\n")
-        assert SessionYamlDocument(toplevel=toplevel).read_supervisor_review() == "required"
-
     def test_falls_back_to_pre_split_session(self, tmp_path: Path) -> None:
-        toplevel = _write(tmp_path=tmp_path, content="human_review: false\n")
+        toplevel = _write(tmp_path=tmp_path, content="supervisor_review: none\n")
         assert SessionYamlDocument(toplevel=toplevel).read_supervisor_review() == "none"
 
     def test_matching_friction_project_entry_wins(self, tmp_path: Path) -> None:
@@ -411,15 +391,15 @@ class TestReadSupervisorReviewLegacyHumanReviewKey:
         _write_friction(
             content=yaml.safe_dump(
                 {
-                    "defaults": {"human_review": True},
-                    "projects": [{"match": [str(tmp_path)], "human_review": False}],
+                    "defaults": {"supervisor_review": "required"},
+                    "projects": [{"match": [str(tmp_path)], "supervisor_review": "none"}],
                 }
             )
         )
         assert SessionYamlDocument(toplevel=str(tmp_path)).read_supervisor_review() == "none"
 
     def test_friction_defaults_apply_without_project_entry(self, tmp_path: Path) -> None:
-        _write_friction(content=yaml.safe_dump({"defaults": {"human_review": False}}))
+        _write_friction(content=yaml.safe_dump({"defaults": {"supervisor_review": "none"}}))
         assert SessionYamlDocument(toplevel=str(tmp_path)).read_supervisor_review() == "none"
 
     def test_matched_entry_shadows_permissive_default(self, tmp_path: Path) -> None:
@@ -427,7 +407,7 @@ class TestReadSupervisorReviewLegacyHumanReviewKey:
         _write_friction(
             content=yaml.safe_dump(
                 {
-                    "defaults": {"human_review": False},
+                    "defaults": {"supervisor_review": "none"},
                     "projects": [{"match": [str(tmp_path)], "friction_level": "adaptive"}],
                 }
             )
@@ -436,6 +416,9 @@ class TestReadSupervisorReviewLegacyHumanReviewKey:
 
     def test_is_a_durable_key(self) -> None:
         """Must be in DURABLE_KEYS or readers filter it out of project entries."""
+        assert "supervisor_review" in DURABLE_KEYS
+
+    def test_retired_key_stays_visible_to_the_schema_migrator(self) -> None:
         assert "human_review" in DURABLE_KEYS
 
 
@@ -740,13 +723,13 @@ class TestWithProject:
 
 
 class TestUpsertCarriesForwardDurableKeys:
-    """GH-1068 F3: a narrower entry must not silently drop `human_review`.
+    """GH-1068 F3: a narrower entry must not silently drop `supervisor_review`.
 
     Resolution is first-match-wins, so a worktree-path-scoped entry written by
     `set-friction` becomes the only entry the resolver sees for that worktree.
-    Written as a bare preset it dropped the repo entry's durable keys, and
-    `human_review` coerces toward `True` — a repo configured `human_review:
-    false` started demanding human review inside the worktree.
+    Written as a bare preset it dropped the repo entry's durable keys, and an
+    unset `supervisor_review` reads as `required` — a repo configured
+    `supervisor_review: none` started demanding review inside the worktree.
     """
 
     @staticmethod
@@ -760,7 +743,7 @@ class TestUpsertCarriesForwardDurableKeys:
                             "match": match,
                             "gate_preset": "guided",
                             "gate_overlays": ["afk"],
-                            "human_review": False,
+                            "supervisor_review": "none",
                             "protected_branches": ["main"],
                             "allowed_overlays": [],
                         }
@@ -781,7 +764,7 @@ class TestUpsertCarriesForwardDurableKeys:
         )
         written = yaml.safe_load(target.read_text())["projects"][-1]
         assert written["match"] == ["*/agent-abc"]
-        assert written["human_review"] is False
+        assert written["supervisor_review"] == "none"
         assert written["protected_branches"] == ["main"]
         assert written["allowed_overlays"] == []
 
@@ -804,12 +787,12 @@ class TestUpsertCarriesForwardDurableKeys:
         self._write_repo_entry(target, ["*/myrepo"])
         upsert_project_prefs(
             toplevel="/work/myrepo",
-            prefs={"gate_preset": "strict", "human_review": True},
+            prefs={"gate_preset": "strict", "supervisor_review": "required"},
             path=target,
             match=["*/myrepo"],
         )
         written = yaml.safe_load(target.read_text())["projects"][0]
-        assert written["human_review"] is True
+        assert written["supervisor_review"] == "required"
 
     def test_more_specific_probe_wins_over_repo_entry(self, tmp_path: Path) -> None:
         target = tmp_path / "friction.yaml"
@@ -817,8 +800,8 @@ class TestUpsertCarriesForwardDurableKeys:
             yaml.safe_dump(
                 {
                     "projects": [
-                        {"match": ["*/agent-abc"], "human_review": True},
-                        {"match": ["*/myrepo"], "human_review": False},
+                        {"match": ["*/agent-abc"], "supervisor_review": "required"},
+                        {"match": ["*/myrepo"], "supervisor_review": "none"},
                     ]
                 }
             )
@@ -831,7 +814,7 @@ class TestUpsertCarriesForwardDurableKeys:
             inherit_from=[str(tmp_path / "agent-abc"), "/work/myrepo"],
         )
         entries = yaml.safe_load(target.read_text())["projects"]
-        assert entries[0]["human_review"] is True
+        assert entries[0]["supervisor_review"] == "required"
 
     def test_no_matching_entry_writes_a_bare_preset(self, tmp_path: Path) -> None:
         target = tmp_path / "friction.yaml"

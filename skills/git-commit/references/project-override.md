@@ -101,10 +101,9 @@ List of match rules. Each entry:
 | `match_repo` | Yes | Glob pattern against the repo's `nameWithOwner` (`org/repo`) |
 | `strategy` | Yes | Name of a strategy defined above |
 
-Patterns are tested in order; first match wins. `match:` is accepted
-as a deprecated alias (ADR-0026) until removal in `0.112.0` per the
-deprecation register (GH-1375,
-[ADR-0028](../../../docs/adr/0028-deprecations-carry-a-removal-version.md)).
+Patterns are tested in order; first match wins.
+`match:` is no longer read here (ADR-0026, GH-1771) — an entry that
+carries only `match:` selects nothing, so rename it to `match_repo:`.
 
 **The target is `org/repo`, not the origin URL** (ADR-0026). URL
 matching was protocol-dependent: a glob anchored on the host resolved

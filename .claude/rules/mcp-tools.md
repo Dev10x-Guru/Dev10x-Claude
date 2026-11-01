@@ -210,7 +210,7 @@ one session). Use these shapes verbatim:
 | `pr_labels` | `pr_number`; `action` (`list` default / `add` / `remove`), plus `labels` for the two writes | separate `pr_label_add` / `pr_label_remove` names — it is one tool with an action selector, like `pr_comments` |
 | `issue_labels` | `number`; `action` (`list` default / `add` / `remove`), plus `labels` for the two writes | `issue_edit(labels=...)` for anything but adding — that parameter's docstring used to claim replacement semantics it never had (GH-1322); `pr_number` (that's `pr_labels`'s param name) |
 | `ci_rerun` | exactly one of `pr_number` / `head_sha`; optional `checks` (names), `failed_only` (default `true`), `repo` | passing both targets or neither — an error; assuming a third-party suite is unbounded across calls — its re-requests are counted in `~/.config/Dev10x/ci-rerun-attempts.json` per repo + PR (or head SHA) and stop at the same cap of 3 as Actions runs (GH-1724); reading a short listing as complete — check `truncated`, set when the 10-page ceiling is hit; raw `gh api --method POST .../rerequest` — routed here |
-| `task_index_get` | none (optional `cwd`) | `Read`ing `.claude/Dev10x/session.yaml` — retired by ADR-0018 D5; the tool probes it as a fallback |
+| `task_index_get` | none (optional `cwd`) | `Read`ing `.claude/Dev10x/session.yaml` — retired by ADR-0018 D5; the tool's fallback read was removed in 0.112.0 (GH-1771) |
 | `pr_ready` | `pr_number`; optional `undo` (bool) | assuming it only publishes — `undo=true` returns a PR to draft |
 | `ci_check_status` | `pr_number`; optional `repo` (defaults from `cwd`, GH-1683), `wait`, `wait_out_pending` (default `true`), `wait_for` (list of check names) | reading a `wait=true` `failing` as "every leg finished" — check `pending` (GH-1065); expecting `wait_out_pending` to cover a failed REQUIRED leg — it does not, use `wait_for` (GH-1138); raising `max_polls` to cover a slow PR — the grant is capped by the transport budget, so ask twice rather than once for longer (GH-1288) |
 | `create_pr` | `title`, `issue_id`, plus either `job_story` or `body`; optional `head`, `milestone`, `repo` | passing a long `job_story` and expecting the extra paragraphs to survive — only `body` is used verbatim (GH-1073); assuming `repo` is rejected — it is accepted since GH-1269 |
@@ -230,10 +230,8 @@ Behavioral caveats:
   `.claude/Dev10x/session.yaml` — is a defect twice over: under a repo's
   `.claude/` it trips the self-settings consent gate that no allow rule
   suppresses, and anywhere it bypasses the file lock, so two parallel
-  worktrees parking at once lose an entry. `task_index_get` reads the
-  retired path as a fallback until its removal version in the ADR-0028
-  register, `dev10x.domain.deprecations` (`legacy_read: true`), and
-  the next append folds it forward (`folded_legacy`).
+  worktrees parking at once lose an entry.
+  The retired path is no longer read: the `task_index_get` fallback and the append fold-forward were removed in 0.112.0 (GH-1771).
 
 - `pr_labels` carries the durable `review:cleared` signal (GH-1008).
   `dev10x:gh-pr-request-review` reads it before the stand-by clearance
@@ -675,11 +673,10 @@ Behavioral caveats:
   repo-stem keying and the same `pin_project_prefs` writer, and both are
   idempotent: an entry already covering the checkout is replaced, never
   duplicated. Gate the onboarding ask on `supervisor_review_status` →
-  `pinned: false` — the legacy `human_review` boolean config key (ADR-0019)
-  still counts as pinned until its removal version in the ADR-0028
-  register (`dev10x.domain.deprecations`), so a repo migrated before this
-  tool existed is not reported as unset. Nothing is written under a
-  repo's `.claude/` (ADR-0018).
+  `pinned: false`. Only `supervisor_review` counts as pinned: the retired
+  `human_review` boolean key (ADR-0019) is no longer read (GH-1771), so
+  run `dev10x config migrate-schema` on a repo that still carries it.
+  Nothing is written under a repo's `.claude/` (ADR-0018).
 - `resolve_gate` returns `{gate, effect (ask|auto-advance|skip),
   resolved_option, log_to, reason, floors_applied,
   anchor_recommendations}`; on an `auto-advance` it adds a `record`

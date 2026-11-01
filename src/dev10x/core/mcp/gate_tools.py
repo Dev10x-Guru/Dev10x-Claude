@@ -187,14 +187,12 @@ def _read_supervisor_review() -> Result[dict[str, Any]]:
     policy_toplevel = _policy_toplevel(toplevel)
     document = SessionYamlDocument(toplevel=policy_toplevel)
     supervisor_review = document.read_supervisor_review()
-    # A `friction.yaml` entry (either key — the `human_review` config key
-    # still counts until its removal version in dev10x.domain.deprecations,
-    # GH-1165) is "pinned"; falling back to `defaults:`
-    # or the safe unset default is not. This is the "first pick" signal an
-    # onboarding gate consults before offering to remember the answer —
-    # same contract as `preset_pin_status` / `tracker_status`.
+    # A `friction.yaml` entry naming `supervisor_review` is "pinned"; falling
+    # back to `defaults:` or the safe unset default is not. This is the "first
+    # pick" signal an onboarding gate consults before offering to remember the
+    # answer — same contract as `preset_pin_status` / `tracker_status`.
     matched = FrictionYamlDocument(toplevel=policy_toplevel).matched() or {}
-    pinned = "supervisor_review" in matched or "human_review" in matched
+    pinned = "supervisor_review" in matched
     return ok(
         {
             "supervisor_review": supervisor_review,
@@ -228,7 +226,7 @@ async def supervisor_review_status(cwd: str | None = None) -> Result[dict]:
         Dictionary with keys: supervisor_review ("required" | "none" —
         "required" when unset or malformed, so a bad value fails toward
         MORE oversight), pinned (bool — a `friction.yaml` entry names
-        `supervisor_review` or the legacy `human_review` key; consult this BEFORE
+        `supervisor_review`; consult this BEFORE
         offering to remember an onboarding pick, same "first pick"
         contract as `preset_pin_status` / `tracker_status`), repo_root.
         `{"error": ...}` outside a git repo.

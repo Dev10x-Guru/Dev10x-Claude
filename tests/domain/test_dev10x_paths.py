@@ -228,6 +228,7 @@ def test_migrate_all_includes_memory_dev10x_files(
         "gitmoji_yaml",
         "github_reviewers_config_yaml",
         "settings_pr_merge_yaml",
+        "dod_acceptance_criteria_yaml",
     ):
         legacy = getattr(ClaudeDir, accessor)()
         legacy.parent.mkdir(parents=True, exist_ok=True)
@@ -236,6 +237,7 @@ def test_migrate_all_includes_memory_dev10x_files(
     assert "gitmoji.yaml" in migrated_names
     assert "github-reviewers-config.yaml" in migrated_names
     assert "settings-pr-merge.yaml" in migrated_names
+    assert "dod-acceptance-criteria.yaml" in migrated_names
 
 
 def test_migrate_all_is_idempotent(isolated_dirs: tuple[Path, Path]) -> None:

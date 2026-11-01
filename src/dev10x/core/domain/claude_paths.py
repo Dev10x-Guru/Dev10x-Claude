@@ -157,5 +157,9 @@ class ClaudeDir:
     def settings_pr_merge_yaml(cls) -> Path:
         return cls._resolve("memory", "Dev10x", "settings-pr-merge.yaml")
 
+    @classmethod
+    def dod_acceptance_criteria_yaml(cls) -> Path:
+        return cls._resolve("memory", "Dev10x", "dod-acceptance-criteria.yaml")
+
 
 __all__ = ["ClaudeDir", "CLAUDE_HOME_ENV_VAR"]

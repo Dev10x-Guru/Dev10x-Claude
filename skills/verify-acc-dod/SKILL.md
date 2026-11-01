@@ -27,10 +27,6 @@ allowed-tools:
   - mcp__plugin_dev10x_cli__resolve_gate
   - mcp__plugin_dev10x_cli__detect_base_branch
   - Read(~/.config/Dev10x/dod-acceptance-criteria.yaml)
-  # Read-only grant on the GH-941-retired path so Step 2's one-release
-  # fallback does not prompt. Deliberately no Edit grant here — writes
-  # go to ~/.config/Dev10x/ only (GH-1035).
-  - Read(~/.claude/memory/Dev10x/dod-acceptance-criteria.yaml)
   - Edit(~/.config/Dev10x/dod-acceptance-criteria.yaml)
 ---
 
@@ -127,9 +123,9 @@ for the full procedure:
   into the list, deduped by `name`. Union, never replacement; never
   downgrade a `work_type` that already carries PR checks.
 - **Step 2 — repo overrides.** Read
-  `~/.config/Dev10x/dod-acceptance-criteria.yaml` (with a one-release
-  read-compat fallback to the retired memory path, announced when it
-  fires). Never *write* to the legacy path.
+  `~/.config/Dev10x/dod-acceptance-criteria.yaml` — the only location
+  read since 0.112.0 (GH-1771). Never read or write the retired
+  `~/.claude/memory/Dev10x/` copy.
 - **Step 3 — delta merge.** Apply the repo's deltas in the order
   remove → replace → add, so a just-added check cannot be removed and
   a removed one cannot be replaced.
@@ -395,8 +391,7 @@ Create the file if absent. Add the override under the current
 repo's key using add/remove/replace semantics.
 
 **Writes always target `~/.config/Dev10x/`** — never the legacy
-memory path, even when Step 2's read-compat fallback supplied the
-criteria this run. Writing back to the retired location is the
+memory path. Writing back to the retired location is the
 re-creation loop GH-925 E1 described: `dev10x config migrate` folds
 the legacy file forward, and the next skill run recreates it.
 

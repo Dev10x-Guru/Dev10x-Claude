@@ -51,7 +51,6 @@ from dev10x.domain.documents.friction_yaml import (
 from dev10x.domain.documents.yaml_mapping import load_yaml_mapping
 from dev10x.domain.friction_level import FrictionLevel
 from dev10x.domain.gate_policy import (
-    SUPERVISOR_REVIEW_NONE,
     SUPERVISOR_REVIEW_REQUIRED,
     coerce_supervisor_review,
 )
@@ -70,22 +69,6 @@ def _coerce_allowed_overlays(value: Any) -> list[str] | None:
     if not isinstance(value, list):
         return None
     return [str(overlay) for overlay in value]
-
-
-def _coerce_human_review(value: Any) -> bool:
-    """Coerce a durable ``human_review`` value to the review posture (ADR-0019).
-
-    ``True`` — the default — means humans (including the session
-    supervisor) are in the review loop: reviewers get requested and the
-    unresolved-threads / review-requested DoD checks run. Only a real
-    boolean ``False`` disables them.
-
-    An absent, ``None``, or non-boolean value (e.g. the string ``"no"``)
-    resolves to ``True`` so a malformed setting fails toward MORE
-    oversight, never less — the same safe direction ``allowed_overlays``
-    takes when it cannot parse a policy.
-    """
-    return value if isinstance(value, bool) else True
 
 
 def _coerce_protected_branches(value: Any) -> list[str] | None:
@@ -252,10 +235,8 @@ class SessionYamlDocument:
 
         Absent, unrecognised, or malformed values read as ``required``, so an
         unconfigured repo keeps oversight and every typo fails toward more of
-        it. The deprecated ``human_review`` boolean is honoured as an alias
-        until its removal version in :mod:`dev10x.domain.deprecations`:
-        ``true`` → ``required``, ``false`` → ``none``. An
-        explicit ``supervisor_review`` always wins over it.
+        it. The retired ``human_review`` boolean is not read here (GH-1771);
+        ``dev10x config migrate-schema`` converts it to ``supervisor_review``.
 
         ``data`` lets a caller that has already loaded ``_durable()`` reuse
         it — the reader is not memoised, and the gate path resolves this on
@@ -264,12 +245,6 @@ class SessionYamlDocument:
         prefs = self._durable() if data is None else data
         if "supervisor_review" in prefs:
             return coerce_supervisor_review(prefs["supervisor_review"])
-        if "human_review" in prefs:
-            return (
-                SUPERVISOR_REVIEW_REQUIRED
-                if _coerce_human_review(prefs["human_review"])
-                else SUPERVISOR_REVIEW_NONE
-            )
         return SUPERVISOR_REVIEW_REQUIRED
 
     def read_protected_branches(self) -> list[str] | None:
@@ -308,8 +283,7 @@ class SessionYamlDocument:
         ``None`` when unset (permissive), else the whitelist the resolver
         filters the computed overlays against before resolving a gate.
 
-        ``supervisor_review`` (ADR-0022 D-2, superseding ADR-0019's
-        ``human_review``) rides along because the review-boundary gate needs
+        ``supervisor_review`` (ADR-0022 D-2) rides along because the review-boundary gate needs
         it and ``_durable()`` is not memoised — reading it via
         :meth:`read_supervisor_review` instead would re-open and re-parse the
         same YAML a second time on every gate resolution.

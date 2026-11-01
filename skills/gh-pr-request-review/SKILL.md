@@ -75,7 +75,7 @@ projects:
   so a reviewed PR can be cleared for merge or escalated to the team
   without re-arguing the override (GH-998). Persists nothing — for a
   standing "no humans review here" posture set durable
-  `human_review: false` instead (ADR-0019)
+  `supervisor_review: none` instead (ADR-0022 D-2)
 - `default_action: ask` prompts the user for unconfigured projects;
   `skip` silently skips them; `standby` defers without prompting
 
@@ -94,12 +94,12 @@ re-derive preset behavior in prose. The tool reads session policy
    deprecation register, GH-1161, ADR-0028). Do NOT read
    `~/.config/Dev10x/friction.yaml` directly or re-derive its
    first-match-wins precedence in prose — same rule this section already
-   applies to `resolve_gate`. When it is `false`, this project has no humans in
+   applies to `resolve_gate`. When it is `none`, this project has no humans in
    the review loop: do NOT request review and do NOT resolve reviewers,
    but STILL run the **Pre-flight: Draft State Check** below (same
    reasoning as `effect == "skip"` in step 4 — a draft PR whose CI is
    suppressed would never become mergeable). Print "Skipping review
-   request (human_review: false)" and stop. Otherwise continue to
+   request (supervisor_review: none)" and stop. Otherwise continue to
    step 1.
 1. Call `mcp__plugin_dev10x_cli__resolve_gate(gate="request_review",
    context={})`.
@@ -339,10 +339,9 @@ of the global `~/.config/Dev10x/friction.yaml`, read via
   what lifts the park; `dev10x:git-groom` removes it after a
   force-push, so the park comes back on rewritten history.
 
-The deprecated `human_review: true|false` spelling is still read
-until removal in `0.112.0` per the deprecation register (GH-1161,
-ADR-0028) — `true` → `required`, `false` → `none`; an explicit
-`supervisor_review` always wins over it.
+The retired `human_review: true|false` key is no longer read (GH-1771).
+A repo still carrying it resolves to `required`.
+Run `dev10x config migrate-schema` to convert it to `supervisor_review`.
 
 The legacy `review-deferred` mode string is still **read** for
 back-compat (a playbook `modes.review-deferred.skip` clause or an

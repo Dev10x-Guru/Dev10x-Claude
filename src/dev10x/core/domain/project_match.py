@@ -4,9 +4,10 @@ ADR-0026 settled that ``projects[].match`` carries two incompatible
 meanings across ``~/.config/Dev10x/``: a directory-path glob in
 ``friction.yaml`` (code-backed, ADR-0018 D3) and an ``org/repo`` glob in
 every prose-resolved file. The repo-addressed side renames to
-``match_repo:``; ``match:`` stays a deprecated alias there until its
-removal version in :mod:`dev10x.domain.deprecations`, because nothing
-rewrites a user's hand-edited config.
+``match_repo:``, and ``match:`` is no longer read there (GH-1771).
+Nothing rewrites a user's hand-edited config, so an entry still carrying
+only ``match:`` is reported as a retired key instead of vanishing
+silently.
 
 The rename only makes a crossed convention legible. What prevents the
 recurrence is :class:`ProjectsReport`, which keeps four outcomes apart
@@ -67,7 +68,7 @@ class EntryReport:
     index: int
     patterns: tuple[str, ...]
     matched: bool
-    deprecated_alias: bool
+    retired_key: bool
     shape_warnings: tuple[str, ...]
 
 
@@ -90,8 +91,8 @@ class ProjectsReport:
         return None
 
     @property
-    def deprecated_alias_indexes(self) -> tuple[int, ...]:
-        return tuple(entry.index for entry in self.entries if entry.deprecated_alias)
+    def retired_key_indexes(self) -> tuple[int, ...]:
+        return tuple(entry.index for entry in self.entries if entry.retired_key)
 
     @property
     def shape_warnings(self) -> tuple[tuple[int, str], ...]:
@@ -108,28 +109,29 @@ class ProjectsReport:
         """
         return (
             self.status in (ProjectsStatus.NO_MATCH, ProjectsStatus.UNRESOLVED)
-            or bool(self.deprecated_alias_indexes)
+            or bool(self.retired_key_indexes)
             or bool(self.shape_warnings)
         )
 
 
 def read_patterns(entry: Any, *, scheme: MatchScheme) -> tuple[tuple[str, ...], bool]:
-    """Return an entry's globs and whether they came from a deprecated alias.
+    """Return an entry's globs and whether it carries only a retired key.
 
-    A repo-addressed entry prefers ``match_repo:`` and falls back to
-    ``match:``. A path-addressed entry has only ``match:``, so it can
-    never report an alias. A scalar glob is accepted as a one-element
-    list — ``pin_project_prefs`` writes a list, but a hand-edited file
-    commonly carries a bare string.
+    Each scheme reads exactly one key: ``match_repo:`` for a
+    repo-addressed entry, ``match:`` for a path-addressed one. A
+    repo-addressed entry whose only globs sit under ``match:`` selects
+    nothing and is flagged, so the rename it still needs is reported
+    rather than lost. A scalar glob is accepted as a one-element list —
+    ``pin_project_prefs`` writes a list, but a hand-edited file commonly
+    carries a bare string.
     """
     if not isinstance(entry, dict):
         return (), False
-    if scheme is MatchScheme.REPO and REPO_MATCH_KEY in entry:
+    if scheme is MatchScheme.PATH:
+        return _as_patterns(entry.get(PATH_MATCH_KEY)), False
+    if REPO_MATCH_KEY in entry:
         return _as_patterns(entry[REPO_MATCH_KEY]), False
-    raw = entry.get(PATH_MATCH_KEY)
-    if raw is None:
-        return (), False
-    return _as_patterns(raw), scheme is MatchScheme.REPO
+    return (), bool(_as_patterns(entry.get(PATH_MATCH_KEY)))
 
 
 def _as_patterns(raw: Any) -> tuple[str, ...]:
@@ -220,7 +222,7 @@ def evaluate_projects(
     entries: list[EntryReport] = []
     any_matched = False
     for index, entry in enumerate(projects):
-        patterns, deprecated = read_patterns(entry, scheme=scheme)
+        patterns, retired = read_patterns(entry, scheme=scheme)
         warnings = tuple(
             warning
             for pattern in patterns
@@ -237,7 +239,7 @@ def evaluate_projects(
                 index=index,
                 patterns=patterns,
                 matched=matched,
-                deprecated_alias=deprecated and bool(patterns),
+                retired_key=retired,
                 shape_warnings=warnings,
             )
         )
@@ -274,9 +276,9 @@ def describe(report: ProjectsReport) -> list[str]:
             f"      no `{report.scheme.key}:` glob matched {report.target!r} "
             f"({len(report.entries)} entr{'y' if len(report.entries) == 1 else 'ies'} checked)."
         )
-    for index in report.deprecated_alias_indexes:
+    for index in report.retired_key_indexes:
         lines.append(
-            f"      entry {index}: `match:` is a deprecated alias here — "
+            f"      entry {index}: `match:` is no longer read in this file — "
             f"rename it to `{REPO_MATCH_KEY}:` (ADR-0026)."
         )
     for index, warning in report.shape_warnings:

@@ -40,10 +40,12 @@ _DURABLE_KEYS = (
     "gate_preset",
     "gate_overlays",
     "gate_overrides",
+    # Retired (GH-1771): no gate reads it. Kept so `dev10x config
+    # migrate-schema` still sees it and converts it to `supervisor_review`,
+    # like `friction_level` above.
     "human_review",
     # ADR-0022 D-2: does the supervisor read this PR before the next step is
-    # allowed? `required` | `none`. Supersedes `human_review`, which is kept
-    # above as a deprecated alias (removal: dev10x.domain.deprecations).
+    # allowed? `required` | `none`.
     "supervisor_review",
     "protected_branches",
     # Which issue tracker this project uses, so `ensure-base` seeds that
@@ -434,10 +436,10 @@ def _carried_durable_prefs(*, doc: dict[str, Any], probes: list[str]) -> dict[st
     e.g. a worktree-path-scoped ``*/agent-<id>`` from ``set-friction`` — makes
     that entry the only one the resolver ever sees for the worktree. Written as
     a bare preset it silently DROPS whatever the repo's own entry carried, and
-    ``human_review`` is the key that hurts: ``_coerce_human_review`` fails
-    toward ``True``, so a repo deliberately configured ``human_review: false``
-    starts demanding human review inside the worktree with no signal that a
-    setting was lost.
+    ``supervisor_review`` is the key that hurts: an unset value reads as
+    ``required``, so a repo deliberately configured ``supervisor_review: none``
+    starts demanding supervisor review inside the worktree with no signal that
+    a setting was lost.
 
     ``probes`` is ordered most-specific-first, so an entry already covering the
     exact checkout wins over the repo-root entry it would otherwise inherit.
@@ -512,7 +514,7 @@ def upsert_project_prefs(
     ``inherit_from`` (most-specific path first, defaulting to ``supersedes``)
     names the checkouts whose currently-effective entry this write inherits
     non-gate durable keys from, so a narrower entry cannot silently drop the
-    ``human_review`` / ``protected_branches`` / overlay-guard settings the
+    ``supervisor_review`` / ``protected_branches`` / overlay-guard settings the
     entry it shadows carried (GH-1068 F3). A worktree caller passes the repo
     root here as well, since no existing entry matches the worktree path.
     """

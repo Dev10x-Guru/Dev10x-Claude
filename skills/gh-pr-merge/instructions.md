@@ -25,9 +25,8 @@ The merge strategy is resolved using the config resolution order
 
 1. **Global with repo matching** — read
    `<Dev10x config>/settings-pr-merge.yaml`, match the current repo's
-   `org/repo` against `projects[].match_repo` globs (`match:` is a
-   deprecated alias, ADR-0026, until removal in `0.112.0` per the
-   deprecation register — GH-1375, ADR-0028). With no `origin`
+   `org/repo` against `projects[].match_repo` globs (`match:` is no
+   longer read here — ADR-0026, GH-1771). With no `origin`
    remote there is no `org/repo` to match, so the list is not
    evaluated at all and the default applies.
 2. **Default** — `rebase`

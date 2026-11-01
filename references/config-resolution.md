@@ -84,13 +84,11 @@ Both use standard Unix glob syntax (`fnmatch`): `*` matches any string
 — **including `/`** — `?` matches a single character, `[seq]` matches
 any character in *seq*.
 
-> **Deprecated alias.** `match:` is still accepted in a repo-addressed
-> file, per the deprecation register
-> (`src/dev10x/domain/deprecations.py`, GH-1375), so an existing
-> playbook keeps working until removal in `0.112.0`
-> ([ADR-0028](../docs/adr/0028-deprecations-carry-a-removal-version.md)).
-> Rename it to `match_repo:`; `dev10x config doctor` and
-> `dev10x playbook diff` report every entry still on the alias.
+> **`match:` is no longer read in a repo-addressed file** (GH-1771).
+> An entry that still carries only `match:` selects nothing.
+> Rename it to `match_repo:`.
+> `dev10x config doctor` and `dev10x playbook diff` report every entry
+> still on the retired key.
 
 ```yaml
 projects:
@@ -104,7 +102,7 @@ projects:
 **Resolution within Tier 2 (repo-addressed files):**
 1. Get current repo: `git remote get-url origin` → extract `owner/repo`
 2. Walk the `projects` list — first `match_repo` glob that fits selects
-   the config block (`match:` is read as the deprecated alias)
+   the config block (an entry with only `match:` is skipped)
 3. If no match, skip Tier 2 (fall through to Tier 3 or 4)
 
 **No `origin` remote.** Step 1 has a failure case: a local-only repo, a
@@ -230,15 +228,9 @@ projects:
 | 2 | `~/.config/Dev10x/dod-acceptance-criteria.yaml` |
 | 3 | Plugin defaults (hardcoded in skill) |
 
-`dev10x:verify-acc-dod` falls back to the GH-941-retired
-`~/.claude/memory/Dev10x/dod-acceptance-criteria.yaml` when tier 2 is
-absent, and says so in its output when the fallback fires — until
-removal in `0.112.0` per the deprecation register (GH-1035,
-[ADR-0028](../docs/adr/0028-deprecations-carry-a-removal-version.md)).
-That fallback is **read-only** — overrides are always written to
-the tier-2 path above. Until GH-1035 the skill named the legacy path as
-its sole location while this table named the tier-2 one, so a
-maintainer's edits landed in a file nothing read.
+Tier 2 is the only location `dev10x:verify-acc-dod` reads or writes.
+The retired `~/.claude/memory/Dev10x/dod-acceptance-criteria.yaml` is
+not read; `dev10x config migrate` copies it to tier 2.
 
 ### Gitmoji Overrides
 
