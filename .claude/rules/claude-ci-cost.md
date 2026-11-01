@@ -145,8 +145,11 @@ things keep a merged head reviewed:
    with HEAD before a merge.
 
 A draft suppresses CI here, so after a push the PR shows no checks
-until it is marked ready again: an agent that pushes a fixup marks the
-PR ready (`pr_ready`) to get CI and the next round. A push made with
+until it is marked ready again: an agent that pushes to a PR that was
+ready before the push marks it ready again (`pr_ready`) to get CI and
+the next round — `dev10x:gh-pr-fixup`, `dev10x:git-groom` and
+`dev10x:gh-pr-monitor` do this, per `.claude/rules/mcp-tools.md`
+§ `pr_ready` after a push (GH-1731). A push made with
 the workflow `GITHUB_TOKEN` fires no `pull_request` event, and a fork
 PR's run gets no secrets, so neither is drafted — flip those by hand.
 

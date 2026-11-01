@@ -22,6 +22,9 @@ allowed-tools:
   - mcp__plugin_dev10x_cli__pr_review_comment_edit
   - mcp__plugin_dev10x_cli__pr_labels
   - mcp__plugin_dev10x_cli__issue_comment_edit
+  # Phase 3 re-readies a PR its force-push drafted (GH-1731).
+  - mcp__plugin_dev10x_cli__pr_get
+  - mcp__plugin_dev10x_cli__pr_ready
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/git-groom/scripts/:*)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/git/scripts/git-rebase-groom.sh:*)
   # Read-only Phase 1 analysis shapes (GH-997). Phase 1 prescribes these,

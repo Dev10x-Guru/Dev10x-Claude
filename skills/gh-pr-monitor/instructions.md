@@ -677,9 +677,10 @@ confirmed not merged):
 3. If `dev10x:git-groom` reports unresolved conflicts, stop the
    monitor and report the conflicting files to the user.
 
-4. After the wrapper completes the force-push, wait 30 seconds for
-   GitHub to re-compute mergeability and re-run CI, then restart the
-   Phase 1 loop.
+4. After the wrapper completes the force-push, re-run the Phase 0.5
+   readiness check: a push can draft a ready PR (GH-1731), and a draft
+   gets no CI. Then wait 30 seconds for GitHub to re-compute
+   mergeability and re-run CI, and restart the Phase 1 loop.
 
 ### Post-CI Comment Re-check (REQUIRED)
 
@@ -737,8 +738,9 @@ gates. Loop until no unaddressed comments remain.
    the supervisor refuses the action and explains to the reviewer
    via a reply.
 
-4. After `gh-pr-respond` completes, fixups have been pushed; CI
-   will re-run. Re-dispatch `haiku-ci-poll` (Phase 1) until
+4. After `gh-pr-respond` completes, fixups have been pushed. Re-run
+   the Phase 0.5 readiness check first — a push can draft a ready PR
+   (GH-1731), and a draft gets no CI. Re-dispatch `haiku-ci-poll` (Phase 1) until
    verdict is green again, then re-dispatch `haiku-thread-scan`
    in case more comments arrived during the cycle.
 

@@ -65,6 +65,10 @@ base_permissions:
   # Plugin-mandated workflow write (GH-1215): the raw milestone PATCH is
   # routed to the wrapper, so leaving it uncatalogued is a dead end.
   - "mcp__plugin_dev10x_cli__milestone_close"
+  # Same GH-1215 reasoning: the raw ready-flip CLI is routed to this
+  # wrapper. Owned by coding since gh-pr-fixup and git-groom re-ready a
+  # PR a push drafted (GH-1731).
+  - "mcp__plugin_dev10x_cli__pr_ready"
 
   # --- gh CLI patterns (GH-98) ---
   - "Bash(gh pr view:*)"

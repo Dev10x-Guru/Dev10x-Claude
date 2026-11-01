@@ -679,6 +679,15 @@ the new HEAD. All previous CI results become invalid. The calling
 skill (e.g., `dev10x:work-on`) MUST re-monitor CI after grooming
 completes — do not declare CI green based on pre-groom results.
 
+**REQUIRED — re-ready a PR the push drafted (GH-958, GH-1731).** A
+force-push resets a published PR to draft, and `pr-draft-on-push.yml`
+drafts it on any push; a draft gets no CI. When an open PR exists,
+read `isDraft` with `mcp__plugin_dev10x_cli__pr_get` before the push
+and again after it. If it was ready before and is a draft now, call
+`mcp__plugin_dev10x_cli__pr_ready(pr_number=<n>)` and confirm
+`isDraft: false` from its payload. A PR that was already a draft stays
+one. Full rule: `.claude/rules/mcp-tools.md` § `pr_ready` after a push.
+
 **REQUIRED — clear a stale review clearance (GH-1008).** A force-push
 invalidates a human sign-off for the same reason it invalidates CI:
 the commits the supervisor read are no longer the commits under

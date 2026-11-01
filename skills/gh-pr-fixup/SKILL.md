@@ -18,6 +18,8 @@ allowed-tools:
   - Bash(gh api:*)
   - Bash(pytest:*)
   - mcp__plugin_dev10x_cli__push_safe
+  - mcp__plugin_dev10x_cli__pr_get
+  - mcp__plugin_dev10x_cli__pr_ready
 ---
 
 # Implement Fix for PR Review Comment
@@ -226,9 +228,21 @@ https://github.com/{owner}/{repo}/pull/{pr}#discussion_r{comment_id}
 
 ### Step 6: Push the Fixup Commit
 
+**Before pushing**, read `isDraft` with
+`mcp__plugin_dev10x_cli__pr_get(number={pr_number})` and remember it.
+
 **Primary (MCP tool):** `mcp__plugin_dev10x_cli__push_safe(args=["origin", "HEAD"])`
 
 **Fallback:** `Skill(dev10x:git)` for safe push with protected branch checks.
+
+**Re-ready a PR the push drafted (GH-1731).** A push to a ready PR can
+convert it to draft (`pr-draft-on-push.yml`, GH-1694), and a draft gets
+no CI. After the push, re-read `pr_get`. If the PR was ready before the
+push and is a draft now, call
+`mcp__plugin_dev10x_cli__pr_ready(pr_number={pr_number})` and confirm
+`isDraft: false` from its payload. A PR that was already a draft stays
+one — readiness was not this push's to grant. Full rule:
+`.claude/rules/mcp-tools.md` § `pr_ready` after a push.
 
 Get the commit hash and build both link types for the reply:
 ```bash

@@ -246,7 +246,6 @@ base_permissions:
   # prompt while the unsanctioned one is denied — a dead end, not a
   # safety margin.
   - "mcp__plugin_dev10x_cli__update_pr"
-  - "mcp__plugin_dev10x_cli__pr_ready"
   - "mcp__plugin_dev10x_cli__pr_close"
   - "mcp__plugin_dev10x_cli__pr_issue_comment"
   - "mcp__plugin_dev10x_cli__pr_review_edit"
