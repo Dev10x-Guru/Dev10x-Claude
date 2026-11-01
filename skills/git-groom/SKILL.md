@@ -25,6 +25,9 @@ allowed-tools:
   # Phase 3 re-readies a PR its force-push drafted (GH-1731).
   - mcp__plugin_dev10x_cli__pr_get
   - mcp__plugin_dev10x_cli__pr_ready
+  # Phase 0 / Phase 4 PR detection and the Phase 3 push (GH-1703).
+  - mcp__plugin_dev10x_cli__pr_detect
+  - mcp__plugin_dev10x_cli__push_safe
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/git-groom/scripts/:*)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/git/scripts/git-rebase-groom.sh:*)
   # Read-only Phase 1 analysis shapes (GH-997). Phase 1 prescribes these,
@@ -52,6 +55,15 @@ allowed-tools:
   - Bash(git commit --allow-empty -F:*)
   - Bash(git rebase --continue:*)
   - Bash(git rebase --abort:*)
+  # Shapes the instructions prescribe (GH-1703): the Stash Guard's
+  # tagged stash, the autosquash alias and the gitignore diagnosis.
+  - Bash(git status --porcelain:*)
+  - Bash(git stash push -u -m groom-guard-*:*)
+  - Bash(git stash list:*)
+  - Bash(git stash apply:*)
+  - Bash(git stash drop:*)
+  - Bash(git autosquash-develop:*)
+  - Bash(git check-ignore:*)
   - Bash(git add -f:*)
   - Bash(git write-tree:*)
   - Bash(git commit-tree:*)
