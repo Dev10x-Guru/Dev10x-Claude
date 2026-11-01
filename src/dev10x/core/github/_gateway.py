@@ -22,11 +22,14 @@ import logging
 import os
 import subprocess
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 from dev10x.core.github.app_auth import AppConfig, get_bot_token
 from dev10x.domain.common.repository_ref import RepositoryRef
 from dev10x.domain.common.result import Result, err, ok
+from dev10x.domain.git_context import GitContext
+from dev10x.domain.milestone_prefixes import REGISTRY_RELPATH, parse_registered_prefixes
 from dev10x.domain.retry import RetryPolicy, is_retryable, retry_after_seconds
 from dev10x.subprocess_utils import async_run, async_run_script
 
@@ -165,6 +168,21 @@ async def _bot_env(*, repo: str) -> dict[str, str] | None:
             )
         return None
     return {**os.environ, "GH_TOKEN": token, "GITHUB_TOKEN": token}
+
+
+def _milestone_prefix_registry() -> frozenset[str] | None:
+    """Registered milestone prefixes for the current checkout, or None.
+
+    None means the checkout keeps no registry, so the GH-1690 guard does
+    not apply — `milestone_create` serves every repo, not only this one.
+    """
+    toplevel = GitContext().toplevel
+    if toplevel is None:
+        return None
+    registry = Path(toplevel) / REGISTRY_RELPATH
+    if not registry.is_file():
+        return None
+    return parse_registered_prefixes(text=registry.read_text(encoding="utf-8"))
 
 
 async def _resolve_repo(
