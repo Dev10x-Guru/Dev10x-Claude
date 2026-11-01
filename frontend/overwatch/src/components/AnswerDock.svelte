@@ -4,7 +4,15 @@
 
   import ToolPreview from "./ToolPreview.svelte";
   import { parseSteps, splitDialog } from "../lib/dialog";
-  import { clockTime, displayName, inHerdr, isStockExtra, optionText, waitingLabel } from "../lib/format";
+  import {
+    clockTime,
+    displayName,
+    inHerdr,
+    isStockExtra,
+    optionText,
+    refusesCall,
+    waitingLabel,
+  } from "../lib/format";
   import { record } from "../lib/recent.svelte";
   import type { AfterAnswer } from "../lib/prefs";
   import type { Decision, PromptOption, Session } from "../lib/types";
@@ -48,6 +56,19 @@
   const compact = $derived(
     choices.every((option) => !option.detail && optionText(option).label.length <= COMPACT_LABEL),
   );
+  const asksPermission = $derived(Boolean(session.prompt && preview));
+
+  let preapproveToo = $state(false);
+
+  async function preapprove(option: PromptOption): Promise<void> {
+    if (!preapproveToo || !asksPermission || refusesCall(option) || isStockExtra(option)) return;
+    preapproveToo = false;
+    await run(
+      "/preapprove",
+      { session_id: session.session_id, pending_only: true },
+      `Asked the relay to draft an allow rule for ${displayName(session)}'s call; it checks with you before writing`,
+    );
+  }
 
   function remembered(id: string, question: string, options: string[], chosen: string): void {
     record({
@@ -64,6 +85,7 @@
   async function choose(option: PromptOption): Promise<void> {
     const prompt = session.prompt;
     const label = optionText(option).label;
+    await preapprove(option);
     const sent = await run(
       "/keys",
       { session_id: session.session_id, key: option.key, label: option.label },
@@ -148,6 +170,15 @@
     {/if}
     {#each dialog?.notes ?? [] as note, index (index)}<p class="note">{note}</p>{/each}
     {#if question}<p class={["question", { long: question.length > LONG_QUESTION }]}>{question}</p>{/if}
+    {#if asksPermission}
+      <label class="preapprove">
+        <input type="checkbox" bind:checked={preapproveToo} disabled={pending} />
+        <span>
+          Also pre-approve this call for later
+          <span class="hint">the relay drafts an allow rule and checks it with you; skipped when you answer No</span>
+        </span>
+      </label>
+    {/if}
     <ol class={["options", { compact }]}>
       {#each choices as option (option.key)}
         {@const text = optionText(option)}
@@ -335,6 +366,27 @@
 
   .note {
     font-size: var(--step--1);
+  }
+
+  .preapprove {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    max-width: 72ch;
+    font-size: var(--step--1);
+    color: var(--ink);
+    cursor: pointer;
+  }
+
+  .preapprove input {
+    accent-color: var(--amber);
+    translate: 0 0.12em;
+  }
+
+  .preapprove .hint {
+    display: block;
+    color: var(--ink-soft);
+    font-size: 0.72rem;
   }
 
   .unacked {

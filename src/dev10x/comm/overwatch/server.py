@@ -965,7 +965,16 @@ class OverwatchHandler(BaseHTTPRequestHandler):
             preview = self.app.previews.get(view.session_id)
         commands = self.app.commands_reader(session_id=view.session_id)
         chosen = str(body.get("command", "")).strip()
-        if chosen:
+        if body.get("pending_only") is True:
+            if preview is None:
+                raise RequestError(
+                    status=HTTPStatus.CONFLICT,
+                    message=(
+                        "No call is waiting in that session, so there is nothing to pre-approve."
+                    ),
+                )
+            commands = []
+        elif chosen:
             if chosen not in commands:
                 raise RequestError(
                     status=HTTPStatus.CONFLICT,

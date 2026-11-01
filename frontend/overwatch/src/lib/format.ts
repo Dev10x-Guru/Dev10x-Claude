@@ -30,6 +30,12 @@ export function optionText(option: PromptOption): { label: string; recommended: 
   };
 }
 
+const REFUSAL = /^no\b/i;
+
+export function refusesCall(option: PromptOption): boolean {
+  return REFUSAL.test(option.label.trim());
+}
+
 const STOCK_EXTRAS = /^(type something|chat about this)\.?$/i;
 
 export function isStockExtra(option: PromptOption): boolean {
