@@ -12,6 +12,8 @@ description: >
 user-invocable: true
 invocation-name: dev10x:ticket-create
 allowed-tools:
+  - AskUserQuestion
+  - Read(${CLAUDE_PLUGIN_ROOT}/skills/ticket-create/references/*)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/gh-context/scripts/:*)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/ticket-create/scripts/:*)
   - Bash(gh issue create:*)
@@ -31,6 +33,15 @@ allowed-tools:
 
 This skill creates a well-structured ticket in GitHub Issues, Linear, or JIRA with proper formatting, comprehensive description, and appropriate labels. It ensures consistent ticket quality across all creation contexts.
 
+> **[OVERRIDE DETECTED]** — over the 200-line SKILL.md budget
+> (GH-1705). Title patterns, label signals and per-tracker creation
+> recipes live in `references/tracker-creation.md`. What remains gates
+> execution: mode detection, the Step 4 never-file-bare triage, the
+> Step 4e confirmation gate, and the Step 5 dispatch contract with its
+> inline-creation exceptions. **Split plan:** if it passes ~380 lines,
+> move the GH-156 anti-pattern history and the Step 5 exceptions to
+> `references/`.
+
 ## Orchestration
 
 This skill follows `references/task-orchestration.md` patterns.
@@ -41,6 +52,21 @@ Create a task at invocation, mark completed when done:
 1. `TaskCreate(subject="Create issue tracker ticket", activeForm="Creating ticket")`
 
 Mark completed when done: `TaskUpdate(taskId, status="completed")`
+
+## Execution Mode (GH-1704)
+
+Detected the same way `dev10x:git-commit` detects it. **Unattended**
+mode applies only when **both** hold:
+
+1. The skill was invoked via `Skill(dev10x:ticket-create)` by another
+   skill or agent, not typed by the user as `/dev10x:ticket-create`.
+2. The caller is executing a plan step with an active task list
+   (an orchestrator such as `dev10x:work-on`, `dev10x:audit-file`,
+   or a `dev10x:foreman` crew).
+
+When either is absent — including any direct `/dev10x:ticket-create`
+— run **attended**. When in doubt, run attended. Only the Step 4e
+gate differs between the two modes.
 
 ## Prerequisites Check
 
@@ -130,18 +156,9 @@ Understand what the ticket is about from the provided context:
 
 ### Step 2: Generate Ticket Title
 
-Create a descriptive, concise title following these patterns:
-
-**Title Format Patterns:**
-
-| Context | Pattern | Example |
-|---------|---------|---------|
-| Tech debt | "Fix tech debt in..." | "Fix tech debt in TestAddTireService flaky tests" |
-| Bug fix | "Fix bug in..." | "Fix bug in payment processing timeout handling" |
-| Enhancement | "Improve..." | "Improve customer search performance" |
-| Refactoring | "Refactor..." | "Refactor invoice generation service" |
-| Test improvement | "Fix flaky test in..." | "Fix flaky test in work order creation" |
-| Missing feature | "Add..." | "Add retry mechanism for Square API" |
+Create a descriptive, concise title. Per-context patterns are in
+[`references/tracker-creation.md`](references/tracker-creation.md)
+§ Title Format Patterns.
 
 **Title Rules:**
 - Keep concise but descriptive (aim for < 80 characters)
@@ -191,21 +208,11 @@ description). Do NOT work from a hardcoded list — a stale table is
 how the taxonomy drifted out of use in the first place.
 
 **Step 4b — propose labels.** Match the ticket's title and body
-against the returned roster:
-
-| Signal in the ticket | Label to propose |
-|----------------------|------------------|
-| Names a skill (`dev10x:fanout`, `gh-pr-create`, …) | the matching `skill:*` label |
-| Permission prompt / allow-rule gap | `permission-friction` |
-| Error swallowed or surfaced without diagnostics | `silent-failure` |
-| Raw git/gh used where a wrapper is required | `routing-bypass` |
-| Umbrella issue spanning milestones | `tracker` |
-| New capability | `enhancement` |
-| Incorrect behavior | `bug` |
-
-Propose every label whose signal is present — labels are not
-exclusive. When the roster contains a label this table does not
-mention, prefer the roster: its description states its purpose.
+against the returned roster using the signal table in
+[`references/tracker-creation.md`](references/tracker-creation.md)
+§ Label Signals. Propose every label whose signal is present; when
+the roster holds a label the table does not mention, prefer the
+roster's own description.
 
 **Step 4c — propose a milestone.** Match the ticket's theme against
 the open milestones' titles and descriptions, respecting the
@@ -222,10 +229,21 @@ with one query instead of reading every bare issue. Never leave BOTH
 milestone and labels empty — that is the state this step exists to
 prevent.
 
-**Attended mode:** present the proposal at the Step 5 confirmation
-so the user can adjust it. **Unattended mode:** apply the best match
-and proceed — filing bare is not the safe default here, it is the
-defect.
+**Step 4e — confirm the proposal (attended mode only).** Before
+dispatching Step 5, show the proposed title, milestone and labels.
+
+**REQUIRED: Call `AskUserQuestion`** (do NOT use plain text). This
+blocks until the user responds. Options:
+
+- **Create as proposed (Recommended)** — file with this title,
+  milestone and labels
+- **Edit title, milestone or labels** — the user states the change;
+  apply it and show the gate again
+- **Abort** — file nothing
+
+**Unattended mode** (see § Execution Mode): skip the gate, apply the
+best match and proceed — filing bare is not the safe default here,
+it is the defect.
 
 ### Step 5: Create the Ticket
 
@@ -292,91 +310,14 @@ the session context, so you execute creation directly per
 tracker-specific instructions below without wrapping in
 Agent().
 
-**Tracker-specific creation instructions:**
-
-Dispatch to the detected tracker:
-
-**GitHub Issues:**
-
-Write the description to a temp file first (inline `--body` strings
-break shell quoting on markdown tables and long descriptions):
-```bash
-# Generate temp path via mktmp.sh, then write body via Write tool
-BODY_FILE=$(/tmp/Dev10x/bin/mktmp.sh gh-issue body .md)
-# Write description content to $BODY_FILE via the Write tool
-gh issue create --repo "$REPO" --title "$TITLE" --body-file "$BODY_FILE" --label "$LABELS" --milestone "$MILESTONE"
-```
-
-Omit `--milestone` only when Step 4d found no confident match — in
-which case `$LABELS` carries `needs-triage`.
-
-**Title-in-file convention:** When the caller provides
-`--body-file` without `--title`, use the wrapper script that
-reads line 1 as the title and creates the issue in one call
-(like `git commit -F`):
-```bash
-${CLAUDE_PLUGIN_ROOT}/skills/ticket-create/scripts/create-github-issue.sh "$BODY_FILE" "$REPO" "$LABELS"
-```
-This avoids passing titles with special characters in args
-strings, which can cause permission friction.
-
-**Linear:**
-
-If a `project` parameter was provided by the caller, resolve the
-project UUID first via `list_projects(team: "TEAM_UUID")` — never
-pass a display name (name matching is exact and fails silently).
-After creation, verify linkage with `get_issue(id)` and confirm
-`projectId` matches the expected UUID. See `dev10x:linear`
-§ Project Assignment.
-
-```
-mcp__claude_ai_Linear__save_issue(
-    team: "TEAM_UUID",
-    title: TITLE,
-    description: DESCRIPTION,
-    labels: [LABELS],
-    project: "PROJECT_UUID"  # optional — resolved UUID only
-)
-```
-
-**JIRA:**
-
-Create via the Atlassian MCP `createJiraIssue` tool, mirroring the
-GitHub/Linear branches above. The `dev10x:jira` skill ships only
-read / search / update / comment / link scripts — it has **no create
-path** — so the Atlassian MCP is the JIRA-creation surface (GH-631):
-
-```
-mcp__claude_ai_Atlassian__createJiraIssue(
-    cloudId: <from getAccessibleAtlassianResources>,
-    projectKey: <from getVisibleJiraProjects>,
-    issueTypeName: <Task | Bug — from getJiraProjectIssueTypesMetadata>,
-    summary: TITLE,
-    description: DESCRIPTION,
-)
-```
-
-Resolve `cloudId`, `projectKey`, and the issue-type name via the
-read-only Atlassian tools (all pre-approved) before the create call;
-use the live tool schema for exact field names.
-
-The Atlassian ticket-management **write** tools (`createJiraIssue`,
-`editJiraIssue`, `addCommentToJiraIssue`, `transitionJiraIssue`,
-`createIssueLink`, …) **are** pre-approved via the
-`mcp-atlassian-write` baseline permission group (GH-631). This
-deliberately overrides the GH-593 write-precedence default, so the
-Step 5 background creation agent can call `createJiraIssue`
-unattended without stalling on a permission prompt.
-
-**Troubleshooting (GH-899):** if these writes still prompt for
-approval, the `mcp-atlassian-write` baseline group has not reached
-your live `settings.json` yet — that is a seed/sync gap, not the
-intended design. Re-apply base permissions with
-`dev10x:plugin-maintenance` (or run `dev10x:upgrade-cleanup`, which
-invokes it in full mode), then retry. See Step 5's inline-creation
-exception for a stopgap while the sync gap persists.
-
-> Team-specific IDs are documented in the tracker skill (`dev10x:linear`, `dev10x:jira`).
+**Tracker-specific creation instructions:** read
+[`references/tracker-creation.md`](references/tracker-creation.md)
+§ Tracker-Specific Creation and include the detected tracker's
+section in the agent prompt. GitHub Issues writes the body to a
+mktmp file and passes `--milestone` unless Step 4d found no match;
+Linear resolves a project UUID before `save_issue`; JIRA creates via
+the Atlassian MCP `createJiraIssue` (the `dev10x:jira` skill has no
+create path, GH-631).
 
 ### Step 6: Return Ticket Information
 

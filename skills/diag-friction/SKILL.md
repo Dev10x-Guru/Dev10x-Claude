@@ -41,6 +41,7 @@ allowed-tools:
   - Bash(uvx dev10x permission seed-worktree:*)
   - Bash(dev10x permission seed-worktree:*)
   - mcp__plugin_dev10x_cli__audit_analyze_permissions
+  - mcp__plugin_dev10x_cli__background_preamble
   - mcp__plugin_dev10x_cli__permission_catalog_gap
   - mcp__plugin_dev10x_cli__permission_triage
   - Skill(dev10x:permission-grant)
@@ -54,13 +55,16 @@ allow-rule matching, and points to upstream issue filing when the
 friction is structural (the hook itself needs updating). The skill
 ends in a fix (Step 3h), not a coaching note: a reinforcement alone
 leaves the same prompt waiting for the next session (GH-1669).
+Formerly `dev10x:skill-reinforcement`.
 
-> Formerly `dev10x:skill-reinforcement`. The skill-reinforcement
-> behavior (firm nudge toward the right Dev10x skill or MCP tool)
-> is still core to this skill — it is one slice of the broader job
-> of diagnosing why the supervisor saw a permission prompt in the
-> first place. If you're looking for the old `skill-reinforcement`
-> invocation, you're in the right place.
+> **[OVERRIDE DETECTED]** — over the 200-line SKILL.md budget
+> (GH-1727). Step procedures live in `references/` (`step-details.md`,
+> `audit-procedure.md`, `fix-routing.md`, …); what remains is
+> execution-gating and must stay inline: the Step 2 map-read mandate,
+> the Step 3a backfill gate, the Step 3h triage routing table, and the
+> Step 6 retry gate. **Split plan:** if it grows past ~400 lines, move
+> Steps 4–5 (output shape and closing principle) into
+> `references/audit-output.md` and keep only the section list.
 
 ## When to Use
 
@@ -144,41 +148,16 @@ best match based on the command's purpose.
 ### Step 3a: Effective-file coverage (GH-1139)
 
 **Run this BEFORE the shape audit.** The most common cause of a
-prompt on a seeded machine is not a missing rule — it is a rule
-that exists in the catalog and in global but not in the file the
-engine actually reads (GH-1136). Diagnosing the individual command
-first hides that layer, which is how a worktree stayed "constantly
-stuck on basic actions" while every diag-friction run answered a
-different question.
-
-1. Resolve the effective settings file for the CWD: the worktree's
-   `.claude/settings.local.json`, else the project's, else global.
-2. Run the catalog-gap check and read the counts by family:
-
-```
-mcp__plugin_dev10x_cli__permission_catalog_gap()
-```
-
-   Returns `total_missing`, `files_checked`, `clean`, and the
-   per-family `messages`. Pass `verbose=true` to list every missing
-   rule rather than the counts. `out_of_roots` lists worktrees found
-   through `git worktree list` that sit under no configured root
-   (GH-1626). They are checked like any other file; a non-empty list
-   means `roots` is missing a location, so mention it in the report.
-
-   **Fallback — Bash** (only when the MCP server is unavailable):
-
-```bash
-uvx dev10x permission catalog-gap
-```
-
-   Prefer the MCP form (GH-1175): without a `Bash(uvx:*)` rule the
-   Bash form prompts, and in a background agent that prompt silently
-   skips the coverage check.
-
-3. If the offending command's generalized rule (Step 3d) is in the
-   catalog but absent from the effective file, say so **first**:
-   the diagnosis is a **propagation gap**, not a missing rule.
+prompt on a seeded machine is a rule that is in the catalog but not
+in the file the engine reads (GH-1136). Resolve the effective
+settings file, then call
+`mcp__plugin_dev10x_cli__permission_catalog_gap()`. When the
+command's generalized rule (Step 3d) is catalogued but missing from
+the effective file, report a **propagation gap** first. The
+procedure, the Bash fallback and the three-outcome routing table
+are in
+[`references/step-details.md`](references/step-details.md)
+§ Step 3a.
 
 **Backfill proposal gate — REQUIRED: Call `AskUserQuestion`** (do
 NOT use plain text) whenever the gap is non-empty. Options:
@@ -191,20 +170,6 @@ NOT use plain text) whenever the gap is non-empty. Options:
 Never write without this gate, never write a git-tracked
 `settings.json`, and always write through the backup + atomic path
 (`ensure_base` already does both).
-
-**Three-outcome routing for Step 4.** Distinguish these — they have
-different fixes, and conflating (a) with (b) patches per-repo while
-hiding the propagation defect:
-
-| Outcome | Condition | Fix |
-|---------|-----------|-----|
-| (a) propagation gap | rule in catalog, missing from effective file | backfill (gate above) |
-| (b) missing default | rule absent from catalog, generally safe | upstream issue (Step 3c), plus the Step 3h grant now |
-| (c) project-specific | safe only for this project | Step 3h: triage, then `dev10x:permission-grant` |
-
-See [`references/audit-procedure.md`](references/audit-procedure.md)
-§ Effective-file coverage for the resolution order and the two
-sanctioned settings-read surfaces.
 
 ### Step 3b: Permission friction audit
 
@@ -225,26 +190,10 @@ When the offending command starts with an inline-code prefix
 `ruby -e`, `node -e`, `deno eval`), the right recommendation is
 almost never "extract to `~/.claude/tools/`" — it's the canonical
 structured tool that already exists for the use case (jq, yq,
-yamllint, actionlint, curl, etc.).
-
-**Procedure:**
-
-1. `Read(file_path="${CLAUDE_PLUGIN_ROOT}/skills/diag-friction/references/structured-alternatives.yaml")`
-2. Check the offending command against `inline_code_prefixes`. If
-   no prefix matches, skip this step and proceed to Step 3c.
-3. Extract the inline code body (text between the quotes after the
-   `-c` / `-e` flag).
-4. Match the body against each entry's `detection_keywords`
-   (substring match; first hit wins).
-5. Surface the matched `tool` and `example` as the **primary**
-   recommendation in the "Use instead" section of Step 4.
-6. Fall back to the "Multi-step logic (fallback)" entry only when
-   no keyword matches across all other entries.
-
-Example match for `python -c "import yaml; yaml.safe_load(...)"`:
-the `yaml.safe_load` keyword hits the YAML-parsing entry, so the
-reinforcement names `yq` as the canonical alternative — not a
-tools-directory extraction.
+yamllint, actionlint, curl, etc.). Match the inline body against
+`references/structured-alternatives.yaml`; the procedure is in
+[`references/step-details.md`](references/step-details.md)
+§ Step 3c-pre.
 
 ### Step 3c: Detect structural friction (file upstream)
 
@@ -263,47 +212,24 @@ auto-file — the user approves first.
 
 When the audit (Step 3b) or upstream path (Step 3c) lands on
 proposing a **targeted allow-rule**, do not echo the harness's
-suggested shape — it is wrong in one of three directions. Surface
-the generalized shape produced by
-`dev10x.skills.permission.generalize.generalize_rule_shape`:
-
-| Failure mode | Harness suggests | Generalized shape |
-|--------------|------------------|-------------------|
-| over-broad (verb-blind) | `Bash(ip route *)` | `Bash(ip route get:*)` |
-| over-narrow (session arg) | `Bash(persist.sh <id> *)` | `Bash(persist.sh:*)` |
-| too-literal (no wildcard) | `Bash(yarn build:x)` | `Bash(yarn build:*)` |
-
-Apply the generalized rule in the "Pre-approved alternatives" /
-"Upstream issue" sections so the rule the user accepts is reusable
-and safe — never the dead-on-arrival or over-granting default.
-Only Bash command rules are generalized; `mcp__*`, `WebFetch(...)`,
-and `Read(...)` rules pass through unchanged.
+suggested shape — it is over-broad, over-narrow or too literal.
+Surface the shape from
+`dev10x.skills.permission.generalize.generalize_rule_shape`. The
+failure-mode table is in
+[`references/step-details.md`](references/step-details.md)
+§ Step 3d.
 
 ### Step 3e: Background-dispatch pre-seed over auto-mode (GH-610)
 
 When the friction arose inside a **background subagent** (workflow /
 monitor / loop / fanout child) — or the only "fix" on offer is the
 harness's "switch to auto mode" / disable-prompts nudge (the GH-310
-footgun) — do NOT recommend blanket `bypassPermissions`. The correct
-remedy is to fix the **dispatcher**, not to silence prompts:
-
-1. Prepend the canonical friction-avoidance preamble to the subagent
-   prompt (fetch via `mcp__plugin_dev10x_cli__background_preamble`).
-2. Pre-seed the subagent's `allowed_tools` with the wrappers it needs
-   (`Read`, `Grep`, `Glob`, `mktmp`, `push_safe`, `create_pr`, …) so
-   the preferred tool surface is actually available. When the child
-   was refused a project script, add that script's rule to the list
-   too, naming the dispatcher and the exact entry.
-3. When Step 3h triage returns `grant`, also write the rule through
-   `dev10x:permission-grant`: a pre-seeded list never reaches the
-   settings files, and an unattended child has nobody to answer the
-   next prompt.
-
-Surface this as the primary recommendation whenever the offending
-command came from a background dispatch path. See
-`references/orchestration/background-preamble.md` and
-`references/orchestration/subagent-dispatch.md` § Background Friction
-Preamble.
+footgun) — do NOT recommend blanket `bypassPermissions`. Fix the
+**dispatcher**: preamble, pre-seeded `allowed_tools`, and a
+`dev10x:permission-grant` write when triage says `grant`. Surface it
+as the primary recommendation; steps in
+[`references/step-details.md`](references/step-details.md)
+§ Step 3e.
 
 ### Step 3g: Check the recommended tool exists here (GH-1087)
 
