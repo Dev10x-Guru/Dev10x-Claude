@@ -27,7 +27,6 @@ from dev10x.hooks.stop_verdict import (
     StopSignal,
     _standby_path,
     decide,
-    is_subagent,
     standby_holds,
 )
 
@@ -69,72 +68,24 @@ def _transcript(*, tmp_path: Path, entries: list[dict], name: str = "transcript"
     return str(path)
 
 
-class TestASubagentIsNeverBlocked:
-    def test_the_documented_event_name_is_enough(
-        self, tmp_path: Path, isolated_markers: Path
-    ) -> None:
-        transcript = _transcript(tmp_path=tmp_path, entries=[_user(), _closing()])
-
-        verdict = decide(
-            data={
-                "session_id": "sub1",
-                "transcript_path": transcript,
-                "hook_event_name": "SubagentStop",
-            },
-            plan=None,
-        )
-
-        assert verdict.block is False
-        assert verdict.signal == StopSignal.SUBAGENT
-
+class TestNoSubagentBranch:
     @pytest.mark.parametrize(
-        "field",
-        ["is_subagent", "subagent", "subagent_id", "agent_id", "parent_session_id"],
+        "data",
+        [
+            {"hook_event_name": "SubagentStop"},
+            {"is_subagent": True, "agent_id": "a7634aca", "parent_session_id": "p"},
+        ],
+        ids=["subagent-event-name", "guessed-keys"],
     )
-    def test_a_retired_guess_no_longer_counts(self, field: str) -> None:
-        """GH-1347: none of these ever arrived in 712 audit records.
-
-        A key re-enters only from a captured payload, so the guesses must
-        not quietly come back as coverage.
-        """
-        assert is_subagent(data={field: "a7634aca"}) is False
-
-    def test_an_ordinary_payload_is_not_a_subagent(self) -> None:
-        """Absence degrades toward the pre-GH-1314 behaviour, not past it."""
-        assert is_subagent(data={"session_id": "s", "hook_event_name": "Stop"}) is False
-
-    def test_the_transcript_path_names_a_subagent(self) -> None:
-        """GH-1340: the discriminator that actually arrives.
-
-        None of the payload keys above has ever been seen in the field —
-        ``StopSignal.SUBAGENT`` fired 0 times in 224 audit records. The
-        transcript layout does distinguish them, and ``decide`` already
-        reads that path. Shape captured from a live dispatch.
-        """
-        path = (
-            "/home/janusz/.claude/projects/-work-dx--worktrees-Dev10x-Claude-5/"
-            "0423993e-9493-4920-9c23-b61df77fe6d3/subagents/agent-a0932d5778dc9cc06.jsonl"
-        )
-
-        assert is_subagent(data={"transcript_path": path}) is True
-
-    def test_a_main_session_transcript_path_does_not(self) -> None:
-        """The sibling file, one directory up — captured from the same session."""
-        path = (
-            "/home/janusz/.claude/projects/-work-dx--worktrees-Dev10x-Claude-5/"
-            "0423993e-9493-4920-9c23-b61df77fe6d3.jsonl"
-        )
-
-        assert is_subagent(data={"transcript_path": path}) is False
-
-    def test_a_subagent_transcript_ends_the_turn(
-        self, tmp_path: Path, isolated_markers: Path
+    def test_a_subagent_shaped_payload_is_judged_like_any_other(
+        self, data: dict, tmp_path: Path, isolated_markers: Path
     ) -> None:
-        """The branch becomes reachable, which is the whole point of GH-1340.
+        """GH-1475: Stop never reached a subagent on harness 2.1.316.
 
-        The signal is ``SUBAGENT_PATH`` rather than ``SUBAGENT`` so the
-        audit log can show which discriminator carried it — the evidence
-        needed before the never-firing payload keys can be retired.
+        Two completions produced zero Stop records, so neither the event
+        name nor the transcript layout ever arrives. A discriminator that
+        cannot fire reads as coverage without being any; one returns only
+        from a captured payload.
         """
         nested = tmp_path / "subagents"
         nested.mkdir()
@@ -143,12 +94,12 @@ class TestASubagentIsNeverBlocked:
         )
 
         verdict = decide(
-            data={"session_id": "sub2", "transcript_path": transcript},
+            data={"session_id": "sub1", "transcript_path": transcript, **data},
             plan=DEPLETED_PLAN,
         )
 
-        assert verdict.block is False
-        assert verdict.signal == StopSignal.SUBAGENT_PATH
+        assert verdict.block is True
+        assert verdict.signal == StopSignal.BLOCKED
 
     def test_the_main_session_is_still_blocked(
         self, tmp_path: Path, isolated_markers: Path
@@ -357,8 +308,6 @@ class TestTheRealStandbyPath:
 class TestSignalsAreLegible:
     def test_the_new_signals_repr_as_members(self) -> None:
         """The audit record is read by people; a bare value is not a branch name."""
-        assert repr(StopSignal.SUBAGENT) == "StopSignal.SUBAGENT"
-        assert repr(StopSignal.SUBAGENT_PATH) == "StopSignal.SUBAGENT_PATH"
         assert repr(StopSignal.STANDBY) == "StopSignal.STANDBY"
 
 

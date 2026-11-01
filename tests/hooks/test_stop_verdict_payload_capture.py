@@ -42,17 +42,21 @@ class TestPayloadCapture:
     def test_the_record_carries_what_separates_the_two_explanations(self) -> None:
         captured = payload_capture(data=PAYLOAD, env={PAYLOAD_KEYS_FLAG: "1"})
 
-        assert captured["hook_event_name"] == "Stop"
-        assert captured["session_id"] == "s-1"
-        assert captured["transcript_layout"] == "subagent"
+        assert captured == {
+            "payload_keys": (
+                "hook_event_name,last_assistant_message,session_id,"
+                "stop_hook_active,transcript_path"
+            ),
+            "hook_event_name": "Stop",
+            "session_id": "s-1",
+        }
 
-    def test_a_session_transcript_reads_as_a_session(self) -> None:
+    def test_an_absent_event_name_records_empty(self) -> None:
         captured = payload_capture(
             data={"transcript_path": "/p/-work/0423993e.jsonl"},
             env={PAYLOAD_KEYS_FLAG: "1"},
         )
 
-        assert captured["transcript_layout"] == "session"
         assert captured["hook_event_name"] == ""
 
 

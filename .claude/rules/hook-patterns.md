@@ -195,7 +195,12 @@ Three constraints came out of building the first one:
    cases have none. A **subagent** hands its report back to whoever
    dispatched it — one was observed echoing this module's own
    no-open-work steer as a status question, complying with a block it
-   should never have received. A session on **standby** has a
+   should never have received. There is no subagent branch: GH-1475
+   captured that Stop is never invoked for a subagent (harness
+   2.1.316), so the steer's text disposition is the only lever, and
+   `SubagentStop` stays unregistered. Re-check with
+   `DEV10X_STOP_PAYLOAD_KEYS=1` before adding a discriminator back.
+   A session on **standby** has a
    supervisor who has explicitly said "stop asking until I speak";
    without that answer the widget's only replies re-arm it next turn,
    which is a gate with no exit rather than a gate.
@@ -204,7 +209,7 @@ Three constraints came out of building the first one:
    a clock: a marker naming the same message means nothing has been
    said since, a different one means it has and the marker is dropped.
    That keeps it a pause rather than a disable, and keeps the lifetime
-   free of a second writer. Both branches carry their own
+   free of a second writer. The branch carries its own
    `StopSignal` — a branch nobody can observe is a branch nobody can
    retire or trust, the same argument GH-1257 made for the other five.
 
