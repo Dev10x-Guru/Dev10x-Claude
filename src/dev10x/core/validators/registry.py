@@ -27,8 +27,8 @@ from dev10x.domain.common.rule_id import RuleId
 from dev10x.domain.profile_tier import ProfileTier
 
 if TYPE_CHECKING:
-    from dev10x.domain import HookAllow, HookAsk, HookInput, HookResult, HookRetry
-    from dev10x.validators.base import Validator
+    from dev10x.domain import HookInput, HookResult, HookRetry
+    from dev10x.validators.base import ValidateResult, Validator
 
 log = logging.getLogger(__name__)
 
@@ -252,14 +252,14 @@ class ValidatorChain:
 
     registry: ValidatorRegistry
 
-    def run(self, inp: HookInput) -> list[HookResult | HookAllow | HookAsk]:
+    def run(self, inp: HookInput) -> list[ValidateResult]:
         """Invoke ``validate()`` on every applicable validator.
 
         Returns the list of non-None results in registration order;
         callers emit each in turn. When a safety-critical validator
         raises, a fail-closed block is appended in its place (GH-494).
         """
-        results: list[HookResult | HookAllow | HookAsk] = []
+        results: list[ValidateResult] = []
         for validator in self.registry.active():
             try:
                 if not validator.should_run(inp=inp):
@@ -296,9 +296,9 @@ class ValidatorChain:
 
 def _stamp_rule_id(
     *,
-    result: HookResult | HookAllow | HookAsk,
+    result: ValidateResult,
     validator: Validator,
-) -> HookResult | HookAllow | HookAsk:
+) -> ValidateResult:
     """Attribute a decision to the validator that produced it (GH-1095).
 
     Only the chain knows which validator spoke, so it stamps ``rule_id``
@@ -311,9 +311,9 @@ def _stamp_rule_id(
     deferred-import pattern :func:`_safety_fail_closed` uses — so the
     module keeps its ``TYPE_CHECKING``-only import boundary.
     """
-    from dev10x.domain import HookAsk, HookResult
+    from dev10x.domain import HookAsk, HookHint, HookResult
 
-    if not isinstance(result, HookResult | HookAsk):
+    if not isinstance(result, HookResult | HookAsk | HookHint):
         return result
     if result.rule_id:
         return result

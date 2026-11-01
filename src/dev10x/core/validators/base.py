@@ -26,8 +26,12 @@ from __future__ import annotations
 
 from typing import ClassVar, Protocol, runtime_checkable
 
-from dev10x.domain import HookAllow, HookAsk, HookInput, HookResult, HookRetry
+from dev10x.domain import HookAllow, HookAsk, HookHint, HookInput, HookResult, HookRetry
 from dev10x.domain.profile_tier import ProfileTier
+
+# What validate() may return. HookHint decides nothing: the hook emits it
+# only when no other validator spoke (GH-1725).
+type ValidateResult = HookResult | HookAllow | HookAsk | HookHint
 
 
 @runtime_checkable
@@ -38,8 +42,9 @@ class Validator(Protocol):
         """Fast predicate — return False to skip this validator entirely."""
         ...
 
-    def validate(self, inp: HookInput) -> HookResult | HookAllow | HookAsk | None:
-        """Return HookResult to block, HookAllow to auto-approve, None for no opinion."""
+    def validate(self, inp: HookInput) -> ValidateResult | None:
+        """Return HookResult to block, HookAllow to auto-approve, HookHint to
+        steer without deciding, None for no opinion."""
         ...
 
 
@@ -79,6 +84,6 @@ class ValidatorBase:
         """Fast skip predicate — overridden by concrete validators."""
         raise NotImplementedError  # pragma: no cover
 
-    def validate(self, inp: HookInput) -> HookResult | HookAllow | HookAsk | None:
-        """Block/allow/abstain decision — overridden by concrete validators."""
+    def validate(self, inp: HookInput) -> ValidateResult | None:
+        """Block/allow/hint/abstain — overridden by concrete validators."""
         raise NotImplementedError  # pragma: no cover

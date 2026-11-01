@@ -39,9 +39,9 @@ in the plugin.
 | DX001 | safe-subshell | Prevents subshell execution patterns |
 | DX002 | command-substitution | Blocks unsafe `$()` / backtick expansion |
 | DX003 | execution-safety | Guards against dangerous execution patterns |
-| DX004 | sql-safety | Blocks SQL writes outside `transaction.atomic` |
+| DX004 | sql-safety | Blocks database writes: SQL and Postgres write binaries |
 | DX005 | pr-base | Enforces correct PR base branch |
-| DX006 | skill-redirect | Redirects raw CLI to the documented skill |
+| DX006 | skill-redirect | Redirects raw CLI to the documented skill; steers `live_hint` rules without blocking |
 | DX007 | prefix-friction | Catches env-var prefixes on git/gh |
 | DX008 | commit-jtbd | Enforces outcome-focused commit titles |
 | DX009 | redundant-fetch | Warns on redundant git fetch calls |

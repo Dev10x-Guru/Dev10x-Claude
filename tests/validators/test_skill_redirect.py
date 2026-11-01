@@ -21,6 +21,7 @@ from dev10x.validators.skill_redirect import (
     unreachable_patterns,
 )
 
+from dev10x.domain import HookHint, HookResult
 from tests.fakers import BashHookInputFaker
 from tests.validators.loop_shapes import BARE_POLL_LOOP, UNTIL_POLL_LOOP
 
@@ -1824,6 +1825,84 @@ def test_advisory_rules_that_would_ship_inert_are_reported() -> None:
     pairs = unreachable_patterns(rules=_advisory_bash_rules())
     if pairs:
         warnings.warn(format_unreachable_report(pairs=pairs), UserWarning, stacklevel=1)
+
+
+def _live_hint_rules() -> list[MatchingRule]:
+    return [rule for rule in load_config(yaml_path=_YAML_PATH).rules if rule.live_hint]
+
+
+def test_the_shipped_live_hints_are_pinned() -> None:
+    # Pinned so the parametrized guard below cannot pass vacuously.
+    assert [rule.name for rule in _live_hint_rules()] == ["gog-global-flags-first"]
+
+
+@pytest.mark.parametrize("rule", _live_hint_rules(), ids=lambda rule: rule.name)
+def test_every_live_hint_rule_can_actually_steer(rule: MatchingRule) -> None:
+    """GH-1725: a live_hint rule that blocks, targets a non-Bash matcher, or
+    carries no compensation text is dropped or emits nothing — silently, at
+    hook time. Catch the misconfiguration here instead."""
+    advice = " ".join((comp.description or "").strip() for comp in rule.compensations)
+
+    assert (rule.hook_block, rule.matcher, bool(advice.strip())) == (False, "Bash", True)
+
+
+class TestGogLiveHint:
+    """GH-1725: a leading-flag gog command is steered before the prompt,
+    without a deny or an ask — the steer used to appear only in
+    permission_triage / diag-friction, after the prompt had fired."""
+
+    COMMAND = "gog -a me@example.com --readonly chat messages list spaces/AAA --json"
+
+    def test_reaches_the_engine(self, validator: SkillRedirectValidator) -> None:
+        assert validator.should_run(inp=_make_input(command=self.COMMAND)) is True
+
+    def test_yields_a_hint_not_a_decision(self, validator: SkillRedirectValidator) -> None:
+        result = validator.validate(inp=_make_input(command=self.COMMAND))
+
+        assert isinstance(result, HookHint)
+
+    def test_hint_carries_the_reordering_advice(self, validator: SkillRedirectValidator) -> None:
+        result = validator.validate(inp=_make_input(command=self.COMMAND))
+
+        assert result is not None
+        assert "gog-global-flags-first" in result.message
+        assert "after the subcommand path" in result.message
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "gog --version",
+            "gog --help",
+            "gog chat messages list spaces/AAA -a me@example.com --readonly --json",
+        ],
+    )
+    def test_stays_silent(self, validator: SkillRedirectValidator, command: str) -> None:
+        assert validator.validate(inp=_make_input(command=command)) is None
+
+    def test_a_blocking_rule_still_wins_over_a_hint(
+        self, validator: SkillRedirectValidator
+    ) -> None:
+        result = validator.validate(inp=_make_input(command="git push --force origin main"))
+
+        assert isinstance(result, HookResult)
+
+    def test_a_hint_rule_without_advice_stays_silent(
+        self, validator: SkillRedirectValidator, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import dev10x.validators.skill_redirect as mod
+
+        config, _engine = _load_config()
+        mute = MatchingRule(
+            name="mute-hint",
+            hook_block=False,
+            live_hint=True,
+            patterns=["^gog\\s+-a"],
+            compensations=[Compensation(type="use-alternative", description="   ")],
+        )
+        monkeypatch.setattr(mod, "_CONFIG", config)
+        monkeypatch.setattr(mod, "_ENGINE", RuleEngine(hint_rules=[mute]))
+
+        assert validator.validate(inp=_make_input(command=self.COMMAND)) is None
 
 
 # Make _YAML_PATH accessible for tests above

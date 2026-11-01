@@ -1,6 +1,6 @@
 # Hook Implementation Patterns
 
-> **[OVERRIDE DETECTED]** — 488 lines against the 200-line rule-file
+> **[OVERRIDE DETECTED]** — 541 lines against the 200-line rule-file
 > budget in `.claude/rules/INDEX.md` (GH-1438), the second-largest
 > unexplained breach after `mcp-tools.md`.
 >
@@ -19,7 +19,7 @@
 > (direct-shebang/orchestrator pattern, SessionStart/Stop
 > consolidation, the Stop-verdict rules, the PostToolUse formatter
 > scope) and `hook-validator-profiles.md` (Profile Tiers, rule-ID
-> table, DX014/DX017 sensitivity detail). Do not split by
+> table, DX014/DX017 sensitivity detail, DX006 live hints). Do not split by
 > language (Python vs shell) — that cuts across the parity
 > guidance both halves need.
 
@@ -449,6 +449,40 @@ blast radius that motivated it.
 `…_ALLOW_…` (removes). The worktree is probed before its main checkout,
 using `domain.linked_worktree` file reads rather than a git subprocess,
 and only on the in-tree-write path.
+
+### Live Hints: Steer Without Deciding (GH-1725)
+
+An advisory DX006 rule (`hook_block: false`) may add `live_hint: true`.
+The hook then sends the rule's compensation text to the agent as
+`additionalContext` before the permission prompt fires.
+It emits no `permissionDecision`, so the call proceeds exactly as it
+would have.
+Use it for a reorder-the-flags nudge, where a deny would be wrong and an
+`ask` would re-prompt users who already allow the command.
+`live_hint` on a blocking rule, or on a non-Bash rule, is ignored.
+
+1. **A hint never stands in front of a decision.**
+   `emit()` exits, so `hook_transport.select_result` picks what is
+   emitted: the first deny, ask or allow in chain order, else every hint
+   merged into one block.
+   Iterating `chain.run()` and emitting in order would let a hint emitted
+   first hide a later deny.
+   The flip side: an allow from another validator drops the hint.
+2. **`additionalContext` goes to stdout.**
+   That is the stream Claude Code reads it from on an exit-0 hook.
+   `HookAllow` and `HookAsk` still write their envelopes to stderr; that
+   is unchanged here.
+3. **A hint rule needs a quick token like a blocking one.**
+   `should_run` drops a command before any rule is evaluated, which is
+   why `gog` is in `_QUICK_TOKENS`.
+4. **Both rule loaders carry the field.**
+   `from_yaml_entry` and the msgpack `_dict_to_config` each set
+   `live_hint`.
+   A field missing from the cache reverts on every warm load (the
+   GH-1084 trap).
+5. **The catalog is guarded.**
+   `test_every_live_hint_rule_can_actually_steer` fails on a `live_hint`
+   rule that blocks, is not Bash, or carries no compensation text.
 
 ### Configuration
 

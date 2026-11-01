@@ -19,7 +19,14 @@ import sys
 from typing import NoReturn
 
 from dev10x.domain.events.hook_event import HookEventName
-from dev10x.domain.events.hook_input import HookAllow, HookAsk, HookInput, HookResult, HookRetry
+from dev10x.domain.events.hook_input import (
+    HookAllow,
+    HookAsk,
+    HookHint,
+    HookInput,
+    HookResult,
+    HookRetry,
+)
 from dev10x.subprocess_utils import effective_cwd
 
 
@@ -63,7 +70,30 @@ def _record_attribution(*, rule_id: str, reason: str) -> None:
         )
 
 
-def emit(result: HookResult | HookAllow | HookAsk | HookRetry) -> NoReturn:
+def select_result(
+    results: list[HookResult | HookAllow | HookAsk | HookHint],
+) -> HookResult | HookAllow | HookAsk | HookHint | None:
+    """The one result the hook should emit for a validator chain run.
+
+    ``emit`` exits, so the first result emitted is the only one that
+    counts. A hint decides nothing, so it must never stand in front of a
+    decision: emitting it first would let a later deny through unseen
+    (GH-1725). Decisions keep their chain order; hints, when nothing
+    decided, are merged into a single context block.
+    """
+    for result in results:
+        if not isinstance(result, HookHint):
+            return result
+    hints = [result for result in results if isinstance(result, HookHint)]
+    if not hints:
+        return None
+    return HookHint(
+        message="\n\n".join(hint.message for hint in hints),
+        rule_id=hints[0].rule_id,
+    )
+
+
+def emit(result: HookResult | HookAllow | HookAsk | HookHint | HookRetry) -> NoReturn:
     """Write the Claude Code hook envelope for ``result`` and exit.
 
     ``HookResult`` denies the tool call (exit 2); ``HookAllow``,
@@ -87,6 +117,20 @@ def emit(result: HookResult | HookAllow | HookAsk | HookRetry) -> NoReturn:
         if result.message:
             payload["systemMessage"] = result.message
         print(json.dumps(payload), file=sys.stderr)
+        sys.exit(0)
+
+    if isinstance(result, HookHint):
+        # stdout, not stderr: Claude Code parses an exit-0 hook's JSON
+        # from stdout, which is where additionalContext reaches the agent.
+        # No permissionDecision — the call proceeds as it would have.
+        _record_attribution(rule_id=result.rule_id, reason=result.message)
+        payload = {
+            "hookSpecificOutput": {
+                "hookEventName": HookEventName.PRE_TOOL_USE,
+                "additionalContext": result.message,
+            },
+        }
+        print(json.dumps(payload))
         sys.exit(0)
 
     if isinstance(result, HookAsk):
