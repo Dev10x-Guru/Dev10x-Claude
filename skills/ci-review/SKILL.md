@@ -46,7 +46,14 @@ Mark completed when done: `TaskUpdate(taskId, status="completed")`
 - replays the post-steps.
 
 Every GitHub write the run attempts goes to an outbox instead of
-posting. The skill wraps the command. It never posts to GitHub.
+posting. The skill wraps the command. It posts to GitHub only with
+`--post`, after the Step 3b gate, as one comment from the user headed
+`Local CI replica` and marked `<!-- dev10x-local-ci-review -->`, so CI's
+round numbering and its hygiene comment lookup never see it.
+
+The command also warns (it does not refuse) when no changed file
+matches the workflow's `on.pull_request.paths` filter: CI would never
+have run that review on this PR.
 
 It cannot reproduce the bot identity, check runs, the
 `pull_request` trigger, the CI token's scope or model nondeterminism.
@@ -87,22 +94,44 @@ blocks execution until the user responds. Options:
 - Run the hygiene check only
 - Stop at the render
 
+### Step 3b: Confirm sharing the replica
+
+Skip this step when the answer above was "Stop at the render".
+`--post` puts a comment on the PR under the user's name, which others
+read. Ask before the run, because the post happens at its end and a
+second run to post would cost money again and review differently.
+Never pass `--post` without an answer, in any session mode.
+
+**REQUIRED: Call `AskUserQuestion`** (do NOT use plain text). This
+blocks execution until the user responds. Options:
+
+- Keep it local (Recommended): nothing reaches the PR
+- Post the replica to PR #<N>: add `--post` to the run
+
 ### Step 4: Run
 
 ```bash
 uvx dev10x ci-review --pr <N> --workflow <all|code-review|hygiene>
 ```
 
-Pass the same `--rules` value as Step 2.
+Pass the same `--rules` value as Step 2, and `--post` only when
+Step 3b's answer was to post. When the user named a CI run
+to check against, add `--compare-ci <run-id>` (code review only): the
+report gains a table of each finding's `path:line` with the local and
+CI severity, and both verdicts.
 
 ### Step 5: Present
 
 Relay the command's report:
 
+- any `⚠️` paths-filter warning, first;
 - the inline comments as `path:line` with each one's first line;
 - the would-be `gh` writes (review summary, draft conversion, hygiene
   comment);
+- the comparison table, when `--compare-ci` was passed;
 - the usage table, labeled notional when it ran on a subscription;
 - the run directory, which holds `outbox.jsonl` and `execution.json`.
 
-Say plainly that nothing was posted.
+Say plainly that the review's own writes were not posted. When the
+run had `--post`, relay the `posted:` URL and say that the replica
+comment, and only it, reached the PR.

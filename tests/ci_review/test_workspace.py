@@ -14,6 +14,7 @@ from dev10x.ci_review.workspace import (
     Workspace,
     apply_rules,
     cache_root,
+    changed_files,
     create_workspace,
     fetch_refs,
     gather_context,
@@ -92,6 +93,28 @@ class TestRefs:
         )
 
         assert result == SuccessResult(value="name: pr\n")
+
+    def test_changed_files_are_the_merge_commits_diff(self, git_repos: GitFixture) -> None:
+        fetch_refs(repo_root=git_repos.clone, base="develop", pr=PR_NUMBER)
+
+        result = changed_files(repo_root=git_repos.clone, merge_sha=git_repos.merge_sha)
+
+        assert result == SuccessResult(
+            value=[
+                ".claude/link",
+                ".claude/rules/a.md",
+                ".claude/rules/b.md",
+                ".github/claude/ci-system-prompt.md",
+                ".github/workflows/review.yml",
+                ".mcp.json",
+                "CLAUDE.md",
+            ]
+        )
+
+    def test_changed_files_failure(self, git_repos: GitFixture) -> None:
+        result = changed_files(repo_root=git_repos.clone, merge_sha="0" * 40)
+
+        assert isinstance(result, ErrorResult)
 
     def test_base_scripts_present(self, git_repos: GitFixture) -> None:
         result = require_base_scripts(

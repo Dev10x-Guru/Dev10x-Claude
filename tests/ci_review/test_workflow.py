@@ -4,7 +4,12 @@ from pathlib import Path
 
 import pytest
 
-from dev10x.ci_review.workflow import REVIEW_WORKFLOWS, ReviewJob, load_review_job
+from dev10x.ci_review.workflow import (
+    REVIEW_WORKFLOWS,
+    ReviewJob,
+    load_review_job,
+    would_trigger,
+)
 from dev10x.core.domain.common.result import ErrorResult, SuccessResult
 
 _WORKFLOWS: Path = Path(__file__).parents[2] / ".github" / "workflows"
@@ -43,6 +48,117 @@ class TestRealWorkflows:
 
     def test_action_ref_is_the_pinned_sha(self, code_review: ReviewJob) -> None:
         assert len(code_review.action_ref) == 40
+
+    def test_code_review_reads_the_paths_filter(self, code_review: ReviewJob) -> None:
+        assert (code_review.paths[0], code_review.paths[-1], code_review.paths_ignore) == (
+            "**/*.py",
+            "!.github/workflows/claude*.yml",
+            (),
+        )
+
+    def test_hygiene_has_no_paths_filter(self, hygiene: ReviewJob) -> None:
+        assert (hygiene.paths, hygiene.paths_ignore) == ((), ())
+
+    @pytest.mark.parametrize(
+        ("files", "expected"),
+        [
+            (["src/a.py"], True),
+            (["setup.py"], True),
+            (["README.md", "docs/x.md"], False),
+            (["skills/x/SKILL.md"], True),
+            ([".github/workflows/claude-code-review.yml"], False),
+            ([".github/workflows/ci.yml"], True),
+            ([], False),
+        ],
+        ids=["nested-py", "root-py", "docs-only", "skill", "negated", "other-yml", "no-files"],
+    )
+    def test_real_code_review_filter(
+        self, code_review: ReviewJob, files: list[str], expected: bool
+    ) -> None:
+        assert (
+            would_trigger(
+                files=files, paths=code_review.paths, paths_ignore=code_review.paths_ignore
+            )
+            is expected
+        )
+
+
+@pytest.mark.parametrize(
+    ("files", "paths", "paths_ignore", "expected"),
+    [
+        (["a.md"], (), (), True),
+        (["docs/a.md"], (), ("docs/**",), False),
+        (["docs/a.md", "src/b.py"], (), ("docs/**",), True),
+        (["docs/keep.md"], (), ("docs/**", "!docs/keep.md"), True),
+        (["a/b.txt"], ("a/?.txt",), (), True),
+        (["a/bc.txt"], ("a/?.txt",), (), False),
+        (["a/b/c.txt"], ("a/*.txt",), (), False),
+        (["a/b/c.txt"], ("a/**",), (), True),
+        (["a+b.txt"], ("a+b.txt",), (), True),
+        (["src/a.py"], ("src/[ab].py",), (), True),
+        (["src/c.py"], ("src/[ab].py",), (), False),
+        (["src/c.py"], ("src/[!ab].py",), (), True),
+        (["src/a.py"], ("src/[!ab].py",), (), False),
+        (["src/x/y.py"], ("src/x[!ab]y.py",), (), False),
+        (["src/^.py"], ("src/[^].py",), (), True),
+        (["src/[.py"], ("src/[.py",), (), True),
+    ],
+    ids=[
+        "no-filter",
+        "all-ignored",
+        "one-not-ignored",
+        "ignore-negated",
+        "question-mark",
+        "question-mark-one-char",
+        "star-stays-in-dir",
+        "double-star-crosses-dirs",
+        "literal-escaped",
+        "class-matches-member",
+        "class-rejects-non-member",
+        "negated-class-matches-non-member",
+        "negated-class-rejects-member",
+        "negated-class-stays-in-dir",
+        "caret-is-a-member",
+        "unclosed-bracket-is-literal",
+    ],
+)
+def test_would_trigger(
+    files: list[str],
+    paths: tuple[str, ...],
+    paths_ignore: tuple[str, ...],
+    expected: bool,
+) -> None:
+    assert would_trigger(files=files, paths=paths, paths_ignore=paths_ignore) is expected
+
+
+@pytest.mark.parametrize(
+    "trigger",
+    ["on: pull_request\n", "on: {pull_request: null}\n", ""],
+    ids=["bare-event", "no-config", "no-on"],
+)
+def test_unfiltered_triggers_read_as_no_paths(trigger: str) -> None:
+    text = (
+        f"{trigger}jobs:\n  a:\n    steps:\n      - id: inputs\n"
+        f"        run: ./build-claude-inputs.sh args/x.txt p.md\n{_ACTION_STEP}"
+    )
+
+    result = load_review_job(workflow_text=text)
+
+    assert isinstance(result, SuccessResult)
+    assert (result.value.paths, result.value.paths_ignore) == ((), ())
+
+
+def test_reads_paths_ignore() -> None:
+    text = (
+        "on:\n  pull_request:\n    paths-ignore: ['docs/**']\n"
+        "jobs:\n  a:\n    steps:\n      - id: inputs\n"
+        f"        run: ./build-claude-inputs.sh args/x.txt p.md\n{_ACTION_STEP}"
+    )
+
+    result = load_review_job(workflow_text=text)
+
+    assert isinstance(result, SuccessResult)
+    assert result.value.paths_ignore == ("docs/**",)
 
 
 _ACTION_STEP = "      - uses: anthropics/claude-code-action@abc\n"

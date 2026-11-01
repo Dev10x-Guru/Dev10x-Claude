@@ -7,6 +7,7 @@ from typing import Any
 
 import pytest
 
+from dev10x.ci_review import post_steps
 from dev10x.ci_review.outbox import append_entry, read_entries
 from dev10x.ci_review.post_steps import (
     DRAFT_STEP,
@@ -16,8 +17,9 @@ from dev10x.ci_review.post_steps import (
     code_review_post_steps,
     hygiene_post_step,
     is_probe,
+    post_replica,
 )
-from dev10x.core.domain.common.result import ErrorResult, SuccessResult
+from dev10x.core.domain.common.result import ErrorResult, Result, SuccessResult, err, ok
 
 _WORKFLOW: Path = Path(__file__).parents[2] / ".github" / "workflows" / "claude-code-review.yml"
 
@@ -88,6 +90,41 @@ class TestCodeReview:
         recorded = code_review_post_steps(outbox=outbox, repo="o/r", pr=5)
 
         assert [entry["branch"] for entry in recorded] == ["stay-ready"]
+
+
+class TestPostReplica:
+    @pytest.fixture
+    def calls(self, monkeypatch: pytest.MonkeyPatch) -> list[list[str]]:
+        seen: list[list[str]] = []
+
+        def fake_run(*, args: list[str], timeout: float) -> Result[str]:
+            seen.append(args)
+            return ok("https://github.com/o/r/pull/5#issuecomment-9\n")
+
+        monkeypatch.setattr(post_steps, "run_checked", fake_run)
+        return seen
+
+    def test_posts_one_comment_with_the_real_gh(self, calls: list[list[str]]) -> None:
+        result = post_replica(repo="o/r", pr=5, body_path=Path("/run/replica-comment.md"))
+
+        assert result == SuccessResult(value="https://github.com/o/r/pull/5#issuecomment-9")
+        assert calls == [
+            [
+                "gh",
+                "pr",
+                "comment",
+                "5",
+                "--repo",
+                "o/r",
+                "--body-file",
+                "/run/replica-comment.md",
+            ]
+        ]
+
+    def test_failure_passes_through(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(post_steps, "run_checked", lambda **_: err("forbidden"))
+
+        assert post_replica(repo="o/r", pr=5, body_path=Path("/b.md")) == err("forbidden")
 
 
 class TestHygiene:

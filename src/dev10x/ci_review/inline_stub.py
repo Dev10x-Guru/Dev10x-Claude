@@ -3,14 +3,16 @@ from __future__ import annotations
 import json
 import os
 import sys
+import uuid
 from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
 
-from dev10x.ci_review.outbox import OUTBOX_ENV, append_entry, read_entries
+from dev10x.ci_review.outbox import OUTBOX_ENV, append_entry
 
 SERVER_NAME: str = "github_inline_comment"
 FAKE_COMMENT_ID_BASE: int = 900_000_000
+FAKE_COMMENT_ID_BITS: int = 40
 
 server = FastMCP(name=SERVER_NAME)
 
@@ -29,7 +31,7 @@ def create_inline_comment(
     if line is None and startLine is None:
         raise ValueError("Either line or startLine must be provided")
     outbox = Path(os.environ[OUTBOX_ENV])
-    comment_id = FAKE_COMMENT_ID_BASE + len(read_entries(path=outbox)) + 1
+    comment_id = fake_comment_id()
     append_entry(
         path=outbox,
         entry={
@@ -54,6 +56,11 @@ def create_inline_comment(
             "message": "Inline comment recorded to the dev10x ci-review outbox (dry run)",
         }
     )
+
+
+def fake_comment_id() -> int:
+    # Random, not counted from the outbox: concurrent calls read the same length.
+    return FAKE_COMMENT_ID_BASE + (uuid.uuid4().int >> (128 - FAKE_COMMENT_ID_BITS))
 
 
 def main() -> int:

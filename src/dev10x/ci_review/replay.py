@@ -7,15 +7,21 @@ import sys
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
-from dev10x.ci_review import cli_pin, gh_shim, post_steps, runner, workspace
+from dev10x.ci_review import cli_pin, compare, gh_shim, post_steps, runner, workspace
 from dev10x.ci_review.guards import evaluate_guards, fetch_pr
 from dev10x.ci_review.outbox import read_entries
 from dev10x.ci_review.process import run_checked
 from dev10x.ci_review.render import RenderedInputs, render_inputs
-from dev10x.ci_review.report import elide_prompt, summarize
+from dev10x.ci_review.report import elide_prompt, render_comparison, replica_body, summarize
 from dev10x.ci_review.usage import usage_report
-from dev10x.ci_review.workflow import REVIEW_WORKFLOWS, ReviewJob, load_review_job
+from dev10x.ci_review.workflow import (
+    REVIEW_WORKFLOWS,
+    ReviewJob,
+    load_review_job,
+    would_trigger,
+)
 from dev10x.core.domain.common.result import ErrorResult, Result, err, ok
 from dev10x.core.subprocess_utils import effective_cwd
 
@@ -35,6 +41,8 @@ class ReplayOptions:
     render_only: bool = False
     keep_workspace: bool = False
     timeout: float = runner.DEFAULT_TIMEOUT_SECONDS
+    post: bool = False
+    compare_ci: int | None = None
 
 
 @dataclass(frozen=True)
@@ -47,6 +55,8 @@ class ReplayOutcome:
     prompt_path: Path
     report: str | None = None
     notional: bool = False
+    trigger_warning: str | None = None
+    posted_url: str | None = None
 
 
 def detect_repo() -> Result[str]:
@@ -84,6 +94,7 @@ def run_replay(*, options: ReplayOptions, now: datetime | None = None) -> Result
     job = load_review_job(workflow_text=workflow_text.value)
     if isinstance(job, ErrorResult):
         return job
+    trigger_warning = _trigger_warning(options=options, refs=refs.value, job=job.value)
     failed = evaluate_guards(pr=pr_data.value, guards=job.value.guards)
     if failed and not options.render_only:
         return err(
@@ -108,7 +119,11 @@ def run_replay(*, options: ReplayOptions, now: datetime | None = None) -> Result
         return err(created.error, run_dir=str(run_dir), **created.details)
     try:
         return _replay_in(
-            options=options, space=created.value, job=job.value, failed_guards=failed
+            options=options,
+            space=created.value,
+            job=job.value,
+            failed_guards=failed,
+            trigger_warning=trigger_warning,
         )
     finally:
         if not options.keep_workspace:
@@ -135,12 +150,33 @@ def _workflow_text(*, options: ReplayOptions, refs: workspace.Refs) -> Result[st
     return merge_text if options.rules == "head" else base_text
 
 
+def _trigger_warning(
+    *,
+    options: ReplayOptions,
+    refs: workspace.Refs,
+    job: ReviewJob,
+) -> str | None:
+    if not job.paths and not job.paths_ignore:
+        return None
+    files = workspace.changed_files(repo_root=options.repo_root, merge_sha=refs.merge_sha)
+    if isinstance(files, ErrorResult):
+        log.warning("could not list PR #%s's changed files: %s", options.pr, files.error)
+        return None
+    if would_trigger(files=files.value, paths=job.paths, paths_ignore=job.paths_ignore):
+        return None
+    return (
+        f"none of PR #{options.pr}'s {len(files.value)} changed files match the "
+        f"{options.workflow} workflow's paths filter; CI would never have triggered it"
+    )
+
+
 def _replay_in(
     *,
     options: ReplayOptions,
     space: workspace.Workspace,
     job: ReviewJob,
     failed_guards: list[str],
+    trigger_warning: str | None,
 ) -> Result[ReplayOutcome]:
     staged = workspace.apply_rules(
         workspace=space, rules=options.rules, keep_pr_head=job.keep_pr_head
@@ -184,6 +220,7 @@ def _replay_in(
         prompt_path=prompt_path,
         failed_guards=failed_guards,
         prior_comment_id=prior_comment_id,
+        trigger_warning=trigger_warning,
     )
     if options.render_only:
         return ok(context.outcome(claude=cli_pin.cli_binary(version=version.value)))
@@ -199,6 +236,7 @@ class _RunContext:
     prompt_path: Path
     failed_guards: list[str]
     prior_comment_id: int | None
+    trigger_warning: str | None
 
     def invocation(self, *, claude: Path, real_gh: str, auth: runner.Auth) -> runner.Invocation:
         return runner.build_invocation(
@@ -222,6 +260,7 @@ class _RunContext:
         real_gh: str = "gh",
         auth: runner.Auth | None = None,
         report: str | None = None,
+        posted_url: str | None = None,
     ) -> ReplayOutcome:
         used_auth = auth or runner.Auth(env={}, notional=False)
         invocation = self.invocation(claude=claude, real_gh=real_gh, auth=used_auth)
@@ -234,6 +273,8 @@ class _RunContext:
             prompt_path=self.prompt_path,
             report=report,
             notional=used_auth.notional,
+            trigger_warning=self.trigger_warning,
+            posted_url=posted_url,
         )
 
 
@@ -273,17 +314,58 @@ def _run_model(*, context: _RunContext) -> Result[ReplayOutcome]:
         post_steps.code_review_post_steps(
             outbox=outbox, repo=context.options.repo, pr=context.options.pr
         )
+    entries = read_entries(path=outbox)
     report = summarize(
         workflow=context.options.workflow,
         failed_guards=context.failed_guards,
         cli_version=context.version,
         usage=usage_report(execution=execution.value, notional=auth.value.notional),
-        entries=read_entries(path=outbox),
+        entries=entries,
     )
-    (run_dir / "report.md").write_text(report, encoding="utf-8")
+    report_path = run_dir / "report.md"
+    # The model run is paid for: its report is on disk before anything else can fail.
+    report_path.write_text(report, encoding="utf-8")
+    if context.options.compare_ci is not None:
+        section = "\n" + _comparison(
+            options=context.options, run_id=context.options.compare_ci, entries=entries
+        )
+        with report_path.open("a", encoding="utf-8") as report_file:
+            report_file.write(section)
+        report += section
+    posted_url: str | None = None
+    if context.options.post:
+        body_path = run_dir / "replica-comment.md"
+        body_path.write_text(
+            replica_body(workflow=context.options.workflow, report=report, entries=entries),
+            encoding="utf-8",
+        )
+        shared = post_steps.post_replica(
+            repo=context.options.repo, pr=context.options.pr, body_path=body_path
+        )
+        if isinstance(shared, ErrorResult):
+            return _with_run_dir(error=shared, run_dir=run_dir)
+        posted_url = shared.value
     return ok(
-        context.outcome(claude=binary.value, real_gh=real_gh, auth=auth.value, report=report)
+        context.outcome(
+            claude=binary.value,
+            real_gh=real_gh,
+            auth=auth.value,
+            report=report,
+            posted_url=posted_url,
+        )
     )
+
+
+def _comparison(
+    *,
+    options: ReplayOptions,
+    run_id: int,
+    entries: list[dict[str, Any]],
+) -> str:
+    ci = compare.fetch_ci_posted(repo=options.repo, pr=options.pr, run_id=run_id)
+    if isinstance(ci, ErrorResult):
+        return f"### Compared with CI run {run_id}\n\n- Comparison unavailable: {ci.error}\n"
+    return render_comparison(comparison=compare.compare(entries=entries, ci=ci.value))
 
 
 def _with_run_dir(*, error: ErrorResult, run_dir: Path) -> ErrorResult:

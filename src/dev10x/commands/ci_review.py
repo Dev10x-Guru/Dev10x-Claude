@@ -43,6 +43,19 @@ _ALL_ORDER: tuple[str, ...] = ("hygiene", "code-review")
     show_default=True,
     help="Seconds the model run may take.",
 )
+@click.option(
+    "--post",
+    is_flag=True,
+    help="Post the replica to the PR as you, marked as a local replica (GH-1721).",
+)
+@click.option(
+    "--compare-ci",
+    "compare_ci",
+    type=int,
+    default=None,
+    metavar="RUN_ID",
+    help="Compare the findings with what this CI code-review run posted.",
+)
 def ci_review(
     *,
     pr: int,
@@ -53,15 +66,22 @@ def ci_review(
     render_only: bool,
     keep_workspace: bool,
     timeout: int,
+    post: bool,
+    compare_ci: int | None,
 ) -> None:
-    """Replay the Claude CI review of a PR locally, as a dry run.
+    """Replay the Claude CI review of a PR locally.
 
-    Nothing is posted to GitHub: every write the review would make is
-    recorded to outbox.jsonl in the run directory (GH-1621).
+    The review's own writes are recorded to outbox.jsonl in the run
+    directory, never posted (GH-1621). Only --post publishes, as one
+    comment marked as a local replica (GH-1721).
     """
     from dev10x.ci_review import ReplayOptions, run_replay
     from dev10x.ci_review.replay import detect_repo, detect_repo_root
 
+    if render_only and (post or compare_ci is not None):
+        raise click.UsageError("--post and --compare-ci need a model run; drop --render-only")
+    if compare_ci is not None and workflow != "code-review":
+        raise click.UsageError("--compare-ci compares inline findings: use --workflow code-review")
     repo_root = detect_repo_root()
     if isinstance(repo_root, ErrorResult):
         _fail(error=repo_root)
@@ -83,6 +103,8 @@ def ci_review(
                 render_only=render_only,
                 keep_workspace=keep_workspace,
                 timeout=timeout,
+                post=post,
+                compare_ci=compare_ci,
             )
         )
         if isinstance(result, ErrorResult):
@@ -90,12 +112,16 @@ def ci_review(
         outcome = result.value
         guards = ", ".join(outcome.failed_guards) or "all pass"
         click.echo(f"== {outcome.workflow} ==")
+        if outcome.trigger_warning is not None:
+            click.echo(f"⚠️ {outcome.trigger_warning}")
         click.echo(f"guards: {guards}")
         click.echo(f"claude cli: {outcome.cli_version}")
         click.echo(f"argv: {shlex.join(outcome.argv)}")
         click.echo(f"prompt: {outcome.prompt_path}")
         if outcome.report is not None:
             click.echo(outcome.report)
+        if outcome.posted_url is not None:
+            click.echo(f"posted: {outcome.posted_url}")
         click.echo(f"run dir: {outcome.run_dir}")
 
 

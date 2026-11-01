@@ -12,27 +12,30 @@ from dev10x.core.domain.common.result import Result as DomainResult
 from dev10x.core.domain.common.result import err, ok
 
 
-def _outcome(*, options: ReplayOptions, report: str | None) -> ReplayOutcome:
-    return ReplayOutcome(
-        workflow=options.workflow,
-        run_dir=Path("/runs") / options.workflow,
-        failed_guards=[],
-        cli_version="2.1.0",
-        argv=["claude", "-p", "<prompt: 3 lines>"],
-        prompt_path=Path("/runs") / options.workflow / "prompt.md",
-        report=report,
-    )
-
-
 class Replays:
     def __init__(self) -> None:
         self.options: list[ReplayOptions] = []
         self.result: DomainResult[ReplayOutcome] | None = None
         self.report: str | None = None
+        self.trigger_warning: str | None = None
+        self.posted_url: str | None = None
 
     def __call__(self, *, options: ReplayOptions) -> DomainResult[ReplayOutcome]:
         self.options.append(options)
-        return self.result or ok(_outcome(options=options, report=self.report))
+        return self.result or ok(self._outcome(options=options))
+
+    def _outcome(self, *, options: ReplayOptions) -> ReplayOutcome:
+        return ReplayOutcome(
+            workflow=options.workflow,
+            run_dir=Path("/runs") / options.workflow,
+            failed_guards=[],
+            cli_version="2.1.0",
+            argv=["claude", "-p", "<prompt: 3 lines>"],
+            prompt_path=Path("/runs") / options.workflow / "prompt.md",
+            report=self.report,
+            trigger_warning=self.trigger_warning,
+            posted_url=self.posted_url,
+        )
 
 
 @pytest.fixture
@@ -93,6 +96,52 @@ def test_prints_the_report(replays: Replays) -> None:
     result = _invoke("--pr", "7")
 
     assert "### Claude usage" in result.output
+
+
+class TestPostAndCompare:
+    def test_passes_the_flags(self, replays: Replays) -> None:
+        result = _invoke("--pr", "7", "--post", "--compare-ci", "42")
+
+        assert result.exit_code == 0, result.output
+        assert (replays.options[0].post, replays.options[0].compare_ci) == (True, 42)
+
+    def test_defaults_keep_it_local(self, replays: Replays) -> None:
+        _invoke("--pr", "7")
+
+        assert (replays.options[0].post, replays.options[0].compare_ci) == (False, None)
+
+    def test_prints_the_posted_url(self, replays: Replays) -> None:
+        replays.posted_url = "https://github.com/owner/name/pull/7#issuecomment-1"
+
+        result = _invoke("--pr", "7", "--post")
+
+        assert "posted: https://github.com/owner/name/pull/7#issuecomment-1" in result.output
+
+    def test_prints_the_trigger_warning(self, replays: Replays) -> None:
+        replays.trigger_warning = "CI would never have triggered it"
+
+        result = _invoke("--pr", "7", "--render-only")
+
+        assert "⚠️ CI would never have triggered it" in result.output
+
+    @pytest.mark.parametrize(
+        ("args", "message"),
+        [
+            (("--render-only", "--post"), "need a model run"),
+            (("--render-only", "--compare-ci", "42"), "need a model run"),
+            (("--workflow", "hygiene", "--compare-ci", "42"), "use --workflow code-review"),
+            (("--workflow", "all", "--compare-ci", "42"), "use --workflow code-review"),
+        ],
+        ids=["render-post", "render-compare", "hygiene-compare", "all-compare"],
+    )
+    def test_refuses_combinations(
+        self, replays: Replays, args: tuple[str, ...], message: str
+    ) -> None:
+        result = _invoke("--pr", "7", *args)
+
+        assert result.exit_code == 2
+        assert message in result.output
+        assert replays.options == []
 
 
 class TestFailures:
