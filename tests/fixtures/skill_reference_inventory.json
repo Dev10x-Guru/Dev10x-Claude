@@ -1,5 +1,5 @@
 {
-  "adr": 23,
+  "adr": 24,
   "adr-evaluate": 15,
   "afk": 26,
   "ask": 28,
@@ -14,6 +14,7 @@
   "ddd": 20,
   "diag-approval": 17,
   "diag-friction": 45,
+  "diagram-sequence": 9,
   "discover": 1,
   "estimate": 24,
   "example": 2,

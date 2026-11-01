@@ -85,6 +85,7 @@ plugins:
     - adr
     - adr-evaluate
     - ddd
+    - diagram-sequence
     - estimate
     - jira
     - jtbd
