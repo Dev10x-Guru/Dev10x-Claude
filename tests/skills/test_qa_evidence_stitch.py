@@ -13,13 +13,13 @@ from dev10x.domain.common.baseline_catalog import load_baseline_dict
 from dev10x.skills.permission.catalog_paths import load_catalog_document
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-_SCRIPT = _REPO_ROOT / "skills" / "qa-self" / "scripts" / "convert-evidence.sh"
+_SCRIPT = _REPO_ROOT / "plugins" / "qa" / "skills" / "qa-self" / "scripts" / "convert-evidence.sh"
 _CATALOG = _REPO_ROOT / "skills" / "upgrade-cleanup" / "projects.yaml"
 _BASELINE = (
     _REPO_ROOT / "src" / "dev10x" / "core" / "skills" / "permission" / "baseline-permissions.yaml"
 )
 _MAP = _REPO_ROOT / "src" / "dev10x" / "core" / "validators" / "command-skill-map.yaml"
-_QA_SKILL = _REPO_ROOT / "skills" / "qa-self" / "SKILL.md"
+_QA_SKILL = _REPO_ROOT / "plugins" / "qa" / "skills" / "qa-self" / "SKILL.md"
 
 _IMAGEMAGICK = shutil.which("magick") or shutil.which("convert")
 _SUBPROCESS_TIMEOUT_SECONDS = 60

@@ -81,13 +81,22 @@ Step 1c — rewrite skill names that a plugin extraction renamed
 (GH-1559, ADR-0034). When a skill moves from `dev10x:<skill>` to
 `dev10x-<area>:<skill>`, this rewrites the old name in
 `friction.yaml`, `dod-acceptance-criteria.yaml` and the playbook
-overrides. Idempotent; until the first extraction ships it reports
-nothing to migrate.
+overrides. Idempotent: a second run reports nothing to migrate.
 
 ```
 Bash("dev10x config migrate-skill-names --dry-run")
 Bash("dev10x config migrate-skill-names")
 ```
+
+Renaming a config entry does not install the plugin the skill moved
+to. The QA skills (`qa-self`, `playwright`, `qa-publish`, `tts`,
+`yt-upload`, `review-pack`) moved to `dev10x-qa` (GH-1564). When the
+dry run rewrote any `dev10x-qa:` name, or the user asks for a QA
+skill, check `enabledPlugins` in `~/.claude/settings.json` for
+`dev10x-qa@Dev10x-Guru`. If it is missing, tell the user the skills
+moved and that running `claude plugin install dev10x-qa@Dev10x-Guru`
+in their shell restores them (it installs `dev10x` with it if needed).
+Do not install it for them: installing a plugin is the user's call.
 
 Step 2 — delegate to the maintenance skill in `full` mode:
 

@@ -69,7 +69,10 @@ Desktop marketplace sync rejects a plugin name that is not
 kebab-case — the old `Dev10x` spelling made the marketplace
 uninstallable there ("Marketplace sync failed"). `claude plugin
 validate .` warns on a non-kebab name; treat that warning as a
-blocker. The product name in prose and the `Dev10x` config
+blocker. A skill in a satellite plugin (ADR-0034) takes that
+plugin's name instead: `plugins/qa/skills/tts/` is `dev10x-qa:tts`,
+matching `plugins/qa/.claude-plugin/plugin.json`, and its eval
+`skill_name` uses the same prefix. The product name in prose and the `Dev10x` config
 directories (`~/.config/Dev10x`, `.claude/Dev10x`, `/tmp/Dev10x`)
 are unaffected.
 

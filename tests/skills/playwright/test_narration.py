@@ -24,7 +24,7 @@ _repo_root = Path(__file__).resolve().parent.parent.parent.parent
 
 def _load(name: str):
     spec = importlib.util.spec_from_file_location(
-        name, _repo_root / "skills" / "playwright" / "lib" / f"{name}.py"
+        name, _repo_root / "plugins" / "qa" / "skills" / "playwright" / "lib" / f"{name}.py"
     )
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)

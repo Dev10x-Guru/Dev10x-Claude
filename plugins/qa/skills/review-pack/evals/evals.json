@@ -1,5 +1,5 @@
 {
-  "skill_name": "dev10x:review-pack",
+  "skill_name": "dev10x-qa:review-pack",
   "eval_dimensions": [
     {
       "id": "gate-enforcement",
@@ -32,7 +32,7 @@
       "id": "no-evidence-repo-asks",
       "name": "Unconfigured evidence repo triggers the hosting gate",
       "description": "No review-pack.yaml exists and the pack has screenshots",
-      "input": "/dev10x:review-pack build the review pack for this PR",
+      "input": "/dev10x-qa:review-pack build the review pack for this PR",
       "assertions": [
         {
           "dimension": "gate-enforcement",
@@ -52,7 +52,7 @@
       "id": "unchecked-gate-asks",
       "name": "An unchecked pre-send item blocks the review request",
       "description": "E2E was not executed on this branch",
-      "input": "/dev10x:review-pack the PR is ready, send it for review",
+      "input": "/dev10x-qa:review-pack the PR is ready, send it for review",
       "assertions": [
         {
           "dimension": "gate-enforcement",
@@ -72,7 +72,7 @@
       "id": "pack-has-five-sections",
       "name": "The pack follows the template",
       "description": "A UI change with configured evidence repo",
-      "input": "/dev10x:review-pack build the pack for the settings page PR",
+      "input": "/dev10x-qa:review-pack build the pack for the settings page PR",
       "assertions": [
         {
           "dimension": "pack-structure",
@@ -98,12 +98,12 @@
       "id": "video-delegates",
       "name": "A time-based change gets a delegated, narrated video",
       "description": "The change is a redirect after save",
-      "input": "/dev10x:review-pack build the pack for the redirect-after-save PR",
+      "input": "/dev10x-qa:review-pack build the pack for the redirect-after-save PR",
       "assertions": [
         {
           "dimension": "delegation",
           "check": "output_contains",
-          "value": "dev10x:yt-upload",
+          "value": "dev10x-qa:yt-upload",
           "signal": "The video is published through yt-upload"
         },
         {
@@ -117,8 +117,8 @@
     {
       "id": "tts-quota-fallback",
       "name": "Narration dropped for quota is stated",
-      "description": "dev10x:tts fails twice with a quota error",
-      "input": "/dev10x:review-pack record the walkthrough video",
+      "description": "dev10x-qa:tts fails twice with a quota error",
+      "input": "/dev10x-qa:review-pack record the walkthrough video",
       "assertions": [
         {
           "dimension": "video-fallback",
@@ -142,8 +142,8 @@
       "The PR is about to leave draft and needs screenshots for the reviewer"
     ],
     "should_not_trigger": [
-      "Execute QA test cases on staging (use dev10x:qa-self)",
-      "Publish a QA verdict to the ticket (use dev10x:qa-publish)",
+      "Execute QA test cases on staging (use dev10x-qa:qa-self)",
+      "Publish a QA verdict to the ticket (use dev10x-qa:qa-publish)",
       "Assign reviewers and ping chat (use dev10x:request-review)"
     ]
   }

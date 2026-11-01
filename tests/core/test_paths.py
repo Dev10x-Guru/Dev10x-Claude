@@ -58,6 +58,12 @@ def test_skill_script_builds_the_plugin_relative_path() -> None:
     )
 
 
+def test_skill_script_builds_a_satellite_repo_path() -> None:
+    assert skill_script(skill="tts", rel="synthesize.py", plugin="qa") == (
+        "plugins/qa/skills/tts/scripts/synthesize.py"
+    )
+
+
 def test_src_resolves_scripts_through_the_resolver() -> None:
     offenders = [
         f"{path.relative_to(_src_root())}:{lineno} {value}"
@@ -84,9 +90,11 @@ def resolved_script_calls(*, source: str) -> list[tuple[int, str]]:
             continue
         kwargs = {kw.arg: kw.value for kw in node.keywords}
         literals = [kwargs.get("skill"), kwargs.get("rel")]
+        plugin = kwargs.get("plugin")
         if all(isinstance(value, ast.Constant) for value in literals):
             skill, rel = (value.value for value in literals)
-            calls.append((node.lineno, skill_script(skill=skill, rel=rel)))
+            satellite = plugin.value if isinstance(plugin, ast.Constant) else None
+            calls.append((node.lineno, skill_script(skill=skill, rel=rel, plugin=satellite)))
     return calls
 
 

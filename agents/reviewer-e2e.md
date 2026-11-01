@@ -82,7 +82,7 @@ absence as a missing binding.
       value is already correct
     - mutation of a shared, fixed-name fixture where a per-run
       uniquely-named entity would remove the cross-run coupling
-    See `skills/qa-self/instructions.md` § "Setup steps must be
+    See `dev10x-qa:qa-self` `instructions.md` § "Setup steps must be
     convergent" (GH-1239)
 
 ## Output Format

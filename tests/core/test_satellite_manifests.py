@@ -75,6 +75,26 @@ class TestRepositoryManifests:
         ] == []
 
     @pytest.mark.parametrize(
+        "catalog_glob",
+        [
+            "src/dev10x/core/skills/permission/baseline-permissions.yaml",
+            "skills/upgrade-cleanup/projects.d/*.yaml",
+        ],
+    )
+    def test_every_extracted_plugin_has_a_skill_allow_rule(
+        self,
+        plugin_map: PluginMap,
+        catalog_glob: str,
+    ) -> None:
+        text = "".join(path.read_text() for path in get_plugin_root().glob(catalog_glob))
+
+        assert [
+            key
+            for key in plugin_map.extracted
+            if f"Skill({plugin_map.plugin_name(key=key)}:*)" not in text
+        ] == []
+
+    @pytest.mark.parametrize(
         ("key", "expected"),
         [("qa", ["dev10x"]), ("coding", ["dev10x", "dev10x-tasks"]), ("core", [])],
     )

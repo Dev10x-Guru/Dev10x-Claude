@@ -1,11 +1,11 @@
 # Producing review-pack evidence
 
-Loaded by `dev10x:review-pack` step 3.
+Loaded by `dev10x-qa:review-pack` step 3.
 Each rule here was learned from a pack that failed without it.
 
 ## Screenshots
 
-- Drive the real UI with `dev10x:playwright` / `dev10x:qa-self`,
+- Drive the real UI with `dev10x-qa:playwright` / `dev10x-qa:qa-self`,
   full-page, at a sane viewport.
   Never mock a screenshot; never crop away the context that makes it
   readable.
@@ -37,7 +37,7 @@ same 60-second bar.
 
 ## Video mechanics
 
-Capture through `dev10x:qa-self`; its `instructions.md` owns the
+Capture through `dev10x-qa:qa-self`; its `instructions.md` owns the
 overlay, captions, narration hook and evidence verification.
 The pack-specific rules:
 
@@ -82,7 +82,7 @@ The second column is a bug — fix it and re-record.
 
 ## Embeds, per destination
 
-`dev10x:yt-upload` returns both forms; use the one for where you paste.
+`dev10x-qa:yt-upload` returns both forms; use the one for where you paste.
 See [`../../yt-upload/references/destinations.md`](../../yt-upload/references/destinations.md).
 
 - **GitHub** (PR body, pack) — the linked poster frame

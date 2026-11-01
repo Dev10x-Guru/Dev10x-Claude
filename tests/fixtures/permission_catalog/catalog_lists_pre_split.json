@@ -187,6 +187,7 @@
     "Edit(//tmp/Dev10x/**)",
     "Read(//tmp/Dev10x/**)",
     "Read(~/.claude/memory/Dev10x/**)",
+    "Skill(dev10x-qa:*)",
     "Skill(dev10x:*)",
     "WebFetch(domain:black.readthedocs.io)",
     "WebFetch(domain:cloud.google.com)",

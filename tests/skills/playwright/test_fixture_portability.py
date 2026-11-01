@@ -21,10 +21,10 @@ from pathlib import Path
 
 import pytest
 
-_REPO_ROOT = Path(__file__).resolve().parents[3]
-_SKILL = _REPO_ROOT / "skills" / "playwright" / "SKILL.md"
-_WRAPPER = _REPO_ROOT / "skills" / "playwright" / "scripts" / "run-playwright.sh"
-_PR_COMMENT = _REPO_ROOT / "skills" / "qa-publish" / "references" / "pr-comment.md"
+_QA_SKILLS = Path(__file__).resolve().parents[3] / "plugins" / "qa" / "skills"
+_SKILL = _QA_SKILLS / "playwright" / "SKILL.md"
+_WRAPPER = _QA_SKILLS / "playwright" / "scripts" / "run-playwright.sh"
+_PR_COMMENT = _QA_SKILLS / "qa-publish" / "references" / "pr-comment.md"
 
 # Account names that belonged to one deployment. None may appear in the
 # shipped docs as though every reader had them.

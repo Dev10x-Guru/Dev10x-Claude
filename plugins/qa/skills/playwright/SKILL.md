@@ -1,6 +1,6 @@
 ---
-name: dev10x:playwright
-invocation-name: dev10x:playwright
+name: dev10x-qa:playwright
+invocation-name: dev10x-qa:playwright
 description: >
   Run Playwright Python scripts against ExampleCorp staging safely.
   Use when writing or executing a Playwright automation script for self-QA
@@ -14,11 +14,12 @@ allowed-tools:
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/playwright/scripts/:*)
 ---
 
-# dev10x:playwright
+# dev10x-qa:playwright
 
 ## Orchestration
 
-This skill follows `references/task-orchestration.md` patterns.
+This skill follows the core `dev10x` plugin's
+`references/task-orchestration.md` patterns.
 Create a task at invocation, mark completed when done:
 
 **REQUIRED: Create a task at invocation.** Execute at startup:
@@ -268,8 +269,8 @@ uv run --with 'playwright>=1.47,<2' python3 -m playwright install chromium
 ## Integration
 
 ```
-dev10x:playwright
-├── Called by: dev10x:qa-self (Phase 3 execution)
+dev10x-qa:playwright
+├── Called by: dev10x-qa:qa-self (Phase 3 execution)
 ├── Reads: /work/example/app-e2e/settings.secrets.env (credentials)
 ├── Scripts: run-playwright.sh (validate + inject + run)
 └── Output: /tmp/Dev10x/playwright/  (screenshots, video)
