@@ -228,7 +228,7 @@ class TestADepletedListAsksToStandDown:
     def test_the_steer_tells_a_subagent_not_to_ask_the_human(
         self, tmp_path: Path, isolated_markers: Path
     ) -> None:
-        """The fallback for when `subagent_signal` misses."""
+        """The only lever for a reader with no supervisor (GH-1475)."""
         verdict = decide(
             data={
                 "session_id": "adv12",
