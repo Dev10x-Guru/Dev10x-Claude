@@ -46,7 +46,7 @@ from typing import ClassVar
 
 from dev10x.domain import HookInput, HookResult
 from dev10x.domain.claude_paths import ClaudeDir
-from dev10x.domain.common.bash_tokens import strip_command_wrappers, substitution_bodies
+from dev10x.domain.common.bash_tokens import command_units, strip_command_wrappers
 from dev10x.domain.profile_tier import ProfileTier
 from dev10x.validators.base import ValidatorBase
 
@@ -135,7 +135,7 @@ def _heredoc_into_re(program: str) -> re.Pattern[str]:
     confuses pipeline splitting.
 
     Substitutions need no boundary character here (GH-986). Each body is
-    passed in as its own unit by :func:`_command_units`, stripped of its
+    passed in as its own unit by :func:`command_units`, stripped of its
     ``$(``/backtick wrapper, so the interpreter lands at ``^``.
     """
     return re.compile(
@@ -160,40 +160,13 @@ def _command_position_re(program: str) -> re.Pattern[str]:
 
     Note the scope: this pattern guards the ``shlex``-raised branch only.
     An interpreter inside a substitution is caught by checking each body
-    as its own unit (:func:`_command_units`), not here.
+    as its own unit (:func:`command_units`), not here.
     """
     return re.compile(
         r"(?:^|[|;&(\n])\s*"
         r"(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*"
         r"(?:[\w./~-]*/)?" + program + r"\b"
     )
-
-
-def _command_units(command: str) -> tuple[str, ...]:
-    """``command`` plus every command it nests in a substitution (GH-986).
-
-    A substitution runs its body as its own command, so each body is a
-    unit the interpreter guard must judge on its own terms.
-
-    Flattened ONCE per check rather than re-derived per interpreter. The
-    guard runs on every Bash tool call under a 2x-baseline CI benchmark,
-    and `_check_one_interpreter`'s substring guard admits ``sh`` for any
-    command merely mentioning ``bash``, ``zsh``, or a ``.sh`` filename —
-    so a per-interpreter scan would repeat this work several times over
-    on very ordinary commands.
-
-    The sweep is breadth-first because ``substitution_bodies`` returns
-    only the outermost bodies: re-scanning each one is what reaches a
-    nested ``$(python3 -c "$(echo x)")``.
-    """
-    units = [command]
-    pending = [command]
-    while pending:
-        for body in substitution_bodies(pending.pop(), include_backticks=True):
-            if body.strip():
-                units.append(body)
-                pending.append(body)
-    return tuple(units)
 
 
 _PYTHON_NAME_RE = re.compile(r"python(?:\d+(?:\.\d+)*)?(?:@[\w.]+)?")
@@ -533,7 +506,7 @@ class ExecutionSafetyValidator(ValidatorBase):
         Substitution bodies are judged as their own units, so
         `$(printf x > /tmp/f)` is still caught.
         """
-        for unit in _command_units(command):
+        for unit in command_units(command=command):
             for segment in unit.split("|"):
                 try:
                     parts = shlex.split(segment)
@@ -609,7 +582,9 @@ class ExecutionSafetyValidator(ValidatorBase):
         interpreter loop stays outermost and each one sweeps every unit
         before the next interpreter is tried.
         """
-        units = _command_units(command)
+        # Flattened once, not per interpreter: the `sh` substring guard
+        # admits any command mentioning bash, zsh or a .sh filename.
+        units = command_units(command=command)
 
         for unit in units:
             result = self._check_one_interpreter(
@@ -646,7 +621,7 @@ class ExecutionSafetyValidator(ValidatorBase):
         cwd: str = "",
     ) -> HookResult | None:
         """Judge ONE command unit — the caller supplies substitution bodies
-        as their own units (see `_command_units`), so this never has to
+        as their own units (see `command_units`), so this never has to
         look inside `$( … )` itself."""
         if interpreter.token not in command:
             return None

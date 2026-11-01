@@ -17,12 +17,17 @@ from __future__ import annotations
 import os
 import re
 import shlex
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, ClassVar
 
 from dev10x.domain import HookInput, HookResult
-from dev10x.domain.common.bash_tokens import strip_command_wrappers
+from dev10x.domain.common.bash_tokens import (
+    ANY_CASE_ENV_VAR_RE,
+    command_units,
+    strip_command_wrappers,
+)
 from dev10x.domain.common.result import ErrorResult, Result, err, ok
 from dev10x.domain.profile_tier import ProfileTier
 from dev10x.validators.base import ValidatorBase
@@ -456,6 +461,177 @@ def _check_bq_query(*, args: list[str]) -> HookResult | None:
 
 _BQ_WORD_RE = re.compile(r"\bbq\b")
 
+# Postgres client binaries that write a cluster without any SQL keyword
+# reaching this validator (GH-1732). Each is the CLI twin of a statement
+# the denylist already blocks: DROP/CREATE DATABASE, DROP/CREATE ROLE,
+# VACUUM, REINDEX, CLUSTER.
+# pgbench runs update transactions by default and rebuilds its tables
+# with -i, so it writes too.
+_PG_WRITE_BINARIES = frozenset(
+    {
+        "dropdb",
+        "createdb",
+        "dropuser",
+        "createuser",
+        "vacuumdb",
+        "reindexdb",
+        "clusterdb",
+        "pgbench",
+    }
+)
+_PG_RESTORE = "pg_restore"
+_PG_BINARIES = _PG_WRITE_BINARIES | {_PG_RESTORE}
+_PG_BINARY_RE = re.compile(r"\b(?:" + "|".join(sorted(_PG_BINARIES)) + r")\b")
+
+# The fast path must see the word the shell will run: `d""ropdb` and
+# `dr\opdb` tokenize to `dropdb` while the raw text does not contain it.
+_DROP_SHELL_QUOTING = str.maketrans("", "", "\"'\\")
+
+# Tokens that end one command and start the next. `_simple_commands`
+# only splits on spaced `&&`/`||`/`;`, which let `x;dropdb`, `x & dropdb`
+# and `(dropdb x)` through (GH-1732 review); the binary check splits on
+# every operator a shell does. The bq check stays on `_simple_commands`
+# on purpose: moving it changes BigQuery behaviour, which is GH-1633's.
+_PG_SEGMENT_BREAKS = frozenset({";", ";;", "&", "&&", "|", "||", "|&", "(", ")"})
+_PG_LEADING_KEYWORDS = frozenset(
+    {"{", "}", "!", "if", "then", "else", "elif", "while", "until", "do"}
+)
+
+# Fail-closed fallback when a unit cannot be tokenized: a write binary in
+# command position, optionally behind env assignments or a path.
+_PG_COMMAND_POSITION_RE = re.compile(
+    r"(?:^|[|;&(\n{])\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*(?:[\w./~-]*/)?"
+    r"(?:" + "|".join(sorted(_PG_WRITE_BINARIES)) + r")\b"
+)
+
+# Commands that run another command named somewhere in their arguments
+# (GH-1732 review). `sudo -u postgres dropdb` is the standard admin
+# idiom. Kept local rather than taught to strip_command_wrappers, which
+# would change DX003 and DX016 too. `docker exec` / `op run` were the
+# psql-read exemptions and are covered here too.
+_PG_RUNNERS = frozenset(
+    {"sudo", "doas", "su", "xargs", "ssh", "kubectl", "docker", "podman", "op", "find"}
+)
+
+# `command -v NAME` looks a binary up; it does not run it.
+_COMMAND_PROBE_FLAGS = frozenset({"-v", "-V"})
+
+# pg_restore short options that consume a value. A bundle ends at the
+# first one, so `-cd app` reaches `d` while `-fd` is `-f` with value `d`.
+_PG_RESTORE_VALUE_LETTERS = frozenset("dfFIjLnNPStTUhp")
+
+PG_WRITE_BINARY_MSG = (
+    "BLOCKED by db safety hook: `{binary}` writes to a Postgres cluster "
+    "(GH-1732).\n"
+    "Database writes are NEVER permitted, whether spelled as SQL or as a "
+    "client binary. Print the command for the user to run manually."
+)
+
+
+def _pg_restore_targets_database(args: list[str]) -> bool:
+    """True when ``pg_restore`` restores into a database, not to a file.
+
+    Without ``-d``/``--dbname`` it only prints a script (or a listing),
+    which is a read; ``--clean`` alone just adds DROP lines to that text.
+    """
+    for arg in args:
+        if arg.startswith("--"):
+            # getopt_long accepts any unambiguous prefix (`--db=app`).
+            # `--d` alone is ambiguous with --data-only and is rejected by
+            # pg_restore itself, so two letters are the shortest prefix.
+            name = arg[2:].partition("=")[0]
+            if len(name) >= 2 and "dbname".startswith(name):
+                return True
+            continue
+        if not arg.startswith("-"):
+            continue
+        for letter in arg[1:]:
+            if letter == "d":
+                return True
+            if letter in _PG_RESTORE_VALUE_LETTERS:
+                break
+    return False
+
+
+def _mentions_pg_binary(*, command: str) -> bool:
+    return _PG_BINARY_RE.search(command.translate(_DROP_SHELL_QUOTING)) is not None
+
+
+def _pg_segments(*, unit: str) -> list[list[str]]:
+    """Argv segments of ``unit``, split on every shell command operator.
+
+    Raises ``ValueError`` when the unit cannot be tokenized.
+    """
+    lexer = shlex.shlex(unit.replace("\n", " ; "), posix=True, punctuation_chars=True)
+    lexer.whitespace_split = True
+    segments: list[list[str]] = [[]]
+    for token in lexer:
+        if token in _PG_SEGMENT_BREAKS:
+            segments.append([])
+        elif segments[-1] or token not in _PG_LEADING_KEYWORDS:
+            segments[-1].append(token)
+    return [segment for segment in segments if segment]
+
+
+def _is_command_probe(*, parts: list[str]) -> bool:
+    head = [token for token in parts if not ANY_CASE_ENV_VAR_RE.match(token)][:2]
+    return len(head) == 2 and head[0] == "command" and head[1] in _COMMAND_PROBE_FLAGS
+
+
+def _runner_target(*, parts: list[str]) -> list[str]:
+    """The argv a runner (``sudo``, ``ssh`` …) hands a Postgres binary.
+
+    Words inside a quoted argument count, so ``su postgres -c 'dropdb x'``
+    resolves to ``["dropdb", "x"]``. Empty when no binary is named.
+    """
+    words = [word for token in parts[1:] for word in token.split()]
+    start = next(
+        (i for i, word in enumerate(words) if Path(word).name in _PG_BINARIES),
+        len(words),
+    )
+    return words[start:]
+
+
+def _pg_write_binary(parts: list[str]) -> str | None:
+    """The Postgres binary ``parts`` runs to write a cluster, else ``None``.
+
+    Env assignments and process wrappers are stripped first (GH-1732), and
+    runner commands (``sudo``, ``ssh``, ``xargs``, ``docker exec`` …) are
+    looked through: a wrapped ``dropdb`` is still a write.
+    """
+    if _is_command_probe(parts=parts):
+        return None
+    parts = strip_command_wrappers(parts=parts)
+    if parts and Path(parts[0]).name in _PG_RUNNERS:
+        parts = _runner_target(parts=parts)
+    if not parts:
+        return None
+    binary = Path(parts[0]).name
+    if binary in _PG_WRITE_BINARIES:
+        return binary
+    if binary == _PG_RESTORE and _pg_restore_targets_database(parts[1:]):
+        return binary
+    return None
+
+
+def _pg_write_binaries_in(*, unit: str) -> Iterator[str]:
+    """Every Postgres write binary ``unit`` runs.
+
+    A unit that cannot be tokenized fails closed on a command-position
+    match rather than being skipped.
+    """
+    try:
+        segments = _pg_segments(unit=unit)
+    except ValueError:
+        match = _PG_COMMAND_POSITION_RE.search(unit)
+        if match:
+            yield Path(match.group(0).split()[-1]).name
+        return
+    for parts in segments:
+        binary = _pg_write_binary(parts)
+        if binary:
+            yield binary
+
 
 @dataclass
 class SqlSafetyValidator(ValidatorBase):
@@ -472,12 +648,17 @@ class SqlSafetyValidator(ValidatorBase):
             or "postgres://" in cmd
             or "postgresql://" in cmd
             or _BQ_WORD_RE.search(cmd) is not None
+            or _mentions_pg_binary(command=cmd)
         )
 
     def validate(self, inp: HookInput) -> HookResult | None:
         command = inp.command
 
         result = self._check_direct_connection(command=command)
+        if result:
+            return result
+
+        result = self._check_pg_write_binaries(command=command)
         if result:
             return result
 
@@ -494,6 +675,23 @@ class SqlSafetyValidator(ValidatorBase):
             return result
 
         return self._check_sql_content(command=command)
+
+    def _check_pg_write_binaries(self, *, command: str) -> HookResult | None:
+        # should_run also admits psql/bq/db.sh commands; only one naming a
+        # Postgres binary pays for the substitution scan and the lexer.
+        if not _mentions_pg_binary(command=command):
+            return None
+        binary = next(
+            (
+                binary
+                for unit in command_units(command=command)
+                for binary in _pg_write_binaries_in(unit=unit)
+            ),
+            None,
+        )
+        if binary is None:
+            return None
+        return HookResult(message=PG_WRITE_BINARY_MSG.format(binary=binary))
 
     def _check_bq(self, *, command: str) -> HookResult | None:
         for parts in _simple_commands(command=command):
