@@ -5,6 +5,38 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.110.0 — One Page to Run Every Session
+
+Released 2026-11-01
+
+### Features
+
+- **Run every Claude session from one three-pane supervisor page** — the
+  0.109.0 page named each session but still sent the supervisor to its pane
+  to see what it was doing. The page now has three panes:
+  - a session tree grouped by project, with herdr-style status marks,
+    pins and reordering;
+  - the session's conversation, read from its transcript, with its
+    colour status bar and a reply box;
+  - a details panel with the session's task list, the pending edit or
+    command, recent calls with per-command pre-approve, and the calls the
+    supervisor approved by hand.
+
+  From the page the supervisor can also rename sessions (or let the daemon
+  name them from their branch), introduce two sessions so they stop
+  colliding, start, branch off or resume work from a project,
+  close a session out with reflect or wrap-up, and change one of the last
+  five answers given there
+  ([GH-1722](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1722))
+
+### Fixes
+
+- **A rejected push is reported as a failure, with git's reason** —
+  `git-push-safe.sh` read the exit status of a negated test, so a stale
+  lease or a remote refusal exited 0 and `push_safe` returned a bare
+  `push_failed` with git's message thrown away
+  ([GH-1734](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1734))
+
 ## 0.109.0 — Supervising Many Sessions at Once
 
 Released 2026-10-31
