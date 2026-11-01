@@ -5,6 +5,75 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.111.0 — Answer From the Page, Wherever the Session Runs
+
+Released 2026-11-01
+
+### Features
+
+- **Answer questions on the supervisor page from sessions outside
+  Herdr** — the page can only press keys in a Herdr pane, so a question
+  from any other session was left open in its terminal even after the
+  supervisor had answered it on the page. The question hook now holds
+  the question and waits for an answer from the page, then passes it to
+  Claude, so the terminal never shows the question. If nobody answers in
+  time, it opens in the terminal as before. The wait is set on the page
+  (default 120 s, 0 turns it off). Alongside this:
+  - options read as a full-width list with each description under its
+    label;
+  - "Type something" and "Chat about this" move to a quiet line below
+    the options;
+  - an "After answering: Stay here / Next question" switch moves the
+    page straight to the next session asking. A question still on
+    screen 30 s after its answer was sent comes back with a note that
+    the answer may not have arrived;
+  - "Only ones I approved by hand" now applies to every session
+  ([GH-1754](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1754),
+  [GH-1746](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1746))
+- **Satellite plugins install dev10x and keep every skill guard** —
+  skills that moved into satellite plugins are found, audited and
+  guarded like core ones, and installing a satellite installs dev10x
+  with it
+  ([GH-1564](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1564))
+- **Fanout gives each item its own Herdr workspace and agent**, so
+  parallel items no longer share a terminal
+  ([GH-1702](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1702))
+- **Self-review checks each reviewer spec in parallel before a push**,
+  with one source for every dispatch rule
+  ([GH-1741](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1741))
+- **`ci_rerun` no longer misses checks or loops on flaky apps**
+  ([GH-1724](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1724))
+- **Granted rules stop prompting again in new checkouts**
+  ([GH-1677](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1677))
+- **CI keeps running after an agent pushes to a ready PR**
+  ([GH-1731](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1731))
+
+### Security
+
+- **Grants that would let an interpreter run any script are refused** —
+  an allow rule such as `Bash(python:*)` is a rule for every program, so
+  the grant path now declines it
+  ([GH-1723](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1723))
+
+### Fixes
+
+- **`run_tests` works in poetry-style projects** with no `[project]`
+  table ([GH-1730](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1730))
+- **A hung git no longer freezes the permission pass**
+  ([GH-1713](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1713))
+- **Allow rules another writer adds survive a clean run**
+  ([GH-1712](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1712))
+- **git-groom no longer pops another session's stash**
+  ([GH-1703](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1703))
+- **New skills are scaffolded under `skills/`**, not `skills/skills/`
+  ([GH-1706](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1706))
+- **The draft-on-push check stays neutral until its App is configured**
+  ([GH-1739](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1739))
+- **The Stop hook no longer guards subagents it never reaches**
+  ([GH-1475](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1475))
+- **Crews are no longer briefed about an already-fixed phantom-ask bug**
+  ([GH-1716](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1716))
+
 ## 0.110.0 — One Page to Run Every Session
 
 Released 2026-11-01
