@@ -44,6 +44,12 @@ def mock_resolve_repo():
         yield mock
 
 
+@pytest.fixture
+def no_prefix_registry():
+    with patch.object(gh._gateway, "_milestone_prefix_registry", return_value=None) as mock:
+        yield mock
+
+
 def _completed(
     *,
     returncode: int = 0,
@@ -1330,6 +1336,7 @@ class TestMilestoneClose:
         assert "403" in result.error
 
 
+@pytest.mark.usefixtures("no_prefix_registry")
 class TestMilestoneCreate:
     @pytest.mark.asyncio
     @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
@@ -1369,6 +1376,96 @@ class TestMilestoneCreate:
 
         assert isinstance(result, ErrorResult)
         assert "422" in result.error
+
+
+class TestMilestonePrefixGuard:
+    """GH-1690: an unregistered `<INIT>` prefix is refused before the API call."""
+
+    @pytest.fixture
+    def registry(self):
+        with patch.object(
+            gh._gateway, "_milestone_prefix_registry", return_value=frozenset({"ARCH", "DX"})
+        ):
+            yield
+
+    @pytest.mark.asyncio
+    @pytest.mark.usefixtures("registry")
+    @pytest.mark.parametrize(
+        ("title", "expected"),
+        [
+            ("NOPE: Something", "| `NOPE` | <initiative> | active |"),
+            ("Untitled outcome", "does not start with an initiative prefix"),
+        ],
+        ids=["unregistered", "no-prefix"],
+    )
+    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    async def test_refuses_before_calling_the_api(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+        title: str,
+        expected: str,
+    ) -> None:
+        result = await gh.milestone_create(title=title)
+
+        assert isinstance(result, ErrorResult)
+        assert expected in result.error
+        mock_api.assert_not_called()
+
+    @pytest.fixture
+    def checkout_is_owner_repo(self):
+        refs = {
+            None: RepositoryRef(owner="owner", name="repo"),
+            "owner/repo": RepositoryRef(owner="owner", name="repo"),
+            "other/repo": RepositoryRef(owner="other", name="repo"),
+        }
+
+        async def resolve(repo: str | None) -> object:
+            return ok(refs[repo])
+
+        with patch.object(gh._gateway, "_resolve_repo", side_effect=resolve):
+            yield
+
+    @pytest.mark.asyncio
+    @pytest.mark.usefixtures("registry", "checkout_is_owner_repo")
+    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    async def test_explicit_repo_matching_the_checkout_is_guarded(
+        self,
+        mock_api: AsyncMock,
+    ) -> None:
+        result = await gh.milestone_create(title="NOPE: Something", repo="owner/repo")
+
+        assert isinstance(result, ErrorResult)
+        mock_api.assert_not_called()
+
+    @pytest.mark.asyncio
+    @pytest.mark.usefixtures("registry", "checkout_is_owner_repo")
+    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    async def test_another_repo_is_not_held_to_this_checkouts_registry(
+        self,
+        mock_api: AsyncMock,
+    ) -> None:
+        mock_api.return_value = _completed(stdout=json.dumps({"number": 3, "title": "NOPE: X"}))
+
+        result = await gh.milestone_create(title="NOPE: X", repo="other/repo")
+
+        assert isinstance(result, SuccessResult)
+
+    @pytest.mark.asyncio
+    @pytest.mark.usefixtures("registry")
+    @pytest.mark.parametrize("title", ["DX: Green CI", "ARCH-M6: Make the gates real"])
+    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    async def test_registered_prefix_reaches_the_api(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+        title: str,
+    ) -> None:
+        mock_api.return_value = _completed(stdout=json.dumps({"number": 9, "title": title}))
+
+        result = await gh.milestone_create(title=title)
+
+        assert isinstance(result, SuccessResult)
 
 
 class TestMilestoneReopen:
@@ -3667,6 +3764,7 @@ class TestIssueCommentBodyFile:
         mock_run.assert_not_awaited()
 
 
+@pytest.mark.usefixtures("no_prefix_registry")
 class TestMalformedJsonGuards:
     """GH-496: a zero exit code does not guarantee JSON on stdout.
 
