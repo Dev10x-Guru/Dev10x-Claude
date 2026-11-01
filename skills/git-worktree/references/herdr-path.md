@@ -79,15 +79,33 @@ Claude Code, not to Dev10x, so the supported route is a brief file:
 2. `Write` the full brief there — the ticket, the worktree path, the
    branch, and the skill the agent should start with (normally
    `/dev10x:work-on <ticket-url>`).
-3. Prompt with a short, git-free line that points at it:
+3. Prompt with a short, git-free line that points at it, in the
+   waiting form, as a `run_in_background` Bash call so this session
+   is not blocked:
 
 ```bash
-herdr agent prompt <TICKET>-<slug> "Carry out the brief at <path>"
+herdr agent prompt <TICKET>-<slug> "Carry out the brief at <path>" --wait
 ```
+
+`--wait` matches only states observed after the submission: it needs
+`working` or `blocked` within 5s (else `agent_prompt_stalled`), then
+returns on `idle`, `done` or `blocked`. Its exit is the end of the
+agent's turn. A separate `herdr agent wait` started after the prompt
+races it — on an agent that has not yet left `idle` it returns at once
+(GH-1702).
 
 `/tmp/Dev10x` is cleared on a machine restart, so the brief is a
 handoff, not a record — anything that must survive belongs on the
 ticket.
+
+**When `dev10x:fanout` is the caller (GH-1702),** the brief also
+names an absolute status-file path, the merge mode's finish line, and
+the status-line contract from
+[`fanout/references/herdr-dispatch.md`](../../fanout/references/herdr-dispatch.md)
+§ 2, quoted verbatim. The child has no `SendMessage` channel back to
+the orchestrator, so writing that file with the `Write` tool before
+every turn end is how its `DONE` / `DONE_WITH_CONCERNS` /
+`NEEDS_CONTEXT` / `BLOCKED` line reaches the orchestrator.
 
 ## Step C5: Never type over someone
 
@@ -123,4 +141,6 @@ continues. Report:
 ```
 
 The new agent owns that worktree from here. Follow its progress with
-`herdr agent get` / `herdr agent wait`, not by reading its files.
+`herdr agent get` and the Step C4 prompt's `--wait` exit, not by
+reading its files or arming a fresh `herdr agent wait` on an idle
+agent.

@@ -92,6 +92,50 @@
           "signals": ["Review:", "NEEDS_CONTEXT", "skipped", "DONE_WITH_CONCERNS"]
         }
       ]
+    },
+    {
+      "id": 3,
+      "name": "herdr-dispatch-status-file",
+      "prompt": "/dev10x:fanout GH-300 GH-301",
+      "setup": {
+        "env": {"HERDR_ENV": "1"},
+        "note": "Runs inside Herdr; one item's agent stops without writing its status file"
+      },
+      "description": "Tests that under Herdr each item goes through git-worktree Path C with a status file named in its brief, that the orchestrator waits without a poll loop, and that a missing status line and an unverified PR are never reported as DONE (GH-1702).",
+      "expected_output": "Each item gets its own Herdr workspace and agent; the brief names a status file; the wait is a backgrounded `herdr agent prompt --wait`; the item whose file stays empty is reported NEEDS_CONTEXT; pr_get is read before any DONE.",
+      "dimensions": ["parallel-dispatch"],
+      "assertions": [
+        {
+          "id": "herdr-path-c-per-item",
+          "text": "Under HERDR_ENV=1 each item is dispatched through dev10x:git-worktree Path C, not Agent(isolation=\"worktree\")",
+          "check": "tool_called",
+          "signals": ["Skill", "dev10x:git-worktree", "herdr worktree create"]
+        },
+        {
+          "id": "brief-names-status-file",
+          "text": "Each brief names an absolute status-file path and quotes the status-line contract",
+          "check": "behavioral",
+          "signals": ["status-", "Write tool", "DONE", "NEEDS_CONTEXT"]
+        },
+        {
+          "id": "wait-without-poll-loop",
+          "text": "The orchestrator waits with a backgrounded `herdr agent prompt ... --wait`, never a while/sleep loop or a Monitor poll",
+          "check": "behavioral",
+          "signals": ["--wait", "run_in_background", "no sleep loop", "no Monitor"]
+        },
+        {
+          "id": "missing-status-is-needs-context",
+          "text": "An item whose agent stops with an empty or non-terminal status file is read as NEEDS_CONTEXT, not DONE",
+          "check": "behavioral",
+          "signals": ["NEEDS_CONTEXT", "status line"]
+        },
+        {
+          "id": "pr-state-verified-before-done",
+          "text": "pr_get is called for an item's PR before that item is reported DONE",
+          "check": "tool_called",
+          "signals": ["mcp__plugin_dev10x_cli__pr_get"]
+        }
+      ]
     }
   ]
 }
