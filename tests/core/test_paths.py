@@ -9,7 +9,9 @@ from pathlib import Path
 
 import pytest
 
+from dev10x.comm.skills.notifications.slack_review_request import SLACK_NOTIFY_SCRIPT
 from dev10x.core.paths import skill_files, skill_roots, skill_script
+from dev10x.core.validators.sql_safety import DB_SH_PATH
 from dev10x.subprocess_utils import get_plugin_root
 
 SCRIPT_LITERAL = re.compile(r"^skills/[A-Za-z0-9_-]+/scripts/")
@@ -68,6 +70,64 @@ def test_src_resolves_scripts_through_the_resolver() -> None:
         "Use dev10x.core.paths.skill_script instead of a skills/<name>/scripts/ "
         "literal (GH-1526):\n  - " + "\n  - ".join(offenders)
     )
+
+
+def resolved_script_calls(*, source: str) -> list[tuple[int, str]]:
+    """Every ``skill_script(skill=..., rel=...)`` call made with literals."""
+    calls = []
+    for node in ast.walk(ast.parse(source)):
+        if not (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "skill_script"
+        ):
+            continue
+        kwargs = {kw.arg: kw.value for kw in node.keywords}
+        literals = [kwargs.get("skill"), kwargs.get("rel")]
+        if all(isinstance(value, ast.Constant) for value in literals):
+            skill, rel = (value.value for value in literals)
+            calls.append((node.lineno, skill_script(skill=skill, rel=rel)))
+    return calls
+
+
+def test_every_resolved_script_exists() -> None:
+    """GH-1751: a path that does not exist in the package fails here, not
+    in a session that needed the tool."""
+    missing = [
+        f"{path.relative_to(_src_root())}:{lineno} {script}"
+        for path in sorted(_src_root().rglob("*.py"))
+        for lineno, script in resolved_script_calls(source=path.read_text())
+        if not (get_plugin_root() / script).is_file()
+    ]
+
+    assert missing == [], "skill_script() points at a missing file:\n  - " + "\n  - ".join(missing)
+
+
+@pytest.mark.parametrize(
+    "script",
+    [
+        pytest.param(SLACK_NOTIFY_SCRIPT, id="slack-notify"),
+        pytest.param(DB_SH_PATH, id="db.sh"),
+    ],
+)
+def test_hand_built_script_paths_exist(script: Path) -> None:
+    """GH-1751: paths assembled outside skill_script() break the same way."""
+    assert script.is_file()
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        (
+            'skill_script(skill="git", rel="git-push-safe.sh")\n',
+            [(1, "skills/git/scripts/git-push-safe.sh")],
+        ),
+        ('skill_script(skill=name, rel="x.sh")\n', []),
+        ('other(skill="git", rel="x.sh")\n', []),
+    ],
+)
+def test_resolved_script_detector(source: str, expected: list[tuple[int, str]]) -> None:
+    assert resolved_script_calls(source=source) == expected
 
 
 @pytest.mark.parametrize(
