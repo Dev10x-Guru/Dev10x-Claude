@@ -139,7 +139,9 @@ things keep a merged head reviewed:
    pushed after a clean round is re-reviewed on the next flip. It acts
    as a GitHub App (`PR_DRAFT_APP_ID` variable,
    `PR_DRAFT_APP_PRIVATE_KEY` secret), because the workflow token cannot
-   convert a PR to draft, and fails loudly until both are set.
+   convert a PR to draft. Until both are set the job skips with a
+   notice and leaves the PR alone, rather than failing on every PR
+   (GH-1739).
 3. The review checklist in the PR body stamps the reviewed `sha`;
    `references/pr-merge-policy.md` § Reading Review Signals compares it
    with HEAD before a merge.

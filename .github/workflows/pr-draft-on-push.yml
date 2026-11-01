@@ -30,19 +30,24 @@ jobs:
     steps:
       # The workflow GITHUB_TOKEN cannot call convertPullRequestToDraft
       # ("Resource not accessible by integration"), so the job acts as a
-      # GitHub App holding contents and pull_requests write.
-      - name: Refuse to run without the App credentials
+      # GitHub App holding contents and pull_requests write. Without it
+      # the job skips (GH-1739).
+      - name: Skip without the App credentials
+        id: credentials
         env:
           APP_ID: ${{ vars.PR_DRAFT_APP_ID }}
           PRIVATE_KEY: ${{ secrets.PR_DRAFT_APP_PRIVATE_KEY }}
         run: |
           if [ -z "$APP_ID" ] || [ -z "$PRIVATE_KEY" ]; then
-            echo "::error title=App credentials missing::Set the PR_DRAFT_APP_ID repository variable and the PR_DRAFT_APP_PRIVATE_KEY secret to a GitHub App with contents and pull_requests write. The job cannot draft the PR without them."
-            exit 1
+            echo "::notice title=Draft on push not configured::Set the PR_DRAFT_APP_ID repository variable and the PR_DRAFT_APP_PRIVATE_KEY secret to a GitHub App with contents and pull_requests write. Until then this job leaves the PR as it is."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+          echo "configured=true" >> "$GITHUB_OUTPUT"
 
       - name: Mint the App token
         id: app-token
+        if: steps.credentials.outputs.configured == 'true'
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
           app-id: ${{ vars.PR_DRAFT_APP_ID }}
@@ -55,6 +60,7 @@ jobs:
       # `gh pr ready --undo` warns and exits 0 when the PR is already a
       # draft, so a race with the review's own draft step is harmless.
       - name: Convert the PR to draft
+        if: steps.credentials.outputs.configured == 'true'
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
