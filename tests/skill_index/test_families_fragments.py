@@ -158,6 +158,7 @@ EXPECTED_FAMILIES = {
     "Meta": "teach",
     "Session": "tasks",
     "Scoping": "scoping",
+    "Diagrams": "scoping",
     "Pipeline": "coding",
     "Git": "coding",
     "PR": "coding",
