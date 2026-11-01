@@ -74,9 +74,7 @@ gate**. Otherwise, offer the override once — **REQUIRED: Call
 **No contrary answer means the default.** Invoke `Skill(dev10x:afk)`
 to compose it. Never offer `bypassPermissions` / auto-mode as an
 answer to prompt risk — this harness is never YOLO. Full
-durable-policy-check procedure and the GH-978 worktree caveat (a
-fresh `isolation="worktree"` checkout can see a phantom merge-gate
-`ask`):
+durable-policy-check procedure:
 [`references/gate-policy-detail.md`](references/gate-policy-detail.md).
 
 ### 0.4 Permission pre-flight (the one-time window)
@@ -353,8 +351,6 @@ apply with no `dev10x foreman watch` armed (never a crew worker):
   minutes" — it cannot; that is a false STALL per window.
 - Sending a time-critical escalation by message without writing it to
   `DECISIONS.md` first.
-- Answering a worker's phantom merge-gate `ask` one relay at a time
-  instead of authorizing every worker at spawn.
 - Anyone but the owning worker writing to `status-<chunk>.md`, or
   anyone but the foreman writing to `roster.md`.
 - A chunk state recorded ONLY in `roster.md` — it is a derived view,
@@ -389,5 +385,4 @@ apply with no `dev10x foreman watch` armed (never a crew worker):
 | "The worker said it committed the migration on branch X — resume from there" | An edit is not a commit and a commit is not a push. Field case: the branch never existed on origin and the worktree died with four uncommitted files; the chunk was a restart. `git ls-remote --heads origin '<glob>'` before you believe it. |
 | "I'll wait passively and heartbeat every 10 minutes" | An idle agent runs no code. There is no timer and nothing wakes it. Heartbeat, make ONE bounded blocking wait, heartbeat again — or accept a false STALL every window. |
 | "I messaged the watchdog about it, so it's escalated" | Messages are best-effort and have arrived hours late, batched behind unrelated pings. `DECISIONS.md` is the authoritative record and the `escalations-<role>.md` line is what the watcher turns into an event; the message is only a nudge that both exist. |
-| "The merge gate returned `ask`, so the supervisor wants to decide" | In a fresh isolation worktree that `ask` is a resolver fallback — no session policy, no matching config glob — not a supervisor decision (GH-978, fix landed on `janusz/GH-978/worktree-gate-policy`, pending merge). Workers stop at PR-open regardless. |
 | "Cheaper models everywhere will stretch the quota" | A failed chunk costs more than the model discount saves. Downgrade the overseer, never the crew. |
