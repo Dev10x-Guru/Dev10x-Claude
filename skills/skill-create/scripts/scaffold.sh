@@ -21,7 +21,9 @@ if [[ "$PATTERN" != "script" && "$PATTERN" != "orchestration" && "$PATTERN" != "
     exit 1
 fi
 
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+# Three levels: scripts/ -> skill-create/ -> skills/ -> plugin root.
+# Two stopped at skills/ and nested new skills in skills/skills/ (GH-1706).
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)}"
 SKILL_DIR="$PLUGIN_ROOT/skills/$SKILL_NAME"
 
 if [[ -d "$SKILL_DIR" ]]; then
