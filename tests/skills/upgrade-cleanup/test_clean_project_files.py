@@ -594,6 +594,53 @@ class TestCleanFile:
         assert messages == []
 
 
+class TestCleanFileConcurrentWriter:
+    """GH-1712: a rule added after clean's snapshot must survive its write."""
+
+    GLOBAL_RULES = {"Bash(git log:*)"}
+    ADDED_RULE = "Bash(added-by-ensure-base:*)"
+
+    @pytest.fixture()
+    def settings_file(self, tmp_path: Path) -> Path:
+        path = tmp_path / "settings.local.json"
+        path.write_text(
+            json.dumps({"permissions": {"allow": ["Bash(git log:*)", "Bash(docker up)"]}}) + "\n"
+        )
+        return path
+
+    @pytest.fixture()
+    def allow_after_clean(
+        self,
+        settings_file: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> list[str]:
+        from dev10x.skills.permission import backup
+
+        real_backup = backup.create_backup
+
+        def backup_then_concurrent_add(path: Path) -> None:
+            real_backup(path)
+            data = json.loads(path.read_text())
+            data["permissions"]["allow"].append(self.ADDED_RULE)
+            path.write_text(json.dumps(data) + "\n")
+
+        monkeypatch.setattr(backup, "create_backup", backup_then_concurrent_add)
+        clean_mod.clean_file(
+            settings_file,
+            global_rules=self.GLOBAL_RULES,
+            current_version="0.33.0",
+        )
+        return json.loads(settings_file.read_text())["permissions"]["allow"]
+
+    def test_keeps_rule_added_between_snapshot_and_write(
+        self, allow_after_clean: list[str]
+    ) -> None:
+        assert self.ADDED_RULE in allow_after_clean
+
+    def test_still_removes_redundant_rule(self, allow_after_clean: list[str]) -> None:
+        assert allow_after_clean == ["Bash(docker up)", self.ADDED_RULE]
+
+
 class TestIsStalePublisher:
     def test_detects_stale_publisher(self, tmp_path: Path) -> None:
         cache_root = tmp_path / "cache"
