@@ -1,4 +1,4 @@
-"""Tests for the dev10x:yt-upload wrapper script (GH-1119).
+"""Tests for the dev10x-qa:yt-upload wrapper script (GH-1119).
 
 The properties pinned here are the ones whose absence publishes the wrong
 thing to a URL that cannot be quietly withdrawn: single-artifact selection
@@ -65,7 +65,7 @@ _stubbed = _install_requests_stub()
 try:
     _spec = importlib.util.spec_from_file_location(
         "upload_video",
-        _repo_root / "skills" / "yt-upload" / "scripts" / "upload-video.py",
+        _repo_root / "plugins" / "qa" / "skills" / "yt-upload" / "scripts" / "upload-video.py",
     )
     assert _spec is not None and _spec.loader is not None
     _mod = importlib.util.module_from_spec(_spec)

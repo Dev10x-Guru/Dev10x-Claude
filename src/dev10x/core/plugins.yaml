@@ -21,7 +21,8 @@
 # `soft_dependencies` are mutual `Skill()` edges that degrade when the
 # other plugin is absent (ADR-0034: coding<->scoping, QA->coding).
 marketplace: Dev10x-Guru
-extracted: []
+extracted:
+  - qa
 dependencies:
   coding:
     - tasks

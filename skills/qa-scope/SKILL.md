@@ -5,7 +5,7 @@ description: >
   sub-tickets when manual testing or new e2e tests are needed.
   TRIGGER when: PR needs QA analysis for coverage gaps or manual test
   requirements.
-  DO NOT TRIGGER when: executing QA test cases (use dev10x:qa-self),
+  DO NOT TRIGGER when: executing QA test cases (use dev10x-qa:qa-self),
   or PR has no user-facing changes.
 user-invocable: true
 invocation-name: dev10x:qa-scope

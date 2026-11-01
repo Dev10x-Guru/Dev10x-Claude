@@ -1,10 +1,10 @@
 # YouTube via gog
 
 Reading channels, videos, playlists and comments — and the one thing gog
-cannot do, which is why `dev10x:yt-upload` exists.
+cannot do, which is why `dev10x-qa:yt-upload` exists.
 
 **Publishing a recording is not this chapter's job.** Use
-`dev10x:yt-upload`, which owns the provenance gate, artifact selection,
+`dev10x-qa:yt-upload`, which owns the provenance gate, artifact selection,
 channel assertion, token borrowing and the shred-on-exit guarantee. This
 chapter is the gog surface underneath it.
 
@@ -64,7 +64,7 @@ did not take.
 `--media` / `--upload-file` — so no gog invocation can carry a media
 body.
 
-That is the whole reason `skills/yt-upload/scripts/upload-video.py`
+That is the whole reason `dev10x-qa:yt-upload`'s `scripts/upload-video.py`
 hand-rolls the resumable `videos.insert` with a token exported from gog.
 Everything gog *can* do stays with gog: warming the token
 (`youtube channels list --mine`), minting the credential

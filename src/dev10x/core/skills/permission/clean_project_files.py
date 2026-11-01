@@ -48,7 +48,7 @@ from dev10x.domain.common.allow_rule import AllowRule
 from dev10x.domain.common.plugin_version import SEMVER_PATTERN, PluginVersion
 from dev10x.domain.common.result import Result
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
-from dev10x.domain.plugin_identity import PLUGIN_NAMES
+from dev10x.domain.plugin_identity import CORE_PLUGIN_NAMES, PLUGIN_NAMES
 from dev10x.skills.permission.catalog_paths import shipped_projects_catalog
 from dev10x.skills.permission.config import parse_config, resolve_config
 from dev10x.skills.permission.doctor import has_double_slash_typo
@@ -68,8 +68,10 @@ USERSPACE_CONFIG = Dev10xConfigDir.upgrade_cleanup_projects_yaml()
 PLUGIN_CONFIG = shipped_projects_catalog()
 GLOBAL_SETTINGS = ClaudeDir.settings_json()
 
+# Core only: `current_version` is core's, and a satellite installed at a
+# different version must not have its working rules pruned (GH-1564).
 VERSION_PATTERN = re.compile(
-    rf"plugins/cache/[^/]+/{PLUGIN_NAMES}/({SEMVER_PATTERN})", re.IGNORECASE
+    rf"plugins/cache/[^/]+/{CORE_PLUGIN_NAMES}/({SEMVER_PATTERN})", re.IGNORECASE
 )
 PUBLISHER_PATTERN = re.compile(rf"plugins/cache/([^/]+)/{PLUGIN_NAMES}/", re.IGNORECASE)
 

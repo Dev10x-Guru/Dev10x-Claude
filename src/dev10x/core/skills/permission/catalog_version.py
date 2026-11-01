@@ -12,15 +12,20 @@ import re
 from pathlib import Path
 
 from dev10x.domain.common.plugin_version import SEMVER_PATTERN
-from dev10x.domain.plugin_identity import PLUGIN_NAMES
+from dev10x.domain.plugin_identity import CORE_PLUGIN_NAMES, PLUGIN_NAMES
 from dev10x.skills.permission.backup import backed_up_write
 
 VERSION_PATTERN = re.compile(rf"(plugins/cache/)([^/]+)(/{PLUGIN_NAMES}/)({SEMVER_PATTERN})")
+CORE_SLUG = re.compile(rf"/{CORE_PLUGIN_NAMES}/")
 
 
 def _target_slug(*, plugin_slug: str, target_plugin_dir: str | None) -> str:
-    """The ``/<plugin>/`` segment a rewritten path should carry (GH-1602)."""
-    if not target_plugin_dir:
+    """The ``/<plugin>/`` segment a rewritten path should carry (GH-1602).
+
+    Only a core spelling moves to ``target_plugin_dir``; a satellite
+    rule stays in its own directory (GH-1564).
+    """
+    if not target_plugin_dir or not CORE_SLUG.fullmatch(plugin_slug):
         return plugin_slug
     return f"/{target_plugin_dir}/"
 

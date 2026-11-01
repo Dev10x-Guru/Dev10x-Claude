@@ -228,6 +228,8 @@ groups:
       `${CLAUDE_PLUGIN_ROOT}` so they survive upgrades.
     rules:
       - Skill(dev10x:*)
+      # Satellite plugins (ADR-0034): one rule per extracted key.
+      - Skill(dev10x-qa:*)
       # A path rule's leading `//` anchors at the filesystem root; a
       # single `/` anchors at the settings source instead (GH-1325).
       # Edit(path) covers all file-editing tools (Write, Edit,
@@ -542,7 +544,7 @@ groups:
       # Piper reads a text file and writes a WAV — it never reaches the
       # network and never mutates anything but its own output path, so it
       # sits at the same tier as ffmpeg rather than behind a prompt. Voice
-      # models are fetched separately (see dev10x:tts § Installing a voice),
+      # models are fetched separately (see dev10x-qa:tts § Installing a voice),
       # which is why no download form is allowed here.
       - Bash(piper:*)
 
@@ -550,7 +552,7 @@ groups:
     tier: 3
     description: >
       Read-only surface of the gog Google CLI (https://gogcli.sh), used by
-      dev10x:yt-upload's preflight and post-upload read-back (GH-1119) and
+      dev10x-qa:yt-upload's preflight and post-upload read-back (GH-1119) and
       by dev10x:gog, which runs gog directly at the Bash layer (GH-1156).
       Opt-in — gog is a personal tool, not a Dev10x dependency, so most
       users have nothing to grant here. Scoped to the exact subcommands
@@ -558,7 +560,7 @@ groups:
       pre-approve the delete verbs, and `Bash(gog drive:*)` would
       pre-approve `gog drive delete`.
 
-      Note these rules are NOT required for dev10x:yt-upload. Its gog calls
+      Note these rules are NOT required for dev10x-qa:yt-upload. Its gog calls
       live inside `skills/yt-upload/scripts/upload-video.py`, and the
       permission layer only sees Bash tool invocations — not subprocess
       calls made from within a script — so the scripts glob already covers
@@ -611,7 +613,7 @@ groups:
       `Bash(gog auth tokens export:*)` allow-rule approves ANY shape of that
       command at the shell — including an operator- or injection-supplied
       `--out` pointing anywhere writable, with no `chmod`, no shred, and no
-      cleanup. dev10x:yt-upload's wrapper does all of that carefully, but
+      cleanup. dev10x-qa:yt-upload's wrapper does all of that carefully, but
       the wrapper's protections are properties of `upload-video.py`, NOT of
       this permission grant: as `gog-readonly` notes, subprocess calls made
       from inside a script are never seen by the permission layer, so the
