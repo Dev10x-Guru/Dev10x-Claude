@@ -6,7 +6,8 @@ description: >
   agents, or APIs — for a PR description, issue, ADR, or design doc.
   TRIGGER when: drawing interactions between participants over time.
   DO NOT TRIGGER when: drawing system structure (use
-  dev10x:diagram-c4) or a business process with lanes and gateways.
+  dev10x:diagram-c4) or a business process with lanes and gateways
+  (use dev10x:diagram-bpmn).
 user-invocable: true
 invocation-name: dev10x:diagram-sequence
 allowed-tools:
