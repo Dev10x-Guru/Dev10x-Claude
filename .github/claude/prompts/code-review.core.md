@@ -47,7 +47,10 @@ names an unregistered agent, review those files yourself and say
 so in the summary. For EACH resulting agent, dispatch ONE subagent
 via the Task tool with all of its files. Each spec's `model:`
 frontmatter sets its tier, while you — the orchestrator — only
-route, deduplicate, verify, and post.
+route, deduplicate, verify, and post. The local pre-push review
+(`dev10x:review`) follows the same routing and merge rules; both are
+written down in `references/review-routing.md`, so change them
+together.
 
 Dispatch all matched subagents in ONE message so they run in
 parallel. They run in the foreground and each Task call returns
