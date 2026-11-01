@@ -477,6 +477,15 @@ fire the user-confirmation gate. Signals include:
   that differs from the default branch, so no commit can clear it
   before merge (`references/pr-merge-policy.md` § Reading Review
   Signals). Say in the question that no bot reviewed the PR
+- "Token exchange failed with status 401" from `claude-code-action`
+  (the federation rule rejects the job's OIDC token, #1748). The
+  standing remedy is the GH-1756 switch, not a fixup: set
+  `CLAUDE_REVIEW_ENABLED=false` until auth is fixed
+
+A `skipped` `claude-review` / `hygiene-review` is not a failure and
+never reaches this gate: with the switch off or the
+`skip-claude-review` label set it reads as "Claude review disabled"
+(`references/pr-merge-policy.md` § Reading Review Signals).
 
 Never auto-classify without evidence — if uncertain whether
 the failure is code or infra, default to the auto-fix loop

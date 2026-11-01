@@ -21,6 +21,9 @@ This repository uses four Claude-powered workflows:
 The reviews run once per ready-for-review flip, and
 `pr-draft-on-push.yml` drafts a ready PR on every push:
 `.claude/rules/claude-ci-cost.md` § Review Trigger Cadence (GH-1694).
+A job-level `CLAUDE_REVIEW_ENABLED` / `CLAUDE_ASSISTANT_ENABLED`
+variable and a `skip-claude-review` label switch them off as skipped
+checks: § Switching the reviews off (GH-1756).
 
 ## Multi-Agent Architecture
 
