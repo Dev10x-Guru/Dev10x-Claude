@@ -21,5 +21,9 @@ def decisions_path() -> Path:
     return state_dir() / "decisions.json"
 
 
+def settings_path() -> Path:
+    return state_dir() / "settings.json"
+
+
 def actions_log_path() -> Path:
     return state_dir() / "actions.jsonl"

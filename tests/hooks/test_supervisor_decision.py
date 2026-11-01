@@ -16,6 +16,7 @@ from dev10x.domain.dev10x_paths import CONFIG_HOME_ENV_VAR, Dev10xConfigDir
 
 from dev10x.comm.hooks.supervisor_decision import supervisor_decision
 from dev10x.comm.supervisor import paths
+from dev10x.comm.supervisor.settings import ANSWER_WAIT_MAX
 
 QUESTIONS = [{"question": "Which hub?", "header": "Hub", "options": [{"label": "Relay"}]}]
 PAYLOAD = {
@@ -27,15 +28,39 @@ PAYLOAD = {
 
 
 class FakeOpener:
-    def __init__(self, *, error: Exception | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        error: Exception | None = None,
+        replies: list[dict[str, Any]] | None = None,
+    ) -> None:
         self.requests: list[tuple[urllib.request.Request, float]] = []
         self.error = error
+        self.replies = list(replies or [])
 
     def __call__(self, request: urllib.request.Request, *, timeout: float) -> io.BytesIO:
         self.requests.append((request, timeout))
         if self.error:
             raise self.error
-        return io.BytesIO(b"{}")
+        reply = self.replies.pop(0) if self.replies else {}
+        return io.BytesIO(json.dumps(reply).encode())
+
+    @property
+    def paths(self) -> list[str]:
+        return [
+            request.full_url.removeprefix("http://127.0.0.1:8765") for request, _ in self.requests
+        ]
+
+
+class FakeTime:
+    def __init__(self) -> None:
+        self.now = 0.0
+
+    def clock(self) -> float:
+        return self.now
+
+    def sleep(self, seconds: float) -> None:
+        self.now += seconds
 
 
 @pytest.fixture
@@ -58,7 +83,7 @@ class TestPosts:
     @pytest.fixture
     def sent(self, token: str) -> tuple[urllib.request.Request, float]:
         opener = FakeOpener()
-        supervisor_decision(PAYLOAD, opener=opener)
+        supervisor_decision(PAYLOAD, opener=opener, in_herdr=lambda: True)
         [request] = opener.requests
         return request
 
@@ -78,7 +103,23 @@ class TestPosts:
             "session_id": "sid-1",
             "cwd": "/w",
             "questions": QUESTIONS,
+            "hold": False,
         }
+
+    @pytest.mark.parametrize(("env", "held"), [("1", False), ("", True)])
+    def test_holds_only_outside_herdr(
+        self,
+        token: str,
+        monkeypatch: pytest.MonkeyPatch,
+        env: str,
+        held: bool,
+    ) -> None:
+        monkeypatch.setenv("HERDR_ENV", env)
+        opener = FakeOpener()
+
+        supervisor_decision(PAYLOAD, opener=opener)
+
+        assert json.loads(opener.requests[0][0].data)["hold"] is held  # type: ignore[arg-type]
 
     @pytest.mark.parametrize(("env", "port"), [("9100", 9100), ("junk", 8765)])
     def test_port_from_env(
@@ -94,6 +135,82 @@ class TestPosts:
         supervisor_decision(PAYLOAD, opener=opener)
 
         assert opener.requests[0][0].full_url == f"http://127.0.0.1:{port}/decisions"
+
+
+class TestWaitsForThePage:
+    @pytest.fixture
+    def time(self) -> FakeTime:
+        return FakeTime()
+
+    def _run(
+        self, *, replies: list[dict[str, Any]], time: FakeTime
+    ) -> tuple[FakeOpener, list[str]]:
+        opener = FakeOpener(replies=replies)
+        emitted: list[str] = []
+        supervisor_decision(
+            PAYLOAD,
+            opener=opener,
+            in_herdr=lambda: False,
+            clock=time.clock,
+            sleep=time.sleep,
+            emit=emitted.append,
+        )
+        return opener, emitted
+
+    def test_answers_the_question_once_the_page_does(self, token: str, time: FakeTime) -> None:
+        opener, emitted = self._run(
+            replies=[
+                {"decision_ids": ["d1"], "wait_seconds": 30},
+                {"ok": True, "answers": None},
+                {"ok": True, "answers": {"Which hub?": "Relay"}},
+            ],
+            time=time,
+        )
+
+        assert (opener.paths, [json.loads(line) for line in emitted]) == (
+            ["/decisions", "/decisions/answers", "/decisions/answers"],
+            [
+                {
+                    "hookSpecificOutput": {
+                        "hookEventName": "PreToolUse",
+                        "permissionDecision": "allow",
+                        "permissionDecisionReason": "Answered on the supervisor page.",
+                        "updatedInput": {
+                            "questions": QUESTIONS,
+                            "answers": {"Which hub?": "Relay"},
+                        },
+                    }
+                }
+            ],
+        )
+
+    def test_hands_the_question_back_when_the_wait_ends(self, token: str, time: FakeTime) -> None:
+        opener, emitted = self._run(
+            replies=[{"decision_ids": ["d1"], "wait_seconds": 2}], time=time
+        )
+
+        assert (opener.paths, emitted, json.loads(opener.requests[-1][0].data)) == (  # type: ignore[arg-type]
+            ["/decisions", "/decisions/answers", "/decisions/answers", "/decisions/release"],
+            [],
+            {"decision_ids": ["d1"]},
+        )
+
+    @pytest.mark.parametrize(
+        "reply",
+        [
+            {"decision_ids": ["d1"], "wait_seconds": 0},
+            {"decision_ids": ["d1"]},
+            {"decision_ids": [], "wait_seconds": 30},
+            {"decision_ids": ["d1"], "wait_seconds": "soon"},
+        ],
+        ids=["no-wait", "old-daemon", "nothing-stored", "bad-wait"],
+    )
+    def test_steps_aside_without_a_wait(
+        self, token: str, time: FakeTime, reply: dict[str, Any]
+    ) -> None:
+        opener, emitted = self._run(replies=[reply], time=time)
+
+        assert (opener.paths, emitted) == (["/decisions"], [])
 
 
 class TestSilence:
@@ -168,7 +285,8 @@ def test_comm_hooks_register_ask_user_question() -> None:
     [entry] = [e for e in hooks["hooks"]["PreToolUse"] if e["matcher"] == "AskUserQuestion"]
     [hook] = entry["hooks"]
 
-    assert (hook["command"].split()[0], hook["command"].endswith("supervisor-decision.py")) == (
-        "$CLAUDE_PLUGIN_ROOT/hooks/scripts/audit-wrap",
-        True,
-    )
+    assert (
+        hook["command"].split()[0],
+        hook["command"].endswith("supervisor-decision.py"),
+        hook["timeout"] > ANSWER_WAIT_MAX,
+    ) == ("$CLAUDE_PLUGIN_ROOT/hooks/scripts/audit-wrap", True, True)

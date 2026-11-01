@@ -8,8 +8,8 @@ import threading
 import time
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import asdict, dataclass, field
-from datetime import date
+from dataclasses import asdict, dataclass, field, replace
+from datetime import date, datetime
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -18,7 +18,14 @@ from urllib.parse import parse_qs, urlsplit
 from uuid import uuid4
 
 from dev10x.comm.skills.bus.maildir import InvalidMessageError
-from dev10x.comm.supervisor.decisions import ANSWERED, OPEN, Decision, DecisionStore
+from dev10x.comm.supervisor.decisions import (
+    ANSWERED,
+    HOOK_CHANNEL,
+    OPEN,
+    Decision,
+    DecisionStore,
+    is_held,
+)
 from dev10x.comm.supervisor.delivery import (
     SESSION_COMMANDS,
     Peer,
@@ -61,6 +68,7 @@ from dev10x.comm.supervisor.prompts import (
 )
 from dev10x.comm.supervisor.session_tasks import SessionTask, read_session_tasks
 from dev10x.comm.supervisor.sessions import SessionView
+from dev10x.comm.supervisor.settings import PageSettings, SettingsStore
 from dev10x.comm.supervisor.workspace import (
     Workspace,
     issue_url,
@@ -77,12 +85,17 @@ CONFIRMED_BY = "janusz"
 AUTO_RENAMED_BY = "janusz (daemon start)"
 STATIC_DIR = Path(__file__).parent / "static"
 HEARTBEAT_SECONDS = 15.0
-HOOK_ROUTE = "/decisions"
+HOOK_ROUTES = frozenset({"/decisions", "/decisions/answers", "/decisions/release"})
+HELD_WAITING_FOR = "your answer on this page"
 EXCERPT_LINES = 24
 TAIL_LINES = 400
 TAIL_SOURCE = "recent-unwrapped"
 STATUS_LINE_SECONDS = 30.0
 STATUS_LINE_WORKERS = 8
+
+
+def _local_now() -> datetime:
+    return datetime.now().astimezone()
 
 
 class RequestError(Exception):
@@ -101,6 +114,8 @@ class SupervisorApp:
     token: str
     relay_mailbox: str
     hook_token: str = ""
+    settings: SettingsStore | None = None
+    now: Callable[[], datetime] = _local_now
     key_sender: Callable[..., None] = send_keys
     pane_reader: Callable[..., str] = read_pane
     preview_reader: Callable[..., Preview | None] = read_preview
@@ -153,6 +168,9 @@ class SupervisorApp:
             self.version += 1
             self.changed.notify_all()
 
+    def page_settings(self) -> PageSettings:
+        return self.settings.load() if self.settings else PageSettings()
+
     def nudge(self) -> None:
         with self.changed:
             self.version += 1
@@ -192,8 +210,13 @@ def snapshot_payload(*, app: SupervisorApp) -> dict[str, Any]:
         previews, status_lines = dict(app.previews), dict(app.status_lines)
         workspaces = dict(app.workspaces)
     open_decisions = [decision for decision in app.store.all() if decision.state == OPEN]
+    now = app.now()
+    held = {
+        decision.session_id for decision in open_decisions if is_held(decision=decision, now=now)
+    }
     sessions = []
-    for view in snapshot.sessions:
+    for listed in snapshot.sessions:
+        view = _held_view(view=listed) if listed.session_id in held else listed
         text = pane_text.get(view.session_id, "")
         prompt = parse_prompt(pane_text=text) if view.status == "waiting" else None
         preview = previews.get(view.session_id)
@@ -222,7 +245,12 @@ def snapshot_payload(*, app: SupervisorApp) -> dict[str, Any]:
         "taken_at": snapshot.taken_at.isoformat(timespec="seconds"),
         "errors": snapshot.errors,
         "sessions": sessions,
+        "settings": asdict(app.page_settings()),
     }
+
+
+def _held_view(*, view: SessionView) -> SessionView:
+    return replace(view, status="waiting", waiting_for=HELD_WAITING_FOR, group="needs-you")
 
 
 def _slow_read_due(*, app: SupervisorApp) -> bool:
@@ -385,6 +413,9 @@ class SupervisorHandler(BaseHTTPRequestHandler):
         self._dispatch(
             routes={
                 "/decisions": self._post_decisions,
+                "/decisions/answers": self._post_decision_answers,
+                "/decisions/release": self._post_decision_release,
+                "/settings": self._post_settings,
                 "/answer": self._post_answer,
                 "/keys": self._post_keys,
                 "/reply": self._post_reply,
@@ -450,7 +481,7 @@ class SupervisorHandler(BaseHTTPRequestHandler):
     def _check_token(self, *, params: dict[str, str], path: str) -> None:
         offered = (self.headers.get(TOKEN_HEADER) or params.get("token", "")).encode()
         accepted = [self.app.token]
-        if path == HOOK_ROUTE and self.app.hook_token:
+        if path in HOOK_ROUTES and self.app.hook_token:
             accepted.append(self.app.hook_token)
         if not any(hmac.compare_digest(offered, token.encode()) for token in accepted):
             raise RequestError(status=HTTPStatus.FORBIDDEN, message="missing or wrong token")
@@ -542,16 +573,57 @@ class SupervisorHandler(BaseHTTPRequestHandler):
             raise RequestError(
                 status=HTTPStatus.BAD_REQUEST, message="session_id and questions are required"
             )
+        asked = [question for question in questions if isinstance(question, dict)]
+        holdable = bool(body.get("hold")) and not any(
+            question.get("multiSelect") for question in asked
+        )
+        wait = self.app.page_settings().answer_wait_seconds if holdable else 0
         added = self.app.store.add_from_hook(
             session_id=str(body["session_id"]),
             cwd=str(body.get("cwd", "")),
-            questions=[question for question in questions if isinstance(question, dict)],
+            questions=asked,
+            hold_seconds=wait,
+            now=self.app.now(),
         )
         self.app.nudge()
         self._json(
             status=HTTPStatus.CREATED,
-            payload={"decision_ids": [decision.decision_id for decision in added]},
+            payload={
+                "decision_ids": [decision.decision_id for decision in added],
+                "wait_seconds": wait,
+            },
         )
+
+    def _decision_ids(self) -> list[str]:
+        ids = self._body().get("decision_ids")
+        if not isinstance(ids, list) or not ids:
+            raise RequestError(status=HTTPStatus.BAD_REQUEST, message="decision_ids is required")
+        return [str(item) for item in ids]
+
+    def _post_decision_answers(self, params: dict[str, str]) -> None:
+        answers = self.app.store.collect(decision_ids=self._decision_ids())
+        if answers is not None:
+            self.app.nudge()
+        self._ok(answers=answers)
+
+    def _post_decision_release(self, params: dict[str, str]) -> None:
+        self.app.store.release(decision_ids=self._decision_ids())
+        self.app.nudge()
+        self._ok()
+
+    def _post_settings(self, params: dict[str, str]) -> None:
+        raw = self._body().get("answer_wait_seconds")
+        if not isinstance(raw, int) or isinstance(raw, bool):
+            raise RequestError(
+                status=HTTPStatus.BAD_REQUEST, message="answer_wait_seconds must be a whole number"
+            )
+        if self.app.settings is None:
+            raise RequestError(
+                status=HTTPStatus.SERVICE_UNAVAILABLE, message="This page keeps no settings."
+            )
+        saved = self.app.settings.save(settings=PageSettings(answer_wait_seconds=raw))
+        self.app.nudge()
+        self._ok(settings=asdict(saved))
 
     def _listed_session(self, *, session_id: str) -> SessionView:
         view = self.app.session(session_id=session_id)
@@ -587,9 +659,12 @@ class SupervisorHandler(BaseHTTPRequestHandler):
         decision = self.app.store.get(decision_id=str(body.get("decision_id", "")))
         if decision is None or decision.state != OPEN:
             raise RequestError(status=HTTPStatus.CONFLICT, message="Already answered.")
-        view = self._listed_session(session_id=decision.session_id)
         index = _option_index(raw=body.get("option_index"), decision=decision)
         answer = decision.options[index]
+        if is_held(decision=decision, now=self.app.now()):
+            self._answer_held(decision=decision, answer=answer)
+            return
+        view = self._listed_session(session_id=decision.session_id)
         by_keys = view.status == "waiting" and bool(view.pane_id)
         if by_keys:
             self._answer_by_keys(decision=decision, view=view, index=index, answer=answer)
@@ -597,6 +672,22 @@ class SupervisorHandler(BaseHTTPRequestHandler):
             self._answer_by_relay(decision=decision, view=view, answer=answer)
         self.app.nudge()
         self._ok(channel="keys" if by_keys else "relay")
+
+    def _answer_held(self, *, decision: Decision, answer: str) -> None:
+        stored = self.app.store.answer(
+            decision_id=decision.decision_id, answer=answer, channel=HOOK_CHANNEL
+        )
+        if stored is None:
+            raise RequestError(status=HTTPStatus.CONFLICT, message="Already answered.")
+        log_action(
+            log_path=self.app.log_path,
+            action="hook-answer",
+            target=decision.session_id,
+            detail=f"{decision.decision_id}: {answer}",
+            confirmed_by=CONFIRMED_BY,
+        )
+        self.app.nudge()
+        self._ok(channel=HOOK_CHANNEL)
 
     def _answer_by_keys(
         self,

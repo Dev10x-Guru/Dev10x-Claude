@@ -4,7 +4,7 @@
 
   import ToolPreview from "./ToolPreview.svelte";
   import { parseSteps, splitDialog } from "../lib/dialog";
-  import { displayName, inHerdr, isStockExtra, optionText, waitingLabel } from "../lib/format";
+  import { clockTime, displayName, inHerdr, isStockExtra, optionText, waitingLabel } from "../lib/format";
   import { record } from "../lib/recent.svelte";
   import type { AfterAnswer } from "../lib/prefs";
   import type { Decision, PromptOption, Session } from "../lib/types";
@@ -163,6 +163,13 @@
       </p>
     {/if}
   {:else if session.decisions.length}
+    {@const heldUntil = session.decisions.map((decision) => decision.held_until ?? "").find(Boolean)}
+    {#if heldUntil}
+      <p class="held">
+        The session is waiting for your answer here until {clockTime(heldUntil)}. After that, the question opens in its
+        terminal.
+      </p>
+    {/if}
     {#each session.decisions as decision (decision.decision_id)}
       <p class="question">
         {#if decision.header}<span class="header">{decision.header}</span>{/if}
@@ -318,6 +325,13 @@
   }
 
   .note {
+    font-size: var(--step--1);
+  }
+
+  .held {
+    margin: 0;
+    max-width: 72ch;
+    color: var(--amber-ink);
     font-size: var(--step--1);
   }
 

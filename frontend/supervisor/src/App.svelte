@@ -1,5 +1,6 @@
 <script lang="ts">
   import DetailPane from "./components/DetailPane.svelte";
+  import PageSettings from "./components/PageSettings.svelte";
   import SessionPane from "./components/SessionPane.svelte";
   import Sidebar from "./components/Sidebar.svelte";
   import { fetchDetail, post, readToken, subscribe, type Connection } from "./lib/api";
@@ -219,6 +220,9 @@
           Connecting…
         {/if}
       </p>
+      {#if snapshot?.settings}
+        <PageSettings settings={snapshot.settings} {pending} {run} />
+      {/if}
       {#if errors.length}
         <ul class="errors" role="status">
           {#each errors as [source, message] (source)}

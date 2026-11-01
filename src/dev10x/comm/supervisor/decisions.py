@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict, dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -12,6 +12,7 @@ from dev10x.domain.file_locks import locked_json_update
 OPEN = "open"
 ANSWERED = "answered"
 DELIVERED = "delivered"
+HOOK_CHANNEL = "hook"
 
 
 @dataclass
@@ -27,6 +28,15 @@ class Decision:
     state: str = OPEN
     answer: str = ""
     channel: str = ""
+    held_until: str = ""
+
+
+def is_held(*, decision: Decision, now: datetime) -> bool:
+    return (
+        decision.state == OPEN
+        and bool(decision.held_until)
+        and datetime.fromisoformat(decision.held_until) > now
+    )
 
 
 def _option_labels(*, question: dict[str, Any]) -> list[str]:
@@ -52,8 +62,12 @@ class DecisionStore:
         session_id: str,
         cwd: str,
         questions: list[dict[str, Any]],
+        hold_seconds: float = 0,
+        now: datetime | None = None,
     ) -> list[Decision]:
-        created = datetime.now().astimezone().isoformat()
+        at = now or datetime.now().astimezone()
+        created = at.isoformat()
+        held_until = (at + timedelta(seconds=hold_seconds)).isoformat() if hold_seconds > 0 else ""
         added = [
             Decision(
                 decision_id=f"{session_id[:8]}-{uuid4().hex[:8]}",
@@ -64,6 +78,7 @@ class DecisionStore:
                 options=_option_labels(question=question),
                 multi_select=bool(question.get("multiSelect", False)),
                 created=created,
+                held_until=held_until,
             )
             for question in questions
         ]
@@ -107,6 +122,32 @@ class DecisionStore:
             target.channel = channel
             self._save(data=data, decisions=decisions)
             return target
+
+    def collect(self, *, decision_ids: list[str]) -> dict[str, str] | None:
+        with locked_json_update(self._path) as data:
+            decisions = self._load(data=data)
+            wanted = [decision for decision in decisions if decision.decision_id in decision_ids]
+            ready = len(wanted) == len(set(decision_ids)) and all(
+                decision.state == ANSWERED and decision.channel == HOOK_CHANNEL
+                for decision in wanted
+            )
+            if not wanted or not ready:
+                return None
+            for decision in wanted:
+                decision.state = DELIVERED
+            self._save(data=data, decisions=decisions)
+            return {decision.question: decision.answer for decision in wanted}
+
+    def release(self, *, decision_ids: list[str]) -> None:
+        with locked_json_update(self._path) as data:
+            decisions = self._load(data=data)
+            for decision in decisions:
+                if decision.decision_id not in decision_ids:
+                    continue
+                decision.held_until = ""
+                if decision.state == ANSWERED and decision.channel == HOOK_CHANNEL:
+                    decision.state, decision.answer, decision.channel = OPEN, "", ""
+            self._save(data=data, decisions=decisions)
 
     def reopen(self, *, decision_id: str) -> None:
         self._set_state(ids={decision_id}, from_states={ANSWERED}, to_state=OPEN)

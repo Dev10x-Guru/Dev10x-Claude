@@ -20,6 +20,7 @@ from dev10x.comm.supervisor.delivery import RELAY_MAILBOX
 from dev10x.comm.supervisor.lessons import DEFAULT_KB_ROOT
 from dev10x.comm.supervisor.probes import Snapshot, take_snapshot
 from dev10x.comm.supervisor.server import SupervisorApp, make_server, run_collector
+from dev10x.comm.supervisor.settings import SettingsStore
 from dev10x.domain.file_locks import atomic_write_text
 
 UNIT_TEMPLATE = """\
@@ -50,6 +51,7 @@ def build_app(
 ) -> SupervisorApp:
     return SupervisorApp(
         store=DecisionStore(path=paths.decisions_path()),
+        settings=SettingsStore(path=paths.settings_path()),
         bus_root=bus_root,
         kb_root=kb_root,
         log_path=paths.actions_log_path(),
