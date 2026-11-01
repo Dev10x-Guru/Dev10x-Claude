@@ -229,12 +229,16 @@ fi
 push_stdout=$(mktemp)
 push_stderr=$(mktemp)
 trap 'rm -f "$push_stdout" "$push_stderr"' EXIT
-if ! git push "${PUSH_ARGS[@]}" >"$push_stdout" 2>"$push_stderr"; then
-    rc=$?
+# `|| push_rc=$?`, not `if ! git push; then rc=$?`: inside that branch
+# `$?` is the negation's status, always 0, so a rejected push exited 0
+# and the wrapper dropped git's reason (GH-1734).
+push_rc=0
+git push "${PUSH_ARGS[@]}" >"$push_stdout" 2>"$push_stderr" || push_rc=$?
+if [[ $push_rc -ne 0 ]]; then
     cat "$push_stdout" "$push_stderr" >&2
     printf '{"pushed":false,"ref":"%s","remote":"%s","blocked_reason":"push_failed"}\n' \
         "$target_branch" "$remote"
-    exit "$rc"
+    exit "$push_rc"
 fi
 cat "$push_stdout" "$push_stderr" >&2
 
