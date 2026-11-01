@@ -356,10 +356,12 @@ async def ci_rerun(
     Actions runs are re-run via `rerun-failed-jobs` (or a full `rerun`
     when `failed_only=false`); third-party GitHub App check suites are
     re-requested via `check-suites/{id}/rerequest`. Actions runs are
-    capped at 3 attempts (counted on GitHub); third-party suites expose
-    no attempt counter, so they are bounded per call only (at most 10
-    re-runs per call). Reach for this instead of `gh api --method POST
-    .../rerequest`, which sits on an ask rule.
+    capped at 3 attempts (counted on GitHub); third-party suites have no
+    GitHub counter, so their re-requests are counted locally per repo + PR
+    and stop at the same cap (GH-1724). One call issues at most 10
+    re-runs. Both listings are paginated; `truncated` is true when the
+    page ceiling cut them short. Reach for this instead of `gh api
+    --method POST .../rerequest`, which sits on an ask rule.
 
     Args:
         pr_number: PR whose head SHA is targeted (give this or head_sha).
@@ -371,8 +373,8 @@ async def ci_rerun(
 
     Returns:
         Dictionary with keys: repo, head_sha, failed_only,
-        max_attempts, retried (each retry recorded), skipped (with
-        reason), failed.
+        max_attempts, truncated, retried (each retry recorded), skipped
+        (with reason), failed, warnings.
     """
     return await gh.ci_rerun(
         pr_number=pr_number,
