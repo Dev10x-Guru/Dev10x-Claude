@@ -84,7 +84,7 @@ writing anything:
 | verdict | What to tell the supervisor |
 |---------|-----------------------------|
 | `refuse-sensitive` | DX014 keeps this prompt on purpose. Approve it case by case, or bless one exact probe in `sensitivity-exceptions.yaml` |
-| `too-broad` | Quote `reason`. The rule would cover far more than the approved command; keep approving per use or name a narrower subcommand. A whole executable (`Bash(<exe>:*)`) is refused unless it is on the vetted list of read-only tools, so an unfamiliar one is offered as `Bash(<exe> <subcommand>:*)` instead (GH-1687) |
+| `too-broad` | Quote `reason`. The rule would cover far more than the approved command; keep approving per use or name a narrower subcommand. A whole executable (`Bash(<exe>:*)`) is refused unless it is on the vetted list of read-only tools, so an unfamiliar one is offered as `Bash(<exe> <subcommand>:*)` instead (GH-1687). An interpreter (`lua`, `python3.12`, …) is refused at any depth, as is a command or rule naming an exec flag (`rg --pre`, `sort --compress-program`, `make --eval`/`-f`); advise a wrapper script or MCP tool (GH-1723) |
 | `denied` | A deny rule names or sits inside this shape. Do not look for a spelling that dodges it (GH-972) |
 | `use-alternative` | Name the route from `advice` (skill, MCP tool or alias) and use it from now on |
 | `normalize` | Quote each `advice` line. The command needs rewriting; no rule can match its shape |

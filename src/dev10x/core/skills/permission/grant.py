@@ -40,6 +40,7 @@ from dev10x.domain.rules.validation_rule import Compensation, MatchingRule
 from dev10x.domain.sensitivity import SensitivityClassifier, name_is_sensitive, operand_tokens
 from dev10x.skills.permission.backup import backed_up_write
 from dev10x.skills.permission.catalog_write import partition_writable
+from dev10x.skills.permission.exec_capable import exec_flag, is_interpreter
 from dev10x.skills.permission.generalize import generalize_rule_shape
 
 SKILL_MAP_PATH = Path(_validators.__file__).parent / "command-skill-map.yaml"
@@ -321,6 +322,9 @@ def breadth_problem(*, rule: str) -> str | None:
         return "The command prefix is a wildcard."
     if Path(words[0]).name in _UNGRANTABLE_EXECUTABLES:
         return f"`{words[0]}` runs arbitrary code, escalates or deletes; approve each use."
+    exec_problem = _exec_problem(words=words)
+    if exec_problem:
+        return exec_problem
     if tuple(words[:2]) in _UNGRANTABLE_PREFIXES:
         return f"`{' '.join(words[:2])}` can write or run anything; approve each use."
     if len(words) <= _SUBCOMMAND_DEPTH.get(words[0], 0):
@@ -331,6 +335,19 @@ def breadth_problem(*, rule: str) -> str | None:
             f"`{unknown}` is not known safe to grant whole; it may run code or write. "
             f"Grant {_narrower_example(rule=rule)} instead."
         )
+    return None
+
+
+def _exec_problem(*, words: list[str]) -> str | None:
+    """Why ``words`` would let a granted rule run another program (GH-1723)."""
+    if is_interpreter(executable=words[0]):
+        return (
+            f"`{words[0]}` is an interpreter; a rule for it runs any script it is handed. "
+            "Approve each use, or wrap the script and grant the wrapper."
+        )
+    flag = exec_flag(words=words)
+    if flag:
+        return f"`{words[0]} {flag}` executes another program; approve each use."
     return None
 
 
@@ -540,20 +557,22 @@ def triage(
             None,
         )
 
-    too_broad = breadth_problem(rule=rule)
+    command_words = split_tokens(command=command) if command else []
+    # GH-1723: derive_rule drops the flags, so check the command itself.
+    runs_programs = _exec_problem(words=command_words) if command_words else None
+    too_broad = breadth_problem(rule=rule) or runs_programs
     if too_broad:
         # GH-1667
         rerouted = route()
         if rerouted is not None:
             return routed_verdict(routed=rerouted)
-        return verdict(
-            kind=Verdict.TOO_BROAD,
-            reason=too_broad,
-            advice=[
-                "Keep approving it per use, or grant a narrower rule naming the exact "
-                f"subcommand, e.g. {_narrower_example(rule=rule)}."
-            ],
+        narrower = (
+            "Keep approving it per use, or put the command in a script or MCP tool and grant that."
+            if runs_programs
+            else "Keep approving it per use, or grant a narrower rule naming the exact "
+            f"subcommand, e.g. {_narrower_example(rule=rule)}."
         )
+        return verdict(kind=Verdict.TOO_BROAD, reason=too_broad, advice=[narrower])
 
     loaded = {path: _permissions(path=path) for path in settings_files}
     readable = {path: block for path, block in loaded.items() if block is not None}

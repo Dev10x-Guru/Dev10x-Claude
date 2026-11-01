@@ -191,10 +191,51 @@ class TestBreadthProblem:
         assert mod.breadth_problem(rule=rule) is not None
 
     def test_unknown_bare_executable_names_narrower_shape(self) -> None:
-        assert mod.breadth_problem(rule="Bash(lua:*)") == (
-            "`lua` is not known safe to grant whole; it may run code or write. "
-            "Grant Bash(lua <subcommand>:*) instead."
+        assert mod.breadth_problem(rule="Bash(terraform:*)") == (
+            "`terraform` is not known safe to grant whole; it may run code or write. "
+            "Grant Bash(terraform <subcommand>:*) instead."
         )
+
+    @pytest.mark.parametrize(
+        "rule",
+        [
+            "Bash(lua:*)",
+            "Bash(lua script:*)",
+            "Bash(luajit x.lua:*)",
+            "Bash(tclsh run:*)",
+            "Bash(Rscript analysis:*)",
+            "Bash(python3.12 tool:*)",
+            "Bash(/usr/bin/lua5.4 script:*)",
+            "Bash(perl5 x:*)",
+        ],
+    )
+    def test_refuses_interpreter_at_any_depth(self, rule: str) -> None:
+        problem = mod.breadth_problem(rule=rule)
+
+        assert problem is not None
+        assert "interpreter" in problem
+
+    @pytest.mark.parametrize(
+        "rule",
+        [
+            "Bash(rg --pre:*)",
+            "Bash(rg --pre=sh:*)",
+            "Bash(rg --pre-glob:*)",
+            "Bash(sort --compress-program:*)",
+            "Bash(make --eval:*)",
+            "Bash(make -E:*)",
+            "Bash(make -Efoo:*)",
+            "Bash(make -f /dev/stdin:*)",
+            "Bash(make --file=x.mk:*)",
+            "Bash(make -kf x.mk:*)",
+            "Bash(make -sE x:*)",
+        ],
+    )
+    def test_refuses_rule_naming_an_exec_flag(self, rule: str) -> None:
+        problem = mod.breadth_problem(rule=rule)
+
+        assert problem is not None
+        assert "executes another program" in problem
 
 
 class TestAlternativeAdvice:
@@ -278,6 +319,14 @@ class TestTriageVerdicts:
             ("mcp__plugin_dev10x_cli__*", Verdict.TOO_BROAD),
             ("lua script.lua", Verdict.TOO_BROAD),
             ("Bash(lua:*)", Verdict.TOO_BROAD),
+            ("Bash(lua script:*)", Verdict.TOO_BROAD),
+            ("python3.12 tool.py", Verdict.TOO_BROAD),
+            ("rg --pre=sh x src", Verdict.TOO_BROAD),
+            ("rg --pre sh x src", Verdict.TOO_BROAD),
+            ("sort --compress-program=sh data.txt", Verdict.TOO_BROAD),
+            ("make --eval='$(shell id)' test", Verdict.TOO_BROAD),
+            ("rg -n foo src", Verdict.GRANT),
+            ("sort data.txt", Verdict.GRANT),
             ("Bash(terraform plan:*)", Verdict.GRANT),
             ("wc -l README.md", Verdict.GRANT),
             ("date +%F", Verdict.GRANT),
@@ -302,7 +351,6 @@ class TestTriageVerdicts:
     @pytest.mark.parametrize(
         ("target", "example"),
         [
-            ("lua script.lua", "Bash(lua <subcommand>:*)"),
             ("Bash(/opt/bin/watch:*)", "Bash(/opt/bin/watch <subcommand>:*)"),
             ("Bash(sudo:*)", "Bash(git status:*)"),
             ("Bash(de*:*)", "Bash(git status:*)"),
@@ -326,6 +374,24 @@ class TestTriageVerdicts:
         assert result.advice == [
             "Keep approving it per use, or grant a narrower rule naming the exact "
             f"subcommand, e.g. {example}."
+        ]
+
+    @pytest.mark.parametrize("target", ["lua script.lua", "rg --pre=sh x", "Bash(lua x:*)"])
+    def test_program_running_target_advises_a_wrapper(
+        self,
+        target: str,
+        settings_files: list[Path],
+        workdir: Path,
+        skill_map: list[MatchingRule],
+    ) -> None:
+        result = _triage(
+            target=target,
+            settings_files=settings_files,
+            workdir=workdir,
+            skill_map=skill_map,
+        )
+        assert result.advice == [
+            "Keep approving it per use, or put the command in a script or MCP tool and grant that."
         ]
 
     def test_deny_in_any_file_blocks_grant(
