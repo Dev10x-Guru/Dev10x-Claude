@@ -11,6 +11,7 @@ import {
   inHerdr,
   isStockExtra,
   optionText,
+  refusesCall,
   shortPath,
   waitingLabel,
 } from "./format";
@@ -83,6 +84,18 @@ describe("optionText", () => {
     ["mc-updates", "mc-updates", false],
   ])("%s", (label, text, recommended) => {
     expect(optionText({ key: "1", label, detail: "", selected: false })).toEqual({ label: text, recommended });
+  });
+});
+
+describe("refusesCall", () => {
+  it.each([
+    ["No", true],
+    ["No, and tell Claude what to do differently (esc)", true],
+    ["Yes", false],
+    ["Yes, and don't ask again for: journalctl *", false],
+    ["Nothing else", false],
+  ])("%j → %s", (label, expected) => {
+    expect(refusesCall({ key: "1", label, detail: "", selected: false })).toBe(expected);
   });
 });
 

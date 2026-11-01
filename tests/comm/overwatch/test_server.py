@@ -1375,6 +1375,42 @@ class TestPreapprove:
 
         assert (response.status, (app.bus_root / RELAY).exists()) == (409, False)
 
+    def test_pending_only_sends_just_the_waiting_call(self, port: int, app: OverwatchApp) -> None:
+        refresh(app=app, provider=lambda: Snapshot(sessions=[PERMISSION, IDLE], taken_at=NOW))
+
+        response = call(
+            port=port,
+            method="POST",
+            path="/preapprove",
+            payload={"session_id": PERMISSION.session_id, "pending_only": True},
+        )
+        [message] = mailbox_unread(root=app.bus_root, name=RELAY)
+        request = json.loads(read_message(message=message)[1])
+
+        assert (response.json()["commands"], request["pending"]["body"], request["commands"]) == (
+            0,
+            "rm -rf build",
+            [],
+        )
+
+    def test_pending_only_needs_a_waiting_call(self, port: int, app: OverwatchApp) -> None:
+        response = call(
+            port=port,
+            method="POST",
+            path="/preapprove",
+            payload={"session_id": IDLE.session_id, "pending_only": True},
+        )
+
+        assert (
+            response.status,
+            response.json()["error"],
+            (app.bus_root / RELAY).exists(),
+        ) == (
+            409,
+            "No call is waiting in that session, so there is nothing to pre-approve.",
+            False,
+        )
+
 
 class TestSessionDetail:
     def test_returns_conversation_preview_and_recent_calls(self, port: int) -> None:
