@@ -26,6 +26,7 @@ from dev10x.comm.overwatch.dev_checkout import (
 from dev10x.comm.overwatch.dev_launcher import DevLauncher, child_command
 from dev10x.comm.overwatch.lessons import DEFAULT_KB_ROOT
 from dev10x.comm.overwatch.probes import Snapshot, take_snapshot
+from dev10x.comm.overwatch.rearm import RELAY_AGENT, RelayRearm, run_rearm
 from dev10x.comm.overwatch.server import HOST, OverwatchApp, make_server, run_collector
 from dev10x.comm.overwatch.settings import SettingsStore
 from dev10x.comm.skills.bus.maildir import BUS_ROOT
@@ -110,6 +111,7 @@ def run_service(
     provider: Callable[[], Snapshot],
     announce: Callable[[str], None],
     token_file: Path | None = None,
+    rearm: Callable[[], object] | None = None,
 ) -> None:
     server = make_server(app=app, port=port)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -120,12 +122,32 @@ def run_service(
         if token_file is None
         else f"Overwatch page: {url} (token in {token_file})"
     )
+    if rearm is not None:
+        threading.Thread(target=rearm, daemon=True).start()
     try:
         run_collector(app=app, interval=interval, stop=stop, provider=provider)
     finally:
         app.stop()
         server.shutdown()
         server.server_close()
+
+
+def build_rearm(
+    *,
+    app: OverwatchApp,
+    agent_name: str,
+    interval: float,
+    stop: threading.Event,
+) -> Callable[[], object] | None:
+    if not agent_name:
+        return None
+    rearm = RelayRearm(
+        bus_root=app.bus_root,
+        log_path=app.log_path,
+        relay_mailbox=app.relay_mailbox,
+        agent_name=agent_name,
+    )
+    return lambda: run_rearm(attempt=rearm.attempt, interval=interval, stop=stop)
 
 
 def run_launcher(*, launcher: DevLauncher, stop: threading.Event, interval: float) -> None:
@@ -197,6 +219,12 @@ def overwatch() -> None:
     hidden=True,
 )
 @click.option("--uv", "uv", default=None, hidden=True)
+@click.option(
+    "--relay-agent",
+    default=RELAY_AGENT,
+    show_default=True,
+    help="Herdr agent name to re-arm once at boot; empty disables it. Never on the dev page.",
+)
 def serve(
     *,
     port: int | None,
@@ -208,6 +236,7 @@ def serve(
     dev: bool,
     instance: str,
     uv: str | None,
+    relay_agent: str,
 ) -> None:
     """Serve the Overwatch page on 127.0.0.1 until stopped."""
     if dev:
@@ -239,14 +268,21 @@ def serve(
         instance=scope,
     )
     app.auto_rename = auto_rename and traits.renames_sessions
+    stop = _stop_on_signals()
     run_service(
         app=app,
         port=traits.default_port if port is None else port,
         interval=interval,
-        stop=_stop_on_signals(),
+        stop=stop,
         provider=lambda: take_snapshot(bus_root=bus_root),
         announce=click.echo,
         token_file=paths.page_token_path(instance=scope) if traits.keeps_page_token else None,
+        rearm=build_rearm(
+            app=app,
+            agent_name=relay_agent if traits.rearms_relay else "",
+            interval=interval,
+            stop=stop,
+        ),
     )
 
 

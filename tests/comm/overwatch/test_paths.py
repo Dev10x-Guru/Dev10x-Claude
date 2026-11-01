@@ -18,13 +18,19 @@ PathFn = Callable[..., Path]
         (
             paths.Instance.RELEASE,
             paths.InstanceProfile(
-                default_port=8765, keeps_page_token=False, renames_sessions=True
+                default_port=8765,
+                keeps_page_token=False,
+                renames_sessions=True,
+                rearms_relay=True,
             ),
         ),
         (
             paths.Instance.DEV,
             paths.InstanceProfile(
-                default_port=8766, keeps_page_token=True, renames_sessions=False
+                default_port=8766,
+                keeps_page_token=True,
+                renames_sessions=False,
+                rearms_relay=False,
             ),
         ),
     ],
