@@ -1,0 +1,85 @@
+{
+  "skill_name": "dev10x:ticket-create",
+  "description": "Issue tracker ticket creation with milestone/label triage and an attended-mode confirmation gate",
+  "eval_dimensions": [
+    {
+      "id": "triage_gate",
+      "name": "Step 4e confirmation gate",
+      "description": "Attended filing confirms the proposed title, milestone and labels through AskUserQuestion, never plain text (GH-1704)"
+    },
+    {
+      "id": "mode_detection",
+      "name": "Attended vs unattended detection",
+      "description": "Unattended mode (Skill() from an orchestrator with an active task list) skips the gate and still never files bare"
+    },
+    {
+      "id": "never_file_bare",
+      "name": "Never file bare",
+      "description": "Every ticket carries a milestone or the needs-triage label (GH-1102)"
+    }
+  ],
+  "evals": [
+    {
+      "id": "attended_confirmation_gate",
+      "name": "Attended filing confirms the triage",
+      "description": "A user typing /dev10x:ticket-create sees the proposed title, milestone and labels and must confirm before filing",
+      "input": "/dev10x:ticket-create Fix the retry loop that drops the last poll result",
+      "assertions": [
+        {
+          "dimension": "never_file_bare",
+          "check": "tool_called",
+          "value": "mcp__plugin_dev10x_cli__triage_roster",
+          "signal": "Reads open milestones and labels before proposing"
+        },
+        {
+          "dimension": "triage_gate",
+          "check": "tool_called",
+          "value": "AskUserQuestion",
+          "signal": "Step 4e confirmation uses AskUserQuestion, not plain text"
+        },
+        {
+          "dimension": "triage_gate",
+          "check": "tool_parameters",
+          "value": "AskUserQuestion",
+          "signal": "First option is 'Create as proposed (Recommended)', followed by edit and abort options"
+        },
+        {
+          "dimension": "triage_gate",
+          "check": "behavioral",
+          "value": "no_auto_resolve",
+          "signal": "No ticket is created before the user answers the gate"
+        }
+      ]
+    },
+    {
+      "id": "unattended_skips_gate",
+      "name": "Unattended filing skips the gate",
+      "description": "Invoked via Skill() from an orchestrator with an active task list, the skill files with the triaged milestone and labels without asking",
+      "input": "Skill(dev10x:ticket-create) from dev10x:work-on while a plan task is in_progress",
+      "assertions": [
+        {
+          "dimension": "mode_detection",
+          "check": "behavioral",
+          "value": "gate4e_skipped_unattended",
+          "signal": "No AskUserQuestion confirmation widget fires in unattended mode"
+        },
+        {
+          "dimension": "never_file_bare",
+          "check": "behavioral",
+          "value": "never_files_bare",
+          "signal": "The created ticket carries a milestone or the needs-triage label"
+        }
+      ]
+    }
+  ],
+  "trigger_evals": {
+    "should_trigger": [
+      "/dev10x:ticket-create Fix the login bug",
+      "Create a ticket for the flaky payment test"
+    ],
+    "should_not_trigger": [
+      "/dev10x:ticket-scope PAY-662",
+      "/dev10x:project-scope Build a multi-phase payment system"
+    ]
+  }
+}

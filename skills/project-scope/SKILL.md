@@ -54,6 +54,15 @@ description and produces a complete project structure in the tracker.
 - Architectural decisions without implementation tickets (use `dev10x:adr`)
 - Creating a single ticket (use `dev10x:ticket-create`)
 
+> **[OVERRIDE DETECTED]** — over the 200-line SKILL.md budget
+> (GH-1705). The four phases form one pipeline whose gates (scope
+> approval, project-entity, tracker choice) and per-tracker dispatch
+> rules (3.1–3.7) are execution-gating: an agent that skips a section
+> creates tickets without milestones or blocking links. **Split plan:**
+> if it passes ~480 lines, move § Agent Delegation (the Phase 3–4
+> dispatch template) and § Error Handling to `references/`, keeping
+> the phase outline and gates inline.
+
 ## Orchestration
 
 This skill follows `references/task-orchestration.md` patterns

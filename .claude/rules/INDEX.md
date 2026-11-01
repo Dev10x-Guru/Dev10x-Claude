@@ -268,6 +268,20 @@ cohesive, justified by scope):
   assembled from `worker-tool-shapes.md` rather than restated, leaving
   the template as the *order* of the brief plus the verbatim blocks that
   must be read in it
+- `git-groom` (~1060 lines instructions, GH-1705) — history rewriting
+  with the commit-losing guards interleaved with the strategies they
+  protect; split plan in the file's override note
+- `plugin-maintenance` (~1100 lines, GH-1705) — settings-writing steps
+  whose mode tags must match the orchestration task lists (GH-1127);
+  split plan in the file's override note
+- `diag-friction` (~370 lines, GH-1727) — procedures moved to
+  `references/step-details.md`; the map-read mandate, backfill gate,
+  Step 3h routing table and retry gate stay inline
+- `project-scope` (~440 lines, GH-1705) — four-phase pipeline with
+  scope, project-entity and tracker gates
+- `ticket-create` (~350 lines, GH-1704/GH-1705) — mode detection,
+  never-file-bare triage, Step 4e gate, Step 5 dispatch contract;
+  recipes in `references/tracker-creation.md`
 - `ddd` (~299 lines) — workshop orchestration hub: 4 session
   modes, 7-layer event storming flow, solo AI-cast facilitation
   (incl. the GH-789 discussion-agent model-tier gate), and

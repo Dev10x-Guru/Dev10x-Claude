@@ -1,4 +1,5 @@
 {
+  "skill_name": "dev10x:project-scope",
   "description": "Multi-ticket project scoping with milestones and blocking relationships",
   "evals": [
     {

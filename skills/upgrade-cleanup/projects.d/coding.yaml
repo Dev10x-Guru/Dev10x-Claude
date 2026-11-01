@@ -55,9 +55,6 @@ base_permissions:
   # for scoped py tests; `run_node_tests` stays in core.
   - "mcp__plugin_dev10x_cli__run_tests"
   - "mcp__plugin_dev10x_cli__collect_prs"
-  # GH-1153: registered read-only, never catalogued until the coverage
-  # test found it.
-  - "mcp__plugin_dev10x_cli__background_preamble"
   # pr_labels defaults to action="list"; its add/remove writes are the
   # sanctioned path for the review:cleared signal (GH-1008) and are
   # idempotent, so skills call them unconditionally rather than probing.

@@ -209,6 +209,10 @@ base_permissions:
   # the test's WRITE_TOOLS_NOT_SEEDED list).
   - "mcp__plugin_dev10x_cli__audit_hook_log_path"
   - "mcp__plugin_dev10x_cli__audit_hook_recent"
+  # GH-1153: registered read-only, never catalogued until the coverage
+  # test found it. Core since diag-friction (core) and coding skills
+  # both declare it (GH-1727).
+  - "mcp__plugin_dev10x_cli__background_preamble"
   - "mcp__plugin_dev10x_cli__slack_thread_is_forward"
 
   # GH-1215: the guard added by GH-1153 scanned 5 of 12 mcp modules and

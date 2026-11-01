@@ -61,6 +61,17 @@ orchestrated by `dev10x:onboarding` (bootstrap mode) and
 **Announce:** "Using plugin-maintenance to keep Dev10x permission
 settings and config files in shape."
 
+> **[OVERRIDE DETECTED]** — ~1090 lines against the 200-line SKILL.md
+> budget (GH-1705). The numbered steps write settings files, and each
+> carries its own backup, consent gate and mode tag (`[bootstrap]` /
+> *full only*) that the § Orchestration task lists must match — GH-1127
+> was that table drifting out of step. Keeping steps and task lists in
+> one file is what lets a reviewer check them against each other.
+> **Split plan:** move the two Preflight sections and § First-Time
+> Setup to `references/preflight.md`, then move each § Workflow step's
+> body to `references/steps/<n>.md`, leaving the step heading, its
+> mode tag and its gate inline.
+
 ## Modes
 
 | Mode | Steps | When to use |
