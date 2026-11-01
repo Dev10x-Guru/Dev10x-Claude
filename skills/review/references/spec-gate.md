@@ -8,12 +8,9 @@ because they decide whether the rest of the review runs.
 
 Read the linked ticket body (via `mcp__plugin_dev10x_cli__issue_get`
 or the appropriate tracker MCP) and the PR Job Story if present, plus
-the full branch diff. Phase 0 runs before Step 2, so resolve the base
-the way Step 2 does first — `<base>` from
-`mcp__plugin_dev10x_cli__detect_base_branch`, then
-`git fetch origin <base>` and `git diff origin/<base>...HEAD` — and
-reuse that diff in Step 2 rather than taking a second one against a
-possibly stale local ref (GH-1463). Inline both
+the full branch diff. Phase 0 runs before Step 2, so take the diff
+exactly as SKILL.md Step 2 describes (resolved and fetched base, never
+the local ref, GH-1463) and reuse it in Step 2. Inline both
 into the dispatch prompt under `<ticket>` and `<diff>` blocks —
 `spec-reviewer` will not Read files dynamically (see
 `agents/spec-reviewer.md`).
