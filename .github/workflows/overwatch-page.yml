@@ -1,0 +1,53 @@
+name: Overwatch Page
+
+on:
+  pull_request:
+    branches: [develop]
+    paths:
+      - "frontend/overwatch/**"
+      - "src/dev10x/comm/overwatch/static/**"
+      - ".github/workflows/overwatch-page.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Check, test and rebuild the SPA
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend/overwatch
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: frontend/overwatch/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm run check
+
+      - run: pnpm run test
+
+      - run: pnpm run build
+
+      - name: Committed build matches the source
+        working-directory: .
+        run: |
+          if ! git diff --exit-code -- src/dev10x/comm/overwatch/static; then
+            echo "::error::src/dev10x/comm/overwatch/static is stale; run 'pnpm --dir frontend/overwatch run build' and commit the result."
+            exit 1
+          fi
+          if [ -n "$(git status --porcelain -- src/dev10x/comm/overwatch/static)" ]; then
+            echo "::error::the build produced files that are not committed under src/dev10x/comm/overwatch/static."
+            exit 1
+          fi

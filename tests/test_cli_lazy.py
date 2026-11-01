@@ -25,6 +25,7 @@ EXPECTED_SUBCOMMANDS = {
     "hook",
     "init",
     "orchestration",
+    "overwatch",
     "permission",
     "platform",
     "playbook",
@@ -32,7 +33,6 @@ EXPECTED_SUBCOMMANDS = {
     "validate",
     "skill",
     "spec",
-    "supervisor",
     "usage",
     "watchdog",
 }
