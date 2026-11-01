@@ -3,14 +3,19 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import os
+import signal
 import subprocess
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
+import pytest_asyncio
 
 from dev10x.subprocess_utils import (
+    _REAP_GRACE_SECONDS,
+    _reap,
     get_plugin_root,
     parse_key_value_output,
     resolve_script_path,
@@ -378,6 +383,22 @@ class TestSpawnBulkhead:
         assert timed_out.returncode == -1
         assert recovered.stdout.strip() == "ok"
 
+    @pytest.mark.asyncio
+    async def test_the_wait_for_a_permit_counts_against_the_timeout(self, monkeypatch) -> None:
+        """GH-1760: a queued call used to be able to outlive its own timeout."""
+        from dev10x.subprocess_utils import async_run
+
+        monkeypatch.setenv("DEV10X_MCP_MAX_SUBPROCESSES", "1")
+        holder = asyncio.create_task(async_run(args=["sleep", "5"], timeout=10))
+        await asyncio.sleep(0.2)
+
+        queued = await asyncio.wait_for(async_run(args=["echo", "ok"], timeout=0.2), timeout=3)
+        holder.cancel()
+        await asyncio.gather(holder, return_exceptions=True)
+
+        assert queued.returncode == -1
+        assert queued.stderr == "Process timed out waiting for a subprocess slot"
+
     def test_each_event_loop_gets_its_own_gate(self) -> None:
         """A gate shared across loops parks waiters on futures the current
         loop will never complete."""
@@ -443,6 +464,105 @@ class TestAsyncRunReapsTheWholeTree:
 
         with pytest.raises(asyncio.CancelledError):
             await call
+
+
+class TestAsyncRunTimeoutIsBounded:
+    """GH-1760: a timed-out call returns on time even when a descendant
+    escaped the process group and still holds the inherited pipes.
+
+    ``Process.wait()`` resolves only once every pipe reaches EOF, so a
+    ``setsid`` descendant that survives ``killpg`` used to hold the
+    timeout verdict back for as long as it lived — an hour, in the field.
+    """
+
+    @pytest.fixture
+    def sut(self):
+        from dev10x.subprocess_utils import async_run
+
+        return async_run
+
+    @pytest.fixture
+    def pidfile(self, tmp_path: Path):
+        path = tmp_path / "escaped.pid"
+        yield path
+        with contextlib.suppress(FileNotFoundError, ValueError, ProcessLookupError):
+            os.kill(_recorded_pid(pidfile=path), signal.SIGKILL)
+
+    @pytest_asyncio.fixture
+    async def timed_call(self, sut, pidfile: Path) -> tuple[subprocess.CompletedProcess, float]:
+        loop = asyncio.get_running_loop()
+        started = loop.time()
+        result = await asyncio.wait_for(
+            sut(args=_spawn_escaped_grandchild(pidfile=pidfile), timeout=0.5),
+            timeout=15,
+        )
+        return result, loop.time() - started
+
+    @pytest.mark.asyncio
+    async def test_returns_within_the_teardown_grace(self, timed_call) -> None:
+        _, elapsed = timed_call
+
+        assert elapsed < 0.5 + _TEARDOWN_ALLOWANCE
+
+    @pytest.mark.asyncio
+    async def test_reports_the_timeout(self, timed_call) -> None:
+        result, _ = timed_call
+
+        assert result.returncode == -1
+        assert "timed out" in result.stderr.lower()
+
+
+class _NeverExits:
+    """A process whose wait never resolves — the escaped-descendant shape."""
+
+    pid = 4242
+
+    def __init__(self, *, transport: object | None) -> None:
+        if transport is not None:
+            self._transport = transport
+
+    async def wait(self) -> int:
+        await asyncio.Event().wait()
+        return -9
+
+
+class TestReap:
+    @pytest.fixture(autouse=True)
+    def _short_grace(self, monkeypatch) -> None:
+        monkeypatch.setattr("dev10x.subprocess_utils._REAP_GRACE_SECONDS", 0.01)
+
+    @pytest.mark.asyncio
+    async def test_closes_the_transport_when_the_wait_stalls(self) -> None:
+        transport = MagicMock()
+
+        await _reap(proc=_NeverExits(transport=transport))
+
+        transport.close.assert_called_once_with()
+
+    @pytest.mark.asyncio
+    async def test_a_process_without_a_transport_still_returns(self) -> None:
+        assert await _reap(proc=_NeverExits(transport=None)) is None
+
+    @pytest.mark.asyncio
+    async def test_an_unreaped_child_is_logged(self, caplog) -> None:
+        await _reap(proc=_NeverExits(transport=MagicMock()))
+
+        assert "still not reaped" in caplog.text
+
+
+# Both reap waits plus scheduling slack for a loaded CI runner — still far
+# below the 30s the escaped descendant would otherwise hold the call for.
+_TEARDOWN_ALLOWANCE = 2 * _REAP_GRACE_SECONDS + 3.0
+
+
+def _spawn_escaped_grandchild(*, pidfile: Path) -> list[str]:
+    """A shell whose background sleep leaves the process group.
+
+    ``setsid`` gives the sleep a session of its own, so the ``killpg`` that
+    reaps the rest of the tree cannot reach it — and it inherited the
+    shell's stdout and stderr, which is what kept ``Process.wait()`` open.
+    """
+    return ["sh", "-c", f"setsid sleep 30 & echo $! > {pidfile}; sleep 30"]
 
 
 def _spawn_grandchild(*, pidfile: Path) -> list[str]:

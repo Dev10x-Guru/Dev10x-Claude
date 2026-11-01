@@ -372,6 +372,65 @@ def _kill_process_tree(proc: asyncio.subprocess.Process) -> None:
             proc.kill()
 
 
+_TIMED_OUT = "Process timed out"
+_TIMED_OUT_QUEUED = f"{_TIMED_OUT} waiting for a subprocess slot"
+
+# GH-1760: how long a killed child gets to close its pipes before they are
+# closed from this side. SIGKILL lands at once; this only has to cover the
+# exit notification reaching the loop.
+_REAP_GRACE_SECONDS = 2.0
+
+
+class TimedOutProcess(subprocess.CompletedProcess[str]):
+    """The ``returncode=-1`` timeout sentinel, saying whether anything ran.
+
+    ``queued`` is True when the budget ran out waiting for a bulkhead permit,
+    so no child was ever started (GH-1760). Callers that only check
+    ``returncode == -1`` see the same shape as before.
+    """
+
+    def __init__(self, *, args: list[str], queued: bool) -> None:
+        super().__init__(
+            args=args,
+            returncode=-1,
+            stdout="",
+            stderr=_TIMED_OUT_QUEUED if queued else _TIMED_OUT,
+        )
+        self.queued = queued
+
+
+async def _reap(*, proc: asyncio.subprocess.Process) -> None:
+    """Collect a killed child without waiting on anyone else's pipes (GH-1760).
+
+    ``Process.wait()`` resolves only when the transport closes, which needs
+    the child gone **and** every pipe at EOF. A descendant that left the
+    process group — ``setsid``, ``start_new_session=True``, a daemonising
+    helper — survives the ``killpg`` holding the inherited write ends, so
+    an unbounded wait lasts as long as that descendant lives: an hour, for
+    the ``run_tests`` call that motivated this. Closing the transport
+    drops our read ends, so the wait can finish on the child's exit alone.
+    """
+    with contextlib.suppress(TimeoutError):
+        await asyncio.wait_for(proc.wait(), timeout=_REAP_GRACE_SECONDS)
+        return
+    log.warning(
+        "GH-1760: pid %s was killed but its pipes are still held open, most "
+        "likely by a descendant outside its process group; closing them",
+        proc.pid,
+    )
+    transport = getattr(proc, "_transport", None)
+    if transport is not None:
+        transport.close()
+    try:
+        await asyncio.wait_for(proc.wait(), timeout=_REAP_GRACE_SECONDS)
+    except TimeoutError:
+        log.warning(
+            "GH-1760: pid %s still not reaped after its pipes were closed; "
+            "returning the timeout verdict without it",
+            proc.pid,
+        )
+
+
 async def async_run(
     args: list[str],
     *,
@@ -392,23 +451,35 @@ async def async_run(
 
     GH-1422: the call waits for a bulkhead permit before spawning, so no
     more than ``DEV10X_MCP_MAX_SUBPROCESSES`` children are in flight at
-    once across every caller sharing this event loop. ``timeout`` bounds
-    the child's own run, not the wait for a permit — a queued call can
-    therefore take longer than its timeout to return.
+    once across every caller sharing this event loop.
+
+    ``timeout`` bounds the whole call (GH-1760): the wait for a permit is
+    charged against it, and so is teardown after a kill, beyond a fixed
+    reap grace. A caller budgeting against the MCP transport ceiling can
+    therefore trust the number it passed.
 
     Args:
         input_text: Written to the child's stdin and closed. Needed by
             callers that hand a subprocess a pre-built payload rather
             than argv flags — e.g. ``gh api --input -`` (GH-1191).
     """
-    async with _spawn_gate():
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout
+    gate = _spawn_gate()
+    try:
+        await asyncio.wait_for(gate.acquire(), timeout=timeout)
+    except TimeoutError:
+        return TimedOutProcess(args=args, queued=True)
+    try:
         return await _spawn_and_communicate(
             args=args,
             env=env,
-            timeout=timeout,
+            timeout=max(0.0, deadline - loop.time()),
             cwd=cwd,
             input_text=input_text,
         )
+    finally:
+        gate.release()
 
 
 async def _spawn_and_communicate(
@@ -457,13 +528,8 @@ async def _spawn_and_communicate(
         raise
     except TimeoutError:
         _kill_process_tree(proc)
-        await proc.wait()
-        return subprocess.CompletedProcess(
-            args=args,
-            returncode=-1,
-            stdout="",
-            stderr="Process timed out",
-        )
+        await _reap(proc=proc)
+        return TimedOutProcess(args=args, queued=False)
     return subprocess.CompletedProcess(
         args=args,
         returncode=proc.returncode or 0,

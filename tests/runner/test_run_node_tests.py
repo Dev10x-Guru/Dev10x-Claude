@@ -8,6 +8,7 @@ import pytest
 from dev10x.domain.common.result import ErrorResult, SuccessResult
 
 from dev10x import runner
+from dev10x.subprocess_utils import TimedOutProcess
 
 
 def _completed(
@@ -163,6 +164,17 @@ class TestRunNodeTests:
 
         assert isinstance(result, ErrorResult)
         assert "timed out" in result.error
+
+    @pytest.mark.asyncio
+    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    async def test_queued_timeout_has_its_own_verdict(self, mock_run: AsyncMock) -> None:
+        """GH-1760: the runner never started, so it did not time out."""
+        mock_run.return_value = TimedOutProcess(args=[], queued=True)
+
+        result = await runner.run_node_tests(timeout=5)
+
+        assert isinstance(result, ErrorResult)
+        assert result.to_dict()["verdict"] == "queue_timeout"
 
     @pytest.mark.asyncio
     @patch("dev10x.runner.async_run", new_callable=AsyncMock)
