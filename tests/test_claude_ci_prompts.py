@@ -471,11 +471,18 @@ class TestReviewCadence:
         assert "!github.event.pull_request.draft" in condition
         assert "head.repo.full_name == github.repository" in condition
 
-    def test_draft_on_push_fails_loudly_without_app_credentials(self) -> None:
+    def test_draft_on_push_skips_without_app_credentials(self) -> None:
         steps = _steps_by_name(workflow="pr-draft-on-push.yml")
-        guard = steps["Refuse to run without the App credentials"]["run"]
+        guard = steps["Skip without the App credentials"]["run"]
 
-        assert "exit 1" in guard
+        assert "exit 1" not in guard
+        assert "configured=false" in guard
+
+    @pytest.mark.parametrize("step", ["Mint the App token", "Convert the PR to draft"])
+    def test_draft_on_push_acts_only_when_configured(self, step: str) -> None:
+        steps = _steps_by_name(workflow="pr-draft-on-push.yml")
+
+        assert steps[step]["if"] == "steps.credentials.outputs.configured == 'true'"
 
 
 class TestReviewChecklist:
