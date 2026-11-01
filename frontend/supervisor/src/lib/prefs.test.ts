@@ -9,6 +9,7 @@ import {
   SIDE,
   clampWidth,
   loadAfterAnswer,
+  loadApprovedOnly,
   loadHideStopped,
   loadList,
   loadPins,
@@ -17,6 +18,7 @@ import {
   moveBefore,
   moveBy,
   saveAfterAnswer,
+  saveApprovedOnly,
   saveHideStopped,
   saveList,
   savePins,
@@ -174,6 +176,19 @@ describe("hide stopped", () => {
 
   it("defaults to showing everything", () => {
     expect([loadHideStopped(memory()), loadHideStopped(broken)]).toEqual([false, false]);
+  });
+});
+
+describe("approved only", () => {
+  it.each([true, false])("round-trips %s", (only) => {
+    const store = memory();
+    saveApprovedOnly(only, store);
+    expect(loadApprovedOnly(store)).toBe(only);
+  });
+
+  it("defaults to every call", () => {
+    saveApprovedOnly(true, broken);
+    expect([loadApprovedOnly(memory()), loadApprovedOnly(broken)]).toEqual([false, false]);
   });
 });
 

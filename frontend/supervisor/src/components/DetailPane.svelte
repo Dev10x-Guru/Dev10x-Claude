@@ -3,6 +3,7 @@
   import Toggle from "./Toggle.svelte";
   import ToolPreview from "./ToolPreview.svelte";
   import { approvedByHand, displayName } from "../lib/format";
+  import { loadApprovedOnly, saveApprovedOnly } from "../lib/prefs";
   import type { RecentTool, Session, SessionDetail } from "../lib/types";
 
   interface Props {
@@ -22,7 +23,12 @@
     pending: "waiting",
   };
 
-  let approvedOnly = $state(false);
+  let approvedOnly = $state(loadApprovedOnly());
+
+  function showApprovedOnly(next: boolean): void {
+    approvedOnly = next;
+    saveApprovedOnly(next);
+  }
 
   const openTasks = $derived(detail?.tasks.filter((task) => task.status !== "completed") ?? []);
   const doneCount = $derived(detail?.tasks.filter((task) => task.status === "completed").length ?? 0);
@@ -99,7 +105,7 @@
       {/if}
     </header>
     <div class="only">
-      <Toggle on={approvedOnly} onchange={(next) => (approvedOnly = next)}>
+      <Toggle on={approvedOnly} onchange={showApprovedOnly}>
         Only ones I approved by hand <span class="n">{approvedCount}</span>
       </Toggle>
     </div>
