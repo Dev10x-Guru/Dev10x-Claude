@@ -13,12 +13,13 @@ import yaml
 from dev10x.core.paths import SKILL_FILE, skill_files
 
 PLUGIN_MAP_PATH = Path(__file__).with_name("plugins.yaml")
+CORE_KEY = "core"
 CORE_PLUGIN_NAME = "dev10x"
 SATELLITE_NAME_PREFIX = f"{CORE_PLUGIN_NAME}-"
 
 
 def expected_plugin_name(*, key: str) -> str:
-    return CORE_PLUGIN_NAME if key == "core" else f"{SATELLITE_NAME_PREFIX}{key}"
+    return CORE_PLUGIN_NAME if key == CORE_KEY else f"{SATELLITE_NAME_PREFIX}{key}"
 
 
 @dataclass(frozen=True)
@@ -63,6 +64,18 @@ class PluginMap:
 
     def known_plugin_names(self) -> tuple[str, ...]:
         return tuple(self.plugin_names.values())
+
+    def key_for_plugin_name(self, *, name: str) -> str | None:
+        return next((key for key, known in self.plugin_names.items() if known == name), None)
+
+    def manifest_dependencies(self, *, key: str) -> list[str]:
+        if key == CORE_KEY:
+            return []
+        hard = [
+            self.plugin_names.get(dependency, expected_plugin_name(key=dependency))
+            for dependency in self.dependencies.get(key, ())
+        ]
+        return [CORE_PLUGIN_NAME, *hard]
 
     def unnamed_plugins(self) -> list[str]:
         return sorted(set(self.plugins) - set(self.plugin_names))
@@ -136,6 +149,7 @@ def repo_skill_directories(*, repo_root: Path) -> list[str]:
 
 
 __all__ = [
+    "CORE_KEY",
     "CORE_PLUGIN_NAME",
     "PLUGIN_MAP_PATH",
     "SATELLITE_NAME_PREFIX",
