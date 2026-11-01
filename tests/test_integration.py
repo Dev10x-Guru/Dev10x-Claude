@@ -20,6 +20,7 @@ from dev10x.domain.rules.rule_engine import RuleEngine
 from dev10x.hooks.edit_validator import validate_edit_write
 
 from dev10x.cli import cli
+from dev10x.core.plugin_map import skill_roots
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -170,10 +171,11 @@ def _collect_python_entry_points() -> list[Path]:
         REPO_ROOT / "hooks" / "scripts",
         REPO_ROOT / "servers",
     ]
-    for skill_dir in sorted((REPO_ROOT / "skills").iterdir()):
-        scripts_dir = skill_dir / "scripts"
-        if scripts_dir.is_dir():
-            dirs.append(scripts_dir)
+    for skills_root in skill_roots(repo_root=REPO_ROOT):
+        for skill_dir in sorted(skills_root.iterdir()):
+            scripts_dir = skill_dir / "scripts"
+            if scripts_dir.is_dir():
+                dirs.append(scripts_dir)
 
     scripts: list[Path] = []
     for d in dirs:
@@ -312,7 +314,12 @@ class TestPythonEntryPointLoadability:
 
 def _collect_uv_shebang_scripts() -> list[Path]:
     scripts: list[Path] = []
-    for pattern in ["skills/**/scripts/*.py", "hooks/scripts/*.py", "servers/*.py"]:
+    for pattern in [
+        "skills/**/scripts/*.py",
+        "plugins/*/skills/**/scripts/*.py",
+        "hooks/scripts/*.py",
+        "servers/*.py",
+    ]:
         for p in sorted(REPO_ROOT.glob(pattern)):
             if p.name == "__init__.py":
                 continue

@@ -26,8 +26,9 @@ from pathlib import Path
 
 import pytest
 
+from dev10x.core.plugin_map import skill_files
+
 _REPO_ROOT = Path(__file__).parents[2]
-_SKILLS_DIR = _REPO_ROOT / "skills"
 
 #: A delegation in a body: Skill("X"), Skill(skill="X"), or Skill(X).
 _CALL_RE = re.compile(r"""Skill\(\s*(?:skill\s*=\s*)?["']?([A-Za-z0-9:_-]+)["']?""")
@@ -47,7 +48,7 @@ _COUNTEREXAMPLE_RE = re.compile(
 def _skill_documents() -> list[tuple[Path, list[Path]]]:
     """Each SKILL.md paired with every body its front matter governs."""
     documents = []
-    for skill_md in sorted(_SKILLS_DIR.glob("*/SKILL.md")):
+    for skill_md in skill_files(repo_root=_REPO_ROOT):
         bodies = [skill_md]
         instructions = skill_md.parent / "instructions.md"
         if instructions.exists():
@@ -74,7 +75,7 @@ def _declared(*, skill_md: Path) -> set[str]:
 
 
 def _plugin_skill_names() -> set[str]:
-    return {path.parent.name for path in _SKILLS_DIR.glob("*/SKILL.md")}
+    return {path.parent.name for path in skill_files(repo_root=_REPO_ROOT)}
 
 
 def _canonical(*, target: str, plugin_skills: set[str]) -> str:

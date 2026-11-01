@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from dev10x.core.plugin_map import skill_directories
+from dev10x.core.plugin_map import repo_skill_directories
 from dev10x.core.skill_references import (
     SCANNED_FRAGMENT_DIRS,
     count_references,
@@ -59,7 +59,7 @@ def counts() -> dict[str, int]:
 class TestRepositoryInventory:
     def test_every_reference_names_a_real_skill(self, counts: dict[str, int]) -> None:
         known = [
-            *skill_directories(skills_root=get_plugin_root() / "skills"),
+            *repo_skill_directories(repo_root=get_plugin_root()),
             *_agent_names(),
             *NON_SKILL_NAMES,
         ]
@@ -107,6 +107,13 @@ class TestReferenceDetection:
         (tmp_path / "docs" / "ignored.txt").write_text("dev10x:git\n")
 
         assert count_references(paths=scanned_paths(root=tmp_path)) == {"git": 2, "review": 1}
+
+    def test_satellite_plugin_skills_are_scanned(self, tmp_path: Path) -> None:
+        skill = tmp_path / "plugins" / "qa" / "skills" / "tts"
+        skill.mkdir(parents=True)
+        (skill / "SKILL.md").write_text("Skill(dev10x:request-review)\n")
+
+        assert count_references(paths=scanned_paths(root=tmp_path)) == {"request-review": 1}
 
     def test_command_map_fragments_are_scanned(self, tmp_path: Path) -> None:
         fragments = tmp_path / SCANNED_FRAGMENT_DIRS[0]
