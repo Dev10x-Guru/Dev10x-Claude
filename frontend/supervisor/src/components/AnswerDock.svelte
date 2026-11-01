@@ -17,9 +17,11 @@
     onafteranswer: (choice: AfterAnswer) => void;
     onanswered: () => void;
     otherQuestions: number;
+    ackSince: number | null;
   }
 
-  let { session, pending, run, afterAnswer, onafteranswer, onanswered, otherQuestions }: Props = $props();
+  let { session, pending, run, afterAnswer, onafteranswer, onanswered, otherQuestions, ackSince }: Props =
+    $props();
 
   const AFTER_CHOICES: [AfterAnswer, string][] = [
     ["stay", "Stay here"],
@@ -115,6 +117,13 @@
       {/each}
     </div>
   </div>
+
+  {#if ackSince !== null}
+    <p class="unacked" role="status">
+      You answered this at {clockTime(new Date(ackSince).toISOString())}, but the session still shows the question.
+      It may not have received your answer yet. Answer again only if it stays.
+    </p>
+  {/if}
 
   {#if session.prompt}
     {#if steps.length}
@@ -325,6 +334,16 @@
   }
 
   .note {
+    font-size: var(--step--1);
+  }
+
+  .unacked {
+    margin: 0;
+    max-width: 72ch;
+    padding: var(--space-2) var(--space-3);
+    background: var(--paper);
+    border-left: 3px solid var(--amber);
+    color: var(--amber-ink);
     font-size: var(--step--1);
   }
 
