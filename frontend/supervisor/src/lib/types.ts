@@ -31,6 +31,7 @@ export interface Decision {
   options: string[];
   multi_select: boolean;
   created: string;
+  held_until?: string;
 }
 
 export interface Session {
@@ -121,11 +122,16 @@ export interface SessionDetail {
   recent: RecentTool[];
 }
 
+export interface PageSettings {
+  answer_wait_seconds: number;
+}
+
 export interface Snapshot {
   version: number;
   taken_at: string;
   errors: Record<string, string>;
   sessions: Session[];
+  settings?: PageSettings;
 }
 
 export interface ActionResult {

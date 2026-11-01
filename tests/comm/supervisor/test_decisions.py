@@ -15,6 +15,10 @@ from dev10x.comm.supervisor.decisions import (
     OPEN,
     Decision,
     DecisionStore,
+    is_held,
+)
+from dev10x.comm.supervisor.decisions import (
+    HOOK_CHANNEL as HOOK,
 )
 
 SESSION = "4f603efb-db56-4360-8539-e8520155ef1e"
@@ -121,6 +125,80 @@ class TestExpire:
         store.expire_for_session(session_id=SESSION, created_before=EARLIER)
 
         assert {decision.state for decision in store.all()} == {OPEN}
+
+
+NOW = datetime(2026, 11, 1, 17, 0, tzinfo=datetime.now().astimezone().tzinfo)
+
+
+class TestHold:
+    @pytest.fixture
+    def held(self, store: DecisionStore) -> list[Decision]:
+        return store.add_from_hook(
+            session_id=SESSION, cwd="/w", questions=QUESTIONS, hold_seconds=120, now=NOW
+        )
+
+    @pytest.mark.parametrize(
+        ("seconds_later", "expected"),
+        [(119, True), (121, False)],
+        ids=["inside-the-wait", "after-the-wait"],
+    )
+    def test_held_until_the_wait_ends(
+        self, held: list[Decision], seconds_later: int, expected: bool
+    ) -> None:
+        now = NOW + timedelta(seconds=seconds_later)
+
+        assert [is_held(decision=decision, now=now) for decision in held] == [expected, expected]
+
+    def test_unheld_without_a_wait(self, added: list[Decision]) -> None:
+        assert [is_held(decision=decision, now=NOW) for decision in added] == [False, False]
+
+    def test_collect_waits_for_every_part(
+        self, store: DecisionStore, held: list[Decision]
+    ) -> None:
+        first, second = held
+        store.answer(decision_id=first.decision_id, answer="Relay (Recommended)", channel=HOOK)
+        partial = store.collect(decision_ids=[first.decision_id, second.decision_id])
+        store.answer(decision_id=second.decision_id, answer="No", channel=HOOK)
+
+        assert (
+            partial,
+            store.collect(decision_ids=[first.decision_id, second.decision_id]),
+            [decision.state for decision in store.all()],
+        ) == (
+            None,
+            {"Which hub?": "Relay (Recommended)", "File the issue?": "No"},
+            [DELIVERED, DELIVERED],
+        )
+
+    @pytest.mark.parametrize(
+        ("channel", "ids"),
+        [("keys", None), (HOOK, ["unknown"])],
+        ids=["answered-elsewhere", "unknown-id"],
+    )
+    def test_collect_ignores_answers_it_did_not_hold(
+        self,
+        store: DecisionStore,
+        held: list[Decision],
+        channel: str,
+        ids: list[str] | None,
+    ) -> None:
+        [first, _] = held
+        store.answer(decision_id=first.decision_id, answer="Relay (Recommended)", channel=channel)
+
+        assert store.collect(decision_ids=ids or [first.decision_id]) is None
+
+    def test_release_reopens_page_answers_and_drops_the_hold(
+        self, store: DecisionStore, held: list[Decision]
+    ) -> None:
+        first, second = held
+        store.answer(decision_id=first.decision_id, answer="Relay (Recommended)", channel=HOOK)
+
+        store.release(decision_ids=[first.decision_id, second.decision_id])
+
+        assert [(d.state, d.answer, d.held_until) for d in store.all()] == [
+            (OPEN, "", ""),
+            (OPEN, "", ""),
+        ]
 
 
 class TestPaths:

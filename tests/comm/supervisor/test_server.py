@@ -32,6 +32,7 @@ from dev10x.comm.supervisor.server import (
 )
 from dev10x.comm.supervisor.session_tasks import SessionTask
 from dev10x.comm.supervisor.sessions import SessionView
+from dev10x.comm.supervisor.settings import SettingsStore
 from dev10x.comm.supervisor.workspace import Workspace
 from tests.comm.supervisor.conftest import NOW
 
@@ -165,6 +166,7 @@ def app(tmp_path: Path, keys: KeySender, panes: dict[str, str], static_dir: Path
         workspace_reader=lambda cwd: WORKSPACES.get(cwd, Workspace(project=cwd, root=cwd)),
         today=lambda: date(2026, 10, 31),
         static_dir=static_dir,
+        settings=SettingsStore(path=tmp_path / "settings.json"),
     )
     supervisor.publish(
         snapshot=Snapshot(sessions=[WAITING, IDLE, PERMISSION], taken_at=NOW),
@@ -255,6 +257,140 @@ class TestAuth:
 
     def test_unknown_route(self, port: int) -> None:
         assert call(port=port, method="GET", path="/nope").status == 404
+
+
+class TestHeldQuestions:
+    def _ask(self, *, port: int, hold: bool, multi: bool = False) -> dict[str, Any]:
+        return call(
+            port=port,
+            method="POST",
+            path="/decisions",
+            payload={
+                "session_id": "sid-idle",
+                "cwd": "/w",
+                "questions": [{**QUESTION, "multiSelect": multi}],
+                "hold": hold,
+            },
+            token=HOOK_TOKEN,
+        ).json()
+
+    @pytest.mark.parametrize(
+        ("hold", "multi", "wait"),
+        [(True, False, 120), (False, False, 0), (True, True, 0)],
+        ids=["outside-herdr", "inside-herdr", "multi-select"],
+    )
+    def test_wait_comes_from_the_page_settings(
+        self, port: int, hold: bool, multi: bool, wait: int
+    ) -> None:
+        assert self._ask(port=port, hold=hold, multi=multi)["wait_seconds"] == wait
+
+    def test_held_session_shows_as_waiting_on_the_page(self, port: int) -> None:
+        self._ask(port=port, hold=True)
+
+        idle = next(
+            session
+            for session in call(port=port, method="GET", path="/api/sessions").json()["sessions"]
+            if session["session_id"] == "sid-idle"
+        )
+
+        assert (idle["status"], idle["group"], idle["waiting_for"]) == (
+            "waiting",
+            "needs-you",
+            "your answer on this page",
+        )
+
+    def test_page_answer_reaches_the_waiting_hook(
+        self, port: int, keys: KeySender, app: SupervisorApp
+    ) -> None:
+        [decision_id] = self._ask(port=port, hold=True)["decision_ids"]
+        hook = {"decision_ids": [decision_id]}
+
+        before = call(
+            port=port, method="POST", path="/decisions/answers", payload=hook, token=HOOK_TOKEN
+        )
+        answered = call(
+            port=port,
+            method="POST",
+            path="/answer",
+            payload={"decision_id": decision_id, "option_index": 0},
+        )
+        after = call(
+            port=port, method="POST", path="/decisions/answers", payload=hook, token=HOOK_TOKEN
+        )
+
+        assert (
+            before.json()["answers"],
+            answered.json(),
+            after.json()["answers"],
+            keys.calls,
+        ) == (
+            None,
+            {"ok": True, "channel": "hook"},
+            {"Which hub?": "Relay"},
+            [],
+        )
+
+    def test_release_lets_the_page_answer_another_way(self, port: int, app: SupervisorApp) -> None:
+        [decision_id] = self._ask(port=port, hold=True)["decision_ids"]
+
+        response = call(
+            port=port,
+            method="POST",
+            path="/decisions/release",
+            payload={"decision_ids": [decision_id]},
+            token=HOOK_TOKEN,
+        )
+
+        assert (response.status, app.store.get(decision_id=decision_id).held_until) == (200, "")  # type: ignore[union-attr]
+
+    @pytest.mark.parametrize("path", ["/decisions/answers", "/decisions/release"])
+    @pytest.mark.parametrize("payload", [{}, {"decision_ids": []}, {"decision_ids": "d1"}])
+    def test_hook_routes_need_ids(self, port: int, path: str, payload: dict[str, Any]) -> None:
+        response = call(port=port, method="POST", path=path, payload=payload, token=HOOK_TOKEN)
+
+        assert response.status == 400
+
+
+class TestSettings:
+    def test_saved_wait_shows_in_the_snapshot(self, port: int) -> None:
+        saved = call(
+            port=port, method="POST", path="/settings", payload={"answer_wait_seconds": 45}
+        )
+        snapshot = call(port=port, method="GET", path="/api/sessions").json()
+
+        assert (saved.json(), snapshot["settings"]) == (
+            {"ok": True, "settings": {"answer_wait_seconds": 45}},
+            {"answer_wait_seconds": 45},
+        )
+
+    @pytest.mark.parametrize("value", ["45", 4.5, True, None])
+    def test_rejects_a_wait_that_is_not_a_whole_number(self, port: int, value: Any) -> None:
+        response = call(
+            port=port, method="POST", path="/settings", payload={"answer_wait_seconds": value}
+        )
+
+        assert response.status == 400
+
+    def test_hook_token_cannot_change_settings(self, port: int) -> None:
+        response = call(
+            port=port,
+            method="POST",
+            path="/settings",
+            payload={"answer_wait_seconds": 5},
+            token=HOOK_TOKEN,
+        )
+
+        assert response.status == 403
+
+    def test_without_a_store_the_default_stands(self, port: int, app: SupervisorApp) -> None:
+        app.settings = None
+
+        saved = call(
+            port=port, method="POST", path="/settings", payload={"answer_wait_seconds": 5}
+        )
+        snapshot = call(port=port, method="GET", path="/api/sessions").json()
+
+        assert (saved.status, snapshot["settings"]) == (503, {"answer_wait_seconds": 120})
 
 
 class TestStatic:
