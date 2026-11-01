@@ -41,7 +41,15 @@ SUGGESTED_TRACKED_PATTERN = "/Dev10x/"
 
 _MARKER_COMMENT = "# Dev10x per-session state (GH-1275)"
 
-Status = Literal["already-ignored", "appended", "would-append", "not-a-repo"]
+# GH-1713: lock contention, a credential prompt or a slow network
+# filesystem can hang git, and with it the permission command.
+GIT_TIMEOUT_SECONDS = 10
+
+Status = Literal["already-ignored", "appended", "would-append", "not-a-repo", "unreadable"]
+
+
+class GitTimeoutError(Exception):
+    """git did not answer within :data:`GIT_TIMEOUT_SECONDS`."""
 
 
 @dataclass(frozen=True)
@@ -65,6 +73,11 @@ class IgnoreOutcome:
     def summary(self) -> str:
         if self.status == "not-a-repo":
             return f"  {self.repo_root}: skipped — not a git repository"
+        if self.status == "unreadable":
+            return (
+                f"  {self.repo_root}: skipped — git did not respond within "
+                f"{GIT_TIMEOUT_SECONDS}s. Please try again."
+            )
         if self.status == "already-ignored":
             return f"  {self.repo_root}: already ignored"
         verb = "would add" if self.status == "would-append" else "+"
@@ -72,16 +85,20 @@ class IgnoreOutcome:
 
 
 def _git(*args: str, cwd: Path) -> subprocess.CompletedProcess[str]:
-    # `subprocess` is imported for the return type only — every call goes
-    # through subprocess_utils.run so it inherits the effective CWD
-    # binding (GH-979).
-    return subprocess_utils.run(
-        ["git", *args],
-        cwd=str(cwd),
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    # Every call goes through subprocess_utils.run so it inherits the
+    # effective CWD binding (GH-979); `subprocess` supplies only the
+    # return type and TimeoutExpired.
+    try:
+        return subprocess_utils.run(
+            ["git", *args],
+            cwd=str(cwd),
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=GIT_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise GitTimeoutError(f"git {' '.join(args)} timed out in {cwd}") from exc
 
 
 def is_already_ignored(*, repo_root: Path) -> bool:
@@ -122,7 +139,11 @@ def ensure_ignored(*, repo_root: Path, dry_run: bool = False) -> IgnoreOutcome:
     if git_dir is None:
         return IgnoreOutcome(repo_root=repo_root, status="not-a-repo")
 
-    if is_already_ignored(repo_root=repo_root):
+    try:
+        already_ignored = is_already_ignored(repo_root=repo_root)
+    except GitTimeoutError:
+        return IgnoreOutcome(repo_root=repo_root, status="unreadable")
+    if already_ignored:
         return IgnoreOutcome(repo_root=repo_root, status="already-ignored")
 
     exclude_path = git_dir / "info" / "exclude"

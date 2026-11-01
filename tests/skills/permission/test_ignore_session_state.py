@@ -10,9 +10,11 @@ from __future__ import annotations
 import os
 import subprocess
 from pathlib import Path
+from typing import Any
 
 import pytest
 from dev10x.skills.permission.ignore_session_state import (
+    GIT_TIMEOUT_SECONDS,
     IGNORE_PATTERN,
     SUGGESTED_TRACKED_PATTERN,
     discover_repo_roots,
@@ -22,6 +24,8 @@ from dev10x.skills.permission.ignore_session_state import (
     suggestion_for,
 )
 from dev10x.skills.permission.settings_discovery import vendored_dirs
+
+from dev10x import subprocess_utils
 
 _TIMEOUT_SECONDS = 30
 
@@ -244,6 +248,47 @@ class TestReporting:
 
     def test_the_summary_says_when_it_skipped_a_non_repo(self, tmp_path: Path) -> None:
         assert "not a git repository" in ensure_ignored(repo_root=tmp_path).summary()
+
+
+class TestAHungGitCall:
+    """A git that never answers must not hang the permission pass (GH-1713)."""
+
+    @pytest.fixture()
+    def calls(self, monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
+        # Only check-ignore hangs: the common-dir lookup has to succeed for
+        # the pass to reach the call under test at all.
+        real_run = subprocess_utils.run
+        seen: list[dict[str, Any]] = []
+
+        def hanging_check_ignore(args: list[str], **kwargs: Any) -> Any:
+            if args[:2] == ["git", "check-ignore"]:
+                seen.append(kwargs)
+                raise subprocess.TimeoutExpired(cmd=args, timeout=kwargs["timeout"])
+            return real_run(args, **kwargs)
+
+        monkeypatch.setattr(subprocess_utils, "run", hanging_check_ignore)
+        return seen
+
+    def test_the_git_call_is_bounded(self, repo: Path, calls: list[dict[str, Any]]) -> None:
+        ensure_ignored(repo_root=repo)
+
+        assert [call["timeout"] for call in calls] == [GIT_TIMEOUT_SECONDS]
+
+    def test_the_repo_is_reported_unreadable(
+        self, repo: Path, calls: list[dict[str, Any]]
+    ) -> None:
+        assert ensure_ignored(repo_root=repo).status == "unreadable"
+
+    def test_nothing_is_written(self, repo: Path, calls: list[dict[str, Any]]) -> None:
+        ensure_ignored(repo_root=repo)
+
+        assert ".claude/Dev10x/" in _status(repo)
+
+    def test_the_summary_says_to_try_again(self, repo: Path, calls: list[dict[str, Any]]) -> None:
+        assert "Please try again" in ensure_ignored(repo_root=repo).summary()
+
+    def test_no_suggestion_is_offered(self, repo: Path, calls: list[dict[str, Any]]) -> None:
+        assert suggestion_for(ensure_ignored(repo_root=repo)) is None
 
 
 class TestDryRun:
