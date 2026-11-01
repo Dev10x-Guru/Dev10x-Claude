@@ -16,6 +16,9 @@ if TYPE_CHECKING:  # pragma: no cover
 @click.group()
 def skill() -> None:
     """Skill script commands (audit, notify, permission, release-notes, rename)."""
+    from dev10x.core.diagnostic_log import configure_diagnostic_log
+
+    configure_diagnostic_log(component="skill")
 
 
 @skill.group()

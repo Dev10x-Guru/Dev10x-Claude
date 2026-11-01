@@ -61,8 +61,10 @@ def __getattr__(name: str) -> Any:
 
 
 def main() -> None:
+    from dev10x.core.diagnostic_log import configure_diagnostic_log
     from dev10x.mcp.wiring import select_transport_with_daemon_fallback
 
+    configure_diagnostic_log(component="mcp")
     # The fallback returns one of FastMCP's documented transports; cast so
     # the Literal-typed `run(transport=...)` parameter resolves (GH-619).
     transport = cast(

@@ -1,3 +1,4 @@
+import logging
 import subprocess
 from collections.abc import Generator
 from pathlib import Path
@@ -8,6 +9,9 @@ from dev10x.domain.claude_paths import ClaudeDir
 from dev10x.domain.common.result import ok
 from dev10x.domain.dev10x_paths import CONFIG_HOME_ENV_VAR, Dev10xConfigDir
 from factory.random import reseed_random
+
+from dev10x.core.diagnostic_log import LOG_DIR_ENV as DIAGNOSTIC_LOG_DIR_ENV
+from dev10x.core.diagnostic_log import LOGGER_NAME as DIAGNOSTIC_LOGGER_NAME
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -114,6 +118,24 @@ def _isolate_dev10x_config_home(
     Dev10xConfigDir.reset_cache()
     yield
     Dev10xConfigDir.reset_cache()
+
+
+@pytest.fixture(autouse=True)
+def _isolate_diagnostic_log(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> Generator[None, None, None]:
+    """Keep the GH-1639 diagnostic sink out of /tmp/Dev10x/log and test order.
+
+    ``server_cli.main()`` and the ``skill`` CLI group attach handlers to the
+    process-wide ``dev10x`` logger. Without this, any test driving either
+    entry point writes into the real log directory and leaves the handlers
+    attached for every test that runs after it.
+    """
+    monkeypatch.setenv(DIAGNOSTIC_LOG_DIR_ENV, str(tmp_path / "dev10x-diagnostic-log"))
+    logger = logging.getLogger(DIAGNOSTIC_LOGGER_NAME)
+    saved_handlers, saved_level = list(logger.handlers), logger.level
+    yield
+    logger.handlers, logger.level = saved_handlers, saved_level
 
 
 @pytest.fixture
