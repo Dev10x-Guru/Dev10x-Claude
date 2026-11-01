@@ -382,10 +382,21 @@ would cause `git rebase` to fail:
 git status --porcelain
 ```
 
-If unstaged changes exist (e.g., lock files, generated files):
-1. Stash them: `git stash --include-untracked`
-2. Run the rebase strategy
-3. Pop the stash: `git stash pop`
+If unstaged changes exist (e.g., lock files, generated files),
+set them aside under a tag only this run knows. The stash stack is
+shared by every worktree and session of the repo, so a bare
+`git stash pop` can restore another session's entry (GH-1703):
+
+1. Stash with a unique tag:
+   `git stash push -u -m groom-guard-<branch-slug>-<timestamp>`
+2. Capture this entry's SHA: `git stash list --format='%H %gs'`,
+   and take the line whose subject ends with the tag
+3. Run the rebase strategy
+4. Restore by SHA, never by position: `git stash apply <sha>`
+5. Drop the entry: re-list with `git stash list --format='%gd %gs'`,
+   find the tag's current `stash@{n}`, then `git stash drop stash@{n}`
+
+Never `git stash pop` or a bare `git stash` here.
 
 This prevents the common failure: `error: cannot rebase: You
 have unstaged changes.` — which halts the entire groom pipeline.
@@ -667,10 +678,18 @@ reconstruction loop instead of pushing. See
 [`references/tree-reconstruction.md`](references/tree-reconstruction.md)
 § "Tree-Equality Post-Condition".
 
-```bash
-# Force push with lease (safer than --force)
-git push origin <branch> --force-with-lease
+Push through the MCP wrapper, which applies the protected-branch
+guard and refuses a lease against a stale base (GH-1703):
+
 ```
+mcp__plugin_dev10x_cli__push_safe(
+    args=["--force-with-lease", "origin", "<branch>"])
+```
+
+Treat any payload without `"pushed": false` or an `error` key as
+success, then confirm the remote tip moved: `git log -1 --format=%H
+origin/<branch>` must equal `git log -1 --format=%H HEAD` (a write
+is a request, not a receipt).
 
 **Important:** `--force-with-lease` fails if someone else pushed to the branch, preventing accidental overwrites.
 
@@ -718,7 +737,9 @@ in session 0aa83b83.
 because "the PR will be updated later" — the groom skill owns
 the full rewrite lifecycle including reference updates.
 
-1. Detect open PR: `gh pr view --json number,state`
+1. Detect the PR: `mcp__plugin_dev10x_cli__pr_detect()` returns
+   `pr_number`; read its `state` with
+   `mcp__plugin_dev10x_cli__pr_get(number=<n>)` (GH-1703)
    - If no PR or PR is closed/merged → skip Phase 4, mark done
    - If PR is open → proceed with updates
 2. Get the new commit hash(es): `git log --oneline develop..HEAD`
