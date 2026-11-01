@@ -8,6 +8,7 @@ import {
   diffLineKind,
   displayName,
   headline,
+  inHerdr,
   optionText,
   shortPath,
   waitingLabel,
@@ -91,6 +92,15 @@ describe("waitingLabel", () => {
     [{ status: "busy" }, "busy"],
   ])("%j → %s", (overrides, expected) => {
     expect(waitingLabel(session(overrides))).toBe(expected);
+  });
+});
+
+describe("inHerdr", () => {
+  it.each([
+    ["w1:p1", true],
+    ["", false],
+  ])("pane %j → %s", (pane_id, expected) => {
+    expect(inHerdr(session({ pane_id }))).toBe(expected);
   });
 });
 
