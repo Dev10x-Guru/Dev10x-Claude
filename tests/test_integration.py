@@ -20,7 +20,7 @@ from dev10x.domain.rules.rule_engine import RuleEngine
 from dev10x.hooks.edit_validator import validate_edit_write
 
 from dev10x.cli import cli
-from dev10x.core.plugin_map import skill_roots
+from dev10x.core.paths import skill_roots
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 

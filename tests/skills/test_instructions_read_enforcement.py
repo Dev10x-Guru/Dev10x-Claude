@@ -25,7 +25,7 @@ from pathlib import Path
 
 import pytest
 
-from dev10x.core.plugin_map import skill_roots
+from dev10x.core.paths import skill_roots
 
 _SKILLS = Path(__file__).parents[2] / "skills"
 

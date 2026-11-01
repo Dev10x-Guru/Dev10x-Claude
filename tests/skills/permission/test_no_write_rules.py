@@ -23,7 +23,7 @@ import yaml
 from dev10x.skills.permission.catalog_paths import load_catalog_document
 
 import dev10x.skills.permission as permission_pkg
-from dev10x.core.plugin_map import skill_files
+from dev10x.core.paths import skill_files
 from dev10x.skills.permission import doctor
 
 REPO_ROOT = Path(permission_pkg.__file__).resolve().parents[5]

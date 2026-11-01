@@ -6,6 +6,8 @@ on:
     paths:
       - "skills/**/SKILL.md"
       - "skills/**/evals/evals.json"
+      - "plugins/*/skills/**/SKILL.md"
+      - "plugins/*/skills/**/evals/evals.json"
       - "src/dev10x/skills/audit/eval_gaps.py"
       - "tests/skills/audit/test_eval_gaps.py"
       - "bin/check-skill-eval-gaps.py"
@@ -62,8 +64,8 @@ jobs:
           # must not block unrelated PRs.
           BASE_SHA="$(git merge-base "origin/${BASE_REF}" HEAD)"
           git diff --name-only --diff-filter=AM "${BASE_SHA}" HEAD \
-            | grep -E '^skills/[^/]+/SKILL\.md$' \
-            | sed -E 's#^(skills/[^/]+)/SKILL\.md$#\1#' \
+            | grep -E '^(plugins/[^/]+/)?skills/[^/]+/SKILL\.md$' \
+            | sed -E 's#^((plugins/[^/]+/)?skills/[^/]+)/SKILL\.md$#\1#' \
             | sort -u \
             > /tmp/changed-skill-dirs.txt || true
           echo "count=$(wc -l < /tmp/changed-skill-dirs.txt)" >> "$GITHUB_OUTPUT"

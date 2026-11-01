@@ -26,7 +26,7 @@ from pathlib import Path
 
 import pytest
 
-from dev10x.core.plugin_map import skill_files
+from dev10x.core.paths import skill_files
 
 _REPO_ROOT = Path(__file__).parents[2]
 

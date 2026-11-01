@@ -36,6 +36,7 @@ from dev10x.skills.audit import privacy  # noqa: E402
 DEFAULT_SCAN_ROOTS: tuple[Path, ...] = (
     REPO_ROOT / "src",
     REPO_ROOT / "skills",
+    REPO_ROOT / "plugins",
     REPO_ROOT / "bin",
     REPO_ROOT / "hooks",
     REPO_ROOT / "servers",

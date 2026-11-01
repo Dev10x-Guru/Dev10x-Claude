@@ -9,6 +9,11 @@ on:
       - "skills/**/references/**/*.md"
       - "skills/**/references/**/*.yaml"
       - "skills/**/references/**/*.yml"
+      - "plugins/*/skills/**/SKILL.md"
+      - "plugins/*/skills/**/instructions.md"
+      - "plugins/*/skills/**/references/**/*.md"
+      - "plugins/*/skills/**/references/**/*.yaml"
+      - "plugins/*/skills/**/references/**/*.yml"
       - "references/**/*.md"
       - "references/**/*.yaml"
       - "references/**/*.yml"
@@ -67,7 +72,7 @@ jobs:
           # we only scan files this PR actually changed.
           BASE_SHA="$(git merge-base "origin/${BASE_REF}" HEAD)"
           git diff --name-only --diff-filter=AM "${BASE_SHA}" HEAD \
-            | grep -E '^(skills/[^/]+/|references/).*\.(md|yaml|yml)$' \
+            | grep -E '^((plugins/[^/]+/)?skills/[^/]+/|references/).*\.(md|yaml|yml)$' \
             | grep -v '/scripts/' \
             | grep -v '/evals/' \
             > /tmp/changed-skill-docs.txt || true
