@@ -85,7 +85,7 @@ def _run(
         path=stub_path(bin_dir=bin_dir),
         fake_dir=fake_dir,
         extra_env={"HOME": str(home_dir), **(extra_env or {})},
-        strip_env={"PLANTUML_JAR", "PUPPETEER_EXECUTABLE_PATH"},
+        strip_env={"PLANTUML_JAR", "PLANTUML_SECURITY_PROFILE", "PUPPETEER_EXECUTABLE_PATH"},
     )
 
 
@@ -187,6 +187,61 @@ class TestPlantUml:
         )
 
         assert "-tsvg" in (fake_dir / "java_calls.txt").read_text()
+
+    def test_both_plantuml_calls_run_sandboxed(
+        self,
+        puml: Path,
+        bin_dir: Path,
+        fake_dir: Path,
+        home_dir: Path,
+    ) -> None:
+        _run(args=[str(puml)], bin_dir=bin_dir, fake_dir=fake_dir, home_dir=home_dir)
+
+        calls = (fake_dir / "java_calls.txt").read_text().splitlines()
+        assert ["-DPLANTUML_SECURITY_PROFILE=SANDBOX" in call.split() for call in calls] == [
+            True,
+            True,
+        ]
+
+    def test_trusted_source_can_relax_the_profile(
+        self,
+        puml: Path,
+        bin_dir: Path,
+        fake_dir: Path,
+        home_dir: Path,
+    ) -> None:
+        _run(
+            args=[str(puml)],
+            bin_dir=bin_dir,
+            fake_dir=fake_dir,
+            home_dir=home_dir,
+            extra_env={"PLANTUML_SECURITY_PROFILE": "UNSECURE"},
+        )
+
+        assert "-DPLANTUML_SECURITY_PROFILE=UNSECURE" in (fake_dir / "java_calls.txt").read_text()
+
+    @pytest.mark.parametrize("profile", ["BOGUS", "sandbox"])
+    def test_unknown_profile_is_refused_before_java_runs(
+        self,
+        profile: str,
+        puml: Path,
+        bin_dir: Path,
+        fake_dir: Path,
+        home_dir: Path,
+    ) -> None:
+        result = _run(
+            args=[str(puml)],
+            bin_dir=bin_dir,
+            fake_dir=fake_dir,
+            home_dir=home_dir,
+            extra_env={"PLANTUML_SECURITY_PROFILE": profile},
+        )
+
+        assert (
+            result.returncode,
+            "PLANTUML_SECURITY_PROFILE must be" in result.stderr,
+            (fake_dir / "java_calls.txt").exists(),
+        ) == (2, True, False)
 
     def test_plantuml_jar_env_wins(
         self,
@@ -482,9 +537,47 @@ class TestRealPlantUml:
     @pytest.fixture
     def real_env(self, tmp_path: Path) -> dict[str, str]:
         return {
-            **{key: value for key, value in os.environ.items() if key != "PLANTUML_JAR"},
+            **{
+                key: value
+                for key, value in os.environ.items()
+                if key not in {"PLANTUML_JAR", "PLANTUML_SECURITY_PROFILE"}
+            },
             "HOME": str(tmp_path),
         }
+
+    def _render(
+        self, *, source: Path, env: dict[str, str], fmt: str = "png"
+    ) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            ["bash", str(SCRIPT), str(source), "--format", fmt],
+            capture_output=True,
+            text=True,
+            timeout=120,
+            env=env,
+        )
+
+    def test_local_include_is_refused(self, tmp_path: Path, real_env: dict[str, str]) -> None:
+        secret = tmp_path / "secret.puml"
+        secret.write_text("Alice -> Bob : leaked\n")
+        source = tmp_path / "untrusted.puml"
+        source.write_text(f"@startuml\n!include {secret}\n@enduml\n")
+
+        result = self._render(source=source, env=real_env)
+
+        assert (result.returncode, "cannot include" in result.stderr) == (1, True)
+
+    def test_environment_is_not_baked_into_the_image(
+        self,
+        tmp_path: Path,
+        real_env: dict[str, str],
+    ) -> None:
+        source = tmp_path / "untrusted.puml"
+        source.write_text('@startuml\nAlice -> Bob : %getenv("DEV10X_PROBE")\n@enduml\n')
+
+        result = self._render(source=source, env={**real_env, "DEV10X_PROBE": "s3cr3t"}, fmt="svg")
+
+        svg = source.with_suffix(".svg").read_text()
+        assert (result.returncode, "Alice" in svg, "s3cr3t" in svg) == (0, True, False)
 
     def test_valid_source_renders_a_png(self, puml: Path, real_env: dict[str, str]) -> None:
         result = subprocess.run(

@@ -101,5 +101,6 @@ Toolchain and troubleshooting:
 | Container without a technology | The description shifts into the `[technology]` slot and reads as nonsense |
 | Unlabeled `Rel` | Arrows show coupling but not why it exists — the main thing a reviewer needs |
 | `!include https://...` | Render breaks offline and drifts from the jar's C4 version |
+| `!include ./vendor/C4_*.puml` | Refused by the sandboxed render (`cannot include`); use the stdlib `<C4/...>` form — trusted-source override in the rendering reference |
 | No `SHOW_LEGEND()` | Color and shape carry meaning nobody outside the team can decode |
 | A second C4 picture beside a Structurizr model | Two sources of truth; one is wrong within a release |
