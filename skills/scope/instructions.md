@@ -371,10 +371,17 @@ Create diagrams when helpful:
 - Sequence diagrams (flow of operations)
 - Data flow diagrams (how data moves)
 
-**PlantUML for diagrams** (bundled with this skill):
+**PlantUML for diagrams** — render through the shared script, one
+file per call; it syntax-checks first and runs the bundled jar under
+the SANDBOX security profile, so a diagram copied from a ticket or PR
+cannot read local files or environment variables into the image:
 ```bash
-java -jar skills/scope/bin/plantuml.jar diagram.puml
+${CLAUDE_PLUGIN_ROOT}/skills/diagram-sequence/scripts/render.sh diagram.puml
 ```
+A local `!include` is refused (`cannot include <path>`): inline the
+content; only the jar's stdlib (`!include <C4/...>`) resolves. Fix
+and re-run until it prints `rendered:`, then read the image. Details:
+`${CLAUDE_PLUGIN_ROOT}/references/diagrams/rendering.md`.
 
 #### 4.2 Document Decisions
 

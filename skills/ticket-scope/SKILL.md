@@ -25,6 +25,7 @@ allowed-tools:
   - Glob
   - Read
   - Bash(mkdir -p:*)
+  - Bash(${CLAUDE_PLUGIN_ROOT}/skills/diagram-sequence/scripts/render.sh:*)
   - AskUserQuestion
 ---
 

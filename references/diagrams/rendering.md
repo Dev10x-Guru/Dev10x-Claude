@@ -1,8 +1,10 @@
 # Diagram Rendering Toolchain
 
-Shared by the `dev10x:diagram-*` skills. Each skill's
-`scripts/render.sh` implements this; read this page when a render
-fails for a reason the script's message does not explain.
+Shared by the `dev10x:diagram-*` skills and by every other skill that
+renders a diagram (`dev10x:scope`, `dev10x:adr`). The `render.sh`
+scripts under `skills/diagram-*/scripts/` implement this; read this
+page when a render fails for a reason the script's message does not
+explain.
 
 ## Contract every render script keeps
 
@@ -26,16 +28,18 @@ Jar lookup order:
 2. The jar bundled with the plugin at `skills/scope/bin/plantuml.jar`
 3. `~/.local/bin/plantuml.jar`
 
-The `render.sh` scripts of `dev10x:diagram-sequence` and
-`dev10x:diagram-c4` run both PlantUML passes (syntax check and render)
-with `-DPLANTUML_SECURITY_PROFILE=SANDBOX`. With no profile set, the
+`skills/diagram-sequence/scripts/render.sh` is the one script that runs
+PlantUML; `dev10x:diagram-c4` delegates to it after its C4 checks, and
+`dev10x:scope` and `dev10x:adr` call it directly. It runs both passes
+(syntax check and render) with `-DPLANTUML_SECURITY_PROFILE=SANDBOX`. With no profile set, the
 bundled jar (1.2026.2) lets a source `!include` any local file and
 read environment variables with `%getenv()`, and draws the result into
 the image — so rendering a `.puml` from a PR under review could
 publish a secret. SANDBOX refuses local and network includes and
 returns nothing from `%getenv()` and `%load_json()`; the stdlib
 bundled in the jar (`!include <C4/...>`, every level) still resolves.
-A direct `java -jar plantuml.jar` call gets none of this.
+A direct `java -jar plantuml.jar` call gets none of this, which is why
+no skill documents one (GH-1797).
 
 For a source you trust that needs a local include (a vendored C4
 file, a shared skin), set `PLANTUML_SECURITY_PROFILE=UNSECURE` on that

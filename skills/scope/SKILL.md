@@ -17,7 +17,7 @@ allowed-tools:
   - Grep
   - Glob
   - Read
-  - Bash(java -jar:*)
+  - Bash(${CLAUDE_PLUGIN_ROOT}/skills/diagram-sequence/scripts/render.sh:*)
   - AskUserQuestion
   - TaskCreate
   - TaskUpdate

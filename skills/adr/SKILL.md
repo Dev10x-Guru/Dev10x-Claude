@@ -12,7 +12,7 @@ user-invocable: true
 invocation-name: dev10x:adr
 allowed-tools:
   - Bash(mkdir -p:*)
-  - Bash(java -jar:*)
+  - Bash(${CLAUDE_PLUGIN_ROOT}/skills/diagram-sequence/scripts/render.sh:*)
   - Bash(ls:*)
   - Skill(dev10x:ticket-branch)
   - Skill(dev10x:git-commit)
@@ -129,12 +129,19 @@ Shows flow of operations for key interactions.
 
 #### 3.3 Generate PNG Files
 
+Render each `.puml` with one call to the shared script — it writes
+the PNG beside the source and runs PlantUML under the SANDBOX
+security profile, so a diagram taken from a ticket or PR cannot pull
+local files or environment variables into the image:
+
 ```bash
-cd docs/adr/diagrams/{ADR_NUMBER}/
-for f in *.puml; do
-  java -jar ~/.local/bin/plantuml.jar "$f"
-done
+${CLAUDE_PLUGIN_ROOT}/skills/diagram-sequence/scripts/render.sh docs/adr/diagrams/{ADR_NUMBER}/<name>.puml
 ```
+
+A local `!include` is refused (`cannot include <path>`): inline the
+content; only the jar's stdlib (`!include <C4/...>`) resolves. Fix and
+re-run until it prints `rendered:`, then read the PNG. Details:
+`${CLAUDE_PLUGIN_ROOT}/references/diagrams/rendering.md`.
 
 ### Phase 4: Apply Design Principles
 
@@ -238,5 +245,5 @@ dev10x:adr
 - Diagrams: `docs/adr/diagrams/NNNN/`
 
 ### PlantUML
-- Generate: `java -jar ~/.local/bin/plantuml.jar diagram.puml`
+- Generate: `${CLAUDE_PLUGIN_ROOT}/skills/diagram-sequence/scripts/render.sh docs/adr/diagrams/NNNN/<name>.puml`
 - Themes: `!theme plain` for clean diagrams
