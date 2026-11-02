@@ -12,7 +12,7 @@ This skill helps restructure, polish, and clean up git commit history in the cur
 - Before creating a PR to ensure clean history
 - When CI blocks merge due to fixup commits
 
-> **[OVERRIDE DETECTED]** — ~1050 lines against the 200-line budget
+> **[OVERRIDE DETECTED]** — ~1100 lines against the 200-line budget
 > (GH-1705). History rewriting is the one workflow where a skipped
 > guard loses commits: the Phase 0 open-thread refusal, the remote
 > base resolution, the Strategy B tag → pin → ancestor-check → soft
@@ -20,7 +20,8 @@ This skill helps restructure, polish, and clean up git commit history in the cur
 > with the strategies they protect, and a reader of one strategy needs
 > the guard beside it. **Split plan:** move § Common Scenarios,
 > § Best Practices, § Commit Message Conventions and § Troubleshooting
-> (~280 lines, lines 767 onward) to `references/` first; if the file
+> (~290 lines, the file's tail from § Common Scenarios on) to
+> `references/` first; if the file
 > still passes ~800 lines, split Strategies A–E into one reference
 > file each and keep the Phase 0–2 decision flow inline.
 

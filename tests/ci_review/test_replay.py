@@ -113,7 +113,9 @@ def pipeline(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Pipeline:
         (workspace, "require_base_scripts"): lambda **_: fake.result(
             name="require_base_scripts", value=None
         ),
-        (workspace, "run_dir_for"): lambda **_: fake.run_dir,
+        (workspace, "run_dir_for"): lambda **_: fake.result(
+            name="run_dir_for", value=fake.run_dir
+        ),
         (workspace, "create_workspace"): lambda **_: fake.result(
             name="create_workspace", value=fake.space
         ),
@@ -441,6 +443,7 @@ class TestRefusals:
             "read_blob:merge1",
             "load_review_job",
             "require_base_scripts",
+            "run_dir_for",
         ],
     )
     def test_early_failure_returns_before_a_workspace_exists(

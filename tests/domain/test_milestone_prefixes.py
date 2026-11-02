@@ -38,6 +38,15 @@ def test_parses_only_the_registry_table() -> None:
     assert parse_registered_prefixes(text=_DOC) == frozenset({"AUD", "DX"})
 
 
+@pytest.mark.parametrize(
+    "row", ["| `X` | one letter | active |", "| `TOOLONGX` | eight | active |"]
+)
+def test_registry_and_title_share_one_length_bound(row: str) -> None:
+    text = _DOC.replace("| `DX` |", f"{row}\n| `DX` |")
+
+    assert parse_registered_prefixes(text=text) == frozenset({"AUD", "DX"})
+
+
 def test_the_repository_registry_parses() -> None:
     text = (_REPO_ROOT / REGISTRY_RELPATH).read_text(encoding="utf-8")
 
@@ -67,7 +76,7 @@ def test_a_registered_prefix_passes() -> None:
     ("title", "expected"),
     [
         ("NEW: Something", "| `NEW` | <initiative> | active |"),
-        ("Plain outcome", "does not start with an initiative prefix"),
+        ("Plain outcome", "does not start with an initiative prefix of 2-6 uppercase"),
     ],
     ids=["unregistered-names-the-row", "no-prefix"],
 )
@@ -91,6 +100,31 @@ class TestRegistryLoader:
 
     def test_a_checkout_without_a_registry_is_not_guarded(self, tmp_path: Path) -> None:
         with patch.object(_gateway, "GitContext") as git_context:
+            git_context.return_value.toplevel = str(tmp_path)
+            loaded = _gateway._milestone_prefix_registry()
+
+        assert loaded is None
+
+    def test_an_undecodable_registry_is_not_guarded(self, tmp_path: Path) -> None:
+        registry = tmp_path / REGISTRY_RELPATH
+        registry.parent.mkdir(parents=True)
+        registry.write_bytes(b"\xff\xfe not utf-8")
+
+        with patch.object(_gateway, "GitContext") as git_context:
+            git_context.return_value.toplevel = str(tmp_path)
+            loaded = _gateway._milestone_prefix_registry()
+
+        assert loaded is None
+
+    def test_an_unreadable_registry_is_not_guarded(self, tmp_path: Path) -> None:
+        registry = tmp_path / REGISTRY_RELPATH
+        registry.parent.mkdir(parents=True)
+        registry.write_text(_DOC, encoding="utf-8")
+
+        with (
+            patch.object(_gateway, "GitContext") as git_context,
+            patch.object(Path, "read_text", side_effect=OSError("permission denied")),
+        ):
             git_context.return_value.toplevel = str(tmp_path)
             loaded = _gateway._milestone_prefix_registry()
 

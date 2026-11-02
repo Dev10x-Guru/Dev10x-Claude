@@ -234,16 +234,16 @@ Three constraints came out of building the first one:
    `open_work`. The blocks that remain fire only once the list says
    the work is done — a dirty tree, or the stand-down gate.
 
-**Keep the decision out of the hook.** `dev10x.hooks.stop_verdict`
+**Keep the decision out of the hook.** `dev10x.core.hooks.stop_verdict`
 holds the rule and is a pure function over `(payload, plan)`;
 `build_stop_verdict` is the wiring that finds the plan and records the
 marker. That split is what makes the rule testable without a
-subprocess — the same separation `dev10x.hooks.format_scope` got under
+subprocess — the same separation `dev10x.core.hooks.format_scope` got under
 GH-1143 — and it is why `decide` reads the marker but never writes it.
 
 ### Adding a new SessionStart/Stop feature
 
-1. Write the logic in `src/dev10x/hooks/session.py` with an
+1. Write the logic in `src/dev10x/core/hooks/session.py` with an
    optional `data: dict | None` parameter
 2. Add a call to the feature inside
    `hooks/scripts/session-start.py` (or `session-stop.py`),
@@ -309,7 +309,7 @@ that configures 99 and passes its own pre-commit on the original forms.
    deleted name the file still references. Emit a `systemMessage`
    naming the changed lines.
 
-The decision logic lives in `dev10x.hooks.format_scope`, kept separate
+The decision logic lives in `dev10x.core.hooks.format_scope`, kept separate
 from the hook so it is testable without a subprocess.
 
 ## Profile Tiers (GH-413)
