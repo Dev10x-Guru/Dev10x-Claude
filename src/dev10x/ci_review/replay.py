@@ -9,12 +9,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from dev10x.ci_review import cli_pin, compare, gh_shim, post_steps, runner, workspace
+from dev10x.ci_review import cli_pin, compare, gh_shim, post_steps, runner, share, workspace
 from dev10x.ci_review.guards import evaluate_guards, fetch_pr
 from dev10x.ci_review.outbox import read_entries
 from dev10x.ci_review.process import run_checked
 from dev10x.ci_review.render import RenderedInputs, render_inputs
-from dev10x.ci_review.report import elide_prompt, render_comparison, replica_body, summarize
+from dev10x.ci_review.report import elide_prompt, render_comparison, summarize
 from dev10x.ci_review.usage import usage_report
 from dev10x.ci_review.workflow import (
     REVIEW_WORKFLOWS,
@@ -301,7 +301,7 @@ def _run_model(*, context: _RunContext) -> Result[ReplayOutcome]:
     )
     if isinstance(execution, ErrorResult):
         return _with_run_dir(error=execution, run_dir=run_dir)
-    outbox = run_dir / "outbox.jsonl"
+    outbox = run_dir / share.OUTBOX_FILE
     if context.options.workflow == HYGIENE:
         posted = post_steps.hygiene_post_step(
             checkout=context.space.checkout,
@@ -324,7 +324,7 @@ def _run_model(*, context: _RunContext) -> Result[ReplayOutcome]:
         usage=usage_report(execution=execution.value, notional=auth.value.notional),
         entries=entries,
     )
-    report_path = run_dir / "report.md"
+    report_path = run_dir / share.REPORT_FILE
     # The model run is paid for: its report is on disk before anything else can fail.
     report_path.write_text(report, encoding="utf-8")
     if context.options.compare_ci is not None:
@@ -336,13 +336,13 @@ def _run_model(*, context: _RunContext) -> Result[ReplayOutcome]:
         report += section
     posted_url: str | None = None
     if context.options.post:
-        body_path = run_dir / "replica-comment.md"
-        body_path.write_text(
-            replica_body(workflow=context.options.workflow, report=report, entries=entries),
-            encoding="utf-8",
-        )
-        shared = post_steps.post_replica(
-            repo=context.options.repo, pr=context.options.pr, body_path=body_path
+        shared = share.share_replica(
+            run_dir=run_dir,
+            repo=context.options.repo,
+            pr=context.options.pr,
+            workflow=context.options.workflow,
+            report=report,
+            entries=entries,
         )
         if isinstance(shared, ErrorResult):
             return _with_run_dir(error=shared, run_dir=run_dir)

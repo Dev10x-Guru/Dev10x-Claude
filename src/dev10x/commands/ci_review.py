@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import shlex
 import sys
+from pathlib import Path
 from typing import NoReturn
 
 import click
@@ -56,6 +57,13 @@ _ALL_ORDER: tuple[str, ...] = ("hygiene", "code-review")
     metavar="RUN_ID",
     help="Compare the findings with what this CI code-review run posted.",
 )
+@click.option(
+    "--post-run-dir",
+    "post_run_dir",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    default=None,
+    help="Post the replica of a finished run directory; no new model run (GH-1762).",
+)
 def ci_review(
     *,
     pr: int,
@@ -68,16 +76,23 @@ def ci_review(
     timeout: int,
     post: bool,
     compare_ci: int | None,
+    post_run_dir: Path | None,
 ) -> None:
     """Replay the Claude CI review of a PR locally.
 
     The review's own writes are recorded to outbox.jsonl in the run
     directory, never posted (GH-1621). Only --post publishes, as one
-    comment marked as a local replica (GH-1721).
+    comment marked as a local replica (GH-1721); --post-run-dir
+    publishes a run that already finished, after its report was read
+    (GH-1762).
     """
     from dev10x.ci_review import ReplayOptions, run_replay
     from dev10x.ci_review.replay import detect_repo, detect_repo_root
 
+    if post_run_dir is not None and (post or render_only or compare_ci is not None):
+        raise click.UsageError(
+            "--post-run-dir posts a finished run; drop --post, --render-only and --compare-ci"
+        )
     if render_only and (post or compare_ci is not None):
         raise click.UsageError("--post and --compare-ci need a model run; drop --render-only")
     if compare_ci is not None and workflow != "code-review":
@@ -90,6 +105,9 @@ def ci_review(
         if isinstance(detected, ErrorResult):
             _fail(error=detected)
         repo = detected.value
+    if post_run_dir is not None:
+        _post_finished_run(run_dir=post_run_dir, repo=repo, pr=pr)
+        return
     workflows = _ALL_ORDER if workflow == "all" else (workflow,)
     for name in workflows:
         result = run_replay(
@@ -123,6 +141,16 @@ def ci_review(
         if outcome.posted_url is not None:
             click.echo(f"posted: {outcome.posted_url}")
         click.echo(f"run dir: {outcome.run_dir}")
+
+
+def _post_finished_run(*, run_dir: Path, repo: str, pr: int) -> None:
+    from dev10x.ci_review.share import post_finished_run
+
+    posted = post_finished_run(run_dir=run_dir, repo=repo, pr=pr)
+    if isinstance(posted, ErrorResult):
+        _fail(error=posted)
+    click.echo(f"posted: {posted.value}")
+    click.echo(f"run dir: {run_dir}")
 
 
 def _fail(*, error: ErrorResult) -> NoReturn:

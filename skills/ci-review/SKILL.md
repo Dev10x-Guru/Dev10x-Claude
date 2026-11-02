@@ -4,7 +4,8 @@ description: >
   Use when a change to a Claude CI review prompt, args file, reviewer
   agent or CLI pin needs checking before it merges — so you read what
   the CI code review and PR hygiene check would post on a real PR,
-  without anything reaching GitHub.
+  with nothing reaching GitHub unless you choose, after reading the
+  report, to share it as one marked replica comment.
   TRIGGER when: "what would the CI review say", replaying the Claude CI
   review locally, verifying a review prompt or model change on a PR.
   DO NOT TRIGGER when: self-reviewing a branch with no PR (use
@@ -46,8 +47,9 @@ Mark completed when done: `TaskUpdate(taskId, status="completed")`
 - replays the post-steps.
 
 Every GitHub write the run attempts goes to an outbox instead of
-posting. The skill wraps the command. It posts to GitHub only with
-`--post`, after the Step 3b gate, as one comment from the user headed
+posting. The skill wraps the command. It posts to GitHub only through
+`--post-run-dir`, after the user has read the report and answered the
+Step 6 gate, as one comment from the user headed
 `Local CI replica` and marked `<!-- dev10x-local-ci-review -->`, so CI's
 round numbering and its hygiene comment lookup never see it.
 
@@ -94,28 +96,15 @@ blocks execution until the user responds. Options:
 - Run the hygiene check only
 - Stop at the render
 
-### Step 3b: Confirm sharing the replica
-
-Skip this step when the answer above was "Stop at the render".
-`--post` puts a comment on the PR under the user's name, which others
-read. Ask before the run, because the post happens at its end and a
-second run to post would cost money again and review differently.
-Never pass `--post` without an answer, in any session mode.
-
-**REQUIRED: Call `AskUserQuestion`** (do NOT use plain text). This
-blocks execution until the user responds. Options:
-
-- Keep it local (Recommended): nothing reaches the PR
-- Post the replica to PR #<N>: add `--post` to the run
-
 ### Step 4: Run
 
 ```bash
 uvx dev10x ci-review --pr <N> --workflow <all|code-review|hygiene>
 ```
 
-Pass the same `--rules` value as Step 2, and `--post` only when
-Step 3b's answer was to post. When the user named a CI run
+Pass the same `--rules` value as Step 2. Never pass `--post` from this
+skill: it shares the replica before anyone has read it (GH-1762) —
+Step 6 posts the finished run instead. When the user named a CI run
 to check against, add `--compare-ci <run-id>` (code review only): the
 report gains a table of each finding's `path:line` with the local and
 CI severity, and both verdicts.
@@ -132,6 +121,31 @@ Relay the command's report:
 - the usage table, labeled notional when it ran on a subscription;
 - the run directory, which holds `outbox.jsonl` and `execution.json`.
 
-Say plainly that the review's own writes were not posted. When the
-run had `--post`, relay the `posted:` URL and say that the replica
-comment, and only it, reached the PR.
+Say plainly that the review's own writes were not posted.
+
+### Step 6: Confirm sharing the replica
+
+Ask only now, after Step 5 put the report in front of the user: the
+decision to share a replica belongs after reading it, and posting a
+finished run directory costs no second model run (GH-1762). The post
+is a comment on the PR under the user's name, which others read.
+Never post without an answer, in any session mode.
+
+**REQUIRED: Call `AskUserQuestion`** (do NOT use plain text). This
+blocks execution until the user responds. Options:
+
+- Keep it local (Recommended): nothing reaches the PR
+- Post the replica to PR #<N>: one `Local CI replica` comment per
+  workflow that ran
+
+On "Post", run once per run directory Step 5 relayed:
+
+```bash
+uvx dev10x ci-review --pr <N> --post-run-dir <run dir>
+```
+
+The command rebuilds the replica from the directory's `report.md` and
+`outbox.jsonl`, keeps the `Local CI replica` header and the
+`<!-- dev10x-local-ci-review -->` marker, and refuses a directory with
+no `report.md` or one recorded for another PR. Relay each `posted:`
+URL and say that the replica comment, and only it, reached the PR.

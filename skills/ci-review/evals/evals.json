@@ -10,12 +10,12 @@
     {
       "id": "no-github-writes",
       "name": "Nothing Posted",
-      "description": "The skill only calls the dry-run command and never posts, comments, reviews or drafts on GitHub itself."
+      "description": "The review's own writes go to the outbox and are never posted; the skill posts nothing itself except, after the Step 6 answer, the one marked replica comment via --post-run-dir."
     },
     {
       "id": "post-gate",
       "name": "Post Confirmation Gate",
-      "description": "--post is passed only after an AskUserQuestion answer whose first, recommended option keeps the replica local."
+      "description": "The replica is posted only with --post-run-dir, after the report was relayed and an AskUserQuestion answer whose first, recommended option keeps it local; the skill never passes --post (GH-1762)."
     },
     {
       "id": "task_tracking",
@@ -58,15 +58,20 @@
     },
     {
       "id": "gate-before-post",
-      "name": "Ask before posting the replica",
-      "description": "After the user picks a model run, the skill asks whether to post the replica before running with --post, and keeps it local by default.",
+      "name": "Ask about posting after the report is read",
+      "description": "The share gate fires after the run's report is relayed, not before the run; on 'Post' the skill posts the finished run directory without a second model run (GH-1762).",
       "input": "/dev10x:ci-review 1650 and share it on the PR, user picks Run the code review only",
       "assertions": [
         {
           "dimension": "post-gate",
           "check": "tool_called",
           "tool": "AskUserQuestion",
-          "signal": "post_gate_uses_tool — AskUserQuestion is called after the paid-run gate and before any `dev10x ci-review` run that carries --post"
+          "signal": "post_gate_after_report — AskUserQuestion is called after the model run's report is relayed, and no `dev10x ci-review` run carries --post"
+        },
+        {
+          "dimension": "post-gate",
+          "check": "behavioral",
+          "signal": "post_finished_run — on 'Post', the skill runs `dev10x ci-review --pr 1650 --post-run-dir <run dir>` with the run directory the model run printed, and no second model run"
         },
         {
           "dimension": "post-gate",
@@ -77,7 +82,7 @@
         {
           "dimension": "post-gate",
           "check": "behavioral",
-          "signal": "no_post_without_yes — when the user answers 'Keep it local', the run command has no --post flag"
+          "signal": "no_post_without_yes — when the user answers 'Keep it local', no `--post-run-dir` command runs"
         }
       ]
     },
