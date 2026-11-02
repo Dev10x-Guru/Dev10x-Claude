@@ -52,6 +52,71 @@ Which session should I test?
 """
 
 
+SIDE_PREVIEW = """\
+ ☐ Post to Chat
+
+Post this review request to Mike?
+
+❯ 1. Post to dev-pull-requests  ┌──────────────────────────┐
+  2. Post to dev-infra          │ @Mike could you review?  │
+  3. Skip                       │                          │
+                                │ • tt-pos#2300 🐛 fix     │
+                                └──────────────────────────┘
+
+  Notes: press n to add notes
+"""
+
+
+class TestSidePreview:
+    @pytest.fixture
+    def prompt(self) -> Prompt | None:
+        return parse_prompt(pane_text=SIDE_PREVIEW)
+
+    def test_options_lose_the_box(self, prompt: Prompt | None) -> None:
+        assert prompt is not None
+        assert [(option.label, option.detail) for option in prompt.options] == [
+            ("Post to dev-pull-requests", ""),
+            ("Post to dev-infra", ""),
+            ("Skip", ""),
+        ]
+
+    def test_box_becomes_the_option_preview(self, prompt: Prompt | None) -> None:
+        assert prompt is not None
+        assert prompt.option_preview == ["@Mike could you review?", "", "• tt-pos#2300 🐛 fix"]
+
+    def test_question_is_untouched(self, prompt: Prompt | None) -> None:
+        assert prompt is not None
+        assert prompt.question == "Post this review request to Mike?"
+
+    def test_ragged_edge_within_slack_still_splits(self) -> None:
+        text = "Pick\n❯ 1. Go  ┌────┐\n  2. Stop  │ x  │\n          └────┘\n"
+
+        prompt = parse_prompt(pane_text=text)
+
+        assert prompt is not None
+        assert ([option.label for option in prompt.options], prompt.option_preview) == (
+            ["Go", "Stop"],
+            ["x"],
+        )
+
+    def test_unclosed_box_ends_at_the_last_edge(self) -> None:
+        prompt = parse_prompt(pane_text="Pick\n1. Go  ┌────\n2. Stop │ x\n")
+
+        assert prompt is not None
+        assert prompt.option_preview == ["x"]
+
+    @pytest.mark.parametrize(
+        "text",
+        [PERMISSION, "Pick\n1. a ┌ b\n2. c\n", "Pick\n┌──┐\n1. a\n2. b\n"],
+        ids=["permission", "corner-without-rule", "box-with-no-left-text"],
+    )
+    def test_no_box_means_no_preview(self, text: str) -> None:
+        prompt = parse_prompt(pane_text=text)
+
+        assert prompt is not None
+        assert prompt.option_preview == []
+
+
 class TestParsePrompt:
     def test_permission_prompt(self) -> None:
         assert parse_prompt(pane_text=PERMISSION) == Prompt(
