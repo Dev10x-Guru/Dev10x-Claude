@@ -93,15 +93,31 @@ def select_result(
     )
 
 
+def _emit_context(*, message: str) -> NoReturn:
+    payload = {
+        "hookSpecificOutput": {
+            "hookEventName": HookEventName.PRE_TOOL_USE,
+            "additionalContext": message,
+        },
+    }
+    print(json.dumps(payload))
+    sys.exit(0)
+
+
 def emit(result: HookResult | HookAllow | HookAsk | HookHint | HookRetry) -> NoReturn:
     """Write the Claude Code hook envelope for ``result`` and exit.
 
-    ``HookResult`` denies the tool call (exit 2); ``HookAllow``,
-    ``HookAsk``, and ``HookRetry`` all exit 0 with their
-    decision-specific envelope. ``HookAsk`` returns
+    Stream contract (GH-1775): Claude Code parses an exit-0 hook's JSON
+    from stdout only and never reads its stderr, so every exit-0 envelope
+    goes to stdout. A deny exits 2, where stderr is what Claude sees.
+
+    ``HookResult`` denies the tool call (exit 2). ``HookAsk`` returns
     ``permissionDecision: "ask"`` so Claude Code shows the in-session
-    approval dialog (GH-604) — exit 0, not 2, since the decision is
-    carried in the JSON rather than the exit code.
+    approval dialog (GH-604). ``HookRetry`` lets a PermissionDenied
+    hook tell the model it may retry. ``HookAllow`` carries no
+    permission decision: its envelope sat unread on stderr until
+    GH-1775, so emitting ``allow`` would switch on auto-approvals no one
+    has reviewed. Its message, if any, reaches the agent as context.
     """
     if isinstance(result, HookResult):
         _record_attribution(rule_id=result.rule_id, reason=result.message)
@@ -113,25 +129,14 @@ def emit(result: HookResult | HookAllow | HookAsk | HookHint | HookRetry) -> NoR
         sys.exit(2)
 
     if isinstance(result, HookAllow):
-        payload = {"hookSpecificOutput": {"permissionDecision": "allow"}}
         if result.message:
-            payload["systemMessage"] = result.message
-        print(json.dumps(payload), file=sys.stderr)
+            _emit_context(message=result.message)
         sys.exit(0)
 
     if isinstance(result, HookHint):
-        # stdout, not stderr: Claude Code parses an exit-0 hook's JSON
-        # from stdout, which is where additionalContext reaches the agent.
         # No permissionDecision — the call proceeds as it would have.
         _record_attribution(rule_id=result.rule_id, reason=result.message)
-        payload = {
-            "hookSpecificOutput": {
-                "hookEventName": HookEventName.PRE_TOOL_USE,
-                "additionalContext": result.message,
-            },
-        }
-        print(json.dumps(payload))
-        sys.exit(0)
+        _emit_context(message=result.message)
 
     if isinstance(result, HookAsk):
         _record_attribution(rule_id=result.rule_id, reason=result.reason or result.message)
@@ -144,7 +149,7 @@ def emit(result: HookResult | HookAllow | HookAsk | HookHint | HookRetry) -> NoR
         }
         if result.message:
             payload["systemMessage"] = result.message
-        print(json.dumps(payload), file=sys.stderr)
+        print(json.dumps(payload))
         sys.exit(0)
 
     payload = {
@@ -155,5 +160,5 @@ def emit(result: HookResult | HookAllow | HookAsk | HookHint | HookRetry) -> NoR
     }
     if result.message:
         payload["systemMessage"] = result.message
-    print(json.dumps(payload), file=sys.stderr)
+    print(json.dumps(payload))
     sys.exit(0)

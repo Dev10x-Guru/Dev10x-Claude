@@ -10,7 +10,7 @@ paths:
 
 # Hook Implementation Patterns
 
-> **[OVERRIDE DETECTED]** — ~560 lines against the 200-line rule-file
+> **[OVERRIDE DETECTED]** — ~580 lines against the 200-line rule-file
 > budget in `.claude/rules/INDEX.md` (GH-1438), the largest breach in
 > `.claude/rules/` since GH-1606 trimmed `mcp-tools.md`. Its `paths:`
 > front matter keeps it out of sessions that touch no hook code.
@@ -481,8 +481,8 @@ Use it for a reorder-the-flags nudge, where a deny would be wrong and an
    The flip side: an allow from another validator drops the hint.
 2. **`additionalContext` goes to stdout.**
    That is the stream Claude Code reads it from on an exit-0 hook.
-   `HookAllow` and `HookAsk` still write their envelopes to stderr; that
-   is unchanged here.
+   Every other exit-0 envelope follows the same rule; see § Hook Output
+   Streams.
 3. **A hint rule needs a quick token like a blocking one.**
    `should_run` drops a command before any rule is evaluated, which is
    why `gog` is in `_QUICK_TOKENS`.
@@ -494,6 +494,31 @@ Use it for a reorder-the-flags nudge, where a deny would be wrong and an
 5. **The catalog is guarded.**
    `test_every_live_hint_rule_can_actually_steer` fails on a `live_hint`
    rule that blocks, is not Bash, or carries no compensation text.
+
+### Hook Output Streams (GH-1775)
+
+Claude Code parses an exit-0 hook's JSON from **stdout** only, and never
+shows Claude an exit-0 hook's stderr. An envelope on stderr is silently
+dropped. `hook_transport.emit` owns the contract:
+
+| Result | Exit | Stream | Effect |
+|--------|------|--------|--------|
+| `HookResult` (deny) | 2 | stderr | Call blocked; stderr reaches Claude |
+| `HookAsk` | 0 | stdout | In-session approval prompt (DX014) |
+| `HookRetry` | 0 | stdout | PermissionDenied tells the model it may retry |
+| `HookHint` | 0 | stdout | `additionalContext` only, no decision |
+| `HookAllow` | 0 | stdout | No decision; its message, if any, as `additionalContext` |
+
+`HookAllow` deliberately emits no `permissionDecision`. Until GH-1775
+every allow envelope went to stderr, so the validators returning one
+(safe-subshell, safe-expansion, pipeline-allow, sensitivity exceptions,
+prefix-friction, redundant-fetch) have never auto-approved anything.
+Switching them on is a permission-posture change and needs each one
+reviewed first, not a stream fix.
+
+A new exit-0 envelope goes to stdout and names its `hookEventName`; a
+`hookSpecificOutput` without one fails Claude Code's output validation
+(GH-1788).
 
 ### Configuration
 

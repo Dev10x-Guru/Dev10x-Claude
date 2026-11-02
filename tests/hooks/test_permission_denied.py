@@ -27,14 +27,17 @@ class TestHookRetry:
             emit(hook_retry)
         assert exc_info.value.code == 0
 
-    def test_emit_writes_json_to_stderr(
+    def test_emit_writes_json_to_stdout(
         self,
         hook_retry: HookRetry,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
+        """GH-1775: an exit-0 envelope on stderr is never read."""
         with pytest.raises(SystemExit):
             emit(hook_retry)
-        output = json.loads(capsys.readouterr().err)
+        captured = capsys.readouterr()
+        output = json.loads(captured.out)
+        assert captured.err == ""
         assert output["hookSpecificOutput"]["hookEventName"] == "PermissionDenied"
         assert output["hookSpecificOutput"]["retry"] is True
         assert output["systemMessage"] == "Use Skill(dev10x:git-commit) instead"
@@ -46,7 +49,7 @@ class TestHookRetry:
         retry = HookRetry(message="")
         with pytest.raises(SystemExit):
             emit(retry)
-        output = json.loads(capsys.readouterr().err)
+        output = json.loads(capsys.readouterr().out)
         assert "systemMessage" not in output
 
     def test_frozen(self, hook_retry: HookRetry) -> None:
