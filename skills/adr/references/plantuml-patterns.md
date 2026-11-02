@@ -4,13 +4,14 @@ Common PlantUML patterns for architecture diagrams.
 
 ## Setup
 
-```bash
-# Generate PNG from PUML
-java -jar ~/.local/bin/plantuml.jar diagram.puml
+Render one file per call through the shared script. It syntax-checks
+first, writes the PNG beside the source, and runs PlantUML under the
+SANDBOX security profile, so a local `!include` is refused — keep every
+pattern self-contained (see
+`${CLAUDE_PLUGIN_ROOT}/references/diagrams/rendering.md`):
 
-# Generate all PUMLs in directory
-cd docs/adr/diagrams/NNNN/
-for f in *.puml; do java -jar ~/.local/bin/plantuml.jar "$f"; done
+```bash
+${CLAUDE_PLUGIN_ROOT}/skills/diagram-sequence/scripts/render.sh docs/adr/diagrams/NNNN/component.puml
 ```
 
 ## Component Architecture
