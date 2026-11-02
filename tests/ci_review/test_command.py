@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner, Result
 
-from dev10x.ci_review import replay
+from dev10x.ci_review import replay, share
 from dev10x.ci_review.replay import ReplayOptions, ReplayOutcome
 from dev10x.commands.ci_review import ci_review
 from dev10x.core.domain.common.result import Result as DomainResult
@@ -142,6 +142,55 @@ class TestPostAndCompare:
         assert result.exit_code == 2
         assert message in result.output
         assert replays.options == []
+
+
+class TestPostRunDir:
+    @pytest.fixture
+    def posted(self, monkeypatch: pytest.MonkeyPatch) -> list[tuple[Path, str, int]]:
+        calls: list[tuple[Path, str, int]] = []
+
+        def fake(*, run_dir: Path, repo: str, pr: int) -> DomainResult[str]:
+            calls.append((run_dir, repo, pr))
+            return ok("https://github.com/owner/name/pull/7#issuecomment-1")
+
+        monkeypatch.setattr(share, "post_finished_run", fake)
+        return calls
+
+    def test_posts_without_a_model_run(
+        self,
+        replays: Replays,
+        posted: list[tuple[Path, str, int]],
+        tmp_path: Path,
+    ) -> None:
+        result = _invoke("--pr", "7", "--post-run-dir", str(tmp_path))
+
+        assert result.exit_code == 0, result.output
+        assert posted == [(tmp_path, "owner/name", 7)]
+        assert replays.options == []
+        assert "posted: https://github.com/owner/name/pull/7#issuecomment-1" in result.output
+
+    def test_a_post_failure_exits_one(
+        self, replays: Replays, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        monkeypatch.setattr(share, "post_finished_run", lambda **_: err("no report.md"))
+
+        result = _invoke("--pr", "7", "--post-run-dir", str(tmp_path))
+
+        assert result.exit_code == 1
+        assert "no report.md" in result.output
+
+    @pytest.mark.parametrize(
+        "extra",
+        [("--post",), ("--render-only",), ("--compare-ci", "42")],
+        ids=["post", "render-only", "compare-ci"],
+    )
+    def test_refuses_run_flags(
+        self, replays: Replays, tmp_path: Path, extra: tuple[str, ...]
+    ) -> None:
+        result = _invoke("--pr", "7", "--post-run-dir", str(tmp_path), *extra)
+
+        assert result.exit_code == 2
+        assert "posts a finished run" in result.output
 
 
 class TestFailures:
