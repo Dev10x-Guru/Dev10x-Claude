@@ -14,14 +14,14 @@ orchestration body under the size budget.
 ## Skill Reinforcement
 
 **Command detected:** `kubectl get pods -n staging`
-**Use instead:** `/dev10x:k8s` — Kubernetes operations via
+**Use instead:** `/dev10x-infra:k8s` — Kubernetes operations via
 aws-vault authenticated kubectl
 
 **Why:** Direct kubectl calls bypass aws-vault authentication
 and may fail or use wrong credentials.
 
 **How to invoke:**
-Skill("dev10x:k8s")
+Skill("dev10x-infra:k8s")
 ```
 
 ## Example 2: direct git push
@@ -84,7 +84,7 @@ chained form is not.
 **No direct skill match found.**
 
 Available skills that might help:
-- `/dev10x:k8s` — if checking service health in k8s
+- `/dev10x-infra:k8s` — if checking service health in k8s
 - `/dev10x:investigate` — if investigating a bug report
 
 Check ~/.claude/SKILLS.md for the full list of available skills.

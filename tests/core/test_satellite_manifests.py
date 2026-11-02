@@ -96,7 +96,12 @@ class TestRepositoryManifests:
 
     @pytest.mark.parametrize(
         ("key", "expected"),
-        [("qa", ["dev10x"]), ("coding", ["dev10x", "dev10x-tasks"]), ("core", [])],
+        [
+            ("qa", ["dev10x"]),
+            ("infra", ["dev10x"]),
+            ("coding", ["dev10x", "dev10x-tasks"]),
+            ("core", []),
+        ],
     )
     def test_shipped_map_derivation(
         self,

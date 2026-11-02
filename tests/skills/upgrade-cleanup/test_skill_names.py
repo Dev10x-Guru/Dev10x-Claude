@@ -169,10 +169,15 @@ class TestRegister:
     def entry_removed_in(self) -> str:
         return {entry.name: entry for entry in REGISTER}["SKILL_NAME_ALIASES"].removed_in
 
-    def test_shipped_aliases_rewrite_a_moved_qa_name(self) -> None:
-        assert migrate_text(
-            text="steps:\n  - skill: dev10x:qa-self\n", aliases=SKILL_NAME_ALIASES
-        ) == ("steps:\n  - skill: dev10x-qa:qa-self\n", 1)
+    @pytest.mark.parametrize(
+        ("old", "new"),
+        [("dev10x:qa-self", "dev10x-qa:qa-self"), ("dev10x:k8s", "dev10x-infra:k8s")],
+    )
+    def test_shipped_aliases_rewrite_a_moved_name(self, old: str, new: str) -> None:
+        assert migrate_text(text=f"steps:\n  - skill: {old}\n", aliases=SKILL_NAME_ALIASES) == (
+            f"steps:\n  - skill: {new}\n",
+            1,
+        )
 
     def test_every_extracted_skill_keeps_its_old_name_as_an_alias(self) -> None:
         plugin_map = load_plugin_map()

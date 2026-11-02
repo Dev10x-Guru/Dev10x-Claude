@@ -239,6 +239,7 @@ Code CLI to run it. Run `/dev10x:skill-index` for the full reference.
 claude plugin marketplace add Dev10x-Guru/dev10x-claude
 claude plugin install dev10x@Dev10x-Guru
 claude plugin install dev10x-qa@Dev10x-Guru   # optional: self-QA walkthroughs
+claude plugin install dev10x-infra@Dev10x-Guru   # optional: AWS secrets, k8s
 ```
 
 Run these in your shell, not inside a Claude Code session — the

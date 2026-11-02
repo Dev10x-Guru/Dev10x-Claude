@@ -88,15 +88,21 @@ Bash("dev10x config migrate-skill-names --dry-run")
 Bash("dev10x config migrate-skill-names")
 ```
 
-Renaming a config entry does not install the plugin the skill moved
-to. The QA skills (`qa-self`, `playwright`, `qa-publish`, `tts`,
-`yt-upload`, `review-pack`) moved to `dev10x-qa` (GH-1564). When the
-dry run rewrote any `dev10x-qa:` name, or the user asks for a QA
-skill, check `enabledPlugins` in `~/.claude/settings.json` for
-`dev10x-qa@Dev10x-Guru`. If it is missing, tell the user the skills
-moved and that running `claude plugin install dev10x-qa@Dev10x-Guru`
-in their shell restores them (it installs `dev10x` with it if needed).
-Do not install it for them: installing a plugin is the user's call.
+Renaming a config entry does not install the satellite plugin a skill
+moved to:
+
+| Plugin | Skills |
+|---|---|
+| `dev10x-qa` | `qa-self`, `playwright`, `qa-publish`, `tts`, `yt-upload`, `review-pack` |
+| `dev10x-infra` | `aws-vault`, `k8s` |
+
+When the dry run rewrote any name with one of those prefixes, or the
+user asks for one of those skills, check `enabledPlugins` in
+`~/.claude/settings.json` for `<plugin>@Dev10x-Guru`. If it is
+missing, tell the user the skills moved and that running
+`claude plugin install <plugin>@Dev10x-Guru` in their shell restores
+them (it installs `dev10x` with it if needed). Do not install it for
+them: installing a plugin is the user's call.
 
 Step 2 — delegate to the maintenance skill in `full` mode:
 

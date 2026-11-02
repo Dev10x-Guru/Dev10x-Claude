@@ -12,12 +12,12 @@ rules:
     hook_block: false
     compensations:
       - type: use-skill
-        skill: dev10x:k8s
+        skill: dev10x-infra:k8s
     reason: >
       Direct kubectl calls bypass aws-vault authentication and
       may use wrong credentials or target wrong cluster.
     related:
-      - dev10x:aws-vault
+      - dev10x-infra:aws-vault
 
   - name: aws-vault
     matcher: Bash
@@ -27,7 +27,7 @@ rules:
     hook_block: false
     compensations:
       - type: use-skill
-        skill: dev10x:aws-vault
+        skill: dev10x-infra:aws-vault
     reason: >
       Direct aws CLI calls bypass credential management and
       environment-specific profile selection.
