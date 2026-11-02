@@ -5,8 +5,8 @@ Three layers:
 - the pure lane geometry, via its ``node --test`` suite;
 - render.sh, with stub ``pnpm``/``node``/``bpmn-to-image`` binaries so
   every branch runs offline;
-- layout.mjs against the real toolchain, only when it is already cached
-  (CI never downloads it).
+- layout.mjs against the real toolchain, which CI installs once and
+  caches (GH-1781); locally it skips until render.sh has cached it.
 """
 
 from __future__ import annotations
@@ -455,11 +455,22 @@ class TestLayoutAndRender:
         ) == (3, True, True)
 
 
+TOOLCHAIN_CACHED = (
+    shutil.which("node") is not None and (CACHED_DEPS / "node_modules" / "bpmn-moddle").is_dir()
+)
+
+
 @pytest.mark.skipif(
-    shutil.which("node") is None or not (CACHED_DEPS / "node_modules" / "bpmn-moddle").is_dir(),
+    not TOOLCHAIN_CACHED and not os.environ.get("CI"),
     reason="BPMN toolchain not cached; run render.sh once to install it",
 )
 class TestRealLayout:
+    @pytest.fixture(autouse=True)
+    def _toolchain_is_installed(self) -> None:
+        # GH-1781: under CI a missing toolchain must fail, not skip the suite away.
+        if not TOOLCHAIN_CACHED:
+            pytest.fail(f"BPMN toolchain missing from {CACHED_DEPS}; CI must install it")
+
     def _layout(self, *, source: Path) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             ["node", str(SCRIPTS / "layout.mjs"), str(CACHED_DEPS), str(source)],

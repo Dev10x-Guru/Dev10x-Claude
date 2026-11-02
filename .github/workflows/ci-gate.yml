@@ -170,6 +170,32 @@ jobs:
       - name: Set up Python
         run: uv python install 3.12
 
+      # GH-1781: the diagram-bpmn layout tests need the pinned toolchain
+      # render.sh installs on first use; pytest itself never downloads it.
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - id: bpmn-cache
+        name: Restore the BPMN toolchain
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/dev10x/diagram-bpmn
+          key: bpmn-toolchain-${{ runner.os }}-${{ hashFiles('skills/diagram-bpmn/scripts/package.json', 'skills/diagram-bpmn/scripts/pnpm-workspace.yaml') }}
+
+      - name: Install the BPMN toolchain
+        if: steps.bpmn-cache.outputs.cache-hit != 'true'
+        run: |
+          deps="$HOME/.cache/dev10x/diagram-bpmn"
+          mkdir -p "$deps"
+          cp skills/diagram-bpmn/scripts/package.json \
+            skills/diagram-bpmn/scripts/pnpm-workspace.yaml "$deps/"
+          pnpm --dir "$deps" install --no-frozen-lockfile
+
       - name: Run full suite with coverage
         # Exclude tests/benchmarks: the startup-time gates there assert
         # absolute timing thresholds tuned for a pinned baseline and are

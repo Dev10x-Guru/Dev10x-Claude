@@ -180,6 +180,24 @@ class TestServerTestsSelection:
         assert classify(changed=changed)["servers"] == "true"
 
 
+class TestFloorsSelection:
+    @pytest.mark.parametrize(
+        ("changed", "expected"),
+        [
+            ("skills/diagram-bpmn/scripts/layout.mjs", "true"),
+            ("skills/diagram-sequence/scripts/render.sh", "true"),
+            ("skills/diagram-bpmn/SKILL.md", "false"),
+        ],
+    )
+    def test_skill_scripts_select_the_full_suite(
+        self,
+        classify,
+        changed: str,
+        expected: str,
+    ) -> None:
+        assert classify(changed=changed)["floors"] == expected
+
+
 class TestUnrelatedChangesStayFiltered:
     @pytest.mark.parametrize("changed", ["docs/notes.md", "README.md", "skills/x/SKILL.md"])
     def test_non_code_change_skips_both_suites(self, classify, changed: str) -> None:
