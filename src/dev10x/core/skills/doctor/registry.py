@@ -32,6 +32,8 @@ DEFAULT_STRATEGY_MODULES: tuple[str, ...] = (
     "dev10x.skills.doctor.strategies.legacy_plugin_namespace",
     "dev10x.skills.doctor.strategies.unmatchable_star_prefix",
     "dev10x.skills.doctor.strategies.tracker_alias_parity",
+    "dev10x.skills.doctor.strategies.stranded_worktree_rules",
+    "dev10x.skills.doctor.strategies.sibling_only_grants",
 )
 
 _STRATEGY_MARKER = "STRATEGY"
