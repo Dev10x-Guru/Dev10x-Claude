@@ -141,6 +141,11 @@ Required fields: `file`, `line`, `description`
 Optional fields: `severity`, `confidence`, `source`,
 `suggested_fix`, `category`
 
+`source` is `automated` or `manual`. A finding with `category: spec`
+is a Phase 0 spec-compliance verdict from `dev10x:review`: it names a
+scope or acceptance-criteria gap, not a code location, so list it in
+the summary and create no fixup for it (GH-1749).
+
 ## Integration
 
 ```
