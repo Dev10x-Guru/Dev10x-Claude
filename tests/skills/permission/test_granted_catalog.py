@@ -17,7 +17,7 @@ from dev10x.skills.permission.granted_catalog import (
     with_granted_rules,
 )
 
-from dev10x.skills.permission import catalog_load, enumerate_mcp, granted_catalog
+from dev10x.skills.permission import catalog_load, enumerate_mcp, rule_list_file
 
 RULE = "Bash(npm ci:*)"
 
@@ -71,7 +71,7 @@ class TestRememberGrantedRule:
         def _locked(_path: Path) -> None:
             raise LockTimeoutError("held")
 
-        monkeypatch.setattr(granted_catalog, "locked_yaml_update", _locked)
+        monkeypatch.setattr(rule_list_file, "locked_yaml_update", _locked)
 
         result = remember_granted_rule(rule=RULE)
 

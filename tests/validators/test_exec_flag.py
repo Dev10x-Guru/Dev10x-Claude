@@ -44,6 +44,7 @@ def validator() -> ExecFlagValidator:
         ("make --ev='$(shell id)' all", "--eval"),
         ("make --mak=x.mk", "--makefile"),
         ("rg --pre=sh 'x", "--pre"),
+        ("echo 'a;b' && rg --pre=sh x", "--pre"),
     ],
 )
 def test_asks_on_exec_flag(validator: ExecFlagValidator, command: str, flag: str) -> None:

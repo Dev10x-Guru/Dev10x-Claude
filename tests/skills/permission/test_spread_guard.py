@@ -24,7 +24,7 @@ from dev10x.skills.permission.spread_guard import (
     render_held,
 )
 
-from dev10x.skills.permission import declined_catalog
+from dev10x.skills.permission import declined_catalog, rule_list_file
 
 
 class TestBlanketProblem:
@@ -228,7 +228,7 @@ class TestDeclinedCatalog:
             raise error
             yield {}
 
-        monkeypatch.setattr(declined_catalog, "locked_yaml_update", _locked)
+        monkeypatch.setattr(rule_list_file, "locked_yaml_update", _locked)
 
         result = decline_rules(rules=["Bash(psql:*)"])
 

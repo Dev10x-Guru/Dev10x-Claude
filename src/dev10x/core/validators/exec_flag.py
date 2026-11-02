@@ -16,28 +16,25 @@ the case being closed.
 from __future__ import annotations
 
 import re
-import shlex
 from dataclasses import dataclass
 from pathlib import Path
 from typing import ClassVar
 
-from dev10x.core.skills.permission.exec_capable import EXEC_FLAGS, exec_flag
 from dev10x.domain import HookAsk, HookInput
 from dev10x.domain.common.bash_tokens import (
+    UntokenizableCommandError,
+    command_segments,
     command_units,
     split_tokens,
     strip_command_wrappers,
     strip_line_continuations,
 )
+from dev10x.domain.common.exec_capable import EXEC_FLAGS, exec_flag
 from dev10x.domain.profile_tier import ProfileTier
 from dev10x.validators.base import ValidatorBase
 
-# Operator characters shlex groups into their own tokens. A token made only
-# of them (`;`, `&&`, `|`, `(`, `<(`, `>(`) ends a simple command; `{` and
-# `}` open and close a group without being a command.
-_OPERATOR_CHARS = "();<>|&"
-_GROUP_WORDS = frozenset({"{", "}", "!"})
-# Fallback split for a unit shlex cannot tokenize (unbalanced quote).
+# Fallback split for a unit the shared segmenter cannot tokenize
+# (unbalanced quote): asking on a guess beats skipping the check.
 _SEPARATOR_RE = re.compile(r"&&|\|\||[;|&\n()<>]")
 # Cheap prefilter on the hot path: a listed tool as a whole word, so `rg`
 # inside `merge` or `target` does not wake the tokenizer.
@@ -55,23 +52,15 @@ _ASK_MESSAGE = (
 def _segments(*, unit: str) -> list[list[str]]:
     """Argv of each simple command in ``unit``, quotes honoured.
 
-    Quotes are removed the way bash removes them, so `rg '--pre=sh' x`
-    yields the word `--pre=sh` rather than hiding it (GH-1759 review).
+    The shared segmenter (GH-1773) removes quotes the way bash does, so
+    `rg '--pre=sh' x` yields the word `--pre=sh` rather than hiding it
+    (GH-1759 review), and keeps a quoted operator inside its argument.
     """
-    text = strip_line_continuations(command=unit).replace("\n", " ; ")
-    lexer = shlex.shlex(text, posix=True, punctuation_chars=_OPERATOR_CHARS)
-    lexer.whitespace_split = True
     try:
-        tokens = list(lexer)
-    except ValueError:
+        return [list(segment.argv) for segment in command_segments(command=unit)]
+    except UntokenizableCommandError:
+        text = strip_line_continuations(command=unit)
         return [split_tokens(command=part) for part in _SEPARATOR_RE.split(text)]
-    segments: list[list[str]] = [[]]
-    for token in tokens:
-        if not token.strip(_OPERATOR_CHARS):
-            segments.append([])
-        elif token not in _GROUP_WORDS:
-            segments[-1].append(token)
-    return segments
 
 
 def _simple_commands(*, command: str) -> list[list[str]]:
