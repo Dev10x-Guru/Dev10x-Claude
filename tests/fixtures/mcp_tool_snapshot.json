@@ -87,6 +87,38 @@
       "title": "audit_extract_sessionArguments",
       "type": "object"
     },
+    "audit_handoff_report": {
+      "properties": {
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "pr_state": {
+          "additionalProperties": true,
+          "title": "Pr State",
+          "type": "object"
+        },
+        "report": {
+          "additionalProperties": true,
+          "title": "Report",
+          "type": "object"
+        }
+      },
+      "required": [
+        "report",
+        "pr_state"
+      ],
+      "title": "audit_handoff_reportArguments",
+      "type": "object"
+    },
     "audit_hook_log_path": {
       "properties": {},
       "title": "audit_hook_log_pathArguments",
@@ -776,6 +808,36 @@
         "ticket_id"
       ],
       "title": "detect_trackerArguments",
+      "type": "object"
+    },
+    "find_fixup_target": {
+      "properties": {
+        "base": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Base"
+        },
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        }
+      },
+      "title": "find_fixup_targetArguments",
       "type": "object"
     },
     "gchat_watch_arm": {
@@ -3388,6 +3450,68 @@
         "base_ref"
       ],
       "title": "rebase_groomArguments",
+      "type": "object"
+    },
+    "reconcile_fixes_links": {
+      "properties": {
+        "acknowledge": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Acknowledge"
+        },
+        "base": {
+          "title": "Base",
+          "type": "string"
+        },
+        "body": {
+          "title": "Body",
+          "type": "string"
+        },
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "head": {
+          "default": "HEAD",
+          "title": "Head",
+          "type": "string"
+        },
+        "repo_dir": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repo Dir"
+        }
+      },
+      "required": [
+        "body",
+        "base"
+      ],
+      "title": "reconcile_fixes_linksArguments",
       "type": "object"
     },
     "record_rule_feedback": {

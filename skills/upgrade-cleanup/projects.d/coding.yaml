@@ -51,6 +51,9 @@ base_permissions:
   - "mcp__plugin_dev10x_cli__check_top_level_comments"
   - "mcp__plugin_dev10x_cli__unresolved_threads"
   - "mcp__plugin_dev10x_cli__ci_check_status"
+  - "mcp__plugin_dev10x_cli__find_fixup_target"
+  - "mcp__plugin_dev10x_cli__audit_handoff_report"
+  - "mcp__plugin_dev10x_cli__reconcile_fixes_links"
   # Test runner (GH-880, #877 E3 gap 1) — the diag-friction steer target
   # for scoped py tests; `run_node_tests` stays in core.
   - "mcp__plugin_dev10x_cli__run_tests"

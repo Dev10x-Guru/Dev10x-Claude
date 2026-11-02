@@ -925,7 +925,12 @@ no blocking issues.
 
 ### Step 1: Prepare
 
-Gather PR info, count open threads, verify readiness:
+Gather PR info, count open threads, verify readiness.
+
+**Primary (MCP tool):** Call `mcp__plugin_dev10x_cli__pr_notify`
+with `pr_number={pr_number}`, `repo={repo}` and `action="prepare"`.
+
+**Fallback (script):** Only when the MCP server is unavailable:
 
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/skills/gh-pr-monitor/scripts/pr-notify.py \
@@ -934,7 +939,7 @@ ${CLAUDE_PLUGIN_ROOT}/skills/gh-pr-monitor/scripts/pr-notify.py \
 
 If `open_threads > 0`, verify the count using GraphQL `isResolved`
 (see "Counting Unaddressed Comments" in Phase 2). Only return to
-Phase 2 if unresolved threads actually exist — `pr-notify.py` may
+Phase 2 if unresolved threads actually exist — `prepare` may
 count resolved threads as open if it uses the REST API.
 
 *Why?* Reviewers should only be pinged when the PR is fully ready.
@@ -973,6 +978,12 @@ The dev10x:request-review skill will:
 
 **Step 3b: Update PR checklist**
 
+**Primary (MCP tool):** Call `mcp__plugin_dev10x_cli__pr_notify`
+with `pr_number={pr_number}`, `repo={repo}`, `action="send"`,
+`skip_slack=true` and `skip_reviewers=true`.
+
+**Fallback (script):** Only when the MCP server is unavailable:
+
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/skills/gh-pr-monitor/scripts/pr-notify.py \
   send --pr {pr_number} --repo {repo} \
@@ -984,7 +995,9 @@ assignment (those were handled by the delegated skill above).
 
 ### Step 4: Execute (if user declines)
 
-If user declines the notification, run checklist-only:
+If user declines the notification, run checklist-only: the same
+`pr_notify` call as Step 3b (`action="send"`, `skip_slack=true`,
+`skip_reviewers=true`), or, only when the MCP server is unavailable:
 
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/skills/gh-pr-monitor/scripts/pr-notify.py \

@@ -366,6 +366,46 @@ class TestNextWorktreeName:
         mock_use_cwd.assert_called_once_with(str(tmp_path))
 
 
+class TestFindFixupTarget:
+    @pytest.mark.asyncio
+    @patch("dev10x.git.find_fixup_target", new_callable=AsyncMock)
+    async def test_delegates_to_git_module(self, mock_fn: AsyncMock) -> None:
+        mock_fn.return_value = ok({"status": "single", "target": "abc123"})
+
+        result = await cli_server.find_fixup_target()
+
+        assert result == {"status": "single", "target": "abc123"}
+        assert mock_fn.call_args.kwargs["base"] is None
+
+    @pytest.mark.asyncio
+    @patch("dev10x.git.find_fixup_target", new_callable=AsyncMock)
+    async def test_forwards_base(self, mock_fn: AsyncMock) -> None:
+        mock_fn.return_value = ok({"status": "no_staged"})
+
+        await cli_server.find_fixup_target(base="origin/main")
+
+        assert mock_fn.call_args.kwargs["base"] == "origin/main"
+
+    @pytest.mark.asyncio
+    @patch("dev10x.git.find_fixup_target", new_callable=AsyncMock)
+    async def test_returns_error_on_failure(self, mock_fn: AsyncMock) -> None:
+        mock_fn.return_value = err("No commits in origin/develop..HEAD")
+
+        result = await cli_server.find_fixup_target()
+
+        assert result["error"] == "No commits in origin/develop..HEAD"
+
+    @pytest.mark.asyncio
+    @patch("dev10x.git.find_fixup_target", new_callable=AsyncMock)
+    async def test_forwards_cwd(self, mock_fn: AsyncMock, tmp_path) -> None:
+        mock_fn.return_value = ok({"status": "no_staged"})
+
+        with patch("dev10x.subprocess_utils.use_cwd") as mock_use_cwd:
+            await cli_server.find_fixup_target(cwd=str(tmp_path))
+
+        mock_use_cwd.assert_called_once_with(str(tmp_path))
+
+
 class TestSetupAliases:
     @pytest.mark.asyncio
     @patch("dev10x.git.setup_aliases", new_callable=AsyncMock)

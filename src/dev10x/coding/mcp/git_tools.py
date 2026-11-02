@@ -235,6 +235,32 @@ async def next_worktree_name(base_dir: str | None = None, cwd: str | None = None
 
 
 @mcp_tool
+async def find_fixup_target(base: str | None = None, cwd: str | None = None) -> Result[dict]:
+    """Resolve the commit a staged change should be a fixup! for (GH-1777).
+
+    Blames every staged hunk against ``base..HEAD`` and reports the branch
+    commit that owns it. Read-only: it inspects the index and history and
+    changes neither.
+
+    Args:
+        base: Base branch ref (default: auto-detect develop/main/master,
+            qualified to ``origin/<base>`` when that ref exists).
+        cwd: Effective working directory (GH-979) — the checkout whose
+            staged changes are resolved. Must be absolute.
+
+    Returns:
+        Dictionary with ``status`` — ``single`` (``target``, ``subject``,
+        ``hunks``), ``multi`` (``owners``, one per owning commit, to split
+        into one fixup each), ``out_of_branch`` (``fallback_target`` when
+        every hunk blames to base history) or ``no_staged`` — plus
+        ``base`` and ``orphan_hunks``. A failure returns ``{"error": ...}``.
+    """
+    from dev10x import git as git_tools
+
+    return await git_tools.find_fixup_target(base=base)
+
+
+@mcp_tool
 async def setup_aliases() -> Result[dict]:
     """Set up global git aliases for branch comparison operations.
 

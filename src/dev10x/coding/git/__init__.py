@@ -265,6 +265,26 @@ async def next_worktree_name(*, base_dir: str | None = None) -> Result[dict[str,
     return ok({"path": result.stdout.strip()})
 
 
+async def find_fixup_target(*, base: str | None = None) -> Result[dict[str, Any]]:
+    base_args = ["--base", base] if base else []
+
+    result = await async_run_script(
+        skill_script(skill="git-fixup", rel="find-fixup-target.py"),
+        *base_args,
+    )
+
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return err(result.stderr.strip() or result.stdout.strip() or "no output")
+
+    if not isinstance(payload, dict):
+        return err(f"unexpected output: {result.stdout.strip()}")
+    if payload.get("status") == "error":
+        return err(str(payload.get("error", "find-fixup-target failed")))
+    return ok(payload)
+
+
 async def setup_aliases() -> Result[dict[str, Any]]:
     result = await async_run_script(
         skill_script(skill="git-alias-setup", rel="git-alias-setup.sh"),

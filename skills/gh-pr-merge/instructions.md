@@ -148,17 +148,25 @@ bl-zebra evidence:
 **Audit the report before inheriting anything (GH-1380).** The
 three conditions above were prose the orchestrator applied by eye,
 and a report that narrates the pipeline reads exactly like one that
-reports it. Write the report and the fresh `pr_get` response to
-files (`mcp__plugin_dev10x_cli__mktmp`) and run:
+reports it.
+
+**Primary (MCP tool):** Call
+`mcp__plugin_dev10x_cli__audit_handoff_report` with `report=<the
+report as a JSON object>` and `pr_state=<the fresh pr_get response>`.
+It is read-only and never prompts for approval.
+
+**Fallback (script):** Only when the MCP server is unavailable, write
+both objects to files (`/tmp/Dev10x/bin/mktmp.sh`) and run:
 
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/skills/gh-pr-merge/scripts/audit-handoff-report.py \
   --report-file <report.json> --pr-state-file <pr-get.json>
 ```
 
-It prints a JSON verdict on stdout and exits non-zero unless the
-verdict is `accept`. **Exit non-zero forbids the exception** — run
-all 9 checks yourself. The `already_merged` verdict is the GH-1380
+Both return the same JSON verdict; the script also exits non-zero
+unless the verdict is `accept`.
+**Anything but `accepted: true` forbids the exception** — run all 9
+checks yourself. The `already_merged` verdict is the GH-1380
 case: the PR merged before the report could gate it, so the report
 describes someone else's work. Attribute the merge per Check 2b
 rather than asking the worker for a better report; there is no
@@ -348,29 +356,36 @@ for the easy case — and the easy case is what shipped wrong. PR
 #1228 declared six links and carried commits for five; GH-1221
 closed with no commit behind it at all. A link with *no* commit
 mentioning its ticket needs no reasoning, so decide it
-mechanically before spending judgment on the rest:
+mechanically before spending judgment on the rest.
+
+**Primary (MCP tool):** Call
+`mcp__plugin_dev10x_cli__reconcile_fixes_links` with `body=<PR body
+text>`, `base="origin/<base>"` and `repo_dir=<absolute PR checkout>`.
+It is read-only and never prompts for approval.
+
+**Fallback (script):** Only when the MCP server is unavailable, write
+the PR body to a file (`/tmp/Dev10x/bin/mktmp.sh`) and run:
 
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/skills/gh-pr-merge/scripts/reconcile-fixes-links.py \
   --body-file <pr-body.txt> --base origin/<base> --repo-dir <pr-checkout>
 ```
 
-Write the PR body to a file via `mcp__plugin_dev10x_cli__mktmp`
-first. Pass `--repo-dir` whenever the PR's branch is checked out
-somewhere other than your CWD — an orchestrator merging a worktree
-child's PR from the main checkout otherwise reads an empty
+Pass `repo_dir` (`--repo-dir`) whenever the PR's branch is checked
+out somewhere other than your CWD — an orchestrator merging a
+worktree child's PR from the main checkout otherwise reads an empty
 `base..HEAD` and gets a false `unbacked` (GH-1464). A verdict with
 `commits_read: 0` carries a `hint` naming that cause; treat it as a
 wrong-checkout read to re-run, not as a missing commit.
 
-The script prints a JSON verdict on stdout and exits
-non-zero when any link is unbacked; `unbacked` names the specific
-issues. **Exit 1 blocks the merge** — the link would close an
-issue this PR never touched.
+Both return a JSON verdict; `unbacked` names the specific issues,
+and the script also exits non-zero when any link is unbacked.
+**`ok: false` (script exit 1) blocks the merge** — the link would
+close an issue this PR never touched.
 
 For a link deliberately kept without a commit of its own (an
 issue delivered by a commit that names a sibling), pass
-`--acknowledge <number>`. That is an explicit argument rather
+`acknowledge=[<number>]` (`--acknowledge <number>`). That is an explicit argument rather
 than an inferred exception so a human records the decision;
 never widen the regex or drop the link to make the check pass.
 

@@ -12,6 +12,7 @@ from dev10x.core.module_alias import alias_package
 if TYPE_CHECKING:
     from dev10x.coding.git import (
         create_worktree,
+        find_fixup_target,
         mass_rewrite,
         next_worktree_name,
         push_safe,
@@ -25,6 +26,7 @@ alias_package(old=__name__, new="dev10x.coding.git")
 
 __all__ = [
     "create_worktree",
+    "find_fixup_target",
     "mass_rewrite",
     "next_worktree_name",
     "push_safe",

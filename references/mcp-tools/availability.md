@@ -93,6 +93,9 @@ supporting each tool:
 | `gchat_watch_arm` | `cli` | GH-1682 | v0.109.0+ |
 | `gchat_watch_disarm` | `cli` | GH-1682 | v0.109.0+ |
 | `gchat_watch_list` | `cli` | GH-1682 | v0.109.0+ |
+| `find_fixup_target` | `cli` | GH-1777 | v0.113.0+ |
+| `audit_handoff_report` | `cli` | GH-1777 | v0.113.0+ |
+| `reconcile_fixes_links` | `cli` | GH-1777 | v0.113.0+ |
 | `query` | `db` | PR #126 | v0.25.0+ |
 
 When adding a new tool, update this table and note any dependencies on
