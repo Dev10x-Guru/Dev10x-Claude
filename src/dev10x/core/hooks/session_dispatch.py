@@ -1,4 +1,4 @@
-"""Session event dispatch — thin SessionStart / SessionStop / PreCompact handlers.
+"""Session event dispatch — thin SessionStart / SessionStop handlers.
 
 Event-routing module. Owns the entry points referenced by
 ``hooks/scripts/session-*.py`` and ``commands/hook.py``. Rendering and
@@ -52,16 +52,6 @@ def _get_toplevel() -> str | None:
     return GitContext().toplevel
 
 
-def _escape_for_json(*, s: str) -> str:
-    return (
-        s.replace("\\", "\\\\")
-        .replace('"', '\\"')
-        .replace("\n", "\\n")
-        .replace("\r", "\\r")
-        .replace("\t", "\\t")
-    )
-
-
 def _emit_context(content: str) -> None:
     """Emit content as a SessionStart additionalContext JSON envelope.
 
@@ -72,11 +62,13 @@ def _emit_context(content: str) -> None:
     """
     if not content:
         sys.exit(0)
-    escaped = _escape_for_json(s=content)
-    print(
-        '{"hookSpecificOutput":{"hookEventName":"SessionStart",'
-        f'"additionalContext":"{escaped}"}}}}'
-    )
+    envelope = {
+        "hookSpecificOutput": {
+            "hookEventName": "SessionStart",
+            "additionalContext": content,
+        }
+    }
+    print(json.dumps(envelope))
 
 
 def _run_git_safe(git: GitContext, *args: str) -> str:
@@ -90,19 +82,6 @@ def _plugin_root() -> Path:
     return Path(__file__).parents[4]
 
 
-def drain_stdin() -> None:
-    """Discard the hook payload Claude Code writes to stdin (GH-249 H5).
-
-    Hooks that never read stdin can leave the writer's pipe full; draining
-    it avoids a ``BrokenPipeError`` on the Claude Code side. Best-effort —
-    any read failure (already closed, empty) is swallowed.
-    """
-    try:
-        sys.stdin.read()
-    except Exception:
-        pass
-
-
 def build_reload_context() -> str:
     """Build the session-reload additionalContext string. Empty when no state."""
     return SessionService().build_reload_context(toplevel=_get_toplevel())
@@ -112,14 +91,29 @@ def session_reload() -> None:
     _emit_context(build_reload_context())
 
 
+COMPACT_SOURCE = "compact"
+
+
+def build_compaction_context(*, data: dict | None = None) -> str:
+    """Post-compaction recovery context, or empty outside a compaction restart.
+
+    SessionStart fires with ``source: "compact"`` once a compaction is
+    done, and its ``additionalContext`` is what reaches the model. The
+    PreCompact event cannot carry this: Claude Code rejects a PreCompact
+    ``hookSpecificOutput`` and discards its ``systemMessage`` (GH-1788).
+    """
+    if (data or {}).get("source") != COMPACT_SOURCE:
+        return ""
+    return SessionService().build_compaction_context(toplevel=_get_toplevel())
+
+
 def context_compact() -> None:
-    drain_stdin()
-    service = SessionService()
-    summary = service.build_compaction_context(toplevel=_get_toplevel())
-    if not summary:
-        sys.exit(0)
-    escaped = _escape_for_json(s=summary)
-    print(f'{{"hookSpecificOutput":{{"systemMessage":"{escaped}"}}}}')
+    try:
+        data = json.load(sys.stdin)
+    except (ValueError, EOFError):
+        # ValueError covers both JSONDecodeError and UnicodeDecodeError.
+        data = {}
+    _emit_context(build_compaction_context(data=data if isinstance(data, dict) else {}))
 
 
 def build_guidance_context() -> str:
@@ -396,6 +390,7 @@ __all__ = [
     "build_reload_context",
     "build_autonomy_reassurance_context",
     "build_auto_plan_guidance_context",
+    "build_compaction_context",
     "build_guidance_context",
     "build_skills_index_context",
     "session_reload",

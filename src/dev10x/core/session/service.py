@@ -36,7 +36,7 @@ class SessionServiceError(Exception):
 
 
 class SessionService:
-    """Orchestrates session-context assembly for SessionStart and PreCompact hooks.
+    """Orchestrates session-context assembly for the SessionStart hook.
 
     Constructed with a ``plugin_root`` so callers can inject a test double
     without monkeypatching module globals. Pass ``None`` to let the service
@@ -306,7 +306,7 @@ class SessionService:
         )
 
     def build_compaction_context(self, *, toplevel: str | None = _UNSET) -> str:  # type: ignore[assignment]
-        """Return the PreCompact systemMessage string.
+        """Return the post-compaction recovery context string.
 
         Returns an empty string when no git toplevel is available.
 

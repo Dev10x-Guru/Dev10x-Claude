@@ -132,15 +132,21 @@ def capture_feature(
     return SessionFeature(name=name, fn=fn, run=_run)
 
 
-def build_feature(*, name: str, fn: Callable[..., Any]) -> SessionFeature:
+def build_feature(
+    *,
+    name: str,
+    fn: Callable[..., Any],
+    pass_data: bool = False,
+) -> SessionFeature:
     """Return a ``SessionFeature`` that calls ``fn`` directly and uses the returned string.
 
     Used for features that return their context string rather than printing it.
+    When ``pass_data`` is True, the stdin ``data`` dict is forwarded to ``fn``.
     """
 
     def _run(data: dict, audit_hook) -> str:  # noqa: ARG001
         try:
-            return fn() or ""
+            return (fn(data=data) if pass_data else fn()) or ""
         except Exception:
             traceback.print_exc(file=sys.stderr)
             return ""
@@ -185,6 +191,11 @@ def main() -> None:
         build_feature(name="session-hook-version-drift", fn=s.build_hook_version_drift_context),
         capture_feature(name="session-migrate-permissions", fn=s.session_migrate_permissions),
         build_feature(name="session-reload", fn=s.build_reload_context),
+        build_feature(
+            name="session-compaction",
+            fn=s.build_compaction_context,
+            pass_data=True,
+        ),
     ]
 
     context_parts: list[str] = []

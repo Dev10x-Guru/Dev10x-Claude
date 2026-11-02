@@ -1297,7 +1297,7 @@ orchestrated the plan. Include both `monitor_ci` and
 `monitor_pr` keys with the same value so callers can use
 either name without losing the routing.
 
-This ensures the PreCompact hook can inject the routing table
+This ensures the post-compaction SessionStart hook can inject the routing table
 and work type into the recovery context. Without this, the
 agent loses skill-to-action mappings after compaction (GH-477).
 Prior code-block formatting was treated as advisory — the
