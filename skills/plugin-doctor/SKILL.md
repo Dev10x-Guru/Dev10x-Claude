@@ -141,6 +141,9 @@ Each remediation either:
 
 - Edits a memory file in place (use `Edit`)
 - Delegates to `dev10x:plugin-maintenance` for settings changes
+- Calls the MCP tool a remediation names in `action.tool` with its
+  `action.arguments` (e.g. `sibling-only-grants` →
+  `permission_grant(..., remember=true)`)
 - Delegates to `dev10x:memory-maintenance` for memory restructuring
 - Files an upstream issue via `mcp__plugin_dev10x_cli__issue_create`
   when the drift originates in the plugin itself

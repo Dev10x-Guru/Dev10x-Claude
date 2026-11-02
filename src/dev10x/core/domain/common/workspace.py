@@ -22,6 +22,25 @@ _WORKTREE_LAYOUTS = (
 )
 
 
+# The same two layouts, found inside free text such as an allow rule
+# (GH-1709): the captured ``root`` is the whole worktree path, in absolute,
+# ``//``-anchored or ``~`` form, without a trailing slash.
+_SEGMENT = r"[^/\s()'\"*:]+"
+_WORKTREE_ROOTS_IN_TEXT = (
+    re.compile(rf"(?P<root>(?:~|/)[^\s()'\"*:]*?/\.worktrees/{_SEGMENT})"),
+    re.compile(rf"(?P<root>(?:~|/)[^\s()'\"*:]*?/\.herdr/worktrees/{_SEGMENT}/{_SEGMENT})"),
+)
+
+
+def worktree_roots_in(text: str) -> list[str]:
+    """Every worktree root ``text`` names, in order of appearance, de-duplicated."""
+    found: dict[int, str] = {}
+    for pattern in _WORKTREE_ROOTS_IN_TEXT:
+        for match in pattern.finditer(text):
+            found.setdefault(match.start(), match.group("root"))
+    return list(dict.fromkeys(found[start] for start in sorted(found)))
+
+
 def _layout_match(root: str) -> re.Match[str] | None:
     for layout in _WORKTREE_LAYOUTS:
         match = layout.search(root)
@@ -61,4 +80,4 @@ class Workspace:
         return cls(root=root, additional_directories=directories)
 
 
-__all__ = ["Workspace"]
+__all__ = ["Workspace", "worktree_roots_in"]
