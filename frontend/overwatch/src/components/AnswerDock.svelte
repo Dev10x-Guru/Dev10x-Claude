@@ -57,6 +57,8 @@
     choices.every((option) => !option.detail && optionText(option).label.length <= COMPACT_LABEL),
   );
   const asksPermission = $derived(Boolean(session.prompt && preview));
+  const optionPreview = $derived((session.prompt?.option_preview ?? []).join("\n").trim());
+  const highlighted = $derived(session.prompt?.options.find((option) => option.selected));
 
   let preapproveToo = $state(false);
 
@@ -178,6 +180,15 @@
           <span class="hint">the relay drafts an allow rule and checks it with you; skipped when you answer No</span>
         </span>
       </label>
+    {/if}
+    {#if optionPreview}
+      <figure class="option-preview">
+        <figcaption>
+          Preview{#if highlighted}&nbsp;of <kbd>{highlighted.key}</kbd> {optionText(highlighted).label}{/if}
+          <span class="hint">the session shows the preview of the option its cursor is on</span>
+        </figcaption>
+        <pre class="command">{optionPreview}</pre>
+      </figure>
     {/if}
     <ol class={["options", { compact }]}>
       {#each choices as option (option.key)}
@@ -366,6 +377,33 @@
 
   .note {
     font-size: var(--step--1);
+  }
+
+  .option-preview {
+    margin: 0;
+    display: grid;
+    gap: var(--space-1);
+    max-width: 72ch;
+  }
+
+  .option-preview figcaption {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.4em var(--space-2);
+    color: var(--amber-ink);
+    font-size: 0.72rem;
+    font-weight: 650;
+  }
+
+  .option-preview figcaption kbd {
+    min-width: 1.1rem;
+    font-size: 0.72rem;
+  }
+
+  .option-preview .hint {
+    color: var(--ink-soft);
+    font-weight: 400;
   }
 
   .preapprove {

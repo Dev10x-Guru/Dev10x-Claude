@@ -12,6 +12,10 @@ GUTTER = re.compile(r"^\s*│\s?")
 INPUT_LINE = re.compile(r"^\s*[❯>](?!\s*\d{1,2}\.)")
 HINT_LINE = re.compile(r"^\s*(?:⏵|\?\s+for shortcuts\b|esc to interrupt\b)")
 ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;:?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)")
+PREVIEW_TOP = re.compile(r"(?<=\s)┌─")
+PREVIEW_EDGES = "│┌└"
+PREVIEW_SLACK = 2
+PREVIEW_REACH_ABOVE = 2
 
 
 def strip_ansi(text: str) -> str:
@@ -31,6 +35,51 @@ class Prompt:
     question: str
     options: list[PromptOption] = field(default_factory=list)
     context: list[str] = field(default_factory=list)
+    option_preview: list[str] = field(default_factory=list)
+
+
+def _preview_top(*, lines: list[str], run: list[int]) -> tuple[int, int] | None:
+    for index in range(max(0, run[0] - PREVIEW_REACH_ABOVE), run[-1] + 1):
+        match = PREVIEW_TOP.search(lines[index])
+        if match and lines[index][: match.start()].strip():
+            return index, match.start()
+    return None
+
+
+def _edge_at(*, line: str, column: int) -> int | None:
+    for offset in sorted(range(-PREVIEW_SLACK, PREVIEW_SLACK + 1), key=abs):
+        position = column + offset
+        if not 0 < position < len(line):
+            continue
+        if line[position] in PREVIEW_EDGES and line[position - 1] == " ":
+            return position
+    return None
+
+
+def _box_inner(*, edge: str) -> str:
+    inner = edge[1:].rstrip()
+    inner = inner.removesuffix("│").rstrip()
+    return inner.removeprefix(" ")
+
+
+def _split_preview(*, lines: list[str], run: list[int]) -> tuple[list[str], list[str]]:
+    top = _preview_top(lines=lines, run=run)
+    if top is None:
+        return lines, []
+    first, column = top
+    left = list(lines)
+    preview: list[str] = []
+    for index in range(first, len(lines)):
+        cut = _edge_at(line=lines[index], column=column)
+        if cut is None:
+            break
+        left[index] = lines[index][:cut].rstrip()
+        edge = lines[index][cut:]
+        if edge.startswith("└"):
+            break
+        if index > first:
+            preview.append(_box_inner(edge=edge))
+    return left, preview
 
 
 def _runs(*, lines: list[str]) -> list[list[int]]:
@@ -84,11 +133,12 @@ def _detail(*, lines: list[str], start: int, stop: int) -> str:
 
 
 def parse_prompt(*, pane_text: str) -> Prompt | None:
-    lines = pane_text.splitlines()
-    runs = _runs(lines=lines)
+    screen = pane_text.splitlines()
+    runs = _runs(lines=screen)
     if not runs:
         return None
     run = runs[-1]
+    lines, option_preview = _split_preview(lines=screen, run=run)
     options = []
     for position, index in enumerate(run):
         match = OPTION_LINE.match(lines[index])
@@ -104,11 +154,12 @@ def parse_prompt(*, pane_text: str) -> Prompt | None:
         )
     question = _question_at(lines=lines, first=run[0])
     if question is None:
-        return Prompt(question="", options=options)
+        return Prompt(question="", options=options, option_preview=option_preview)
     return Prompt(
         question=GUTTER.sub("", lines[question]).strip(),
         options=options,
         context=_context(lines=lines, question=question),
+        option_preview=option_preview,
     )
 
 
