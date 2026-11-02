@@ -11,7 +11,8 @@ code, but two gaps survived GH-1687:
   ``make --eval='$(shell …)'``.
 
 Kept apart from ``grant.py`` so the tables can grow without touching the
-triage flow.
+triage flow, and in the domain layer (GH-1800) so the DX018 validator
+reads them without importing from ``core/skills``.
 """
 
 from __future__ import annotations

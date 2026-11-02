@@ -21,11 +21,9 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-import yaml
-
-from dev10x.domain.common.result import Result, err, ok
+from dev10x.domain.common.result import ErrorResult, Result, err, ok
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
-from dev10x.domain.file_locks import LockTimeoutError, locked_yaml_update
+from dev10x.skills.permission.rule_list_file import RuleListFile
 from dev10x.skills.permission.star_prefix import is_unmatchable
 
 GRANTED_KEY = "base_permissions"
@@ -37,6 +35,10 @@ def granted_path() -> Path:
     return Dev10xConfigDir.granted_permissions_yaml()
 
 
+def _store(*, path: Path | None) -> RuleListFile:
+    return RuleListFile(path=path if path is not None else granted_path(), key=GRANTED_KEY)
+
+
 def load_granted_rules(*, path: Path | None = None) -> list[str]:
     """Every remembered rule, or ``[]`` when the file is absent or unreadable.
 
@@ -44,26 +46,11 @@ def load_granted_rules(*, path: Path | None = None) -> list[str]:
     the same tolerance the shipped-catalog loader applies: one bad layer
     must not stop ``ensure-base`` from seeding the rest of the catalog.
     """
-    target = path if path is not None else granted_path()
-    if not target.is_file():
+    result = _store(path=path).read()
+    if isinstance(result, ErrorResult):
+        log.warning("Granted rules skipped: %s", result.error)
         return []
-    try:
-        document = yaml.safe_load(target.read_text())
-    except (OSError, yaml.YAMLError) as error:
-        log.warning("Granted rules unreadable, skipped: %s (%s)", target, error)
-        return []
-    if not isinstance(document, dict):
-        log.warning("Granted rules file is not a mapping, skipped: %s", target)
-        return []
-    rules = document.get(GRANTED_KEY)
-    if not isinstance(rules, list):
-        log.warning("Granted rules file has no %s list, skipped: %s", GRANTED_KEY, target)
-        return []
-    return [rule for rule in rules if isinstance(rule, str) and rule]
-
-
-class _NotAMappingError(ValueError):
-    """The remembered-rules file parsed, but not as a mapping."""
+    return result.value
 
 
 def remember_granted_rule(*, rule: str, path: Path | None = None) -> Result[dict[str, object]]:
@@ -81,32 +68,11 @@ def remember_granted_rule(*, rule: str, path: Path | None = None) -> Result[dict
             f"cannot remember {candidate}: a `*` before `:*` never matches (GH-1472)",
             rule=candidate,
         )
-    target = path if path is not None else granted_path()
-    try:
-        target.parent.mkdir(parents=True, exist_ok=True)
-        with locked_yaml_update(target) as document:
-            if not isinstance(document, dict):
-                raise _NotAMappingError(str(target))
-            existing = document.get(GRANTED_KEY)
-            rules = list(existing) if isinstance(existing, list) else []
-            added = candidate not in rules
-            if added:
-                rules.append(candidate)
-            document[GRANTED_KEY] = rules
-    except LockTimeoutError as error:
-        return err(
-            f"{target} is locked by another writer; please try again ({error})",
-            path=str(target),
-        )
-    except _NotAMappingError:
-        return err(
-            f"{target} is not a mapping, so the rule was not remembered; "
-            "inspect or remove the file, then retry",
-            path=str(target),
-        )
-    except OSError as error:
-        return err(f"cannot remember {candidate} in {target}: {error}", path=str(target))
-    return ok({"path": str(target), "rule": candidate, "added": added})
+    store = _store(path=path)
+    result = store.append(rules=[candidate])
+    if isinstance(result, ErrorResult):
+        return result
+    return ok({"path": str(store.path), "rule": candidate, "added": bool(result.value)})
 
 
 def with_granted_rules(*, config: dict, granted: list[str]) -> dict:

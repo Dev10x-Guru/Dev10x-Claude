@@ -65,7 +65,12 @@ from pathlib import Path, PurePosixPath
 from typing import Any, ClassVar
 
 from dev10x.domain import HookInput, HookResult
-from dev10x.domain.common.bash_tokens import split_tokens, substitution_bodies
+from dev10x.domain.common.bash_tokens import (
+    UntokenizableCommandError,
+    command_segments,
+    command_units,
+    split_tokens,
+)
 from dev10x.domain.documents.friction_yaml import FrictionYamlDocument
 from dev10x.domain.linked_worktree import main_checkout
 from dev10x.domain.profile_tier import ProfileTier
@@ -273,36 +278,42 @@ _VALUE_FLAGS = frozenset(
     }
 )
 
+# Fallback split for a unit the shared segmenter cannot tokenize.
 _SEGMENT_SPLIT_RE = re.compile(r"(?:\|\||&&|[|;&\n])")
 
 
-def _segments(command: str) -> list[str]:
-    """Split a command line into pipeline/list segments.
+def _segments(command: str) -> list[list[str]]:
+    """The argv of every simple command ``command`` runs locally.
 
-    A writer can sit anywhere in a chain (``foo | tee dest``), so each
-    segment is examined on its own rather than only the leading command.
+    A writer can sit anywhere in a chain (``foo | tee dest``) or inside a
+    substitution (``x=$(cp foo dest)``), so each is examined on its own.
+    The shared segmenter (GH-1773) keeps a quoted operator inside its
+    argument (GH-1800). Remote bodies (``ssh``, containers) are left out:
+    a path there names another filesystem, not this checkout.
 
-    Command-substitution bodies are flattened in alongside them, for the
-    same reason DX003 does it: ``x=$(cp foo dest)`` runs the copy, and a
-    splitter that only sees the outer assignment hands back an evasion.
-    ``substitution_bodies`` is the shared depth-aware helper DX003 uses,
-    so a nested substitution does not truncate its parent.
+    A unit with an unbalanced quote falls back to a raw split rather than
+    being skipped: this validator blocks, so under-tokenizing is the
+    dangerous direction.
     """
-    units = [command, *substitution_bodies(command, include_backticks=True)]
-    return [seg.strip() for unit in units for seg in _SEGMENT_SPLIT_RE.split(unit) if seg.strip()]
+    argvs: list[list[str]] = []
+    for unit in command_units(command=command, include_remote=False):
+        try:
+            argvs.extend(list(segment.argv) for segment in command_segments(command=unit))
+        except UntokenizableCommandError:
+            argvs.extend(
+                split_tokens(command=part)
+                for part in _SEGMENT_SPLIT_RE.split(unit)
+                if part.strip()
+            )
+    return argvs
 
 
-def _destinations(*, segment: str) -> tuple[str, list[str]]:
-    """The writer verb in ``segment`` and the paths it would write.
+def _destinations(*, tokens: list[str]) -> tuple[str, list[str]]:
+    """The writer verb in ``tokens`` and the paths it would write.
 
-    Returns ``("", [])`` when the segment writes nothing, so a caller
+    Returns ``("", [])`` when the command writes nothing, so a caller
     never has to re-tokenize to recover the verb for its message.
     """
-    # split_tokens falls back to whitespace splitting on an unbalanced
-    # quote rather than giving up. Abstaining there would hand back an
-    # evasion — the very thing that helper exists to prevent — and this
-    # validator blocks, so under-tokenizing is the dangerous direction.
-    tokens = split_tokens(command=segment)
     if not tokens:
         return "", []
 
@@ -426,8 +437,8 @@ class WriteDestinationValidator(ValidatorBase):
         # Read once per call, and only when a suffixed in-tree destination
         # actually needs it — the config read stays off the common path.
         blocked_extensions = cache(partial(_effective_blocked_extensions, tree=tree))
-        for segment in _segments(inp.command):
-            verb, destinations = _destinations(segment=segment)
+        for tokens in _segments(inp.command):
+            verb, destinations = _destinations(tokens=tokens)
             for destination in destinations:
                 if not _lands_in_working_tree(destination=destination, cwd=inp.cwd, tree=tree):
                     continue

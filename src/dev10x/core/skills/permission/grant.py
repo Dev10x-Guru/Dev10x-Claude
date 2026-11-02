@@ -34,13 +34,13 @@ from dev10x.domain.common.bash_tokens import (
     split_tokens,
     strip_quoted_spans,
 )
+from dev10x.domain.common.exec_capable import exec_flag, is_interpreter
 from dev10x.domain.common.mcp_tool_name import McpToolName
 from dev10x.domain.common.result import ErrorResult, Result, err, ok
 from dev10x.domain.rules.validation_rule import Compensation, MatchingRule
 from dev10x.domain.sensitivity import SensitivityClassifier, name_is_sensitive, operand_tokens
 from dev10x.skills.permission.backup import backed_up_write
 from dev10x.skills.permission.catalog_write import partition_writable
-from dev10x.skills.permission.exec_capable import exec_flag, is_interpreter
 from dev10x.skills.permission.generalize import generalize_rule_shape
 from dev10x.skills.permission.granted_catalog import granted_path, remember_granted_rule
 from dev10x.skills.permission.rule_risk import (

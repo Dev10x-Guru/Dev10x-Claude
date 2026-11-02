@@ -598,4 +598,26 @@ class TestMalformedInput:
 
     def test_an_empty_segment_names_no_destination(self) -> None:
         """Defensive guard — ``_segments`` filters blanks, so this is direct."""
-        assert _destinations(segment="") == ("", [])
+        assert _destinations(tokens=[]) == ("", [])
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "echo 'a;cp /tmp/x docs/x.py'",
+            "rg 'cp x docs/y.py' src",
+        ],
+        ids=["quoted-separator", "quoted-writer"],
+    )
+    def test_a_quoted_operator_does_not_split_a_command(
+        self, validator: WriteDestinationValidator, command: str
+    ) -> None:
+        """GH-1800: the shared segmenter keeps a quoted `;` inside its argument."""
+        assert validator.validate(_make_input(command=command)) is None
+
+    def test_a_remote_body_is_not_judged_against_this_checkout(
+        self, validator: WriteDestinationValidator
+    ) -> None:
+        """GH-1800: `ssh host cp …` writes on another filesystem."""
+        result = validator.validate(_make_input(command="ssh host 'cp /tmp/x docs/x.py'"))
+
+        assert result is None
