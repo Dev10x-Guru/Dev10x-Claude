@@ -721,6 +721,68 @@ class TestSupervisorReviewStatusTool:
 
         assert (await supervisor_review_status())["supervisor_review"] == "none"
 
+    @pytest.fixture
+    def zebra_entry(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
+        from dev10x.domain.dev10x_paths import Dev10xConfigDir
+
+        from dev10x.session import preset_pin
+
+        repo = tmp_path / "work" / "bl-zebra"
+        (repo / ".git").mkdir(parents=True)
+        monkeypatch.setattr(preset_pin, "_common_dir", lambda *, cwd: str(repo / ".git"))
+        monkeypatch.setattr(
+            "dev10x.domain.git_context.GitContext.toplevel",
+            property(lambda self: str(repo)),
+        )
+        friction = Dev10xConfigDir.friction_yaml()
+        friction.parent.mkdir(parents=True, exist_ok=True)
+        return friction
+
+    @pytest.mark.asyncio
+    async def test_a_retired_only_entry_names_the_key_and_the_fix(
+        self, zebra_entry: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        import yaml
+
+        from dev10x.mcp.gate_tools import supervisor_review_status
+
+        zebra_entry.write_text(
+            yaml.safe_dump({"projects": [{"match": ["*/bl-zebra"], "human_review": False}]})
+        )
+
+        payload = await supervisor_review_status()
+
+        assert (payload["supervisor_review"], payload["pinned"]) == ("required", False)
+        assert payload["retired_key"] == "human_review"
+        assert "dev10x config migrate-schema" in payload["warning"]
+        assert "retired `human_review`" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_a_migrated_entry_carries_no_warning(self, zebra_entry: Path) -> None:
+        import yaml
+
+        from dev10x.mcp.gate_tools import supervisor_review_status
+
+        zebra_entry.write_text(
+            yaml.safe_dump(
+                {
+                    "projects": [
+                        {
+                            "match": ["*/bl-zebra"],
+                            "human_review": False,
+                            "supervisor_review": "none",
+                        }
+                    ]
+                }
+            )
+        )
+
+        payload = await supervisor_review_status()
+
+        assert payload["supervisor_review"] == "none"
+        assert "retired_key" not in payload
+        assert "warning" not in payload
+
     @pytest.mark.asyncio
     async def test_malformed_value_fails_toward_more_oversight(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path

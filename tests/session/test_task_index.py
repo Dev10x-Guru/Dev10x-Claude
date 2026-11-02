@@ -63,6 +63,15 @@ def legacy_file() -> Any:
     return write
 
 
+@pytest.fixture(autouse=True)
+def _no_checkout_toplevel(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep the per-checkout legacy probe off real git for every test."""
+    monkeypatch.setattr(
+        "dev10x.domain.git_context.GitContext.toplevel",
+        property(lambda self: None),
+    )
+
+
 @pytest.fixture
 def no_repo(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(preset_pin, "_common_dir", lambda *, cwd: None)
@@ -129,6 +138,60 @@ def test_read_index_ignores_a_leftover_retired_file(
     assert payload["exists"] is False
     assert payload["tasks"] == []
     assert "legacy_read" not in payload
+
+
+@pytest.fixture
+def checkout_toplevel(monkeypatch: pytest.MonkeyPatch) -> Any:
+    """Point the per-checkout lookup at a given working tree."""
+
+    def bind(path: Path) -> None:
+        monkeypatch.setattr(
+            "dev10x.domain.git_context.GitContext.toplevel",
+            property(lambda self: str(path)),
+        )
+
+    return bind
+
+
+@pytest.mark.parametrize("checkout", ["repo", "worktree"])
+def test_read_index_names_a_leftover_retired_file(
+    request: pytest.FixtureRequest,
+    repo: Path,
+    legacy_file: Any,
+    checkout_toplevel: Any,
+    checkout: str,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """GH-1785: ignoring the retired file is right; ignoring it silently is not."""
+    root = request.getfixturevalue(checkout)
+    checkout_toplevel(root)
+    legacy = legacy_file(root, {"tasks": [{"subject": "Old item", "source": "park"}]})
+
+    payload = task_index.read_index(cwd=str(root)).value
+
+    assert payload["legacy_ignored"] == str(legacy)
+    assert payload["tasks"] == []
+    assert "is not read" in caplog.text
+
+
+def test_read_index_without_a_retired_file_names_none(repo: Path) -> None:
+    payload = task_index.read_index(cwd=str(repo)).value
+
+    assert "legacy_ignored" not in payload
+
+
+def test_an_existing_store_wins_over_a_retired_file(
+    store: Path, repo: Path, legacy_file: Any, checkout_toplevel: Any
+) -> None:
+    checkout_toplevel(repo)
+    legacy_file(repo, {"tasks": []})
+    store.parent.mkdir(parents=True, exist_ok=True)
+    store.write_text(yaml.safe_dump({"tasks": []}))
+
+    payload = task_index.read_index(cwd=str(repo)).value
+
+    assert payload["exists"] is True
+    assert "legacy_ignored" not in payload
 
 
 def test_read_index_errors_on_a_corrupt_store(store: Path, repo: Path) -> None:

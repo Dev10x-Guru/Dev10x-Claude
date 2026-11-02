@@ -24,6 +24,7 @@ what "resurfaces next session in the same project" promises.
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -32,7 +33,12 @@ import yaml
 from dev10x.domain.common.result import ErrorResult, Result, err, ok
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.domain.file_locks import CorruptYamlError, locked_yaml_update
+from dev10x.domain.git_context import GitContext
 from dev10x.session.preset_pin import RepoIdentity, resolve_repo_identity
+
+log = logging.getLogger(__name__)
+
+LEGACY_SESSION_YAML_RELPATH = Path(".claude") / "Dev10x" / "session.yaml"
 
 __all__ = [
     "append_task",
@@ -69,7 +75,30 @@ def read_index(*, cwd: str | None = None) -> Result[dict[str, Any]]:
             return err(f"task index at {path} is unreadable: {exc}")
         if not isinstance(content, dict):
             return err(f"task index at {path} is not a mapping")
-    return ok(_payload(identity=identity, path=path, content=content))
+        return ok(_payload(identity=identity, path=path, content=content))
+    payload = _payload(identity=identity, path=path, content=content)
+    legacy = _leftover_legacy_store(identity=identity, cwd=cwd)
+    if legacy is not None:
+        # GH-1785: the fold-forward only ever seeded an empty store, so items
+        # parked in the retired file vanish silently unless someone says so.
+        payload["legacy_ignored"] = str(legacy)
+        log.warning(
+            "task index %s is absent but the retired %s exists and is not read; "
+            "move any parked items with task_index_append",
+            path,
+            legacy,
+        )
+    return ok(payload)
+
+
+def _leftover_legacy_store(*, identity: RepoIdentity, cwd: str | None) -> Path | None:
+    # The retired file was per checkout: look in this worktree and the main one.
+    roots = {identity["root"], GitContext(cwd=cwd).toplevel}
+    for root in sorted(str(root) for root in roots if root):
+        candidate = Path(root) / LEGACY_SESSION_YAML_RELPATH
+        if candidate.is_file():
+            return candidate
+    return None
 
 
 def _payload(
