@@ -18,6 +18,7 @@ from __future__ import annotations
 import re
 import shlex
 from dataclasses import dataclass
+from pathlib import Path
 from typing import ClassVar
 
 from dev10x.core.skills.permission.exec_capable import EXEC_FLAGS, exec_flag
@@ -38,6 +39,9 @@ _OPERATOR_CHARS = "();<>|&"
 _GROUP_WORDS = frozenset({"{", "}", "!"})
 # Fallback split for a unit shlex cannot tokenize (unbalanced quote).
 _SEPARATOR_RE = re.compile(r"&&|\|\||[;|&\n()<>]")
+# Cheap prefilter on the hot path: a listed tool as a whole word, so `rg`
+# inside `merge` or `target` does not wake the tokenizer.
+_TOOL_WORD_RE = re.compile(rf"(?<![\w-])(?:{'|'.join(map(re.escape, EXEC_FLAGS))})(?![\w-])")
 
 _ASK_MESSAGE = (
     "⚠️  `{tool} {flag}` runs another program — a prefix allow rule for "
@@ -87,13 +91,13 @@ class ExecFlagValidator(ValidatorBase):
     profile: ClassVar[ProfileTier] = ProfileTier.STANDARD
 
     def should_run(self, inp: HookInput) -> bool:
-        return any(tool in inp.command for tool in EXEC_FLAGS)
+        return _TOOL_WORD_RE.search(inp.command) is not None
 
     def validate(self, inp: HookInput) -> HookAsk | None:
         for words in _simple_commands(command=inp.command):
             flag = exec_flag(words=words)
             if flag:
-                tool = words[0].rsplit("/", 1)[-1]
+                tool = Path(words[0]).name
                 return HookAsk(
                     message=_ASK_MESSAGE.format(tool=tool, flag=flag),
                     reason=f"DX018: `{tool} {flag}` executes another program.",

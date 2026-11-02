@@ -764,9 +764,9 @@ class SqlSafetyValidator(ValidatorBase):
                 if wrapped:
                     return wrapped
                 continue
-            if _psql_is_an_operand(segment=seg, parts=seg_parts):
-                continue
-            if any(_is_psql_binary(t) for t in seg_parts):
+            if any(_is_psql_binary(t) for t in seg_parts) and not _psql_is_an_operand(
+                segment=seg, parts=seg_parts
+            ):
                 return HookResult(message=DIRECT_PSQL_MSG)
         return None
 
