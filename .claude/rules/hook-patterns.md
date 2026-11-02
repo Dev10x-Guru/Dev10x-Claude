@@ -19,7 +19,7 @@ paths:
 > "how does a hook get added or changed here": cross-language parity
 > (Python/shell), the direct-shebang + orchestrator dispatch pattern,
 > the Stop-verdict merge rules, the PostToolUse formatter's hunk-scope
-> contract, and the DX001-DX017 profile-tier table all answer that
+> contract, and the DX001-DX018 profile-tier table all answer that
 > one question, and a reviewer checking one section routinely needs
 > the rule two sections over (e.g. a new Stop feature needs both the
 > orchestrator-consolidation rule and the verdict-merge rule).
@@ -350,6 +350,7 @@ higher tiers — `minimal` rules are always active.
 | DX015 | spec-drift | standard (experimental) |
 | DX016 | inline-linter | standard |
 | DX017 | write-destination | standard |
+| DX018 | exec-flag | standard |
 
 ### DX014 Sensitivity Axis: `ask`, Not `deny` (GH-604)
 

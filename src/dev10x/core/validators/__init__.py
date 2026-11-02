@@ -146,6 +146,12 @@ _SPECS: list[ValidatorSpec] = [
         rule_id="DX017",
         profile=ProfileTier.STANDARD,
     ),
+    ValidatorSpec(
+        module_path="dev10x.validators.exec_flag",
+        class_name="ExecFlagValidator",
+        rule_id="DX018",
+        profile=ProfileTier.STANDARD,
+    ),
 ]
 
 

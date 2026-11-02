@@ -80,6 +80,10 @@ EXEC_FLAGS: dict[str, tuple[str, ...]] = {
     "sort": ("--compress-program",),
 }
 
+#: Tools parsed by GNU getopt_long, which accepts any unambiguous prefix of
+#: a long option: `sort --compress=sh` is `--compress-program=sh`.
+_ABBREVIATING_TOOLS = frozenset({"make", "sort"})
+
 _VERSION_SUFFIX_RE = re.compile(r"[\d.]+$")
 
 
@@ -99,17 +103,27 @@ def exec_flag(*, words: list[str]) -> str | None:
 
     Matches the bare flag and its ``--flag=value`` form. A one-letter
     flag also matches anywhere in a short-option cluster (``-kf``,
-    ``-Efoo``); over-matching there only refuses, the safe direction.
+    ``-Efoo``), and for a getopt_long tool a long flag also matches any
+    abbreviation of two letters or more (``--compress``, ``--ev``).
+    Over-matching only refuses or asks, the safe direction.
     """
-    flags = EXEC_FLAGS.get(Path(words[0]).name, ())
+    tool = Path(words[0]).name
+    flags = EXEC_FLAGS.get(tool, ())
     for word in words[1:]:
         in_cluster = word.startswith("-") and not word.startswith("--")
+        name = word.split("=", 1)[0]
         for flag in flags:
             if word == flag or word.startswith(f"{flag}="):
                 return flag
             if not flag.startswith("--") and in_cluster and flag[1] in word[1:]:
                 return flag
+            if tool in _ABBREVIATING_TOOLS and _abbreviates(name=name, flag=flag):
+                return flag
     return None
+
+
+def _abbreviates(*, name: str, flag: str) -> bool:
+    return flag.startswith("--") and len(name) >= 4 and flag.startswith(name)
 
 
 __all__ = ["EXEC_FLAGS", "INTERPRETERS", "exec_flag", "is_interpreter"]
