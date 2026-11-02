@@ -5,6 +5,39 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.113.0 — Overwatch Watches, the Supervisor Decides
+
+Released 2026-11-02
+
+### Breaking
+
+- **The session page service is now Overwatch** — in Dev10x "the
+  supervisor" means the person who approves the work, and the page, its
+  daemon, CLI, skill and hook used the same word. Every service name
+  changed, with no alias kept:
+  - `dev10x supervisor serve|unit` → `dev10x overwatch serve|unit`;
+  - `dev10x:supervisor` → `dev10x:overwatch`;
+  - `DEV10X_SUPERVISOR_PORT` → `DEV10X_OVERWATCH_PORT`, and
+    `X-Supervisor-Token` → `X-Overwatch-Token`;
+  - the `supervisor-relay` mailbox → `overwatch-relay`;
+  - `~/.config/Dev10x/supervisor/` → `~/.config/Dev10x/overwatch/`.
+
+  The page starts with fresh layout preferences, because its browser
+  keys changed. Restart the daemon with `dev10x overwatch serve`, and the
+  relay with `/dev10x:overwatch relay`
+  ([GH-1755](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1755))
+- **`dev10x:voice-supervisor` is now `dev10x:voice-channel`**
+  ([GH-1755](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1755))
+
+### Features
+
+- **Pre-approve a call in the same click that answers it** — a
+  permission prompt on the Overwatch page has an "Also pre-approve this
+  call for later" box. With it ticked, an approving answer also sends
+  the waiting call to the relay's pre-approval agent, which drafts an
+  allow rule and checks it with you. "No" never pre-approves
+  ([GH-1779](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1779))
+
 ## 0.112.0 — Switch the Reviews Off, Draw the Diagram
 
 Released 2026-11-01
