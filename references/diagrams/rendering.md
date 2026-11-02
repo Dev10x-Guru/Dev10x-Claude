@@ -26,9 +26,28 @@ Jar lookup order:
 2. The jar bundled with the plugin at `skills/scope/bin/plantuml.jar`
 3. `~/.local/bin/plantuml.jar`
 
+The `render.sh` scripts of `dev10x:diagram-sequence` and
+`dev10x:diagram-c4` run both PlantUML passes (syntax check and render)
+with `-DPLANTUML_SECURITY_PROFILE=SANDBOX`. With no profile set, the
+bundled jar (1.2026.2) lets a source `!include` any local file and
+read environment variables with `%getenv()`, and draws the result into
+the image — so rendering a `.puml` from a PR under review could
+publish a secret. SANDBOX refuses local and network includes and
+returns nothing from `%getenv()` and `%load_json()`; the stdlib
+bundled in the jar (`!include <C4/...>`, every level) still resolves.
+A direct `java -jar plantuml.jar` call gets none of this.
+
+For a source you trust that needs a local include (a vendored C4
+file, a shared skin), set `PLANTUML_SECURITY_PROFILE=UNSECURE` on that
+one command. Never export it: every later render, including PR
+sources, would run unsandboxed. A name PlantUML does not know is
+refused with exit 2, because the jar would otherwise fall back to its
+permissive default.
+
 | Symptom | Cause | Fix |
 |---------|-------|-----|
 | `syntax error at line N` | Unknown keyword or malformed arrow on that line | Fix the line; numbers are 1-based |
+| `cannot include <path>` | SANDBOX refuses local `!include` | Inline the content, or use the trusted-source override above |
 | Frame missing from the image | Unclosed `alt`/`loop`/`group` — PlantUML closes it at `@enduml` silently | Add the matching `end` |
 | `Dot executable does not exist` | Graphviz missing for a layout diagram | Install `graphviz` |
 | `!include <C4/...>` not found | Jar older than 2020 with no bundled stdlib | Use the bundled jar or set `PLANTUML_JAR` |

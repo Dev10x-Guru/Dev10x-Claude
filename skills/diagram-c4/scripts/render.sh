@@ -39,7 +39,8 @@ if grep -Eq '^[[:space:]]*!include(url)?[[:space:]]+https?://' "$SOURCE"; then
 fi
 
 # Network includes were refused above, so any !include left is the stdlib
-# form or a local vendored C4 file — both define the macros.
+# form or a local vendored C4 file — both define the macros. A local file
+# renders only when PLANTUML_SECURITY_PROFILE trusts the source (GH-1783).
 if grep -Eq "$C4_MACRO" "$SOURCE" && ! grep -Eq '^[[:space:]]*!include[[:space:]]+' "$SOURCE"; then
     echo "ERROR: $SOURCE uses C4 macros but has no C4 include. Add one" \
         "line after @startuml: !include <C4/C4_Context>, <C4/C4_Container>," \

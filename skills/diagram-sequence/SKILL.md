@@ -66,7 +66,9 @@ needs a file Mermaid cannot produce well, or the repo already keeps
    It exits non-zero with the offending line on any error: PlantUML is
    syntax-checked before rendering, and Mermaid parse errors come from
    mermaid-cli with a line and caret. Fix the source and re-run; never
-   hand back a diagram whose last render failed.
+   hand back a diagram whose last render failed. PlantUML runs
+   sandboxed — see the security profile in the rendering reference
+   below.
 4. **Look at the image.** `Read` the PNG the script printed. Check
    that every message has a sender and receiver, `alt` frames enclose
    the steps you meant, and no label is clipped. A clean exit is not

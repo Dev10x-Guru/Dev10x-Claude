@@ -11,6 +11,9 @@ set -euo pipefail
 MERMAID_CLI="@mermaid-js/mermaid-cli@11.17.1"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BUNDLED_JAR="$SCRIPT_DIR/../../scope/bin/plantuml.jar"
+# GH-1783: SANDBOX refuses local !include and blanks %getenv(); the
+# bundled <C4/...> stdlib still resolves. Override only for a trusted source.
+SECURITY_PROFILE="${PLANTUML_SECURITY_PROFILE:-SANDBOX}"
 
 usage() {
     echo "Usage: render.sh <source.mmd|source.puml> [--format png|svg]" >&2
@@ -60,7 +63,23 @@ find_plantuml_jar() {
 # shellcheck source=_chrome.sh
 . "$SCRIPT_DIR/_chrome.sh"
 
+run_plantuml() {
+    local jar="$1"
+    shift
+    java -Djava.awt.headless=true "-DPLANTUML_SECURITY_PROFILE=$SECURITY_PROFILE" \
+        -jar "$jar" "$@"
+}
+
 render_plantuml() {
+    # PlantUML falls back to its permissive default on an unknown name.
+    case "$SECURITY_PROFILE" in
+        SANDBOX|ALLOWLIST|INTERNET|UNSECURE|LEGACY) ;;
+        *)
+            echo "ERROR: PLANTUML_SECURITY_PROFILE must be SANDBOX, ALLOWLIST," \
+                "INTERNET, UNSECURE or LEGACY, got '$SECURITY_PROFILE'" >&2
+            exit 2
+            ;;
+    esac
     # Every failure below must leave no image: a stale one next to a
     # broken source reads as the current diagram.
     rm -f "$OUTPUT"
@@ -75,7 +94,7 @@ render_plantuml() {
         exit 3
     fi
     local report status=0
-    report="$(java -Djava.awt.headless=true -jar "$jar" -syntax <"$SOURCE")" || status=$?
+    report="$(run_plantuml "$jar" -syntax <"$SOURCE")" || status=$?
     if [[ "$(head -n 1 <<<"$report")" == "ERROR" ]]; then
         local line message
         line="$(($(sed -n 2p <<<"$report") + 1))"
@@ -89,8 +108,7 @@ render_plantuml() {
     fi
     # -pipe writes to the path we choose; file mode names the output
     # after `@startuml <name>`, which need not match the source file.
-    if ! java -Djava.awt.headless=true -jar "$jar" -failfast2 -pipe "-t$FORMAT" \
-        <"$SOURCE" >"$OUTPUT"; then
+    if ! run_plantuml "$jar" -failfast2 -pipe "-t$FORMAT" <"$SOURCE" >"$OUTPUT"; then
         rm -f "$OUTPUT"
         echo "ERROR: PlantUML failed to render $SOURCE" >&2
         exit 1

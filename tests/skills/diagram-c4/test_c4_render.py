@@ -57,7 +57,7 @@ def _run(
         args=args,
         path=path,
         fake_dir=fake_dir,
-        strip_env={"PLANTUML_JAR"},
+        strip_env={"PLANTUML_JAR", "PLANTUML_SECURITY_PROFILE"},
     )
 
 
@@ -140,7 +140,7 @@ class TestC4Checks:
 
         assert (result.returncode, "no C4 include" in result.stderr) == (1, True)
 
-    def test_local_vendored_include_is_accepted(
+    def test_local_vendored_include_passes_the_c4_precheck(
         self,
         tmp_path: Path,
         stub_path: str,
@@ -210,7 +210,11 @@ class TestRealC4Render:
     def test_stdlib_include_renders_offline(self, tmp_path: Path) -> None:
         source = _source(tmp_path=tmp_path, body=VALID_C4)
         env = {
-            **{key: value for key, value in os.environ.items() if key != "PLANTUML_JAR"},
+            **{
+                key: value
+                for key, value in os.environ.items()
+                if key not in {"PLANTUML_JAR", "PLANTUML_SECURITY_PROFILE"}
+            },
             "HOME": str(tmp_path),
         }
 
