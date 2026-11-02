@@ -390,7 +390,13 @@ In `bootstrap` mode, run only the steps marked **[bootstrap]**.
 ### 1. Update version paths *(full only)*
 
 Bump versioned plugin paths in every settings file to the current
-plugin version.
+plugin version. The same run moves a rule for a skill that now ships
+in a satellite plugin (`extracted:` in `plugins.yaml`) from core's
+directory to the satellite's, so an extraction does not strand its
+script grants (GH-1793). The dry run reports these as
+`Would move N rule(s) to satellite plugin directories`: they relocate
+existing grants, they do not remove them, and a `deny` or `ask` rule
+keeps its original next to the relocated copy.
 
 1. Dry run (REQUIRED — always show the user the planned changes
    before applying):

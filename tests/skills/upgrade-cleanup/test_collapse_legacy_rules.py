@@ -162,6 +162,12 @@ class TestCollapseLegacyUpgradeCleanupRules:
 
         assert count == 0
 
+    @pytest.mark.parametrize("content", ["[]", "null", '{"permissions": "x"}'])
+    def test_unexpected_structure_is_left_alone(self, settings_file: Path, content: str) -> None:
+        settings_file.write_text(content)
+
+        assert update_paths.collapse_legacy_upgrade_cleanup_rules(settings_file) == (0, [])
+
     def test_invalid_json_is_skipped(self, settings_file: Path) -> None:
         settings_file.write_text("{ not json")
 

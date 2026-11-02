@@ -26,6 +26,7 @@ allowed-tools:
   - Bash(dev10x config migrate:*)
   - Bash(dev10x config migrate-schema:*)
   - Bash(dev10x config migrate-skill-names:*)
+  - Read(${CLAUDE_PLUGIN_ROOT}/src/dev10x/core/plugins.yaml)
 ---
 
 # dev10x:upgrade-cleanup
@@ -89,12 +90,13 @@ Bash("dev10x config migrate-skill-names")
 ```
 
 Renaming a config entry does not install the satellite plugin a skill
-moved to:
-
-| Plugin | Skills |
-|---|---|
-| `dev10x-qa` | `qa-self`, `playwright`, `qa-publish`, `tts`, `yt-upload`, `review-pack` |
-| `dev10x-infra` | `aws-vault`, `k8s` |
+moved to. Read `${CLAUDE_PLUGIN_ROOT}/src/dev10x/core/plugins.yaml`:
+each entry under `extracted:` ships as `plugin_names[<entry>]`, and its
+skills are listed under `plugins[<entry>]`. The file is the source of
+truth, so a table copied here would go stale on the next extraction.
+`update-paths` (step 1 of the Step 2 maintenance pass) moves those
+skills' script rules to the satellite's directory; its dry run lists
+each one as a move, not a removal (GH-1793).
 
 When the dry run rewrote any name with one of those prefixes, or the
 user asks for one of those skills, check `enabledPlugins` in

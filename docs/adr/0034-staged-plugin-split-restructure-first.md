@@ -460,9 +460,15 @@ The supervisor decided the Stage B open decisions on 2026-10-19
      has no family fragment, and the `aws.sh` allow stays in core's
      baseline.
    - Script rules already in a user's settings are expanded to
-     core's directory, so each script B1 or B2 moved prompts once
-     after the release. GH-1793 tracks the migration to
-     `…/dev10x-<area>/<ver>/`.
+     core's directory. GH-1793 makes `dev10x permission update-paths`
+     move a rule for any skill under an `extracted:` key to the
+     satellite's cache (`…/dev10x-<area>/<ver>/`) and marketplace
+     (`…/plugins/<area>/`) directories, so a later extraction needs no
+     code change for this. It lands before `0.114.0`, the release that
+     ships B1 and B2, so their moved scripts do not prompt. An `allow`
+     rule is replaced; a `deny` or `ask` rule is kept and a relocated
+     copy added. A git-tracked settings file is skipped, as for every
+     `update-paths` rewrite.
 5. **Old names stay readable for two releases (GH-1564).** Each moved
    skill gets one `SKILL_NAME_ALIASES` row, and
    `dev10x config migrate-skill-names` rewrites user configs. QA ships
