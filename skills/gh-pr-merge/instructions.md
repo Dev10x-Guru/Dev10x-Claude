@@ -497,8 +497,9 @@ fire the user-confirmation gate. Signals include:
   `CLAUDE_REVIEW_ENABLED=false` until auth is fixed
 
 A `skipped` `claude-review` / `hygiene-review` is not a failure and
-never reaches this gate: with the switch off or the
-`skip-claude-review` label set it reads as "Claude review disabled"
+never reaches this gate: when `ci_check_status` lists it in
+`disabled_checks` (switch off or `skip-claude-review` label, named by
+`review_disabled_reason`, GH-1764) it reads as "Claude review disabled"
 (`references/pr-merge-policy.md` § Reading Review Signals).
 
 Never auto-classify without evidence — if uncertain whether

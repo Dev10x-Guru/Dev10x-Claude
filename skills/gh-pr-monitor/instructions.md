@@ -591,18 +591,18 @@ Phase 0.5 — Phase 0.5 catches the whole-run case; this catches a
 single unexpectedly-skipped check later in the same run.
 
 **A deliberately skipped Claude review is not a missing gate
-(GH-1756).** When `claude-review` / `hygiene-review` sit in
-`skipping_checks` on a ready PR, check the switch before flagging.
-Look for `skip-claude-review` in the labels of the `pr_get` payload
-already read, then read the variable: `gh variable get
-CLAUDE_REVIEW_ENABLED` (repo) and `gh api
-repos/<owner>/<repo>/actions/organization-variables --jq
-'.variables[] | select(.name == "CLAUDE_REVIEW_ENABLED") | .value'`
-(org; repo access suffices, unlike `gh variable get --org`).
-Either set ⇒ report "Claude review disabled" and continue to
-Phase 2; it never blocks the merge (`references/pr-merge-policy.md` § Reading
-Review Signals). A skipped job still settles, so a
-`wait_for=["claude-review", "hygiene-review"]` wait ends normally.
+(GH-1756, GH-1764).** Read `disabled_checks` from the same verdict
+JSON: a `claude-review` / `hygiene-review` listed there was switched
+off on purpose (the `skip-claude-review` label, or
+`CLAUDE_REVIEW_ENABLED=false` as a repo or org variable), and
+`review_disabled_reason` names which. Report "Claude review disabled
+(<reason>)" and continue to Phase 2; it never blocks the merge
+(`references/pr-merge-policy.md` § Reading Review Signals). Do not
+probe labels or variables yourself — `ci_check_status` owns that
+lookup. A review name in `skipping_checks` but absent from
+`disabled_checks` is a review that never fired: flag it. A skipped job
+still settles, so a `wait_for=["claude-review", "hygiene-review"]`
+wait ends normally.
 
 **Pending verdict is impossible** at this layer — the micro-agent's
 contract is "loop until verdict ≠ pending". If the supervisor ever

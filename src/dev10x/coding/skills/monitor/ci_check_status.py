@@ -53,6 +53,12 @@ Output (JSON):
         "skipping_checks": [],         # names of checks bucketed "skipping" —
                                        # a draft PR's review workflows land
                                        # here, not in "pass" (GH-1410 F2)
+        "disabled_checks": [],         # the skipping Claude review checks
+                                       # that were switched off (GH-1764)
+        "review_disabled_reason": "label:skip-claude-review",
+                                       # only when disabled_checks is set:
+                                       # label:… | repo-variable:… |
+                                       # org-variable:CLAUDE_REVIEW_ENABLED=false
         "checks": [
             {"name": "build", "bucket": "pass", "required": True},
             {"name": "lint", "bucket": "fail", "required": False},
@@ -210,6 +216,90 @@ def get_pr_state(
         head_sha=payload.get("headRefOid") or "",
         merge_state=payload.get("mergeStateStatus") or "UNKNOWN",
     )
+
+
+CLAUDE_REVIEW_CHECKS = frozenset({"claude-review", "hygiene-review"})
+SKIP_REVIEW_LABEL = "skip-claude-review"
+REVIEW_SWITCH_VARIABLE = "CLAUDE_REVIEW_ENABLED"
+
+
+def claude_review_switch(*, pr_number: int, repo: str) -> str | None:
+    """Why the Claude reviews are switched off on this PR, or None (GH-1764).
+
+    Mirrors the workflow guard `vars.CLAUDE_REVIEW_ENABLED != 'false' &&
+    !contains(labels, 'skip-claude-review')` (GH-1756). `vars` resolves a
+    repo value before an org value, so the org value is read only when the
+    repo sets none. A read that fails counts as "not switched off": an
+    unreadable source is not evidence, and the check then stays a plain
+    skip.
+    """
+    labels = _gh_lines(
+        args=["pr", "view", str(pr_number), "--repo", repo, "--json", "labels"],
+        jq=".labels[].name",
+    )
+    if labels is not None and SKIP_REVIEW_LABEL in labels:
+        return f"label:{SKIP_REVIEW_LABEL}"
+    repo_value = _gh_lines(
+        args=["api", f"repos/{repo}/actions/variables/{REVIEW_SWITCH_VARIABLE}"],
+        jq=".value",
+    )
+    if repo_value:
+        return _switched_off(scope="repo", value=repo_value[0])
+    org_value = _gh_lines(
+        args=["api", f"repos/{repo}/actions/organization-variables?per_page=100"],
+        jq=f'.variables[] | select(.name == "{REVIEW_SWITCH_VARIABLE}") | .value',
+    )
+    if org_value:
+        return _switched_off(scope="org", value=org_value[0])
+    return None
+
+
+def _switched_off(*, scope: str, value: str) -> str | None:
+    if value.strip() != "false":
+        return None
+    return f"{scope}-variable:{REVIEW_SWITCH_VARIABLE}=false"
+
+
+def _gh_lines(*, args: list[str], jq: str) -> list[str] | None:
+    # Advisory enrichment: a failed read must degrade to "unknown", never
+    # abort the probe — _probe_tolerantly absorbs only SystemExit.
+    try:
+        result = subprocess.run(
+            ["gh", *args, "--jq", jq],
+            capture_output=True,
+            text=True,
+            timeout=_SUBPROCESS_TIMEOUT_SECONDS,
+        )
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        _note_unreadable_switch(args=args, reason=type(exc).__name__)
+        return None
+    if result.returncode != 0:
+        # An unset repo variable answers `HTTP 404`: "not set", not a failure.
+        if "HTTP 404" not in result.stderr:
+            _note_unreadable_switch(args=args, reason=result.stderr.strip()[:200])
+        return None
+    return [line for line in result.stdout.splitlines() if line.strip()]
+
+
+def _note_unreadable_switch(*, args: list[str], reason: str) -> None:
+    print(
+        f"[review-switch] gh {' '.join(args[:2])} unreadable ({reason}); "
+        "treating the Claude review switch as unknown",
+        file=sys.stderr,
+    )
+
+
+def mark_disabled_reviews(*, result: dict, reason: str | None) -> dict:
+    """Name the skipped Claude review checks that were switched off (GH-1764).
+
+    `skipping_checks` keeps every skipped name; `disabled_checks` is the
+    subset a caller must not read as "never fired", and
+    `review_disabled_reason` says which switch did it.
+    """
+    disabled = [name for name in result["skipping_checks"] if name in CLAUDE_REVIEW_CHECKS]
+    if reason is None or not disabled:
+        return {**result, "disabled_checks": []}
+    return {**result, "disabled_checks": disabled, "review_disabled_reason": reason}
 
 
 def _unread_pr_state(*, reason: str) -> PrState:
@@ -764,6 +854,11 @@ def probe_once(
         head_sha=state.head_sha,
         merge_state=state.merge_state,
     )
+    # The switch costs up to three gh calls, paid only when a Claude
+    # review check actually skipped.
+    skipped_reviews = CLAUDE_REVIEW_CHECKS.intersection(result["skipping_checks"])
+    reason = claude_review_switch(pr_number=pr_number, repo=repo) if skipped_reviews else None
+    result = mark_disabled_reviews(result=result, reason=reason)
     if before.head_sha and state.head_sha and before.head_sha != state.head_sha:
         return {
             **result,

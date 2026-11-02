@@ -74,6 +74,13 @@ async def ci_check_status(
         ``is_draft`` is read alongside ``mergeable``; on a draft with
         skipped checks a ``verdict_caveat`` says the verdict is not real
         (GH-1604).
+        ``disabled_checks`` names the skipped ``claude-review`` /
+        ``hygiene-review`` checks that were switched off on purpose — the
+        ``skip-claude-review`` label, or ``CLAUDE_REVIEW_ENABLED=false`` as a
+        repo or org Actions variable — and ``review_disabled_reason`` says
+        which (GH-1764). Read it instead of probing labels and variables:
+        a name in ``skipping_checks`` but not in ``disabled_checks`` is a
+        review that never fired.
     """
     from dev10x import monitor as mon
     from dev10x.subprocess_utils import use_cwd
