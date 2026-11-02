@@ -80,23 +80,34 @@ class TestEmitHookResult:
 
 
 class TestEmitHookAllow:
+    """GH-1775: allow decides nothing until its validators are audited."""
+
     def test_exits_with_code_0(self) -> None:
         with pytest.raises(SystemExit) as exc_info:
             emit(HookAllow())
         assert exc_info.value.code == 0
 
-    def test_writes_allow_envelope(self, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_message_reaches_the_agent_without_a_decision(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         with pytest.raises(SystemExit):
-            emit(HookAllow(message="auto-approved"))
-        output = json.loads(capsys.readouterr().err)
-        assert output["hookSpecificOutput"]["permissionDecision"] == "allow"
-        assert output["systemMessage"] == "auto-approved"
+            emit(HookAllow(message="prefer the wrapper"))
+        captured = capsys.readouterr()
 
-    def test_omits_system_message_when_empty(self, capsys: pytest.CaptureFixture[str]) -> None:
+        assert json.loads(captured.out) == {
+            "hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "additionalContext": "prefer the wrapper",
+            }
+        }
+        assert captured.err == ""
+
+    def test_writes_nothing_without_a_message(self, capsys: pytest.CaptureFixture[str]) -> None:
         with pytest.raises(SystemExit):
             emit(HookAllow())
-        output = json.loads(capsys.readouterr().err)
-        assert "systemMessage" not in output
+        captured = capsys.readouterr()
+
+        assert (captured.out, captured.err) == ("", "")
 
 
 class TestEmitHookAsk:
@@ -105,10 +116,16 @@ class TestEmitHookAsk:
             emit(HookAsk(message="sensitive", reason="why"))
         assert exc_info.value.code == 0
 
+    def test_writes_nothing_to_stderr(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """GH-1775: Claude Code never reads an exit-0 hook's stderr."""
+        with pytest.raises(SystemExit):
+            emit(HookAsk(message="sensitive", reason="why"))
+        assert capsys.readouterr().err == ""
+
     def test_writes_ask_envelope(self, capsys: pytest.CaptureFixture[str]) -> None:
         with pytest.raises(SystemExit):
             emit(HookAsk(message="sensitive probe", reason="DX014 INFRA target"))
-        output = json.loads(capsys.readouterr().err)
+        output = json.loads(capsys.readouterr().out)
         hook_output = output["hookSpecificOutput"]
         assert hook_output["hookEventName"] == "PreToolUse"
         assert hook_output["permissionDecision"] == "ask"
@@ -118,13 +135,13 @@ class TestEmitHookAsk:
     def test_reason_falls_back_to_message(self, capsys: pytest.CaptureFixture[str]) -> None:
         with pytest.raises(SystemExit):
             emit(HookAsk(message="only a message"))
-        output = json.loads(capsys.readouterr().err)
+        output = json.loads(capsys.readouterr().out)
         assert output["hookSpecificOutput"]["permissionDecisionReason"] == "only a message"
 
     def test_omits_system_message_when_empty(self, capsys: pytest.CaptureFixture[str]) -> None:
         with pytest.raises(SystemExit):
             emit(HookAsk(reason="reason only"))
-        output = json.loads(capsys.readouterr().err)
+        output = json.loads(capsys.readouterr().out)
         assert "systemMessage" not in output
 
 
