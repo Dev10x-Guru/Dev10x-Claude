@@ -183,7 +183,15 @@ hook-blocked on this worktree; use `Skill(dev10x:git)` (which wraps
 
 Default pattern: `../.worktrees/<project-basename>-NN`
 
-Calculate the next available path:
+Calculate the next available path.
+
+**Primary (MCP tool):** Call `mcp__plugin_dev10x_cli__next_worktree_name`
+with `cwd=<absolute repo path>`.
+It returns `{"path": "<calculated-path>"}` and never prompts for
+approval.
+Pass `base_dir` to override the `../.worktrees` parent.
+
+**Fallback (script):** Only when the MCP server is unavailable:
 
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/skills/git-worktree/scripts/next-worktree-name.sh
@@ -200,6 +208,16 @@ See **Hook Templates** section below.
 
 ### Step B3: Create the Worktree
 
+**Primary (MCP tool):** Call `mcp__plugin_dev10x_cli__create_worktree`
+with `branch=<branch-name>`, `path=<worktree-path>` and
+`cwd=<absolute path of the target repo>`.
+Pass `base` (e.g. `origin/develop`) to start the new branch from a
+specific ref; omit it to branch from the repo's current HEAD.
+The result carries `worktree_path`, and the tool also seeds the new
+worktree's safe permission defaults (`seeded_permissions`).
+
+**Fallback (script):** Only when the MCP server is unavailable:
+
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/skills/git-worktree/scripts/create-worktree.sh \
   <worktree-path> <branch-name> [base-ref] [repo-root]
@@ -212,7 +230,8 @@ ${CLAUDE_PLUGIN_ROOT}/skills/git-worktree/scripts/create-worktree.sh \
 - Both trailing args are positional — pass an empty string (`""`) to
   skip `base-ref` while still supplying `repo-root` (GH-960).
 
-The `post-checkout` hook fires automatically after this script runs.
+The `post-checkout` hook fires automatically after the worktree is
+created, on either path.
 
 ### Step B4: Install SessionEnd Cleanup Hook
 

@@ -116,7 +116,8 @@ attests.
 ### What is checked, and against what
 
 `dev10x.skills.merge.handoff_audit` — a pure function, wired
-through `scripts/audit-handoff-report.py` the way Check 1d wires
+through the `audit_handoff_report` MCP tool (script fallback
+`scripts/audit-handoff-report.py`) the way Check 1d wires
 `fixes_scope` — decides the three prose conditions mechanically
 and adds the one that catches this class:
 

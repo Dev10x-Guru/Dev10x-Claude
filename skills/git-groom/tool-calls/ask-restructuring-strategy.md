@@ -13,7 +13,7 @@ AskUserQuestion(questions=[{
          preview: "git reset --soft <base>\ngit reset HEAD\ngit add -p"},
         {label: "Mass rewrite",
          description: "Non-interactive message rewrite from JSON",
-         preview: "mass-rewrite.py --config rewrite.json"},
+         preview: "mass_rewrite(config_path=rewrite.json)"},
         {label: "Interactive rebase",
          description: "Full manual control over commit order"}
     ],

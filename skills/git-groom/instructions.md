@@ -530,15 +530,21 @@ Use when rewriting many commit messages without structural changes (no
 splits, squashes, or file renames beyond what the commits already have).
 Fully automatable — no interactive editor required.
 
-**Use the script** (single permission approval, runs unattended):
+Create the config file with `mcp__plugin_dev10x_cli__mktmp`
+(`namespace="git"`, `prefix="groom-config"`, `ext=".json"`) and write
+the config to the returned path.
+
+**Primary (MCP tool):** Call `mcp__plugin_dev10x_cli__mass_rewrite`
+with `config_path=<config-path>` and `cwd=<absolute worktree path>`.
+It runs unattended and never prompts for approval.
+A conflict returns `conflict: true` with `conflicted_files`.
+
+**Fallback (script):** Only when the MCP server is unavailable:
 ```bash
 /tmp/Dev10x/bin/mktmp.sh git groom-config .json
-```
-Write the config to the returned path, then run:
-```bash
 ${CLAUDE_PLUGIN_ROOT}/skills/git-groom/scripts/mass-rewrite.py <config-path>
 ```
-The script creates its own isolated workdir under `/tmp/Dev10x/git/`.
+Either path creates its own isolated workdir under `/tmp/Dev10x/git/`.
 
 Config format:
 ```json

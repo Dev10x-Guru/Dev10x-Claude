@@ -15,6 +15,7 @@ allowed-tools:
   - Bash(/tmp/Dev10x/bin/mktmp.sh:*)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/git-fixup/scripts/:*)
   - Edit(/tmp/Dev10x/git/**)
+  - mcp__plugin_dev10x_cli__find_fixup_target
   - mcp__plugin_dev10x_cli__pr_detect
   - mcp__plugin_dev10x_cli__pr_comments
   - mcp__plugin_dev10x_cli__push_safe
@@ -136,14 +137,21 @@ applies, producing modify/delete or content conflicts. `git rerere`
 then memoizes the bad resolution and silently re-applies it on the
 next attempt (GH-299).
 
-Run the resolver script:
+**Primary (MCP tool):** Call `mcp__plugin_dev10x_cli__find_fixup_target`
+with `cwd=<absolute worktree path>`.
+Pass `base` only to override the auto-detected base branch.
+The tool is read-only and never prompts for approval.
+
+**Fallback (script):** Only when the MCP server is unavailable:
 
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/skills/git-fixup/scripts/find-fixup-target.py
 ```
 
-It reads `git diff --cached`, blames every hunk's pre-image line
-range against branch commits (`<base>..HEAD`), and prints JSON.
+Both read `git diff --cached`, blame every hunk's pre-image line
+range against branch commits (`<base>..HEAD`), and return JSON.
+A resolver failure arrives as an `error` key from the tool and as
+`status: "error"` from the script.
 Branch the SKILL on the `status` field:
 
 | `status` | Meaning | Action |

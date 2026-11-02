@@ -11,6 +11,7 @@ from dev10x.domain.common.result import ErrorResult, SuccessResult
 
 from dev10x.git import (
     create_worktree,
+    find_fixup_target,
     mass_rewrite,
     next_worktree_name,
     push_safe,
@@ -944,3 +945,109 @@ class TestNextWorktreeName:
         args = mock_run_script.call_args.args
         assert args[0] == "skills/git-worktree/scripts/next-worktree-name.sh"
         assert args[1] == "/custom/.worktrees"
+
+
+class TestFindFixupTarget:
+    @pytest.mark.asyncio
+    @patch("dev10x.git.async_run_script", new_callable=AsyncMock)
+    async def test_runs_the_git_fixup_script_without_a_base(
+        self,
+        mock_run_script: AsyncMock,
+    ) -> None:
+        mock_run_script.return_value = _completed(stdout='{"status": "no_staged"}')
+
+        await find_fixup_target()
+
+        assert mock_run_script.call_args.args == ("skills/git-fixup/scripts/find-fixup-target.py",)
+
+    @pytest.mark.asyncio
+    @patch("dev10x.git.async_run_script", new_callable=AsyncMock)
+    async def test_forwards_an_explicit_base(
+        self,
+        mock_run_script: AsyncMock,
+    ) -> None:
+        mock_run_script.return_value = _completed(stdout='{"status": "no_staged"}')
+
+        await find_fixup_target(base="origin/develop")
+
+        assert mock_run_script.call_args.args[1:] == ("--base", "origin/develop")
+
+    @pytest.mark.asyncio
+    @patch("dev10x.git.async_run_script", new_callable=AsyncMock)
+    async def test_single_owner_is_returned_as_the_payload(
+        self,
+        mock_run_script: AsyncMock,
+    ) -> None:
+        mock_run_script.return_value = _completed(
+            stdout='{"status": "single", "target": "abc123", "subject": "Enable X"}'
+        )
+
+        result = await find_fixup_target()
+
+        assert isinstance(result, SuccessResult)
+        assert result.value["status"] == "single"
+        assert result.value["target"] == "abc123"
+
+    @pytest.mark.parametrize(
+        ("returncode", "status"),
+        [(2, "no_staged"), (3, "out_of_branch")],
+    )
+    @pytest.mark.asyncio
+    @patch("dev10x.git.async_run_script", new_callable=AsyncMock)
+    async def test_non_zero_exit_with_a_verdict_is_not_an_error(
+        self,
+        mock_run_script: AsyncMock,
+        returncode: int,
+        status: str,
+    ) -> None:
+        mock_run_script.return_value = _completed(
+            returncode=returncode,
+            stdout=f'{{"status": "{status}", "base": "origin/develop"}}',
+        )
+
+        result = await find_fixup_target()
+
+        assert isinstance(result, SuccessResult)
+        assert result.value["status"] == status
+
+    @pytest.mark.asyncio
+    @patch("dev10x.git.async_run_script", new_callable=AsyncMock)
+    async def test_error_status_becomes_an_error_result(
+        self,
+        mock_run_script: AsyncMock,
+    ) -> None:
+        mock_run_script.return_value = _completed(
+            returncode=1,
+            stdout='{"status": "error", "error": "No commits in origin/develop..HEAD"}',
+        )
+
+        result = await find_fixup_target()
+
+        assert isinstance(result, ErrorResult)
+        assert "No commits" in result.error
+
+    @pytest.mark.asyncio
+    @patch("dev10x.git.async_run_script", new_callable=AsyncMock)
+    async def test_unparseable_output_reports_stderr(
+        self,
+        mock_run_script: AsyncMock,
+    ) -> None:
+        mock_run_script.return_value = _completed(returncode=-1, stderr="Script not found: x")
+
+        result = await find_fixup_target()
+
+        assert isinstance(result, ErrorResult)
+        assert result.error == "Script not found: x"
+
+    @pytest.mark.asyncio
+    @patch("dev10x.git.async_run_script", new_callable=AsyncMock)
+    async def test_non_object_json_is_an_error(
+        self,
+        mock_run_script: AsyncMock,
+    ) -> None:
+        mock_run_script.return_value = _completed(stdout="[]")
+
+        result = await find_fixup_target()
+
+        assert isinstance(result, ErrorResult)
+        assert "unexpected output" in result.error
