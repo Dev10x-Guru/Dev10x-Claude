@@ -76,21 +76,21 @@ def _checkouts(context: Context) -> list[Path]:
 def detect(context: Context) -> list[Finding]:
     """List rules some siblings hold and others lack, worth lifting once."""
     findings: list[Finding] = []
-    seen_families: set[Path] = set()
+    covered: set[Path] = set()
+    remembered = set(load_granted_rules())
+    declined = load_declined_rules()
     for checkout in _checkouts(context):
+        if checkout in covered:
+            continue
         allow = _family_allow(checkout)
+        covered.update(allow, {checkout})
         if len(allow) < 2:
             continue
         family = list(allow)
-        if family[0] in seen_families:
-            continue
-        seen_families.add(family[0])
-        skip = set(load_granted_rules())
-        declined = load_declined_rules()
         held_by_some: set[str] = set().union(*allow.values())
         held_by_all: set[str] = set.intersection(*allow.values())
         for rule in sorted(held_by_some - held_by_all):
-            if rule in skip or is_noise(rule) or pins_a_checkout(rule, checkouts=family):
+            if rule in remembered or is_noise(rule) or pins_a_checkout(rule, checkouts=family):
                 continue
             if hold_reason(rule=rule, declined=declined) is not None:
                 continue

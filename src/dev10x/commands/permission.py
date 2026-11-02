@@ -1178,7 +1178,8 @@ def merge_worktree(*, dry_run: bool, restore: bool, excluded: tuple[str, ...]) -
             for msg in messages:
                 click.echo(msg)
             total_merged += count
-            projects_changed += 1 if count else 0
+            if count:
+                projects_changed += 1
         else:
             click.echo(f"\n{main_project} — up to date ({len(worktree_dirs)} worktrees)")
 

@@ -109,15 +109,18 @@ def exec_flag(*, words: list[str]) -> str | None:
     """
     tool = Path(words[0]).name
     flags = EXEC_FLAGS.get(tool, ())
+    if not flags:
+        return None
+    abbreviating = tool in _ABBREVIATING_TOOLS
     for word in words[1:]:
         in_cluster = word.startswith("-") and not word.startswith("--")
-        name = word.split("=", 1)[0]
+        name = word.split("=", 1)[0] if abbreviating else ""
         for flag in flags:
             if word == flag or word.startswith(f"{flag}="):
                 return flag
             if not flag.startswith("--") and in_cluster and flag[1] in word[1:]:
                 return flag
-            if tool in _ABBREVIATING_TOOLS and _abbreviates(name=name, flag=flag):
+            if abbreviating and _abbreviates(name=name, flag=flag):
                 return flag
     return None
 

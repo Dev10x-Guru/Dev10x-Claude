@@ -52,10 +52,6 @@ def _as_path(root: str) -> Path:
     return Path(root[1:] if root.startswith("//") else root).expanduser()
 
 
-def _same(left: Path, right: Path) -> bool:
-    return left.resolve(strict=False) == right.resolve(strict=False)
-
-
 def detect(context: Context) -> list[Finding]:
     """Flag allow rules naming a worktree other than the file's own checkout."""
     findings: list[Finding] = []
@@ -63,12 +59,10 @@ def detect(context: Context) -> list[Finding]:
         checkout = own_checkout(path)
         if checkout is None:
             continue
+        resolved_checkout = checkout.resolve(strict=False)
         for rule in AllowRuleLoader.load(path):
-            stranded = [
-                _as_path(root)
-                for root in worktree_roots_in(rule)
-                if not _same(_as_path(root), checkout)
-            ]
+            roots = (_as_path(root) for root in worktree_roots_in(rule))
+            stranded = [root for root in roots if root.resolve(strict=False) != resolved_checkout]
             if stranded:
                 findings.append(_finding(rule=rule, path=path, checkout=checkout, roots=stranded))
     return findings
