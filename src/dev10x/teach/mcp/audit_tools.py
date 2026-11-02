@@ -101,7 +101,7 @@ async def resolve_plugin_origin(skill_paths: list[str]) -> Result[dict]:
 async def audit_hook_log_path() -> Result[dict]:
     """Return the active audit-wrap JSONL log directory and today's log file.
 
-    Resolves DEV10X_HOOK_AUDIT_DIR (default /tmp/Dev10x/hook-audit) so
+    Resolves DEV10X_HOOK_AUDIT_DIR (default /tmp/Dev10x/logs) so
     agents can locate hook-audit data without grep-hunting (GH-29).
 
     Returns:

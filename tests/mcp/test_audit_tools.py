@@ -305,6 +305,12 @@ class TestAuditHookLogPathContract:
         assert "error" not in result
         assert result["audit_disabled"] is True
 
+    def test_description_names_the_real_default_dir(self) -> None:
+        from dev10x.teach.audit.log_reader import DEFAULT_AUDIT_DIR
+        from dev10x.teach.mcp import audit_tools
+
+        assert f"(default {DEFAULT_AUDIT_DIR})" in audit_tools.audit_hook_log_path.__doc__
+
 
 # ── audit_hook_recent ────────────────────────────────────────────────────────
 
