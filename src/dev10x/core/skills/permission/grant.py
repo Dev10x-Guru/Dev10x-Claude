@@ -43,6 +43,14 @@ from dev10x.skills.permission.catalog_write import partition_writable
 from dev10x.skills.permission.exec_capable import exec_flag, is_interpreter
 from dev10x.skills.permission.generalize import generalize_rule_shape
 from dev10x.skills.permission.granted_catalog import granted_path, remember_granted_rule
+from dev10x.skills.permission.rule_risk import (
+    RULE_WILDCARD_SUFFIX_RE,
+    SENSITIVE_ROOT_RE,
+    UNGRANTABLE_EXECUTABLES,
+    UNGRANTABLE_PREFIXES,
+    bash_prefix,
+    blanket_problem,
+)
 
 SKILL_MAP_PATH = Path(_validators.__file__).parent / "command-skill-map.yaml"
 
@@ -68,77 +76,6 @@ _SUBCOMMAND_DEPTH: dict[str, int] = {
 }
 _SUBCOMMAND_RE = re.compile(r"^[a-z][a-z0-9-]*$")
 
-# Executables whose allow rule is an arbitrary-code, privilege, egress or
-# destruction primitive. `Bash(bash:*)` lets `bash -c "rm -rf /"` past a
-# `Bash(rm -rf:*)` deny, because a deny matches only its literal prefix.
-_UNGRANTABLE_EXECUTABLES = frozenset(
-    {
-        "awk",
-        "bash",
-        "builtin",
-        "bun",
-        "chmod",
-        "chown",
-        "chrt",
-        "command",
-        "curl",
-        "dash",
-        "dd",
-        "deno",
-        "doas",
-        "env",
-        "eval",
-        "exec",
-        "find",
-        "fish",
-        "ionice",
-        "nc",
-        "ncat",
-        "nice",
-        "node",
-        "nohup",
-        "npx",
-        "perl",
-        "php",
-        "pkexec",
-        "python",
-        "python3",
-        "rm",
-        "ruby",
-        "scp",
-        "sed",
-        "sh",
-        "source",
-        "ssh",
-        "stdbuf",
-        "su",
-        "sudo",
-        "taskset",
-        "time",
-        "timeout",
-        "uvx",
-        "watch",
-        "wget",
-        "xargs",
-        "zsh",
-    }
-)
-_UNGRANTABLE_PREFIXES = frozenset(
-    {
-        ("docker", "exec"),
-        ("docker", "run"),
-        ("gh", "api"),
-        ("git", "push"),
-        ("kubectl", "apply"),
-        ("kubectl", "delete"),
-        ("kubectl", "exec"),
-        ("npm", "exec"),
-        ("pnpm", "dlx"),
-        ("pnpm", "exec"),
-        ("uv", "run"),
-        ("yarn", "dlx"),
-    }
-)
 # GH-1687: a denylist misses every interpreter nobody thought to list
 # (`deno`, `lua`, `watch`), so a whole-executable grant is refused unless
 # the tool is known safe at that depth. Seeded from the bare rules the
@@ -191,9 +128,8 @@ _BARE_GRANTABLE_EXECUTABLES = frozenset(
     }
 )
 _VETTED_EXECUTABLES = (
-    _BARE_GRANTABLE_EXECUTABLES | _UNGRANTABLE_EXECUTABLES | frozenset(_SUBCOMMAND_DEPTH)
+    _BARE_GRANTABLE_EXECUTABLES | UNGRANTABLE_EXECUTABLES | frozenset(_SUBCOMMAND_DEPTH)
 )
-_RULE_WILDCARD_SUFFIX_RE = re.compile(r"(?::\*| \*)$")
 _PATH_ROOT_RE = re.compile(r"^(?://|/|~/|\./)?")
 
 # Verbs whose path operands the harness checks against the working
@@ -224,16 +160,6 @@ _READ_VERBS = frozenset(
 
 _CHAINING_RE = re.compile(r"&&|\|\||;|\||\n")
 _EXPANSION_RE = re.compile(r"\$\{|\$\(|\$[A-Za-z_]|`")
-# Credential and secret stores named by their directory or file, with or
-# without a trailing slash or glob. The DX014 operand patterns need an
-# exact filename, so `rg x ~/.ssh` and `Read(~/.aws/**)` slipped past them.
-# Kept local on purpose: widening DX014 itself would prompt on a plain
-# `ls ~/.ssh`, which hook-patterns.md requires to stay silent. Granting a
-# rule is the stricter question, so it gets the stricter list.
-_SENSITIVE_ROOT_RE = re.compile(
-    r"(?:(?:^|/|~)\.(?:ssh|aws|gnupg|kube|docker|netrc|pgpass|git-credentials|env)"
-    r"|\.config/gh)(?![\w-])"
-)
 _OBFUSCATION_RE = re.compile(r"\\[\"']|\"\"|''")
 _REDIRECT_RE = re.compile(r"<<|>")
 _STRUCTURED_RULE_RE = re.compile(r"^[A-Za-z]+\(.*\)$", re.DOTALL)
@@ -300,14 +226,6 @@ def derive_rule(*, command: str) -> str:
     return generalize_rule_shape(f"Bash({' '.join(words)}:*)")
 
 
-def bash_prefix(*, rule: str) -> str | None:
-    """The literal command prefix a ``Bash(...)`` rule allows, or None."""
-    parsed = AllowRule.parse(rule)
-    if parsed.tool != "Bash":
-        return None
-    return _RULE_WILDCARD_SUFFIX_RE.sub("", parsed.inner).strip()
-
-
 def breadth_problem(*, rule: str) -> str | None:
     """Why ``rule`` would grant far more than one approved command, or None."""
     if not rule:
@@ -321,12 +239,12 @@ def breadth_problem(*, rule: str) -> str | None:
     words = prefix.split()
     if not words or "*" in prefix:
         return "The command prefix is a wildcard."
-    if Path(words[0]).name in _UNGRANTABLE_EXECUTABLES:
+    if Path(words[0]).name in UNGRANTABLE_EXECUTABLES:
         return f"`{words[0]}` runs arbitrary code, escalates or deletes; approve each use."
     exec_problem = _exec_problem(words=words)
     if exec_problem:
         return exec_problem
-    if tuple(words[:2]) in _UNGRANTABLE_PREFIXES:
+    if tuple(words[:2]) in UNGRANTABLE_PREFIXES:
         return f"`{' '.join(words[:2])}` can write or run anything; approve each use."
     if len(words) <= _SUBCOMMAND_DEPTH.get(words[0], 0):
         return f"`{prefix}` grants every `{words[0]}` subcommand, destructive ones included."
@@ -358,7 +276,7 @@ def _unknown_bare_executable(*, rule: str) -> str | None:
         return None
     parsed = AllowRule.parse(rule)
     prefix = bash_prefix(rule=rule)
-    if not prefix or not _RULE_WILDCARD_SUFFIX_RE.search(parsed.inner):
+    if not prefix or not RULE_WILDCARD_SUFFIX_RE.search(parsed.inner):
         return None
     words = prefix.split()
     if len(words) != 1 or "*" in prefix or words[0] in _VETTED_EXECUTABLES:
@@ -490,9 +408,7 @@ def _sensitive(*, target: str) -> list[str]:
         return [target] if name_is_sensitive(target) else []
     command = AllowRule.parse(target).inner if is_rule(target) else target
     matches = [match.matched_text for match in SensitivityClassifier().classify(command=command)]
-    roots = [
-        token for token in operand_tokens(command=command) if _SENSITIVE_ROOT_RE.search(token)
-    ]
+    roots = [token for token in operand_tokens(command=command) if SENSITIVE_ROOT_RE.search(token)]
     return list(dict.fromkeys([*matches, *roots]))
 
 
@@ -778,6 +694,7 @@ __all__ = [
     "Triage",
     "Verdict",
     "bash_prefix",
+    "blanket_problem",
     "breadth_problem",
     "derive_rule",
     "grant_everywhere",

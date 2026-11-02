@@ -11,6 +11,7 @@ from dev10x.skills.permission.merge_worktree_permissions import (
 )
 
 from dev10x import subprocess_utils
+from dev10x.skills.permission import catalog_write
 from dev10x.skills.permission import merge_worktree_permissions as mod
 
 
@@ -412,3 +413,105 @@ class TestMergePermissionsReanchor:
         assert count == 1
         assert allow == [f"Bash({main}/bin/release.sh:*)"]
         assert f"      from: {wt / '.claude' / 'settings.local.json'}" in messages
+
+
+@pytest.mark.usefixtures("default_hook_chain")
+class TestMergePermissionsHoldsUnsafeRules:
+    """GH-1790: blanket, hook-denied and declined rules never reach main."""
+
+    @pytest.fixture
+    def family(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, Path]:
+        main = tmp_path / "proj"
+        (main / ".claude").mkdir(parents=True)
+        (main / ".claude" / "settings.local.json").write_text("{}")
+        wt = tmp_path / "wt-1"
+        _make_worktree(main=main, wt=wt)
+        (wt / ".claude" / "settings.local.json").write_text(
+            json.dumps(
+                {
+                    "permissions": {
+                        "allow": [
+                            "Bash(git log:*)",
+                            "Bash(psql:*)",
+                            "Edit(~/.claude/**)",
+                            "Bash(python3:*)",
+                            "Bash(npm ci:*)",
+                        ]
+                    }
+                }
+            )
+        )
+        monkeypatch.setattr(mod, "git_registered_worktrees", lambda _root: [main, wt])
+        return main, wt
+
+    def _main_allow(self, main: Path) -> list[str]:
+        data = json.loads((main / ".claude" / "settings.local.json").read_text())
+        return data["permissions"]["allow"]
+
+    def test_only_safe_rules_are_merged(self, family: tuple[Path, Path]) -> None:
+        main, wt = family
+
+        count, _messages = mod.merge_permissions(main_project=main, worktree_dirs=[wt])
+
+        assert count == 2
+        assert sorted(self._main_allow(main)) == ["Bash(git log:*)", "Bash(npm ci:*)"]
+
+    def test_held_rules_are_reported_with_a_reason(self, family: tuple[Path, Path]) -> None:
+        main, wt = family
+
+        _count, messages = mod.merge_permissions(
+            main_project=main, worktree_dirs=[wt], dry_run=True
+        )
+
+        assert "  held back 3 rule(s) — not copied:" in messages
+        assert "    ! Bash(psql:*)" in messages
+        assert any("a plugin hook denies it: BLOCKED: Direct psql" in m for m in messages)
+
+    def test_declined_rule_stays_out(self, family: tuple[Path, Path]) -> None:
+        main, wt = family
+
+        count, _messages = mod.merge_permissions(
+            main_project=main,
+            worktree_dirs=[wt],
+            declined=frozenset({"Bash(npm ci:*)"}),
+        )
+
+        assert count == 1
+        assert self._main_allow(main) == ["Bash(git log:*)"]
+
+    def test_all_held_reports_without_writing(self, family: tuple[Path, Path]) -> None:
+        main, wt = family
+
+        count, messages = mod.merge_permissions(
+            main_project=main,
+            worktree_dirs=[wt],
+            declined=frozenset({"Bash(npm ci:*)", "Bash(git log:*)"}),
+        )
+
+        assert count == 0
+        assert messages[0] == f"  target: {main / '.claude' / 'settings.local.json'}"
+        assert json.loads((main / ".claude" / "settings.local.json").read_text()) == {}
+
+
+@pytest.mark.usefixtures("default_hook_chain")
+class TestSyncMainToWorktreesHoldsUnsafeRules:
+    def test_blanket_rule_in_main_is_not_carried_to_worktrees(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(catalog_write, "_is_git_tracked", lambda _path: False)
+        main = tmp_path / "proj"
+        (main / ".claude").mkdir(parents=True)
+        (main / ".claude" / "settings.local.json").write_text(
+            json.dumps({"permissions": {"allow": ["Bash(bash:*)", "Bash(git log:*)"]}})
+        )
+        wt = tmp_path / "wt-1"
+        _make_worktree(main=main, wt=wt)
+
+        count, messages = mod.sync_main_to_worktrees(main_project=main, worktree_dirs=[wt])
+
+        allow = json.loads((wt / ".claude" / "settings.local.json").read_text())["permissions"][
+            "allow"
+        ]
+        assert count == 1
+        assert allow == ["Bash(git log:*)"]
+        assert "    ! Bash(bash:*)" in messages

@@ -12,6 +12,7 @@ from factory.random import reseed_random
 
 from dev10x.core.diagnostic_log import LOG_DIR_ENV as DIAGNOSTIC_LOG_DIR_ENV
 from dev10x.core.diagnostic_log import LOGGER_NAME as DIAGNOSTIC_LOGGER_NAME
+from dev10x.validators import reset_registry
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -170,6 +171,27 @@ def stub_fixes_trailer_readback() -> Generator[AsyncMock, None, None]:
     with patch("dev10x.github.pulls.pr_get", new_callable=AsyncMock) as mock_pr_get:
         mock_pr_get.return_value = ok({"body": "Story\n\nFixes: #1"})
         yield mock_pr_get
+
+
+_HOOK_PROFILE_ENV_VARS = (
+    "DEV10X_HOOK_PROFILE",
+    "DEV10X_HOOK_DISABLE",
+    "DEV10X_HOOK_EXPERIMENTAL",
+)
+
+
+@pytest.fixture
+def default_hook_chain(monkeypatch: pytest.MonkeyPatch) -> Generator[None]:
+    """Run the real validator chain at its default profile, whatever the shell sets.
+
+    A developer with ``DEV10X_HOOK_DISABLE=DX004`` must not turn a test that
+    relies on DX004 denying ``psql`` red (GH-1790 review).
+    """
+    for name in _HOOK_PROFILE_ENV_VARS:
+        monkeypatch.delenv(name, raising=False)
+    reset_registry()
+    yield
+    reset_registry()
 
 
 @pytest.fixture(autouse=True)

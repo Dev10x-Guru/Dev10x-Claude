@@ -26,6 +26,7 @@ from dev10x.skills.permission.backup import backed_up_write
 from dev10x.skills.permission.catalog_paths import shipped_projects_catalog
 from dev10x.skills.permission.catalog_write import partition_writable
 from dev10x.skills.permission.config import parse_config, resolve_config
+from dev10x.skills.permission.declined_catalog import load_declined_rules
 from dev10x.skills.permission.policy_authoring import policy_from_accepted_prompt
 from dev10x.skills.permission.settings_discovery import (
     VENDORED_DIRS,
@@ -33,6 +34,7 @@ from dev10x.skills.permission.settings_discovery import (
     resolve_main_project,
     walk_repos,
 )
+from dev10x.skills.permission.spread_guard import partition_spreadable, render_held
 
 MEMORY_CONFIG = Dev10xConfigDir.projects_yaml()
 USERSPACE_CONFIG = Dev10xConfigDir.upgrade_cleanup_projects_yaml()
@@ -222,7 +224,14 @@ def merge_permissions(
     main_project: Path,
     worktree_dirs: list[Path],
     dry_run: bool = False,
+    declined: frozenset[str] | None = None,
 ) -> tuple[int, list[str]]:
+    """Copy stable worktree rules into the main checkout, holding back unsafe ones.
+
+    ``declined`` defaults to the supervisor's ``declined-permissions.yaml``;
+    see :mod:`dev10x.skills.permission.spread_guard` for what else is held.
+    """
+    declined = load_declined_rules() if declined is None else declined
     main_settings = main_project / ".claude" / "settings.local.json"
     main_data = load_permissions(main_settings)
     main_allow = extract_allow_set(main_data)
@@ -246,10 +255,14 @@ def merge_permissions(
 
     generalized -= main_allow
     candidates = sync_candidates_as_policies(entries=sorted(generalized))
-    stable_entries = [policy.signature for policy in candidates]
+    stable_entries, held = partition_spreadable(
+        rules=[policy.signature for policy in candidates],
+        declined=declined,
+    )
+    held_lines = render_held(held=held)
 
     if not stable_entries:
-        return 0, []
+        return 0, [f"  target: {main_settings}", *held_lines] if held_lines else []
 
     messages = [
         f"  target: {main_settings}",
@@ -263,6 +276,7 @@ def merge_permissions(
             messages.append(f"      from: {source_paths}")
         else:
             messages.append(f"    + {entry}")
+    messages.extend(held_lines)
 
     if not dry_run:
         from dev10x.skills.permission.backup import create_backup
@@ -348,6 +362,7 @@ def sync_main_to_worktrees(
     main_project: Path,
     worktree_dirs: list[Path],
     dry_run: bool = False,
+    declined: frozenset[str] | None = None,
 ) -> tuple[int, list[str]]:
     """Copy rules granted in the main checkout into its existing worktrees.
 
@@ -363,13 +378,17 @@ def sync_main_to_worktrees(
     if main_allow is None:
         return 0, [f"  SKIP (unreadable settings): {main_settings}"]
     family = [main_project, *worktree_dirs]
-    portable = sorted(
-        entry
-        for entry in main_allow
-        if not pins_a_checkout(entry, checkouts=family) and not is_noise(entry)
+    portable, held = partition_spreadable(
+        rules=sorted(
+            entry
+            for entry in main_allow
+            if not pins_a_checkout(entry, checkouts=family) and not is_noise(entry)
+        ),
+        declined=load_declined_rules() if declined is None else declined,
     )
     targets = [wt / ".claude" / "settings.local.json" for wt in worktree_dirs]
     writable, messages = partition_writable(targets)
+    messages.extend(render_held(held=held))
 
     total = 0
     for settings in writable:

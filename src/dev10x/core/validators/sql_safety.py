@@ -156,6 +156,25 @@ def _is_psql_binary(token: str) -> bool:
     return token == "psql" or token.endswith("/psql")
 
 
+# Programs that only search or print their operands, so a `psql` token after
+# one of them is a pattern or text: `rg -n 'psql' projects.yaml` (GH-1790).
+_TEXT_ONLY_EXECUTABLES = frozenset(
+    {"ack", "ag", "cat", "echo", "egrep", "fgrep", "grep", "head", "printf", "rg", "tail", "wc"}
+)
+# A segment that chains, substitutes, opens a subshell or process
+# substitution (`cat <( psql … )`) or backgrounds may run psql after the
+# search tool; `rg --pre`, `rg --hostname-bin` and `ag/ack --pager` run a
+# program of their own. None of these is exempt.
+_EXEMPTION_BREAKERS_RE = re.compile(r"&|;|\n|`|[()]|--pre|--pager|--hostname-bin")
+
+
+def _psql_is_an_operand(*, segment: str, parts: list[str]) -> bool:
+    if _EXEMPTION_BREAKERS_RE.search(segment):
+        return False
+    words = strip_command_wrappers(parts=parts)
+    return bool(words) and Path(words[0]).name in _TEXT_ONLY_EXECUTABLES
+
+
 def _is_exempt_psql_wrapper(parts: list[str]) -> bool:
     """psql wrapped by ``docker exec`` or ``op run`` is exempt (GH-474 #4).
 
@@ -744,6 +763,8 @@ class SqlSafetyValidator(ValidatorBase):
                 wrapped = _check_wrapped_psql_writes(parts=seg_parts)
                 if wrapped:
                     return wrapped
+                continue
+            if _psql_is_an_operand(segment=seg, parts=seg_parts):
                 continue
             if any(_is_psql_binary(t) for t in seg_parts):
                 return HookResult(message=DIRECT_PSQL_MSG)

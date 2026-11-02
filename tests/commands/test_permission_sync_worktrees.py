@@ -8,6 +8,7 @@ import pytest
 from click.testing import CliRunner
 from dev10x.domain.common.result import ok
 from dev10x.permission.service import PermissionContext
+from dev10x.skills.permission.declined_catalog import declined_path
 
 from dev10x.commands import permission as commands
 from dev10x.commands.permission import sync_worktrees
@@ -42,7 +43,12 @@ def test_reports_rules_added_per_repo(monkeypatch: pytest.MonkeyPatch) -> None:
     assert result.exit_code == 0
     assert "/work/proj -> 1 worktree(s)" in result.output
     assert "Added 2 rule(s) across 1 repo(s)." in result.output
-    assert seen == {"main_project": MAIN, "worktree_dirs": [WORKTREE], "dry_run": False}
+    assert seen == {
+        "main_project": MAIN,
+        "worktree_dirs": [WORKTREE],
+        "dry_run": False,
+        "declined": frozenset(),
+    }
 
 
 def test_dry_run_forwards_dry_run_and_says_would_add(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -61,6 +67,18 @@ def test_dry_run_forwards_dry_run_and_says_would_add(monkeypatch: pytest.MonkeyP
     assert seen["dry_run"] is True
     assert "(dry run — no files will be modified)" in result.output
     assert "Would add 0 rule(s) across 1 repo(s)." in result.output
+
+
+def test_broken_declined_file_stops_the_sync(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(mod, "find_repo_families", lambda *_a, **_kw: {MAIN: [WORKTREE]})
+    monkeypatch.setattr(mod, "sync_main_to_worktrees", lambda **_kw: pytest.fail("synced"))
+    declined_path().parent.mkdir(parents=True, exist_ok=True)
+    declined_path().write_text("declined: nope\n")
+
+    result = CliRunner().invoke(sync_worktrees, [])
+
+    assert result.exit_code == 1
+    assert "has no `declined:` list" in result.output
 
 
 def test_nothing_to_sync_is_reported(monkeypatch: pytest.MonkeyPatch) -> None:
