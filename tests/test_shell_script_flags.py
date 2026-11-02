@@ -16,6 +16,7 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+AWS_VAULT_SCRIPTS = REPO_ROOT / "plugins" / "infra" / "skills" / "aws-vault" / "scripts"
 
 SHELL_SCRIPTS = sorted(
     [
@@ -44,7 +45,7 @@ def test_jira_env_accepts_tenant_flag() -> None:
 
 @pytest.mark.parametrize("name", ["secrets.sh", "kubectl.sh", "aws.sh"])
 def test_aws_vault_scripts_accept_registry_flag(name: str) -> None:
-    source = (REPO_ROOT / "skills" / "aws-vault" / "scripts" / name).read_text()
+    source = (AWS_VAULT_SCRIPTS / name).read_text()
     assert '"${1:-}" == "--registry"' in source
     # Env var remains the fallback.
     assert "DEV10X_AWS_VAULT_REGISTRY" in source
@@ -57,7 +58,7 @@ def test_aws_wrapper_is_verb_aware_read_only() -> None:
     is the read-only gate, so a broad `:*` grant on it cannot run a
     mutating or secret-exfil AWS operation.
     """
-    source = (REPO_ROOT / "skills" / "aws-vault" / "scripts" / "aws.sh").read_text()
+    source = (AWS_VAULT_SCRIPTS / "aws.sh").read_text()
     # Verb-aware allowlist marker (matched by update_paths' verb-blind check).
     assert "ALLOWED_PREFIXES=(" in source
     # Read prefixes pass; mutating ops fall through to deny.

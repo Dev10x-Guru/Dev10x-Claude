@@ -43,7 +43,7 @@
         {
           "dimension": "command-identification",
           "check": "behavioral",
-          "signal": "recommends_correct_skill — Output recommends dev10x:k8s as the replacement skill"
+          "signal": "recommends_correct_skill — Output recommends dev10x-infra:k8s as the replacement skill"
         },
         {
           "dimension": "command-identification",

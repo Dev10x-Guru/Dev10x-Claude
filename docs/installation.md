@@ -45,9 +45,18 @@ where you record walkthroughs; it brings `dev10x` with it:
 claude plugin install dev10x-qa@Dev10x-Guru
 ```
 
+The read-only infrastructure skills (`aws-vault`, `k8s`) ship as
+`dev10x-infra`. Install it where you inspect AWS secrets or Kubernetes
+clusters; it also brings `dev10x` with it:
+
+```bash
+claude plugin install dev10x-infra@Dev10x-Guru
+```
+
 Upgrading from a release where those skills were part of `dev10x`
-and carried its `dev10x:` prefix: install `dev10x-qa` as above, then run
-`/dev10x:upgrade-cleanup` to rewrite the old names in your configs.
+and carried its `dev10x:` prefix: install each `dev10x-*` plugin whose
+skills you used, then run `/dev10x:upgrade-cleanup` to rewrite the old
+names in your configs.
 
 Update to the latest version:
 

@@ -1,0 +1,14 @@
+{
+  "name": "dev10x-infra",
+  "description": "v0.114.0.dev0 — 2 skills for read-only infrastructure access: AWS secrets and Kubernetes inspection through aws-vault.",
+  "version": "0.114.0.dev0",
+  "author": {
+    "name": "Janusz Skonieczny",
+    "email": "Dev10xAI@WooYek.com"
+  },
+  "homepage": "https://www.skool.com/Dev10x-1892",
+  "repository": "https://github.com/Dev10x-Guru/dev10x-claude",
+  "license": "MIT",
+  "keywords": ["aws", "aws-vault", "kubernetes", "kubectl", "secrets"],
+  "dependencies": ["dev10x"]
+}

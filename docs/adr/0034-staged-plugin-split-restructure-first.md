@@ -454,12 +454,26 @@ The supervisor decided the Stage B open decisions on 2026-10-19
    - Moving them waits for readers that search each enabled
      satellite's root, gated on `plugin_enablement`. Until then a
      fragment records its owner by file name only.
+   - B2 (GH-1565) applies the same rule to
+     `command-skill-map.d/infra.yaml` (two advisory DX006 rules) and
+     `projects.d/infra.yaml` (`Skill(dev10x-infra:*)` only). Infra
+     has no family fragment, and the `aws.sh` allow stays in core's
+     baseline.
+   - Script rules already in a user's settings are expanded to
+     core's directory, so each script B1 or B2 moved prompts once
+     after the release. GH-1793 tracks the migration to
+     `…/dev10x-<area>/<ver>/`.
 5. **Old names stay readable for two releases (GH-1564).** Each moved
    skill gets one `SKILL_NAME_ALIASES` row, and
    `dev10x config migrate-skill-names` rewrites user configs. QA ships
    in `0.114.0`, so its rows and the register entry end at `0.116.0`.
    A later extraction pushes the register entry out again, so it
    always outlives the newest row.
+   - B2 (GH-1565) lands before `0.114.0` is released, so infra ships
+     in the same release as QA. Its two rows also end at `0.116.0`,
+     and the register entry does not move. An extraction that ships
+     in a later release gets its own removal version, two releases
+     after that release.
 
 ### Open decisions (record before the dependent step)
 

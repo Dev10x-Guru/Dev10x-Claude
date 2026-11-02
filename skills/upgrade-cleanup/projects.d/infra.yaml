@@ -1,0 +1,8 @@
+# Permission-catalog fragment for the infra plugin (ADR-0034 Stage B,
+# GH-1565). Merged into ../projects.yaml by
+# dev10x.core.skills.permission.catalog_paths; see the base file's
+# header for the catalog itself.
+
+base_permissions:
+  # --- dev10x-infra skills (GH-1565) ---
+  - "Skill(dev10x-infra:*)"
