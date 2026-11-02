@@ -378,6 +378,8 @@ lives outside its main checkout (a herdr root such as
 opt-in because each entry widens the Read/Edit scope of every session.
 `merge-worktree` re-anchors rules pinned inside any worktree, whatever
 its layout, to the main checkout.
+A registered root also stops read-only Bash commands (`rg`, `cat`) from
+prompting on sibling-worktree paths (GH-1710, Claude Code 2.1.316).
 
 ## Workflow
 
