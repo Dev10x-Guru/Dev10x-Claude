@@ -72,7 +72,8 @@ else
     emit servers false
 fi
 
-if matches "^src/dev10x/|^tests/|^pyproject\.toml\$|${self}"; then
+# GH-1781: skill scripts (render.sh, layout.mjs, ...) are tested here too.
+if matches "^src/dev10x/|^tests/|^skills/[^/]+/scripts/|^pyproject\.toml\$|${self}"; then
     emit floors true
 else
     emit floors false
