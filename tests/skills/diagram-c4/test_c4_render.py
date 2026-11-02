@@ -10,11 +10,11 @@ from __future__ import annotations
 
 import os
 import shutil
-import stat
 import subprocess
 from pathlib import Path
 
 import pytest
+from tests.skills.diagram_render import install_stub, run_script, stub_path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SCRIPT = REPO_ROOT / "skills" / "diagram-c4" / "scripts" / "render.sh"
@@ -37,25 +37,12 @@ SHOW_LEGEND()
 """
 
 
-def _install(*, bin_dir: Path, name: str, body: str) -> None:
-    path = bin_dir / name
-    path.write_text(body)
-    path.chmod(path.stat().st_mode | stat.S_IXUSR)
-
-
-@pytest.fixture
-def fake_dir(tmp_path: Path) -> Path:
-    fake = tmp_path / "fake"
-    fake.mkdir()
-    return fake
-
-
 @pytest.fixture
 def bin_dir(tmp_path: Path) -> Path:
     stubs = tmp_path / "bin"
     stubs.mkdir()
-    _install(bin_dir=stubs, name="java", body=STUB_JAVA)
-    _install(bin_dir=stubs, name="dot", body="#!/bin/sh\n")
+    install_stub(bin_dir=stubs, name="java", body=STUB_JAVA)
+    install_stub(bin_dir=stubs, name="dot", body="#!/bin/sh\n")
     return stubs
 
 
@@ -65,20 +52,18 @@ def _run(
     path: str,
     fake_dir: Path,
 ) -> subprocess.CompletedProcess[str]:
-    env = {key: value for key, value in os.environ.items() if key != "PLANTUML_JAR"}
-    env.update({"PATH": path, "FAKE_DIR": str(fake_dir)})
-    return subprocess.run(
-        ["bash", str(SCRIPT), *args],
-        capture_output=True,
-        text=True,
-        timeout=30,
-        env=env,
+    return run_script(
+        script=SCRIPT,
+        args=args,
+        path=path,
+        fake_dir=fake_dir,
+        strip_env={"PLANTUML_JAR"},
     )
 
 
-@pytest.fixture
-def stub_path(bin_dir: Path) -> str:
-    return f"{bin_dir}:/usr/bin:/bin"
+@pytest.fixture(name="stub_path")
+def stub_path_fixture(bin_dir: Path) -> str:
+    return stub_path(bin_dir=bin_dir)
 
 
 def _source(*, tmp_path: Path, body: str, name: str = "view.puml") -> Path:

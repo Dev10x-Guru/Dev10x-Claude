@@ -13,11 +13,11 @@ from __future__ import annotations
 
 import os
 import shutil
-import stat
 import subprocess
 from pathlib import Path
 
 import pytest
+from tests.skills.diagram_render import install_stub, run_script, stub_path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SCRIPTS = REPO_ROOT / "skills" / "diagram-bpmn" / "scripts"
@@ -65,27 +65,13 @@ SEMANTIC_BPMN = """<?xml version="1.0" encoding="UTF-8"?>
 """
 
 
-def _install(*, bin_dir: Path, name: str, body: str) -> Path:
-    path = bin_dir / name
-    path.write_text(body)
-    path.chmod(path.stat().st_mode | stat.S_IXUSR)
-    return path
-
-
-@pytest.fixture
-def fake_dir(tmp_path: Path) -> Path:
-    fake = tmp_path / "fake"
-    fake.mkdir()
-    return fake
-
-
 @pytest.fixture
 def bin_dir(tmp_path: Path) -> Path:
     stubs = tmp_path / "bin"
     stubs.mkdir()
-    _install(bin_dir=stubs, name="pnpm", body=STUB_PNPM)
-    _install(bin_dir=stubs, name="node", body=STUB_NODE)
-    _install(bin_dir=stubs, name="google-chrome-stable", body="#!/bin/sh\n")
+    install_stub(bin_dir=stubs, name="pnpm", body=STUB_PNPM)
+    install_stub(bin_dir=stubs, name="node", body=STUB_NODE)
+    install_stub(bin_dir=stubs, name="google-chrome-stable", body="#!/bin/sh\n")
     return stubs
 
 
@@ -110,21 +96,13 @@ def _run(
     path: str | None = None,
     extra_env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    env = {key: value for key, value in os.environ.items() if key != "PUPPETEER_EXECUTABLE_PATH"}
-    env.update(
-        {
-            "PATH": path or f"{bin_dir}:/usr/bin:/bin",
-            "FAKE_DIR": str(fake_dir),
-            "DEV10X_BPMN_DEPS": str(deps_dir),
-            **(extra_env or {}),
-        }
-    )
-    return subprocess.run(
-        ["bash", str(SCRIPT), *args],
-        capture_output=True,
-        text=True,
-        timeout=30,
-        env=env,
+    return run_script(
+        script=SCRIPT,
+        args=args,
+        path=path or stub_path(bin_dir=bin_dir),
+        fake_dir=fake_dir,
+        extra_env={"DEV10X_BPMN_DEPS": str(deps_dir), **(extra_env or {})},
+        strip_env={"PUPPETEER_EXECUTABLE_PATH"},
     )
 
 
@@ -430,7 +408,7 @@ class TestLayoutAndRender:
     ) -> None:
         minimal = tmp_path / "no-node-bin"
         minimal.mkdir()
-        _install(bin_dir=minimal, name="pnpm", body=STUB_PNPM)
+        install_stub(bin_dir=minimal, name="pnpm", body=STUB_PNPM)
         for tool in ("bash", "dirname"):
             (minimal / tool).symlink_to(shutil.which(tool))
 
@@ -457,8 +435,8 @@ class TestLayoutAndRender:
     ) -> None:
         minimal = tmp_path / "minimal-bin"
         minimal.mkdir()
-        _install(bin_dir=minimal, name="pnpm", body=STUB_PNPM)
-        _install(bin_dir=minimal, name="node", body=STUB_NODE)
+        install_stub(bin_dir=minimal, name="pnpm", body=STUB_PNPM)
+        install_stub(bin_dir=minimal, name="node", body=STUB_NODE)
         for tool in ("bash", "dirname", "cmp", "mkdir", "cp", "cat", "chmod", "rm"):
             (minimal / tool).symlink_to(shutil.which(tool))
 
