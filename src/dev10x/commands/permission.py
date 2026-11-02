@@ -133,6 +133,7 @@ def update_paths(
     restore: bool,
 ) -> None:
     """Update versioned plugin cache paths to the latest version."""
+    from dev10x.core.skills.permission import satellite_paths
     from dev10x.core.skills.permission import update_paths as mod
 
     if restore:
@@ -174,6 +175,9 @@ def update_paths(
     files_changed = 0
     total_collapsed = 0
     files_collapsed = 0
+    total_moved = 0
+    files_moved = 0
+    relocator = satellite_paths.default_relocator()
 
     for path in writable_files:
         count, messages = mod.update_file(
@@ -211,7 +215,27 @@ def update_paths(
             total_collapsed += collapsed_count
             files_collapsed += 1
 
-    if total_changes == 0 and total_collapsed == 0:
+        # GH-1793: a skill extracted into a satellite plugin left its
+        # scripts' rules pointing at core's directory.
+        moved_count, moved_messages = satellite_paths.relocate_file(
+            path,
+            relocator=relocator,
+            dry_run=dry_run,
+        )
+        header_shown = not summary and (count > 0 or collapsed_count > 0)
+        if moved_count > 0 and summary:
+            verb_file = "would move" if dry_run else "moved"
+            click.echo(f"{path}: {verb_file} {moved_count} rule(s) to a satellite plugin")
+        elif moved_messages and not quiet:
+            if not header_shown:
+                click.echo(f"\n{path}")
+            for msg in moved_messages:
+                click.echo(msg)
+        if moved_count > 0:
+            total_moved += moved_count
+            files_moved += 1
+
+    if total_changes == 0 and total_collapsed == 0 and total_moved == 0:
         click.echo("All files already up to date.")
     else:
         verb = "Would update" if dry_run else "Updated"
@@ -222,6 +246,12 @@ def update_paths(
             click.echo(
                 f"{verb_c} {total_collapsed} legacy script rule(s) "
                 f"in {files_collapsed} files (GH-269)."
+            )
+        if total_moved:
+            verb_m = "Would move" if dry_run else "Moved"
+            click.echo(
+                f"{verb_m} {total_moved} rule(s) to satellite plugin directories "
+                f"in {files_moved} files (GH-1793)."
             )
 
 

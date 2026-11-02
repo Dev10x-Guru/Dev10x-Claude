@@ -292,7 +292,10 @@ def collapse_legacy_upgrade_cleanup_rules(
     except (OSError, json.JSONDecodeError) as exc:
         return 0, [f"  SKIP (unreadable JSON): {exc}"]
 
-    allow_list: list[str] = data.get("permissions", {}).get("allow", [])
+    permissions = data.get("permissions", {}) if isinstance(data, dict) else None
+    if not isinstance(permissions, dict):
+        return 0, []
+    allow_list: list[str] = permissions.get("allow", [])
     if not allow_list:
         return 0, []
 
