@@ -9,11 +9,11 @@ from __future__ import annotations
 
 import os
 import shutil
-import stat
 import subprocess
 from pathlib import Path
 
 import pytest
+from tests.skills.diagram_render import install_stub, run_script, stub_path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SCRIPT = REPO_ROOT / "skills" / "diagram-sequence" / "scripts" / "render.sh"
@@ -48,27 +48,18 @@ VALID_SYNTAX = "SEQUENCE\n(3 participants)\n"
 INVALID_SYNTAX = "ERROR\n2\nSyntax Error? (Assumed diagram type: sequence)\n"
 
 
-def _install(*, bin_dir: Path, name: str, body: str) -> Path:
-    path = bin_dir / name
-    path.write_text(body)
-    path.chmod(path.stat().st_mode | stat.S_IXUSR)
-    return path
-
-
 @pytest.fixture
-def fake_dir(tmp_path: Path) -> Path:
-    fake = tmp_path / "fake"
-    fake.mkdir()
-    (fake / "syntax_report.txt").write_text(VALID_SYNTAX)
-    return fake
+def fake_dir(fake_dir: Path) -> Path:
+    (fake_dir / "syntax_report.txt").write_text(VALID_SYNTAX)
+    return fake_dir
 
 
 @pytest.fixture
 def bin_dir(tmp_path: Path) -> Path:
     stubs = tmp_path / "bin"
     stubs.mkdir()
-    _install(bin_dir=stubs, name="java", body=STUB_JAVA)
-    _install(bin_dir=stubs, name="pnpm", body=STUB_PNPM)
+    install_stub(bin_dir=stubs, name="java", body=STUB_JAVA)
+    install_stub(bin_dir=stubs, name="pnpm", body=STUB_PNPM)
     return stubs
 
 
@@ -88,25 +79,13 @@ def _run(
     script: Path = SCRIPT,
     extra_env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    env = {
-        key: value
-        for key, value in os.environ.items()
-        if key not in {"PLANTUML_JAR", "PUPPETEER_EXECUTABLE_PATH"}
-    }
-    env.update(
-        {
-            "PATH": f"{bin_dir}:/usr/bin:/bin",
-            "FAKE_DIR": str(fake_dir),
-            "HOME": str(home_dir),
-            **(extra_env or {}),
-        }
-    )
-    return subprocess.run(
-        ["bash", str(script), *args],
-        capture_output=True,
-        text=True,
-        timeout=30,
-        env=env,
+    return run_script(
+        script=script,
+        args=args,
+        path=stub_path(bin_dir=bin_dir),
+        fake_dir=fake_dir,
+        extra_env={"HOME": str(home_dir), **(extra_env or {})},
+        strip_env={"PLANTUML_JAR", "PUPPETEER_EXECUTABLE_PATH"},
     )
 
 
@@ -425,7 +404,7 @@ class TestMermaid:
         fake_dir: Path,
         home_dir: Path,
     ) -> None:
-        chrome = _install(bin_dir=bin_dir, name="google-chrome-stable", body="#!/bin/sh\n")
+        chrome = install_stub(bin_dir=bin_dir, name="google-chrome-stable", body="#!/bin/sh\n")
 
         _run(args=[str(mmd)], bin_dir=bin_dir, fake_dir=fake_dir, home_dir=home_dir)
 
@@ -438,7 +417,7 @@ class TestMermaid:
         fake_dir: Path,
         home_dir: Path,
     ) -> None:
-        _install(bin_dir=bin_dir, name="google-chrome-stable", body="#!/bin/sh\n")
+        install_stub(bin_dir=bin_dir, name="google-chrome-stable", body="#!/bin/sh\n")
 
         _run(
             args=[str(mmd)],
