@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from dev10x.ci_review.process import run_checked
+from dev10x.core.domain.common.repository_ref import RepositoryRef
 from dev10x.core.domain.common.result import ErrorResult, Result, err, ok
 
 log = logging.getLogger(__name__)
@@ -59,9 +60,12 @@ def cache_root() -> Path:
     return Path(base) / "dev10x" / "ci-review"
 
 
-def run_dir_for(*, repo: str, pr: int, workflow: str, now: datetime) -> Path:
+def run_dir_for(*, repo: str, pr: int, workflow: str, now: datetime) -> Result[Path]:
+    ref = RepositoryRef.try_parse(repo)
+    if ref is None:
+        return err(f"--repo {repo!r} is not an owner/name pair")
     stamp = now.strftime("%Y%m%dT%H%M%SZ")
-    return cache_root() / repo.replace("/", "-") / f"pr-{pr}" / f"{stamp}-{workflow}"
+    return ok(cache_root() / f"{ref.owner}-{ref.name}" / f"pr-{pr}" / f"{stamp}-{workflow}")
 
 
 def fetch_refs(*, repo_root: Path, base: str, pr: int) -> Result[Refs]:

@@ -182,7 +182,12 @@ def _milestone_prefix_registry() -> frozenset[str] | None:
     registry = Path(toplevel) / REGISTRY_RELPATH
     if not registry.is_file():
         return None
-    return parse_registered_prefixes(text=registry.read_text(encoding="utf-8"))
+    try:
+        text = registry.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        log.warning("milestone prefix registry %s is unreadable: %s", registry, exc)
+        return None
+    return parse_registered_prefixes(text=text)
 
 
 async def _resolve_repo(

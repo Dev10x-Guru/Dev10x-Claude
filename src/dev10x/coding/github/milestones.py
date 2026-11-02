@@ -6,6 +6,7 @@ test patches ``dev10x.github._gateway.<name>`` and intercepts every caller.
 
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import Any
 
@@ -52,7 +53,7 @@ async def _unregistered_prefix(
     repo: str | None,
     repo_ref: RepositoryRef,
 ) -> str | None:
-    registered = _gateway._milestone_prefix_registry()
+    registered = await asyncio.to_thread(_gateway._milestone_prefix_registry)
     if registered is None:
         return None
     if repo is not None:

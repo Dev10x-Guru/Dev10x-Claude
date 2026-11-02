@@ -112,11 +112,13 @@ def run_replay(*, options: ReplayOptions, now: datetime | None = None) -> Result
         workflow=options.workflow,
         now=now or datetime.now(tz=UTC),
     )
+    if isinstance(run_dir, ErrorResult):
+        return run_dir
     created = workspace.create_workspace(
-        repo_root=options.repo_root, run_dir=run_dir, refs=refs.value
+        repo_root=options.repo_root, run_dir=run_dir.value, refs=refs.value
     )
     if isinstance(created, ErrorResult):
-        return err(created.error, run_dir=str(run_dir), **created.details)
+        return err(created.error, run_dir=str(run_dir.value), **created.details)
     try:
         return _replay_in(
             options=options,

@@ -48,10 +48,18 @@ def test_run_dir_for(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         repo="own/name", pr=3, workflow="hygiene", now=datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)
     )
 
-    assert (
-        path
-        == tmp_path / "dev10x" / "ci-review" / "own-name" / "pr-3" / "20260102T030405Z-hygiene"
+    assert path == SuccessResult(
+        value=tmp_path / "dev10x" / "ci-review" / "own-name" / "pr-3" / "20260102T030405Z-hygiene"
     )
+
+
+@pytest.mark.parametrize("repo", ["..", ".", "name", "a/b/c", "/name"])
+def test_run_dir_for_refuses_a_repo_that_is_not_owner_name(repo: str) -> None:
+    result = run_dir_for(
+        repo=repo, pr=3, workflow="hygiene", now=datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)
+    )
+
+    assert isinstance(result, ErrorResult)
 
 
 class TestRefs:

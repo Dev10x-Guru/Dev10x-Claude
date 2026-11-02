@@ -37,8 +37,8 @@ Files matching: `.claude/rules/**/*.md`, `.claude/agents/**/*.md`,
    - Verify the author has provided explicit justification in PR comments or CLAUDE.md
    - Confirm a split plan exists (or is conditional per Budget Overrides section in .claude/rules/INDEX.md)
    - If absent, request justification before approval
-3. **Table consistency** — verify INDEX.md Rules/Agents tables
-   and CLAUDE.md Code Review table match actual files on disk
+3. **Table consistency** — INDEX.md tables, `references/agent-catalog.md`
+   and the CLAUDE.md Code Review table match the files on disk
 4. **Pruning hygiene** — new entries should contain trade-off
    reasoning, not PR# attribution. Provenance belongs in git
 5. **Cross-references** — file path references in rules and

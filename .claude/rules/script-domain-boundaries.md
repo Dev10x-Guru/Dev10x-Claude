@@ -2,6 +2,8 @@
 paths:
   - "skills/**/scripts/**"
   - "src/dev10x/**/skills/**"
+  - "src/dev10x/**/domain/**"
+  - "src/dev10x/**/mcp/**"
 ---
 
 # Script vs Domain Boundaries (GH-246 H3/H7)

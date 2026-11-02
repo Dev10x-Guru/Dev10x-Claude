@@ -14,8 +14,9 @@ import re
 REGISTRY_RELPATH = "references/milestone-naming.md"
 
 _REGISTRY_HEADING = "## Registered Initiative Prefixes"
-_REGISTRY_ROW = re.compile(r"^\| `(?P<prefix>[A-Z]+)` \|", re.MULTILINE)
-_TITLE_PREFIX = re.compile(r"^(?P<prefix>[A-Z]{2,6})(?:-M\d+)?: \S")
+_PREFIX = r"(?P<prefix>[A-Z]{2,6})"
+_REGISTRY_ROW = re.compile(rf"^\| `{_PREFIX}` \|", re.MULTILINE)
+_TITLE_PREFIX = re.compile(rf"^{_PREFIX}(?:-M\d+)?: \S")
 
 
 def parse_registered_prefixes(text: str) -> frozenset[str]:
@@ -33,7 +34,8 @@ def unregistered_prefix_error(*, title: str, registered: frozenset[str]) -> str 
     prefix = title_prefix(title=title)
     if prefix is None:
         return (
-            f"Milestone title {title!r} does not start with an initiative prefix. "
+            f"Milestone title {title!r} does not start with an initiative prefix "
+            "of 2-6 uppercase letters. "
             f"Use `<INIT>: <outcome>` with a prefix registered in {REGISTRY_RELPATH} "
             "§ Registered Initiative Prefixes (GH-1690)."
         )
