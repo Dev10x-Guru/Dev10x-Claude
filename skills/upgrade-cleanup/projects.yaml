@@ -21,12 +21,19 @@ include_user_settings: true
 # root (GH-40). These are added under permissions.additionalDirectories
 # in every settings file.
 #
-# GH-1260: the gate governs the Read/Write/Edit TOOLS ONLY. It does not
-# gate Bash, and the two rule namespaces are independent — a `Read()`
-# rule, allow or deny, has no bearing on a Bash command reading the same
-# path. Adding a workspace directory therefore does NOT relieve Bash
-# friction, and no `Read()` deny protects a path that `cat`/`rg`/`wc`
-# can reach. Do not reach for either as a path-scoping remedy; a path is
+# GH-1710 (re-tested on Claude Code 2.1.316): the working-directory
+# gate ALSO checks the path operands of read-only Bash commands. With
+# `Bash(rg:*)` allowed, `rg` on a path outside every working directory
+# still prompted, offering to allow reading that directory. A Bash allow
+# rule never lifts that check, so registering a workspace directory here
+# DOES relieve that Bash friction (what `derive_worktree_roots` buys).
+#
+# GH-1260 still holds for the rule namespaces: they are independent — a
+# `Read()` rule, allow or deny, has no bearing on a Bash command reading
+# the same path, and no `Read()` deny protects a path that
+# `cat`/`rg`/`wc` can reach. A workspace directory only removes a
+# prompt; it protects nothing. Do not reach for either as a
+# path-scoping remedy; a path is
 # scopable only by an effect-based PreToolUse validator (the DX0xx
 # axis), filesystem permissions, or not storing the secret in a readable
 # file. Every `Read()` entry below is an ALLOW; the shipped catalog
