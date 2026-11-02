@@ -1061,6 +1061,7 @@ def sync_worktrees(*, dry_run: bool) -> None:
     if not families:
         click.echo("No main checkout with seeded worktrees found under the configured roots.")
         return
+    declined = _require_declined()
     if dry_run:
         click.echo("(dry run — no files will be modified)\n")
 
@@ -1070,6 +1071,7 @@ def sync_worktrees(*, dry_run: bool) -> None:
             main_project=main_project,
             worktree_dirs=worktree_dirs,
             dry_run=dry_run,
+            declined=declined,
         )
         if messages:
             click.echo(f"\n{main_project} -> {len(worktree_dirs)} worktree(s)")
@@ -1081,17 +1083,61 @@ def sync_worktrees(*, dry_run: bool) -> None:
     click.echo(f"\n{verb} {total} rule(s) across {len(families)} repo(s).")
 
 
+def _decline(*, rules: list[str]) -> None:
+    """Persist ``rules`` as declined, or exit — the CLI layer owns exit codes."""
+    from dev10x.core.skills.permission.declined_catalog import decline_rules
+
+    result = decline_rules(rules=rules)
+    if isinstance(result, ErrorResult):
+        click.echo(f"ERROR: {result.error}", err=True)
+        sys.exit(1)
+    for rule in result.value["added"]:
+        click.echo(f"Declined: {rule} (recorded in {result.value['path']})")
+
+
+def _require_declined() -> frozenset[str]:
+    """The supervisor's declined rules, or exit before anything spreads (GH-1790)."""
+    from dev10x.core.skills.permission.declined_catalog import read_declined_rules
+
+    result = read_declined_rules()
+    if isinstance(result, ErrorResult):
+        click.echo(f"ERROR: {result.error}", err=True)
+        sys.exit(1)
+    return result.value
+
+
 @permission.command(name="merge-worktree")
 @click.option("--dry-run", is_flag=True, help="Show changes without modifying files")
 @click.option("--restore", is_flag=True, help="Restore settings from most recent backups")
-def merge_worktree(*, dry_run: bool, restore: bool) -> None:
-    """Merge worktree permissions back into main project settings."""
+@click.option(
+    "--exclude",
+    "excluded",
+    multiple=True,
+    metavar="RULE",
+    help=(
+        "Never copy RULE between checkouts again (repeatable). Recorded in "
+        "declined-permissions.yaml, so a rule removed by hand stays removed."
+    ),
+)
+def merge_worktree(*, dry_run: bool, restore: bool, excluded: tuple[str, ...]) -> None:
+    """Merge worktree permissions back into main project settings.
+
+    Blanket rules (a whole interpreter, shell, egress tool or settings
+    write), rules a plugin hook denies, and declined rules are held back
+    and listed instead of merged (GH-1790).
+    """
     from dev10x.core.skills.permission import merge_worktree_permissions as mod
 
     config_path = _require_config(mod)
 
     if restore:
         sys.exit(mod._restore(config_path=config_path))
+
+    if excluded and dry_run:
+        for rule in excluded:
+            click.echo(f"Would decline: {rule} (not recorded under --dry-run)")
+    elif excluded:
+        _decline(rules=list(excluded))
 
     click.echo(f"Config: {config_path}")
     config = mod.load_config(config_path)
@@ -1119,18 +1165,20 @@ def merge_worktree(*, dry_run: bool, restore: bool) -> None:
     total_merged = 0
     projects_changed = 0
 
+    declined = _require_declined() | frozenset(excluded)
     for main_project, worktree_dirs in sorted(groups.items()):
         count, messages = mod.merge_permissions(
             main_project=main_project,
             worktree_dirs=worktree_dirs,
             dry_run=dry_run,
+            declined=declined,
         )
-        if count > 0:
+        if messages:
             click.echo(f"\n{main_project}")
             for msg in messages:
                 click.echo(msg)
             total_merged += count
-            projects_changed += 1
+            projects_changed += 1 if count else 0
         else:
             click.echo(f"\n{main_project} — up to date ({len(worktree_dirs)} worktrees)")
 

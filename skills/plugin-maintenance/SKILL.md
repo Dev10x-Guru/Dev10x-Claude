@@ -803,6 +803,12 @@ uvx dev10x permission merge-worktree
 
 Session-specific noise is filtered out automatically; only
 stable, reusable permissions are merged.
+Blanket rules (a whole shell, interpreter or egress tool, a write over
+`~/.claude`), rules a plugin hook denies, and declined rules are listed
+under "held back" and never merged (GH-1790).
+To keep a rule out for good, pass `--exclude '<rule>'`; it is recorded
+in `~/.config/Dev10x/declined-permissions.yaml`, so removing it from
+the main checkout by hand no longer gets undone by the next run.
 
 3. Keep Dev10x's own session state out of `git status` (GH-1275):
 

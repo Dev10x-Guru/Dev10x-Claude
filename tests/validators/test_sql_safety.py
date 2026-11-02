@@ -310,6 +310,52 @@ class TestDirectPsql:
         assert "Direct psql calls" in result.message
 
 
+class TestPsqlAsSearchOperand:
+    """A `psql` search pattern is not a psql call (GH-1790)."""
+
+    @pytest.fixture()
+    def validator(self) -> SqlSafetyValidator:
+        return SqlSafetyValidator()
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "rg -n -i 'psql' projects.yaml baseline-permissions.yaml",
+            "grep -rn psql src/",
+            "echo psql",
+            "timeout 5 rg psql docs/",
+            "rg -n psql src | head -5",
+        ],
+    )
+    def test_search_pattern_is_not_blocked(
+        self, validator: SqlSafetyValidator, command: str
+    ) -> None:
+        assert validator.validate(inp=_make_input(command=command)) is None
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "rg psql src && psql -d mydb",
+            "rg psql src; psql -d mydb",
+            "rg psql src | psql -d mydb",
+            "rg --pre psql pattern src",
+            "grep psql x & psql -d mydb",
+            "sudo -u postgres psql",
+            "cat <( psql -d mydb -c 'DELETE FROM t' )",
+            "grep x <( psql -d mydb )",
+            "echo x > >( psql -d mydb )",
+            "ag --pager psql pattern src",
+        ],
+    )
+    def test_psql_in_command_position_is_still_blocked(
+        self, validator: SqlSafetyValidator, command: str
+    ) -> None:
+        result = validator.validate(inp=_make_input(command=command))
+
+        assert result is not None
+        assert "Direct psql calls" in result.message
+
+
 class TestWrappedPsqlExemption:
     """psql wrapped by docker exec / op run is exempt (GH-474 #4)."""
 

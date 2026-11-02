@@ -211,6 +211,17 @@ class Dev10xConfigDir:
         return cls._resolve("granted-permissions.yaml")
 
     @classmethod
+    def declined_permissions_yaml(cls) -> Path:
+        """Rules the supervisor excluded from worktree permission spread (GH-1790).
+
+        The counterpart to ``granted-permissions.yaml``: a rule removed from
+        a main checkout came straight back on the next ``merge-worktree``
+        run, because every worktree still held it. Written only by
+        ``decline_rules``. No legacy path.
+        """
+        return cls._resolve("declined-permissions.yaml")
+
+    @classmethod
     def accepted_findings_yaml(cls) -> Path:
         """User-owned accepted-by-design auditor findings (GH-1053).
 
