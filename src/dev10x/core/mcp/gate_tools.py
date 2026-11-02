@@ -13,6 +13,7 @@ also appended to the audit log and the configured ``doubt_sink`` (#754).
 from __future__ import annotations
 
 import asyncio
+import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -29,6 +30,11 @@ from dev10x.core.mcp.gate_query import (
 from dev10x.domain.common.result import ErrorResult, Result, err, ok
 from dev10x.domain.documents.friction_yaml import PinScope
 from dev10x.domain.file_locks import atomic_append_line
+from dev10x.domain.gate_policy import MIGRATOR_COMMAND
+
+log = logging.getLogger(__name__)
+
+_RETIRED_REVIEW_KEY = "human_review"
 
 if TYPE_CHECKING:  # pragma: no cover
     from dev10x.domain.gate_policy import GateResolution
@@ -193,13 +199,23 @@ def _read_supervisor_review() -> Result[dict[str, Any]]:
     # answer — same contract as `preset_pin_status` / `tracker_status`.
     matched = FrictionYamlDocument(toplevel=policy_toplevel).matched() or {}
     pinned = "supervisor_review" in matched
-    return ok(
-        {
-            "supervisor_review": supervisor_review,
-            "pinned": pinned,
-            "repo_root": toplevel,
-        }
-    )
+    payload: dict[str, Any] = {
+        "supervisor_review": supervisor_review,
+        "pinned": pinned,
+        "repo_root": toplevel,
+    }
+    # GH-1785: an entry still carrying only the retired key resolves to the
+    # safe default with nothing naming why — an unattended run then parks at
+    # the merge gate with no clue. Say which key was ignored and the fix.
+    if not pinned and _RETIRED_REVIEW_KEY in matched:
+        payload["retired_key"] = _RETIRED_REVIEW_KEY
+        payload["warning"] = (
+            f"friction.yaml names the retired `{_RETIRED_REVIEW_KEY}` key, which is no "
+            f"longer read, so supervisor_review fell back to `{supervisor_review}`; "
+            f"run `{MIGRATOR_COMMAND}` to convert it"
+        )
+        log.warning("%s", payload["warning"])
+    return ok(payload)
 
 
 @mcp_tool
@@ -229,6 +245,9 @@ async def supervisor_review_status(cwd: str | None = None) -> Result[dict]:
         `supervisor_review`; consult this BEFORE
         offering to remember an onboarding pick, same "first pick"
         contract as `preset_pin_status` / `tracker_status`), repo_root.
+        When the matched entry carries only the retired `human_review`
+        key, also `retired_key: "human_review"` and a `warning` naming
+        `dev10x config migrate-schema` (GH-1785).
         `{"error": ...}` outside a git repo.
     """
     return await asyncio.to_thread(_read_supervisor_review)

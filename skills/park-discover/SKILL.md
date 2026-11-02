@@ -81,6 +81,11 @@ If the response has `exists: false` and no `tasks`, note "No task
 index — no local deferrals indexed" and skip to the external-sources
 step. Do NOT fall back to reading a file path by hand.
 The retired `.claude/Dev10x/session.yaml` is no longer read: its fallback was removed in 0.112.0 (GH-1771).
+When the response carries `legacy_ignored`, that retired file still
+exists and may hold items parked before the move. Report it first,
+naming the path: "A retired task index at <path> is not read — its
+parked items are not in this report; re-park any that still matter
+with `task_index_append`" (GH-1785). Never read or delete it yourself.
 
 Extract three sections from the response:
 

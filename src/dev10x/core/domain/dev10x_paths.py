@@ -384,11 +384,6 @@ _legacy_github_app_yaml = ClaudeDir.github_app_yaml
 _legacy_gitmoji_yaml = ClaudeDir.gitmoji_yaml
 _legacy_github_reviewers_config_yaml = ClaudeDir.github_reviewers_config_yaml
 _legacy_settings_pr_merge_yaml = ClaudeDir.settings_pr_merge_yaml
-_legacy_dod_acceptance_criteria_yaml = ClaudeDir.dod_acceptance_criteria_yaml
-
-
-def _legacy_plugin_maintenance_prefs_yaml() -> Path:
-    return ClaudeDir.memory_dev10x_dir() / "plugin-maintenance-prefs.yaml"
 
 
 def _legacy_playbooks_dir() -> Path:
@@ -396,11 +391,33 @@ def _legacy_playbooks_dir() -> Path:
 
 
 def _migration_pairs() -> list[tuple[Path, Path]]:
-    """Build (legacy, current) pairs without triggering lazy migration."""
+    """Build (legacy, current) pairs without triggering lazy migration.
+
+    A config file that keeps its name moving from ``memory/Dev10x/`` to
+    the config dir needs no entry: the sweep finds it (GH-1785). The
+    hand-kept list missed `dod-acceptance-criteria.yaml` and
+    `plugin-maintenance-prefs.yaml` until each was noticed, so only real
+    renames and relocations from elsewhere are listed by hand.
+    """
+    relocated = _relocated_pairs()
+    listed = {legacy for legacy, _ in relocated}
+    return relocated + [pair for pair in _same_name_pairs() if pair[0] not in listed]
+
+
+def _same_name_pairs() -> list[tuple[Path, Path]]:
+    legacy_dir = ClaudeDir.memory_dev10x_dir()
+    if not legacy_dir.is_dir():
+        return []
+    return [
+        (legacy, Dev10xConfigDir._resolve(legacy.name))
+        for legacy in sorted(legacy_dir.iterdir())
+        if legacy.is_file() and legacy.suffix in {".yaml", ".yml"}
+    ]
+
+
+def _relocated_pairs() -> list[tuple[Path, Path]]:
     return [
         (_legacy_version_yaml(), Dev10xConfigDir._resolve("version.yml")),
-        (_legacy_projects_yaml(), Dev10xConfigDir._resolve("projects.yaml")),
-        (_legacy_platforms_yaml(), Dev10xConfigDir._resolve("platforms.yaml")),
         (_legacy_slack_config_yaml(), Dev10xConfigDir._resolve("slack-config.yaml")),
         (
             _legacy_slack_review_config_yaml(),
@@ -416,23 +433,6 @@ def _migration_pairs() -> list[tuple[Path, Path]]:
             Dev10xConfigDir._resolve("github-bot", "github-app.yaml"),
         ),
         (_legacy_playbooks_dir(), Dev10xConfigDir._resolve("playbooks")),
-        (_legacy_gitmoji_yaml(), Dev10xConfigDir._resolve("gitmoji.yaml")),
-        (
-            _legacy_github_reviewers_config_yaml(),
-            Dev10xConfigDir._resolve("github-reviewers-config.yaml"),
-        ),
-        (
-            _legacy_settings_pr_merge_yaml(),
-            Dev10xConfigDir._resolve("settings-pr-merge.yaml"),
-        ),
-        (
-            _legacy_plugin_maintenance_prefs_yaml(),
-            Dev10xConfigDir._resolve("plugin-maintenance-prefs.yaml"),
-        ),
-        (
-            _legacy_dod_acceptance_criteria_yaml(),
-            Dev10xConfigDir._resolve("dod-acceptance-criteria.yaml"),
-        ),
     ]
 
 

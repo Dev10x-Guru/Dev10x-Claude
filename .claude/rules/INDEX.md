@@ -93,6 +93,7 @@ Always apply `references/review-checks-common.md`.
 | `model-tiers.md` | Model assignments, tier framework, per-project overrides | `model-selection.md` rule, playbook system | Referenced, not auto-loaded |
 | `skill-pipelines.md` | Skill composition pipelines, standalone invocation | `dev10x:work-on` skill, pipeline documentation | Referenced, not auto-loaded |
 | `config-resolution.md` | 3-tier config paths, project mapping format | All playbook/settings skills | Referenced, not auto-loaded |
+| `config-files.md` | Per-file tiers, paths and formats of every Dev10x config file (GH-1785) | All playbook/settings skills | Referenced, not auto-loaded |
 | `testing-patterns.md` | Pytest fixture composition, async handlers, parametrized tests | Code reviews, test authoring | Referenced, not auto-loaded |
 | `pr-backlog-deferral.md` | Deferring non-blocking review findings to a backlog | `dev10x:gh-pr-review` skill, code review CI | Referenced, not auto-loaded |
 | `milestone-naming.md` | Milestone naming convention, initiative prefixes, `Depends on:` ordering (no sequence numbers) | `dev10x:project-scope`, `dev10x:work-on` milestone steps | Referenced, not auto-loaded |

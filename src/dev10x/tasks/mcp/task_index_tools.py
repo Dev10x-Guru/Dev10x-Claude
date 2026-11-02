@@ -29,6 +29,10 @@ async def task_index_get(cwd: str | None = None) -> Result[dict]:
     Returns:
         Dictionary with keys: path, repo_name, exists, tasks,
         continuation_prompt, insights, branch, tickets, wrapped_at.
+        When the store is absent but a retired
+        `.claude/Dev10x/session.yaml` exists, also `legacy_ignored`
+        (its path) — that file is not read, so its parked items need
+        moving (GH-1785).
         `{"error": "Not in a git repository"}` outside a repo.
     """
     from dev10x.tasks.session import task_index
