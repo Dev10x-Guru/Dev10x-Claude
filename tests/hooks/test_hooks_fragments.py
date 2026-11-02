@@ -47,12 +47,6 @@ def pre_split_entries() -> set[HookEntry]:
         ),
         ("Stop", "*", _wrapped(name="session-stop", script="session-stop.py"), 10),
         (
-            "PreCompact",
-            "manual|auto",
-            _wrapped(name="precompact-context", script="precompact-context.py"),
-            5,
-        ),
-        (
             "PermissionDenied",
             "*",
             _wrapped(name="permission-denied", script="permission-denied.py"),

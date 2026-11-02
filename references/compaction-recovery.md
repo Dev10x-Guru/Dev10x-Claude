@@ -1,6 +1,7 @@
 # Compaction Recovery Context
 
-Injected by the PreCompact hook when a persisted plan exists.
+Injected by the SessionStart hook after a compaction (`source: compact`)
+when a persisted plan exists.
 This file provides the skill routing table and recovery
 instructions that survive context compaction.
 

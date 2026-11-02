@@ -67,8 +67,9 @@ offer a `strict` / `guided` / `adaptive` picker.
 
 **Never write `friction.yaml` from this skill** — not with the Write
 tool, not under the repo's `.claude/` tree (ADR-0018). The pin tools
-lock and atomically write (GH-827); the PreCompact hook reads the
-resolved policy to inject posture context into recovery summaries.
+lock and atomically write (GH-827); the post-compaction SessionStart
+hook reads the resolved policy to inject posture context into
+recovery summaries.
 
 Posture is settled once per swarm. Nested `dev10x:work-on`
 delegations skip their own Phase 0 and inherit it.

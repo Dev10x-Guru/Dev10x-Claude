@@ -148,6 +148,70 @@ class TestSessionStartOrchestrator:
             assert obj["hookSpecificOutput"]["hookEventName"] == "SessionStart"
 
 
+class TestCompactionRecovery:
+    """GH-1788: recovery context rides SessionStart(compact), not PreCompact."""
+
+    RECOVERY_HEADER = "Post-Compaction Context Recovery"
+
+    def test_compact_source_injects_recovery_context(self) -> None:
+        result = _run(SESSION_START, {"session_id": "compact-test", "source": "compact"})
+
+        assert result.returncode == 0
+        context = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+        assert self.RECOVERY_HEADER in context
+
+    @pytest.mark.parametrize("source", ["startup", "resume", "clear"])
+    def test_other_sources_skip_recovery_context(self, source: str) -> None:
+        result = _run(SESSION_START, {"session_id": "compact-test", "source": source})
+
+        assert result.returncode == 0
+        assert self.RECOVERY_HEADER not in result.stdout
+
+    def test_builder_is_empty_without_payload(self) -> None:
+        from dev10x.hooks import session_dispatch
+
+        assert session_dispatch.build_compaction_context() == ""
+
+    def test_cli_entry_emits_a_session_start_envelope(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        from dev10x.hooks import session_dispatch
+
+        monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps({"source": "compact"})))
+        monkeypatch.setattr(
+            session_dispatch.SessionService,
+            "build_compaction_context",
+            lambda self, toplevel: "recovered",
+        )
+
+        session_dispatch.context_compact()
+
+        assert json.loads(capsys.readouterr().out) == {
+            "hookSpecificOutput": {
+                "hookEventName": "SessionStart",
+                "additionalContext": "recovered",
+            }
+        }
+
+    @pytest.mark.parametrize("payload", ["not json", "[]", "null", ""])
+    def test_cli_entry_is_silent_on_unusable_stdin(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+        payload: str,
+    ) -> None:
+        from dev10x.hooks import session_dispatch
+
+        monkeypatch.setattr(sys, "stdin", io.StringIO(payload))
+
+        with pytest.raises(SystemExit) as exc_info:
+            session_dispatch.context_compact()
+
+        assert (exc_info.value.code, capsys.readouterr().out) == (0, "")
+
+
 class TestSessionStopOrchestrator:
     def test_exits_cleanly_with_empty_payload(self) -> None:
         result = _run(SESSION_STOP, {})

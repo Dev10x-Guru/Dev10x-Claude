@@ -1,7 +1,7 @@
 """SessionContextQuery — single source of truth for session-context assembly.
 
 Query archetype: gathers the data both ``session_reload`` (SessionStart
-additionalContext) and ``context_compact`` (PreCompact systemMessage)
+additionalContext) and ``build_compaction_context`` (SessionStart after a compaction)
 need into one dataclass. Eliminates the duplicated multi-context
 assembly previously inlined in ``build_reload_context`` and
 ``context_compact`` (audit memo Finding I3).
@@ -72,7 +72,7 @@ class SessionContextQuery:
 
     @classmethod
     def gather_compaction(cls, *, toplevel: str) -> SessionContextQuery:
-        """Gather context for PreCompact — reads git state, plan, friction."""
+        """Gather post-compaction context — reads git state, plan, friction."""
         git = GitContext(cwd=toplevel)
         branch = git.branch
 
@@ -136,7 +136,7 @@ def format_reload_context(*, ctx: SessionContextQuery) -> str:
 
 
 def format_compaction_summary(*, ctx: SessionContextQuery, plugin_root: Path) -> str:
-    """Render a SessionContextQuery as the PreCompact systemMessage body."""
+    """Render a SessionContextQuery as the post-compaction recovery context."""
 
     essentials_file = plugin_root / ".claude" / "rules" / "essentials.md"
     essentials = essentials_file.read_text() if essentials_file.exists() else ""

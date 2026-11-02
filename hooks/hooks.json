@@ -67,18 +67,6 @@
         ]
       }
     ],
-    "PreCompact": [
-      {
-        "matcher": "manual|auto",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$CLAUDE_PLUGIN_ROOT/hooks/scripts/audit-wrap precompact-context $CLAUDE_PLUGIN_ROOT/hooks/scripts/precompact-context.py",
-            "timeout": 5
-          }
-        ]
-      }
-    ],
     "PermissionDenied": [
       {
         "matcher": "*",

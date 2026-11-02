@@ -256,7 +256,7 @@ def session_reload_cmd() -> None:
 
 @session.command(name="compact")
 def session_compact_cmd() -> None:
-    """Inject context summary before compaction (PreCompact hook)."""
+    """Restore context after compaction (SessionStart hook, source: compact)."""
     from dev10x.hooks.session import context_compact
 
     context_compact()

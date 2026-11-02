@@ -99,11 +99,14 @@ both. Supported lifecycle events:
 
 | Event | When it fires |
 |-------|--------------|
-| `SessionStart` | Session begins |
+| `SessionStart` | Session begins, and again after a compaction (`source: compact`) |
 | `PreToolUse` | Before a tool executes |
 | `PostToolUse` | After a tool executes |
-| `PreCompact` | Before context compaction |
 | `Stop` | Session ends |
+
+Post-compaction recovery context rides `SessionStart` with
+`source: compact`. A `PreCompact` hook cannot carry it: Claude Code
+discards a PreCompact `systemMessage` (GH-1788).
 
 See `.claude/rules/hook-input-patterns.md` for safe input
 parsing patterns.
