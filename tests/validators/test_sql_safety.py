@@ -101,6 +101,19 @@ class TestPostgresWriteBinaries:
             "dropdb app # it's gone",
             "FOO=1 createdb 'unterminated",
             "sudo -u postgres dropdb app",
+            "sudo -u postgres; dropdb app",
+            "echo '>' & dropdb app",
+            "echo 'a'& dropdb app",
+            "kubectl exec mypod -n prod -- dropdb app",
+            "ssh db01 -t dropdb app",
+            "docker run --rm postgres:16 dropdb -h h app",
+            "docker compose exec db dropdb app",
+            "docker --context prod exec c dropdb app",
+            "su postgres -c'dropdb app'",
+            "su -lc 'dropdb app' postgres",
+            "s''sh h 'dropdb app'",
+            "sudo -u postgres dropdb app # don't",
+            "find . -exec echo {} \\; -exec dropdb app {} \\;",
             "doas -u postgres createdb app",
             "su postgres -c 'dropdb app'",
             "echo app | xargs dropdb",
@@ -221,10 +234,46 @@ class TestBigQueryReadOnly:
         assert result is not None
         assert "stdin" in result.message
 
-    def test_unparseable_bq_command_is_left_to_other_validators(
-        self, validator: SqlSafetyValidator
+    @pytest.mark.parametrize(
+        "command",
+        ["bq query 'SELECT 1", "x;bq query --replace 'SELECT 1", "sudo bq query 'SELECT"],
+    )
+    def test_unparseable_bq_query_fails_closed(
+        self, validator: SqlSafetyValidator, command: str
     ) -> None:
-        assert validator.validate(inp=_make_input(command="bq query 'SELECT 1")) is None
+        """GH-1773: skipping an untokenizable unit was the evasion."""
+        result = validator.validate(inp=_make_input(command=command))
+
+        assert result is not None
+        assert "could not be tokenized" in result.message
+
+    def test_unparseable_non_query_bq_is_left_alone(self, validator: SqlSafetyValidator) -> None:
+        assert validator.validate(inp=_make_input(command="bq ls 'ds")) is None
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "x;bq query --destination_table=t 'SELECT 1'",
+            "true & bq query --replace 'SELECT 1'",
+            "true\nbq query --replace 'SELECT 1'",
+            "(bq query --replace 'SELECT 1')",
+            "echo $(bq query --replace 'SELECT 1')",
+            "sudo -u svc bq query --replace 'SELECT 1'",
+            "ssh host bq query --replace \"'SELECT 1'\"",
+            "b''q query --destination_table=t 'SELECT 1'",
+            "b\\q query --replace 'SELECT 1'",
+        ],
+    )
+    def test_blocks_chained_and_runner_wrapped_writes(
+        self, validator: SqlSafetyValidator, command: str
+    ) -> None:
+        """GH-1773/GH-1774: every operator and runner reaches the bq check."""
+        assert validator.validate(inp=_make_input(command=command)) is not None
+
+    def test_allows_a_chained_read(self, validator: SqlSafetyValidator) -> None:
+        command = "cd /tmp;bq query 'SELECT 1' 2>&1 | head"
+
+        assert validator.validate(inp=_make_input(command=command)) is None
 
     def test_should_not_run_for_a_word_containing_bq(self, validator: SqlSafetyValidator) -> None:
         assert validator.should_run(inp=_make_input(command="ls abq-files")) is False

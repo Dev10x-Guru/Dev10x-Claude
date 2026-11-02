@@ -29,6 +29,12 @@ def validator() -> McpPrefixValidator:
         "timeout 30 mcp__plugin_dev10x_cli__pr_get pr_number=1",
         "env -i mcp__plugin_dev10x_cli__issue_get number=1",
         "lower=case mcp__plugin_dev10x_cli__mktmp",
+        "sudo mcp__plugin_dev10x_cli__mktmp",
+        "sudo -u app mcp__plugin_dev10x_cli__pr_get pr_number=1",
+        "xargs mcp__plugin_dev10x_cli__issue_get",
+        "true; mcp__plugin_dev10x_cli__mktmp",
+        "cd x && mcp__plugin_dev10x_cli__pr_get pr_number=1",
+        "echo hi\nmcp__plugin_dev10x_cli__mktmp",
     ],
 )
 def test_blocks_mcp_tool_as_command(validator: McpPrefixValidator, command: str) -> None:

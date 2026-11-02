@@ -868,3 +868,85 @@ class TestReadOnlyUtilityWithShellScriptArgument:
         result = validator.validate(inp=inp)
         assert result is not None
         assert result.message == SHELL_INTERP_MSG
+
+
+class TestEveryOperatorAndRunner:
+    """GH-1773/GH-1774: chaining or a runner must not hide the command."""
+
+    @pytest.fixture()
+    def validator(self) -> ExecutionSafetyValidator:
+        return ExecutionSafetyValidator()
+
+    @pytest.mark.parametrize(
+        ("command", "message"),
+        [
+            ("true;python -c 'x'", PYTHON3_INLINE_MSG),
+            ("true & python -c 'x'", PYTHON3_INLINE_MSG),
+            ("true\npython -c 'x'", PYTHON3_INLINE_MSG),
+            ("(python -c 'x')", PYTHON3_INLINE_MSG),
+            ("true # note\npython -c 'x'", PYTHON3_INLINE_MSG),
+            ("sudo python -c 'x'", PYTHON3_INLINE_MSG),
+            ("sudo -iu app python -c 'x'", PYTHON3_INLINE_MSG),
+            ("echo f | xargs python -c 'x'", PYTHON3_INLINE_MSG),
+            ("ssh host 'python -c x'", PYTHON3_INLINE_MSG),
+            ("su app -c 'bash -c x'", SHELL_INTERP_MSG),
+            ("docker exec c sh -c 'x'", SHELL_INTERP_MSG),
+            ("kubectl exec p -- bash -c x", SHELL_INTERP_MSG),
+            ("true;sed -i s/a/b/ f", INPLACE_EDIT_MSG),
+            ("find . -name '*.py' -exec sed -i s/a/b/ {} \\;", INPLACE_EDIT_MSG),
+            ("echo $(true; perl -pi -e s/a/b/ f)", INPLACE_EDIT_MSG),
+            ("true;dd if=/dev/zero of=f", INPLACE_EDIT_MSG),
+            ("true;echo x > f", SHELL_WRITE_MSG),
+            ("true&&echo x > f", SHELL_WRITE_MSG),
+            ("sudo echo x > f", SHELL_WRITE_MSG),
+            ("true;echo x &>f", SHELL_WRITE_MSG),
+            ("true;echo 'x > f", SHELL_WRITE_MSG),
+            ("echo ';' > f", SHELL_WRITE_MSG),
+            ("sed -e ';' -i f", INPLACE_EDIT_MSG),
+            ("sed -i s/a/b/ f # don't", INPLACE_EDIT_MSG),
+            ("find . \\( -name a -o -name b \\) -exec python3 -c x {} \\;", PYTHON3_INLINE_MSG),
+            ("find . -exec echo {} \\; -exec sed -i s/a/b/ {} \\;", INPLACE_EDIT_MSG),
+            ("docker run --rm img python -c x", PYTHON3_INLINE_MSG),
+            ("kubectl exec mypod -n prod -- python -c x", PYTHON3_INLINE_MSG),
+            ("ssh db01 -t python -c x", PYTHON3_INLINE_MSG),
+            ("s''sh h 'python -c x'", PYTHON3_INLINE_MSG),
+            ("su app -c 'python /srv/untrusted.py'", PYTHON3_INLINE_MSG),
+            (">/dev/null python -c 'x'", PYTHON3_INLINE_MSG),
+            ("echo x | cat | python", PYTHON3_INLINE_MSG),
+            ("true; echo x | python", PYTHON3_INLINE_MSG),
+            ("2>/dev/null python3 -c x", PYTHON3_INLINE_MSG),
+            ("sudo python3 <<'EOF'\nprint(1)\nEOF", PYTHON3_INLINE_MSG),
+            ("timeout 5 bash <<EOF\necho hi\nEOF", SHELL_INTERP_MSG),
+        ],
+    )
+    def test_blocks(self, validator: ExecutionSafetyValidator, command: str, message: str) -> None:
+        result = validator.validate(inp=_make_input(command=command))
+
+        assert result is not None
+        assert result.message == message
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "cd x; python",
+            "echo x | cat; python",
+            "cd x && python script.py",
+            "true; python -m pytest",
+            "make 2>&1 | tee build.log",
+            "ssh host uptime",
+            "find . -name x -exec grep foo {} +",
+            "sudo ls /var/lib && echo done",
+            "true;dd if=f of=/dev/null",
+            "kubectl exec p -- python /app/manage.py migrate",
+            "docker exec c bash /docker-entrypoint.sh",
+            "ssh host python /srv/app.py",
+            "docker images python",
+        ],
+    )
+    def test_allows(self, validator: ExecutionSafetyValidator, command: str) -> None:
+        assert validator.validate(inp=_make_input(command=command)) is None
+
+    def test_untokenizable_sed_unit_is_left_alone(
+        self, validator: ExecutionSafetyValidator
+    ) -> None:
+        assert validator._check_inplace_edit(command="sed -i 's/a/b/ f") is None
