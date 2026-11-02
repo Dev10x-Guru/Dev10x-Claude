@@ -25,8 +25,12 @@ from typing import Any, ClassVar
 from dev10x.domain import HookInput, HookResult
 from dev10x.domain.common.bash_tokens import (
     ANY_CASE_ENV_VAR_RE,
+    UntokenizableCommandError,
+    command_position_re,
+    command_segments,
     command_units,
     strip_command_wrappers,
+    without_shell_quoting,
 )
 from dev10x.domain.common.result import ErrorResult, Result, err, ok
 from dev10x.domain.profile_tier import ProfileTier
@@ -118,8 +122,6 @@ _BQ_VALUE_FLAGS = frozenset(
         "--external_table_definition",
     }
 )
-
-_COMMAND_SEPARATORS = frozenset({"&&", "||", ";"})
 
 # shlex keeps redirections as ordinary tokens, so `bq query < q.sql`
 # would otherwise read the filename as query text. A spaced operator
@@ -377,31 +379,6 @@ def _validate_sql(sql: str) -> Result[dict[str, Any]]:
     return ok({})
 
 
-def _simple_commands(*, command: str) -> list[list[str]]:
-    """Token lists for each simple command in ``command``.
-
-    Splits on pipes (quote-aware) and on spaced ``&&``/``||``/``;``
-    tokens, so ``cd x && bq query …`` still exposes the ``bq`` call.
-    An unparseable segment yields nothing; the other validators on
-    the chain judge it.
-    """
-    commands: list[list[str]] = []
-    for segment in _split_pipe_segments(command):
-        try:
-            tokens = shlex.split(segment)
-        except ValueError:
-            continue
-        current: list[str] = []
-        for token in tokens:
-            if token in _COMMAND_SEPARATORS:
-                commands.append(current)
-                current = []
-                continue
-            current.append(token)
-        commands.append(current)
-    return [parts for parts in commands if parts]
-
-
 def _bq_query_args(parts: list[str]) -> list[str] | None:
     """Everything after ``query`` when ``parts`` runs ``bq query``, else ``None``.
 
@@ -461,6 +438,13 @@ def _check_bq_query(*, args: list[str]) -> HookResult | None:
 
 _BQ_WORD_RE = re.compile(r"\bbq\b")
 
+# Fail-closed fallback for a unit the segmenter cannot tokenize: a `bq`
+# call in command position that names the `query` subcommand.
+_BQ_QUERY_POSITION_RE = re.compile(command_position_re(program="bq").pattern + r"[^\n]*\bquery\b")
+BQ_UNTOKENIZABLE_DETAIL = (
+    "`bq query` could not be tokenized, so its flags cannot be checked for a write."
+)
+
 # Postgres client binaries that write a cluster without any SQL keyword
 # reaching this validator (GH-1732). Each is the CLI twin of a statement
 # the denylist already blocks: DROP/CREATE DATABASE, DROP/CREATE ROLE,
@@ -481,37 +465,14 @@ _PG_WRITE_BINARIES = frozenset(
 )
 _PG_RESTORE = "pg_restore"
 _PG_BINARIES = _PG_WRITE_BINARIES | {_PG_RESTORE}
-_PG_BINARY_RE = re.compile(r"\b(?:" + "|".join(sorted(_PG_BINARIES)) + r")\b")
-
-# The fast path must see the word the shell will run: `d""ropdb` and
-# `dr\opdb` tokenize to `dropdb` while the raw text does not contain it.
-_DROP_SHELL_QUOTING = str.maketrans("", "", "\"'\\")
-
-# Tokens that end one command and start the next. `_simple_commands`
-# only splits on spaced `&&`/`||`/`;`, which let `x;dropdb`, `x & dropdb`
-# and `(dropdb x)` through (GH-1732 review); the binary check splits on
-# every operator a shell does. The bq check stays on `_simple_commands`
-# on purpose: moving it changes BigQuery behaviour, which is GH-1633's.
-_PG_SEGMENT_BREAKS = frozenset({";", ";;", "&", "&&", "|", "||", "|&", "(", ")"})
-_PG_LEADING_KEYWORDS = frozenset(
-    {"{", "}", "!", "if", "then", "else", "elif", "while", "until", "do"}
-)
+# No leading word boundary: `su pg -c'dropdb x'` reads `-cdropdb` once its
+# quotes are dropped. The probe only gates the structured scan, so an
+# over-match costs a lexer pass, never a false block.
+_PG_BINARY_RE = re.compile(r"(?:" + "|".join(sorted(_PG_BINARIES)) + r")\b")
 
 # Fail-closed fallback when a unit cannot be tokenized: a write binary in
-# command position, optionally behind env assignments or a path.
-_PG_COMMAND_POSITION_RE = re.compile(
-    r"(?:^|[|;&(\n{])\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*(?:[\w./~-]*/)?"
-    r"(?:" + "|".join(sorted(_PG_WRITE_BINARIES)) + r")\b"
-)
-
-# Commands that run another command named somewhere in their arguments
-# (GH-1732 review). `sudo -u postgres dropdb` is the standard admin
-# idiom. Kept local rather than taught to strip_command_wrappers, which
-# would change DX003 and DX016 too. `docker exec` / `op run` were the
-# psql-read exemptions and are covered here too.
-_PG_RUNNERS = frozenset(
-    {"sudo", "doas", "su", "xargs", "ssh", "kubectl", "docker", "podman", "op", "find"}
-)
+# command position, optionally behind env assignments, wrappers or a path.
+_PG_COMMAND_POSITION_RE = command_position_re(program="|".join(sorted(_PG_WRITE_BINARIES)))
 
 # `command -v NAME` looks a binary up; it does not run it.
 _COMMAND_PROBE_FLAGS = frozenset({"-v", "-V"})
@@ -554,23 +515,13 @@ def _pg_restore_targets_database(args: list[str]) -> bool:
 
 
 def _mentions_pg_binary(*, command: str) -> bool:
-    return _PG_BINARY_RE.search(command.translate(_DROP_SHELL_QUOTING)) is not None
+    # The fast path must see the word the shell will run: `d""ropdb` and
+    # `dr\opdb` tokenize to `dropdb` while the raw text does not contain it.
+    return _PG_BINARY_RE.search(without_shell_quoting(text=command)) is not None
 
 
-def _pg_segments(*, unit: str) -> list[list[str]]:
-    """Argv segments of ``unit``, split on every shell command operator.
-
-    Raises ``ValueError`` when the unit cannot be tokenized.
-    """
-    lexer = shlex.shlex(unit.replace("\n", " ; "), posix=True, punctuation_chars=True)
-    lexer.whitespace_split = True
-    segments: list[list[str]] = [[]]
-    for token in lexer:
-        if token in _PG_SEGMENT_BREAKS:
-            segments.append([])
-        elif segments[-1] or token not in _PG_LEADING_KEYWORDS:
-            segments[-1].append(token)
-    return [segment for segment in segments if segment]
+def _mentions_bq(*, command: str) -> bool:
+    return _BQ_WORD_RE.search(without_shell_quoting(text=command)) is not None
 
 
 def _is_command_probe(*, parts: list[str]) -> bool:
@@ -578,32 +529,17 @@ def _is_command_probe(*, parts: list[str]) -> bool:
     return len(head) == 2 and head[0] == "command" and head[1] in _COMMAND_PROBE_FLAGS
 
 
-def _runner_target(*, parts: list[str]) -> list[str]:
-    """The argv a runner (``sudo``, ``ssh`` …) hands a Postgres binary.
-
-    Words inside a quoted argument count, so ``su postgres -c 'dropdb x'``
-    resolves to ``["dropdb", "x"]``. Empty when no binary is named.
-    """
-    words = [word for token in parts[1:] for word in token.split()]
-    start = next(
-        (i for i, word in enumerate(words) if Path(word).name in _PG_BINARIES),
-        len(words),
-    )
-    return words[start:]
-
-
 def _pg_write_binary(parts: list[str]) -> str | None:
     """The Postgres binary ``parts`` runs to write a cluster, else ``None``.
 
-    Env assignments and process wrappers are stripped first (GH-1732), and
-    runner commands (``sudo``, ``ssh``, ``xargs``, ``docker exec`` …) are
-    looked through: a wrapped ``dropdb`` is still a write.
+    Env assignments, process wrappers and runners (``sudo``, ``xargs``)
+    are stripped first (GH-1732, GH-1774). Runners that take the command
+    as an argument (``ssh``, ``su -c``, ``docker exec`` …) hand it over
+    as its own unit through ``command_units``.
     """
     if _is_command_probe(parts=parts):
         return None
     parts = strip_command_wrappers(parts=parts)
-    if parts and Path(parts[0]).name in _PG_RUNNERS:
-        parts = _runner_target(parts=parts)
     if not parts:
         return None
     binary = Path(parts[0]).name
@@ -621,14 +557,14 @@ def _pg_write_binaries_in(*, unit: str) -> Iterator[str]:
     match rather than being skipped.
     """
     try:
-        segments = _pg_segments(unit=unit)
-    except ValueError:
+        segments = command_segments(command=unit)
+    except UntokenizableCommandError:
         match = _PG_COMMAND_POSITION_RE.search(unit)
         if match:
             yield Path(match.group(0).split()[-1]).name
         return
-    for parts in segments:
-        binary = _pg_write_binary(parts)
+    for segment in segments:
+        binary = _pg_write_binary(list(segment.argv))
         if binary:
             yield binary
 
@@ -647,7 +583,7 @@ class SqlSafetyValidator(ValidatorBase):
             or "psycopg2" in cmd
             or "postgres://" in cmd
             or "postgresql://" in cmd
-            or _BQ_WORD_RE.search(cmd) is not None
+            or _mentions_bq(command=cmd)
             or _mentions_pg_binary(command=cmd)
         )
 
@@ -694,13 +630,27 @@ class SqlSafetyValidator(ValidatorBase):
         return HookResult(message=PG_WRITE_BINARY_MSG.format(binary=binary))
 
     def _check_bq(self, *, command: str) -> HookResult | None:
-        for parts in _simple_commands(command=command):
-            args = _bq_query_args(parts)
-            if args is None:
+        """Judge every ``bq query`` the command runs, chained or nested (GH-1773).
+
+        A unit the segmenter cannot tokenize fails closed when it names
+        ``bq … query`` in command position; skipping it was the evasion.
+        """
+        if not _mentions_bq(command=command):
+            return None
+        for unit in command_units(command=command):
+            try:
+                segments = command_segments(command=unit)
+            except UntokenizableCommandError:
+                if _BQ_QUERY_POSITION_RE.search(unit):
+                    return HookResult(message=_bq_write_message(detail=BQ_UNTOKENIZABLE_DETAIL))
                 continue
-            result = _check_bq_query(args=args)
-            if result:
-                return result
+            for segment in segments:
+                args = _bq_query_args(list(segment.argv))
+                if args is None:
+                    continue
+                result = _check_bq_query(args=args)
+                if result:
+                    return result
         return None
 
     def _check_direct_connection(self, *, command: str) -> HookResult | None:

@@ -142,6 +142,10 @@ class TestAllowsSearchPatterns:
             "git log --grep ruff",
             'rg -n "black|prettier" .',
             "grep -r 'eslint|prettier' src/",
+            "echo ';' mypy",
+            "ls # ; ruff check .",
+            "git commit -F - <<EOF\nruff check .\nEOF",
+            "git commit -F - <<'EOF'\nFix mypy; don't run ruff\nEOF",
         ],
     )
     def test_allows(self, validator: InlineLinterValidator, command: str) -> None:
@@ -176,6 +180,15 @@ class TestSegmentsOnEveryCommandSeparator:
             "cd src && ruff check .",
             "echo hi; mypy src",
             "make build || black --check .",
+            "true;ruff check .",
+            "true & ruff check .",
+            "true\nruff check .",
+            "(ruff check .)",
+            "echo $(ruff check .)",
+            "sudo ruff check .",
+            "timeout 5; ruff check .",
+            "sudo -u dev uv run mypy src",
+            "git ls-files | xargs ruff check",
         ],
     )
     def test_blocks(self, validator: InlineLinterValidator, command: str) -> None:
