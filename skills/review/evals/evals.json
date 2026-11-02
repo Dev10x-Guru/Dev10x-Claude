@@ -65,13 +65,37 @@
     {
       "id": "spec-done-with-concerns-continues-and-queues",
       "name": "DONE_WITH_CONCERNS continues without a gate but queues the concern",
-      "description": "A PARTIAL spec verdict continues to Step 2 directly (no AskUserQuestion) but records the concern as a WARNING/spec finding in the final summary.",
+      "description": "A PARTIAL spec verdict continues to Step 2 directly (no AskUserQuestion) but records the concern as a WARNING finding with source=manual and category=spec in the final summary.",
       "input": "/dev10x:review (spec-reviewer returns DONE_WITH_CONCERNS: minor AC gap)",
       "assertions": [
         {
           "dimension": "spec-gate-blocked",
           "check": "behavioral",
-          "signal": "No AskUserQuestion fires for DONE_WITH_CONCERNS; review proceeds to Step 2 and the concern appears as a WARNING finding with source=spec in the final summary"
+          "signal": "No AskUserQuestion fires for DONE_WITH_CONCERNS; review proceeds to Step 2 and the concern appears as a WARNING finding with source=manual and category=spec in the final summary; no finding carries source=spec, which dev10x:review-fix does not accept (GH-1749)"
+        }
+      ]
+    },
+    {
+      "id": "unattended-spec-blocked-resolves-gate",
+      "name": "--unattended BLOCKED verdict resolves the gate instead of stalling",
+      "description": "Under --unattended, a BLOCKED spec verdict calls resolve_gate(gate=shipping_continuation); on auto-advance it takes 'Address spec gap first' without a widget, skips Steps 2-6, reports an ERROR spec finding (source=manual, category=spec) in the Step 7 summary rather than the findings handoff file, and ends with a BLOCKED: spec status line (GH-1749).",
+      "input": "/dev10x:review --unattended (spec-reviewer returns BLOCKED: FAIL_MISSING; resolve_gate returns auto-advance)",
+      "assertions": [
+        {
+          "dimension": "spec-gate-blocked",
+          "check": "tool_called",
+          "tool": "mcp__plugin_dev10x_cli__resolve_gate",
+          "signal": "resolve_gate is called with gate=shipping_continuation before any AskUserQuestion"
+        },
+        {
+          "dimension": "spec-gate-blocked",
+          "check": "behavioral",
+          "signal": "AskUserQuestion is NOT called on auto-advance; 'Continue review anyway' is never auto-selected"
+        },
+        {
+          "dimension": "spec-gate-short-circuit",
+          "check": "behavioral",
+          "signal": "No Step 3 check or Step 4 subagent runs; the final line starts with 'BLOCKED: spec:'"
         }
       ]
     },

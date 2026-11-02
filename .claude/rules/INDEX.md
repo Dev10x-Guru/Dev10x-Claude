@@ -134,7 +134,7 @@ orchestration steps, decision gates.
 **Known SKILL.md overrides** — the orchestration hubs allowed past
 the budget (`work-on`, `skill-audit`, `fanout`, `foreman`,
 `git-groom`, `plugin-maintenance`, `diag-friction`, `project-scope`,
-`ticket-create`, `ddd`) and the justification for each are in
+`ticket-create`, `review`, `ddd`) and the justification for each are in
 [`references/skill-size-overrides.md`](../../references/skill-size-overrides.md).
 Record a new override there.
 

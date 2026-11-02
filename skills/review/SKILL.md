@@ -145,18 +145,40 @@ diff inlined — template and pre-read steps in
 
 - `DONE` → continue to Step 2 (branch diff)
 - `DONE_WITH_CONCERNS: <text>` → continue, queue the concern for
-  the final findings summary (severity WARNING, source `spec`)
+  the final findings summary as a WARNING with `source: manual`,
+  `category: spec` — the findings contract has no `spec` source
+  (GH-1749)
 - `NEEDS_CONTEXT: <what>` → re-dispatch with the requested
   additional inline context once
 - `BLOCKED: <verdict>: <reason>` → short-circuit the review. No
-  Step 3 automated check runs and no Step 4 domain subagent is dispatched
-  until the gate resolves. **REQUIRED: Call `AskUserQuestion`**
-  (do NOT use plain text) with options:
+  Step 3 automated check runs and no Step 4 domain subagent is
+  dispatched until the gate resolves. The options are:
   - **Address spec gap first (Recommended)** — stop and let the
     user fix scope/missing AC before continuing; the domain
     fan-out never runs
   - **Continue review anyway** — proceed to Step 2; record the
-    verdict as an INFO finding
+    verdict as an INFO finding (`source: manual`, `category: spec`)
+
+  **Attended mode — REQUIRED: Call `AskUserQuestion`** (do NOT use
+  plain text) with the two options above.
+
+  **`--unattended` (GH-1749)** — no widget unless the resolver asks
+  for one. Call `mcp__plugin_dev10x_cli__resolve_gate(
+  gate="shipping_continuation", context={})` and branch on `effect`:
+  - `ask` — fire the `AskUserQuestion` widget above.
+  - `auto-advance` — take **Address spec gap first** without a
+    widget and surface the returned `record` line: skip Steps 2–6,
+    report the verdict as an ERROR spec finding in the Step 7
+    summary (which still runs), and end with
+    `BLOCKED: spec: <verdict>: <reason>` as the last line so the
+    caller queues the decision instead of the pipeline stalling on
+    a prompt nobody is watching.
+  - `skip` — the same as `auto-advance`, without the record line.
+  - An `error` key — fail safe: fire the widget.
+
+  Never take **Continue review anyway** without a human answer: a
+  failed spec check is the one verdict an unattended run must not
+  talk itself past.
 
 ### Step 2: Get Branch Diff
 
@@ -271,8 +293,14 @@ Finding:
   line: <number>
   description: <what's wrong>
   suggested_fix: <code or guidance>
-  category: <bug | security | architecture | style | test>
+  category: <bug | security | architecture | style | test | spec>
 ```
+
+A Phase 0 verdict is a `manual` finding with `category: spec`, never a
+third `source` value — `dev10x:review-fix` reads `source` as
+`automated | manual` (GH-1749). It names a scope or acceptance gap,
+not a code location, so it has no `file`/`line`: report it in the
+Step 7 summary and leave it out of the findings handoff file.
 
 **Confidence scoring (GH-872):** Each finding includes a
 `confidence` score (0-100) indicating how certain the reviewer
@@ -367,8 +395,17 @@ the findings file path.
 ### Step 7: Summary
 
 Report:
-- Reviewer agents dispatched, with the files each covered, and any
-  files the orchestrator reviewed itself
+- Reviewer agents dispatched, with the files each covered
+- **Files no reviewer spec covered**, listed by name under their own
+  heading, with the reason: matched no INDEX.md row, or routed to a
+  spec that is not installed. Say plainly that the orchestrator
+  reviewed them against `references/review-checks-common.md`, not a
+  spec. The core reviewers (`reviewer-generic`, `-security`,
+  `-silent-failures`, `-skill`, `-skill-behavior`, `-docs`, `-infra`,
+  `-rules-maintenance`) live in Dev10x's own `.claude/agents/` and
+  ship with no consumer repo, so there this list usually holds every
+  Python, shell, docs and skill file — the parallel fan-out does not
+  apply to them, and the summary must not imply it did (GH-1749)
 - Total findings by severity, and the false-positive drop count
 - Which were sent to fixer (if any)
 - Any deferred findings (INFO severity or user-skipped)

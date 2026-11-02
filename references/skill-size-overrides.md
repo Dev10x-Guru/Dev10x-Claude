@@ -115,6 +115,13 @@ most of it — to `skills/foreman/references/` and leave a pointer.
 - `ticket-create` (~350 lines, GH-1704/GH-1705) — mode detection,
   never-file-bare triage, Step 4e gate, Step 5 dispatch contract;
   recipes in `references/tracker-creation.md`
+- `review` (~455 lines, GH-1749) — the Phase 0 spec gate with its
+  attended and unattended dispositions, the routing/dispatch/merge
+  steps and the findings contract that `dev10x:review-fix` reads are
+  execution-gating and stay inline; dispatch templates already live in
+  `references/spec-gate.md` and `references/domain-dispatch.md`.
+  Split plan: move § Step 5's confidence-threshold destination note and
+  § Design Note (`--post-to-pr`) to `references/` first
 - `ddd` (~299 lines) — workshop orchestration hub: 4 session
   modes, 7-layer event storming flow, solo AI-cast facilitation
   (incl. the GH-789 discussion-agent model-tier gate), and
