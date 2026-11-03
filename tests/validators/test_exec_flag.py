@@ -21,6 +21,7 @@ def validator() -> ExecFlagValidator:
         ("rg --pre sh x src", "--pre"),
         ("rg --pre-glob '*.gz' --pre zcat x", "--pre-glob"),
         ("rg --pre-glob='*.gz' x", "--pre-glob"),
+        ("rg --hostname-bin=./h x", "--hostname-bin"),
         ("sort --compress-program=gzip big.txt", "--compress-program"),
         ("make --eval='$(shell id)' all", "--eval"),
         ("make -E 'x:=1' all", "-E"),
