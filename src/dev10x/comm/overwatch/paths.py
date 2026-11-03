@@ -23,6 +23,7 @@ class InstanceProfile:
     keeps_page_token: bool
     renames_sessions: bool
     rearms_relay: bool
+    supervises_dev_page: bool
 
 
 PROFILES = {
@@ -31,12 +32,14 @@ PROFILES = {
         keeps_page_token=False,
         renames_sessions=True,
         rearms_relay=True,
+        supervises_dev_page=True,
     ),
     Instance.DEV: InstanceProfile(
         default_port=DEV_PORT,
         keeps_page_token=True,
         renames_sessions=False,
         rearms_relay=False,
+        supervises_dev_page=False,
     ),
 }
 

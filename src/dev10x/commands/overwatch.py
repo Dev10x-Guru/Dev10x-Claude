@@ -23,7 +23,7 @@ from dev10x.comm.overwatch.dev_checkout import (
     read_dev_checkout,
     unpin_dev_checkout,
 )
-from dev10x.comm.overwatch.dev_launcher import DevLauncher, child_command
+from dev10x.comm.overwatch.dev_watcher import DevPinWatcher, launcher_factory
 from dev10x.comm.overwatch.lessons import DEFAULT_KB_ROOT
 from dev10x.comm.overwatch.probes import Snapshot, take_snapshot
 from dev10x.comm.overwatch.rearm import RELAY_AGENT, RelayRearm, run_rearm
@@ -37,19 +37,7 @@ UNIT_TEMPLATE = """\
 Description=Dev10x session Overwatch page
 
 [Service]
-ExecStart={exec_start} overwatch serve --port {port}
-Restart=on-failure
-
-[Install]
-WantedBy=default.target
-"""
-
-DEV_UNIT_TEMPLATE = """\
-[Unit]
-Description=Dev10x session Overwatch page, dev checkout {checkout}
-
-[Service]
-ExecStart={exec_start} overwatch serve --dev --uv {uv}
+ExecStart={exec_start} overwatch serve --port {port} --uv {uv}
 Restart=always
 RestartSec=5
 
@@ -57,7 +45,7 @@ RestartSec=5
 WantedBy=default.target
 """
 
-NOT_PINNED = "No dev checkout is pinned; run `dev10x overwatch dev pin --checkout PATH`."
+LIVE_NOTE = "a running `dev10x overwatch serve` picks this up within one poll, no restart"
 
 
 def write_token(*, token: str, path: Path) -> None:
@@ -150,8 +138,20 @@ def build_rearm(
     return lambda: run_rearm(attempt=rearm.attempt, interval=interval, stop=stop)
 
 
-def run_launcher(*, launcher: DevLauncher, stop: threading.Event, interval: float) -> None:
-    launcher.run(stop=stop, interval=interval)
+def start_dev_watcher(
+    *,
+    watcher: DevPinWatcher,
+    stop: threading.Event,
+    interval: float,
+) -> threading.Thread:
+    thread = threading.Thread(
+        target=watcher.run,
+        kwargs={"stop": stop, "interval": interval},
+        name="overwatch-dev-pin",
+        daemon=True,
+    )
+    thread.start()
+    return thread
 
 
 def _stop_on_signals() -> threading.Event:
@@ -170,13 +170,6 @@ def _pinned_dev_checkout() -> DevCheckout | None:
         return read_dev_checkout()
     except DevCheckoutError as exc:
         raise click.ClickException(f"The dev checkout pin is unusable: {exc}") from exc
-
-
-def _require_dev_checkout() -> DevCheckout:
-    dev = _pinned_dev_checkout()
-    if dev is None:
-        raise click.ClickException(NOT_PINNED)
-    return dev
 
 
 def _uv_path() -> str:
@@ -207,12 +200,6 @@ def overwatch() -> None:
     help="Once at start, rename idle sessions with a generated name after their branch.",
 )
 @click.option(
-    "--dev",
-    "dev",
-    is_flag=True,
-    help="Run the dev page from the checkout pinned with `dev pin`, following its HEAD.",
-)
-@click.option(
     "--instance",
     type=click.Choice([instance.value for instance in paths.Instance]),
     default=paths.Instance.RELEASE.value,
@@ -233,28 +220,14 @@ def serve(
     bus_root: Path,
     relay_mailbox: str,
     auto_rename: bool,
-    dev: bool,
     instance: str,
     uv: str | None,
     relay_agent: str,
 ) -> None:
-    """Serve the Overwatch page on 127.0.0.1 until stopped."""
-    if dev:
-        pinned = _require_dev_checkout()
-        launcher = DevLauncher(
-            command=child_command(
-                dev=pinned,
-                uv=uv or _uv_path(),
-                interval=interval,
-                kb_root=kb_root,
-                bus_root=bus_root,
-                relay_mailbox=relay_mailbox,
-            ),
-            checkout=pinned.checkout,
-            announce=click.echo,
-        )
-        run_launcher(launcher=launcher, stop=_stop_on_signals(), interval=interval)
-        return
+    """Serve the Overwatch page on 127.0.0.1 until stopped.
+
+    While a checkout is pinned with `dev pin`, the dev page runs beside it.
+    """
     scope = paths.Instance(instance)
     traits = paths.profile(instance=scope)
     hook_token = secrets.token_urlsafe(24)
@@ -269,38 +242,57 @@ def serve(
     )
     app.auto_rename = auto_rename and traits.renames_sessions
     stop = _stop_on_signals()
-    run_service(
-        app=app,
-        port=traits.default_port if port is None else port,
-        interval=interval,
-        stop=stop,
-        provider=lambda: take_snapshot(bus_root=bus_root),
-        announce=click.echo,
-        token_file=paths.page_token_path(instance=scope) if traits.keeps_page_token else None,
-        rearm=build_rearm(
+    dev_thread = (
+        start_dev_watcher(
+            watcher=DevPinWatcher(
+                make_launcher=launcher_factory(
+                    uv=uv or _uv_path(),
+                    interval=interval,
+                    kb_root=kb_root,
+                    bus_root=bus_root,
+                    relay_mailbox=relay_mailbox,
+                    announce=click.echo,
+                ),
+                announce=click.echo,
+            ),
+            stop=stop,
+            interval=interval,
+        )
+        if traits.supervises_dev_page
+        else None
+    )
+    try:
+        run_service(
             app=app,
-            agent_name=relay_agent if traits.rearms_relay else "",
+            port=traits.default_port if port is None else port,
             interval=interval,
             stop=stop,
-        ),
-    )
+            provider=lambda: take_snapshot(bus_root=bus_root),
+            announce=click.echo,
+            token_file=paths.page_token_path(instance=scope) if traits.keeps_page_token else None,
+            rearm=build_rearm(
+                app=app,
+                agent_name=relay_agent if traits.rearms_relay else "",
+                interval=interval,
+                stop=stop,
+            ),
+        )
+    finally:
+        stop.set()
+        if dev_thread is not None:
+            dev_thread.join()
 
 
 @overwatch.command(name="unit")
 @click.option("--port", type=int, default=paths.DEFAULT_PORT, show_default=True)
-@click.option("--dev", "dev", is_flag=True, help="Print the dev-checkout unit instead.")
-def unit(*, port: int, dev: bool) -> None:
-    """Print a systemd --user unit for Overwatch (does not install it)."""
+def unit(*, port: int) -> None:
+    """Print the systemd --user unit for Overwatch (does not install it).
+
+    The one unit serves the release page, and the dev page whenever a
+    checkout is pinned with `dev pin`.
+    """
     exec_start = shutil.which("dev10x") or "dev10x"
-    if dev:
-        pinned = _require_dev_checkout()
-        click.echo(
-            DEV_UNIT_TEMPLATE.format(
-                exec_start=exec_start, uv=_uv_path(), checkout=pinned.checkout
-            )
-        )
-        return
-    click.echo(UNIT_TEMPLATE.format(exec_start=exec_start, port=port))
+    click.echo(UNIT_TEMPLATE.format(exec_start=exec_start, port=port, uv=_uv_path()))
 
 
 @overwatch.group(name="dev")
@@ -321,14 +313,16 @@ def dev_pin(*, checkout: Path, port: int) -> None:
         pinned = pin_dev_checkout(checkout=checkout, port=port)
     except DevCheckoutError as exc:
         raise click.ClickException(str(exc)) from exc
-    click.echo(f"Dev Overwatch page: {pinned.checkout} on port {pinned.port}")
+    click.echo(f"Dev Overwatch page: {pinned.checkout} on port {pinned.port}; {LIVE_NOTE}.")
 
 
 @dev_group.command(name="unpin")
 def dev_unpin() -> None:
-    """Forget the dev checkout; the dev page will not start."""
+    """Forget the dev checkout; a running service stops the dev page."""
     removed = unpin_dev_checkout()
-    click.echo("Dev checkout unpinned." if removed else "No dev checkout was pinned.")
+    click.echo(
+        f"Dev checkout unpinned; {LIVE_NOTE}." if removed else "No dev checkout was pinned."
+    )
 
 
 @dev_group.command(name="status")
@@ -355,4 +349,7 @@ def dev_status() -> None:
 def dev_rotate_token() -> None:
     """Drop the dev page's saved token; the next start issues a new one."""
     paths.page_token_path(instance=paths.Instance.DEV).unlink(missing_ok=True)
-    click.echo("Dev page token dropped; restart the dev page to issue a new one.")
+    click.echo(
+        "Dev page token dropped; the dev page issues a new one when it next starts "
+        "(a new commit in the checkout, or `dev unpin` then `dev pin`)."
+    )
