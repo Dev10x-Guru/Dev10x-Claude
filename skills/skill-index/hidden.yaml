@@ -21,7 +21,6 @@ hidden:
   - dev10x:slack
   - dev10x:ticket-jtbd
   - dev10x:gh-pr-review
-  - dev10x:report-work-weekly
   - example-slides
   - Dev10x-db
   - refactor

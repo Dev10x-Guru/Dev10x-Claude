@@ -39,7 +39,6 @@ NON_SKILL_NAMES = {
     "my-skill-name": "placeholder in docs",
     "nonexistent": "the error example in references/skill-invocation.md",
     "reasons-canvas": "an option ADR-0005 rejected",
-    "report-work-weekly": "a personal skill hidden by skill-index/hidden.yaml",
     "skill-reinforcement": "the former name of diag-friction",
     "some-skill": "placeholder in docs",
     "target-name": "placeholder in docs",
