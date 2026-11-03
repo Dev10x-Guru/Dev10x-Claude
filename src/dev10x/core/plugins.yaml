@@ -148,6 +148,7 @@ plugins:
     - git-worktree
     - ide-normalize
     - investigate
+    - py-mockito
     - py-test
     - py-test-flaky
     - py-uv

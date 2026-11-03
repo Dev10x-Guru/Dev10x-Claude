@@ -5,6 +5,12 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Added
+
+- **`dev10x:py-mockito`** (GH-909) — python-mockito and pytest-mockito
+  test patterns ship with the plugin in the coding area, instead of as
+  a user-local skill nobody else could install.
+
 ## 0.113.0 — Overwatch Watches, the Supervisor Decides
 
 Released 2026-11-02

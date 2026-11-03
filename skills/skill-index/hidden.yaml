@@ -22,7 +22,6 @@ hidden:
   - dev10x:ticket-jtbd
   - dev10x:gh-pr-review
   - dev10x:report-work-weekly
-  - Dev10x-py-mockito
   - example-slides
   - Dev10x-db
   - refactor
