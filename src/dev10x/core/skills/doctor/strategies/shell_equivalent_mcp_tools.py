@@ -23,35 +23,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from dev10x.domain.common.mcp_tool_name import looks_shell_equivalent
 from dev10x.skills.doctor.strategy import Context, Finding, Remediation, Strategy
 from dev10x.skills.permission.enumerate_mcp import discover_all_mcp_servers
-
-# Word sequences that mark a tool as running a shell or evaluating code,
-# matched against the tool name's own `_`-separated words. Deliberately
-# short and generic: a new server naming its shell tool `run_command` or
-# `eval_python` should trip this without an edit here.
-#
-# Matching words rather than substrings is what keeps `eval` usable as a
-# marker. As a substring it also fires on `get_evaluation_report`, and a
-# critical finding against a harmless read is worse than a miss — it
-# teaches the reader to skim past this strategy.
-_SHELL_MARKERS = (
-    ("execute", "terminal"),
-    ("execute", "command"),
-    ("run", "command"),
-    ("shell",),
-    ("execute", "code"),
-    ("eval",),
-    ("evaluate",),
-    ("execute", "tool"),
-    # GH-1403: the three shapes below are what the `jetbrains` -> `pycharm`
-    # rename stranded. They were invisible here as well as absent from the
-    # catalog — the same defect seen twice — so the markers land with the
-    # deny rules rather than after the next rename repeats it.
-    ("execute", "run"),  # execute_run_configuration
-    ("run", "notebook"),  # run_notebook_cell
-    ("build", "project"),  # runs the project's build scripts
-)
 
 # What stops being enforceable. Named rather than described, because the
 # point is the size of the hole, not the existence of one.
@@ -61,15 +35,6 @@ _VOIDED = (
     "gh api --method DELETE, git config --global",
     "the skill-redirect hook (gh pr edit -> update_pr, and the rest)",
 )
-
-
-def _looks_shell_equivalent(tool: str) -> bool:
-    words = tuple(tool.lower().split("_"))
-    return any(
-        marker == words[start : start + len(marker)]
-        for marker in _SHELL_MARKERS
-        for start in range(len(words))
-    )
 
 
 @dataclass(frozen=True)
@@ -110,7 +75,7 @@ def detect(context: Context) -> list[Finding]:
     findings: list[Finding] = []
     for server in discover_all_mcp_servers(settings_paths=_settings_paths_from_context(context)):
         for tool in sorted(server.tools):
-            if not _looks_shell_equivalent(tool):
+            if not looks_shell_equivalent(tool=tool):
                 continue
             findings.append(
                 Finding(

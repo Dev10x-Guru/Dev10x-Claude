@@ -70,6 +70,33 @@ class TestBlanketProblem:
             "Edit(~/.claude/memory/../settings.json)",
             "Write(${HOME}/.claude/**)",
             "Write(//home/**)",
+            "Edit(~/.bashrc)",
+            "Edit(~/.profile)",
+            "Edit(~/.config/fish/**)",
+            "Edit(~/.config/Dev10x/**)",
+            "Edit(~/.config/**)",
+            "Write(~/.local/bin/**)",
+            "Edit(//etc/**)",
+            "Write(//usr/local/bin/x)",
+            "Edit(~/.claud*/**)",
+            "Edit(~/**/settings.json)",
+            "Edit(.claude/**)",
+            "Edit(.claude/settings.local.json)",
+            "Edit(//work/repo/.claude/hooks/**)",
+            "Read(~/.config/**)",
+            "Read(~/.npmrc)",
+            "Read(~/.pypirc)",
+            "Read(~/.config/gcloud/**)",
+            "Read(~/.azure/**)",
+            "Read(~/.vault-token)",
+            "Read(//work/certs/server.pem)",
+            "Bash(cat ~/.ssh/id_ed25519:*)",
+            "Bash(rg --hostname-bin:*)",
+            "mcp__pycharm__execute_terminal_command",
+            "mcp__pycharm__execute_code_on_kernel",
+            "mcp__someserver__run_command",
+            "mcp__pycharm__*",
+            "mcp__pycharm",
         ],
     )
     def test_names_the_blanket_shapes(self, rule: str) -> None:
@@ -93,6 +120,13 @@ class TestBlanketProblem:
             "Bash(git push origin:*)",
             "Bash(timeout 30 pytest:*)",
             "Bash(git:*)",
+            "Edit(src/**/*.py)",
+            "Edit(.claude/rules/**)",
+            "Edit(//tmp/Dev10x/**)",
+            "Read(~/.config/Dev10x/**)",
+            "mcp__pycharm__get_evaluation_report",
+            "mcp__pycharm__read_file",
+            "mcp__chrome-devtools__take_snapshot",
         ],
     )
     def test_leaves_portable_rules_alone(self, rule: str) -> None:
@@ -120,6 +154,20 @@ class TestHoldReason:
         reason = hold_reason(rule="Bash(git log:*)", declined=frozenset({"Bash(git log:*)"}))
 
         assert reason == "declined by the supervisor (declined-permissions.yaml)"
+
+    @pytest.mark.parametrize(
+        ("rule", "declined"),
+        [
+            ("Bash(psql *)", "Bash(psql:*)"),
+            ("Bash(psql:*)", "Bash(psql *)"),
+            ("Bash(git  log:*)", "Bash(git log *)"),
+        ],
+    )
+    def test_declined_matches_any_equivalent_spelling(self, rule: str, declined: str) -> None:
+        assert hold_reason(rule=rule, declined=frozenset({declined})) is not None
+
+    def test_exact_bash_rule_is_not_widened_by_normalization(self) -> None:
+        assert hold_reason(rule="Bash(git log)", declined=frozenset({"Bash(git log:*)"})) is None
 
     def test_portable_rule_is_not_held(self) -> None:
         assert hold_reason(rule="Bash(git log:*)", declined=frozenset()) is None

@@ -26,7 +26,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from dev10x.domain import HookInput, HookResult
-from dev10x.skills.permission.rule_risk import bash_prefix, blanket_problem
+from dev10x.skills.permission.rule_risk import bash_prefix, blanket_problem, comparable_rule
 from dev10x.validators import get_chain
 
 
@@ -62,7 +62,7 @@ def hook_denial(*, rule: str) -> str | None:
 
 def hold_reason(*, rule: str, declined: frozenset[str]) -> str | None:
     """Why ``rule`` must not be copied to another checkout, or None."""
-    if rule in declined:
+    if comparable_rule(rule=rule) in {comparable_rule(rule=item) for item in declined}:
         return "declined by the supervisor (declined-permissions.yaml)"
     blanket = blanket_problem(rule=rule)
     if blanket:

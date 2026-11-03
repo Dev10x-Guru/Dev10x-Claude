@@ -8,7 +8,7 @@ shell-equivalent tool was blind to the same two names, because its
 markers never matched `execute_run_configuration` or `run_notebook_cell`
 — the gap existed twice and neither copy could reveal the other.
 
-These tests tie the two together. `_looks_shell_equivalent` becomes the
+These tests tie the two together. `looks_shell_equivalent` becomes the
 single definition of the category, and the catalog must be expressible in
 it: a deny the detector cannot see is a deny that will be silently
 dropped by the next rename, and a detector whose markers narrow breaks
@@ -18,9 +18,7 @@ these tests rather than a user's machine.
 from __future__ import annotations
 
 import pytest
-from dev10x.skills.doctor.strategies.shell_equivalent_mcp_tools import (
-    _looks_shell_equivalent,
-)
+from dev10x.domain.common.mcp_tool_name import looks_shell_equivalent
 from dev10x.skills.permission.catalog_paths import (
     load_catalog_document,
     shipped_projects_catalog,
@@ -50,7 +48,7 @@ def test_catalog_ships_ide_denies() -> None:
 
 @pytest.mark.parametrize("rule", _ide_deny_rules())
 def test_every_ide_deny_is_detectable(rule: str) -> None:
-    assert _looks_shell_equivalent(_tool_name(rule)), (
+    assert looks_shell_equivalent(tool=_tool_name(rule)), (
         f"{rule} is denied as shell-equivalent but the doctor's markers do "
         "not match it, so an allowed copy of this tool would go unreported."
     )
@@ -98,4 +96,4 @@ def test_reads_and_config_are_not_flagged(tool: str) -> None:
     # finding against a harmless read teaches the reader to skim past it.
     # `configure_python_interpreter` mutates IDE config and executes
     # nothing itself, so it stays out deliberately (GH-1403).
-    assert not _looks_shell_equivalent(tool)
+    assert not looks_shell_equivalent(tool=tool)

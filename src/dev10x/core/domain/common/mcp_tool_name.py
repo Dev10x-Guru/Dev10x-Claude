@@ -35,6 +35,41 @@ _COMMAND_TOKEN_RE = re.compile(rf"^{TOOL_NAME_PATTERN}")
 _FULL_RE = re.compile(rf"^{TOOL_NAME_PATTERN}$")
 _WILDCARD_RE = re.compile(rf"^{WILDCARD_PATTERN}$")
 
+# Word sequences that mark a tool as running a shell or evaluating code,
+# matched against the tool name's own `_`-separated words. Deliberately
+# short and generic: a new server naming its shell tool `run_command` or
+# `eval_python` should trip this without an edit here. Shared by the
+# plugin-doctor strategy and the permission spread guard (GH-1800).
+#
+# Matching words rather than substrings is what keeps `eval` usable as a
+# marker. As a substring it also fires on `get_evaluation_report`, and a
+# critical finding against a harmless read is worse than a miss.
+SHELL_MARKERS = (
+    ("execute", "terminal"),
+    ("execute", "command"),
+    ("run", "command"),
+    ("shell",),
+    ("execute", "code"),
+    ("eval",),
+    ("evaluate",),
+    ("execute", "tool"),
+    # GH-1403: the three shapes below are what the `jetbrains` -> `pycharm`
+    # rename stranded.
+    ("execute", "run"),  # execute_run_configuration
+    ("run", "notebook"),  # run_notebook_cell
+    ("build", "project"),  # runs the project's build scripts
+)
+
+
+def looks_shell_equivalent(*, tool: str) -> bool:
+    """True when the tool name reads as a shell or code-evaluation tool."""
+    words = tuple(tool.lower().split("_"))
+    return any(
+        marker == words[start : start + len(marker)]
+        for marker in SHELL_MARKERS
+        for start in range(len(words))
+    )
+
 
 @dataclass(frozen=True)
 class McpToolName:

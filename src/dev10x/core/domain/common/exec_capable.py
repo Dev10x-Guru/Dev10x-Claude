@@ -77,7 +77,7 @@ INTERPRETERS = frozenset(
 #: Flags through which an otherwise read-only tool executes a program.
 EXEC_FLAGS: dict[str, tuple[str, ...]] = {
     "make": ("--eval", "-E", "-f", "--file", "--makefile"),
-    "rg": ("--pre", "--pre-glob"),
+    "rg": ("--pre", "--pre-glob", "--hostname-bin"),
     "sort": ("--compress-program",),
 }
 
