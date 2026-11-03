@@ -15,7 +15,7 @@
 
 | Tool | Used by |
 |------|---------|
-| [PostgreSQL client (`psql`)](https://www.postgresql.org/download/) | `dev10x:db-psql` — database queries |
+| [PostgreSQL client (`psql`)](https://www.postgresql.org/download/) | `dev10x-db:db-psql` — database queries |
 | Linux: [`libsecret` (`secret-tool`)](https://gitlab.gnome.org/GNOME/libsecret); macOS: Keychain (built-in) | Keyring lookups for DB DSNs, Slack tokens, Linear API keys |
 | [`ffmpeg`](https://ffmpeg.org/download.html) | `dev10x-qa:qa-self` — video evidence conversion |
 | [ImageMagick](https://imagemagick.org/script/download.php) (`convert`) | `dev10x-qa:qa-self` — screenshot conversion |
@@ -51,6 +51,16 @@ clusters; it also brings `dev10x` with it:
 
 ```bash
 claude plugin install dev10x-infra@Dev10x-Guru
+```
+
+The database skills (`db`, `db-psql`, `sql-handoff`) ship as
+`dev10x-db`. Install it where you query databases; it also brings
+`dev10x` with it. The `mcp__plugin_dev10x_db__query` tool stays in
+`dev10x` under its old name, but it runs the `db.sh` script that
+`dev10x-db` ships, so queries need both plugins:
+
+```bash
+claude plugin install dev10x-db@Dev10x-Guru
 ```
 
 Upgrading from a release where those skills were part of `dev10x`

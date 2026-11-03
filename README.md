@@ -225,7 +225,7 @@ review comment) is concise enough to evaluate in seconds.
 | **Scoping** | [`scope`](skills/scope/SKILL.md), [`estimate`](skills/estimate/SKILL.md), [`jtbd`](skills/jtbd/SKILL.md), [`adr`](skills/adr/SKILL.md), [`adr-evaluate`](skills/adr-evaluate/SKILL.md), [`ddd`](skills/ddd/SKILL.md), [`diagram-sequence`](skills/diagram-sequence/SKILL.md), [`diagram-c4`](skills/diagram-c4/SKILL.md), [`diagram-bpmn`](skills/diagram-bpmn/SKILL.md) | Architecture decisions, Job Story format, DDD workshops, diagrams |
 | **QA** | [`qa-scope`](skills/qa-scope/SKILL.md), [`py-test`](skills/py-test/SKILL.md); in the `dev10x-qa` plugin: [`qa-self`](plugins/qa/skills/qa-self/SKILL.md), [`playwright`](plugins/qa/skills/playwright/SKILL.md), [`qa-publish`](plugins/qa/skills/qa-publish/SKILL.md), [`tts`](plugins/qa/skills/tts/SKILL.md), [`yt-upload`](plugins/qa/skills/yt-upload/SKILL.md) | Test planning, self-review, browser testing, narrated walkthroughs, pytest runner |
 | **Session** | [`session-tasks`](skills/session-tasks/SKILL.md), [`session-wrap-up`](skills/session-wrap-up/SKILL.md), [`plan-sync`](skills/plan-sync/SKILL.md), [`fanout`](skills/fanout/SKILL.md), [`verify-acc-dod`](skills/verify-acc-dod/SKILL.md) | In-session work tracking, parallel execution, acceptance verification |
-| **DB** | [`db`](skills/db/SKILL.md), [`db-psql`](skills/db-psql/SKILL.md), [`sql-handoff`](skills/sql-handoff/SKILL.md) | Safe database query planning, execution, and hand-run write handoff |
+| **DB** | [`db`](plugins/db/skills/db/SKILL.md), [`db-psql`](plugins/db/skills/db-psql/SKILL.md), [`sql-handoff`](plugins/db/skills/sql-handoff/SKILL.md) | Safe database query planning, execution, and hand-run write handoff |
 | **Tooling** | [`py-uv`](skills/py-uv/SKILL.md), [`slack`](skills/slack/SKILL.md), [`slack-review-request`](skills/slack-review-request/SKILL.md), [`slack-setup`](skills/slack-setup/SKILL.md), [`ask`](skills/ask/SKILL.md) | Python packaging, Slack notifications, interactive prompts |
 | **Meta** | [`skill-create`](skills/skill-create/SKILL.md), [`skill-audit`](skills/skill-audit/SKILL.md), [`skill-index`](skills/skill-index/SKILL.md), [`audit-file`](skills/audit-file/SKILL.md), [`playbook`](skills/playbook/SKILL.md), [`diag-friction`](skills/diag-friction/SKILL.md), [`onboarding`](skills/onboarding/SKILL.md) | Create, audit, discover, and learn skills |
 | **Maintenance** | [`memory-maintenance`](skills/memory-maintenance/SKILL.md), [`plugin-maintenance`](skills/plugin-maintenance/SKILL.md), [`upgrade-cleanup`](skills/upgrade-cleanup/SKILL.md), [`playbook-maintenance`](skills/playbook-maintenance/SKILL.md), [`context-audit`](skills/context-audit/SKILL.md), [`permission-audit-apply`](skills/permission-audit-apply/SKILL.md), [`skill-prune`](skills/skill-prune/SKILL.md) | Memory, permission, playbook, and context hygiene; applying audit fixes and hiding irrelevant skills |
@@ -240,6 +240,7 @@ claude plugin marketplace add Dev10x-Guru/dev10x-claude
 claude plugin install dev10x@Dev10x-Guru
 claude plugin install dev10x-qa@Dev10x-Guru   # optional: self-QA walkthroughs
 claude plugin install dev10x-infra@Dev10x-Guru   # optional: AWS secrets, k8s
+claude plugin install dev10x-db@Dev10x-Guru      # optional: read-only SQL
 ```
 
 Run these in your shell, not inside a Claude Code session — the

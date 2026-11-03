@@ -154,8 +154,8 @@ that is renamed or comes from elsewhere is listed by hand in
 | `dev10x:verify-acc-dod` | acceptance criteria | 2, 3 |
 | `dev10x:git-commit` | gitmoji | 2, 3 |
 | `dev10x:gh-pr-request-review` | reviewers | 2 |
-| `dev10x:db` | schema, databases | 2 |
-| `dev10x:db-psql` | databases | 2 |
+| `dev10x-db:db` | schema, databases | 2 |
+| `dev10x-db:db-psql` | databases | 2 |
 | `dev10x:slack` | slack-config | 2 |
 | `dev10x:slack-setup` | slack-config | 2 |
 | `dev10x:slack-review-request` | slack-config | 2 |

@@ -75,7 +75,7 @@ with credentials you supply:
 | Sentry (MCP) | Your Sentry auth | Issue details you fetch |
 | AWS Secrets Manager (`aws-vault`) | Your AWS profile | Secret lookups you approve |
 | Kubernetes API (`aws-vault` kubectl wrapper) | Your AWS profile via `aws-vault exec` | Read-only `kubectl` commands you submit (get, describe, logs, top, events, etc.); cluster context and namespace resolved from your local `service-registry.yaml` |
-| Postgres (databases via `dev10x:db-psql`) | Connection strings from `databases.yaml` (env or keyring) | Read-only SQL queries you submit; results returned locally |
+| Postgres (databases via `dev10x-db:db-psql`) | Connection strings from `databases.yaml` (env or keyring) | Read-only SQL queries you submit; results returned locally |
 | Anthropic API (Claude review CI) | Repository `ANTHROPIC_API_KEY` secret | PR diffs, commit metadata, and review comments processed by GitHub-hosted Claude actions |
 | PyPI (release CI only) | Trusted-publisher OIDC | Plugin distribution artifacts |
 | PyPI JSON API (`dev10x deps sweep`) | None (anonymous, read-only) | Names of pinned distributions from this repo's dependency declarations, sent to `pypi.org/pypi/<name>/json` to read the current stable version when you (or the scheduled workflow) run the sweep |

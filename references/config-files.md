@@ -152,7 +152,7 @@ is migrated lazily on first read.
 
 ## Database Connections
 
-`databases.yaml` stores named database entries for `dev10x:db-psql`.
+`databases.yaml` stores named database entries for `dev10x-db:db-psql`.
 The script resolves config from multiple locations so project plugins
 (e.g., `tt:db`) are discovered automatically without symlinks.
 

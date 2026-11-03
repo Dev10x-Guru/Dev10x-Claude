@@ -24,6 +24,7 @@ marketplace: Dev10x-Guru
 extracted:
   - qa
   - infra
+  - db
 dependencies:
   coding:
     - tasks

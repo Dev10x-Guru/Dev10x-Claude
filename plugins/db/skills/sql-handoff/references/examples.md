@@ -1,6 +1,6 @@
-# dev10x:sql-handoff Examples
+# dev10x-db:sql-handoff Examples
 
-Worked handoffs for `dev10x:sql-handoff`. Each one prints the SQL in
+Worked handoffs for `dev10x-db:sql-handoff`. Each one prints the SQL in
 chat text first, asks a question that only refers to it, and
 verifies with a SELECT before moving on.
 
@@ -24,7 +24,7 @@ UPDATE shop SET is_active = false WHERE id = 4182;
 
 **User:** Done, ran it.
 
-**Agent (via `dev10x:db-psql`):**
+**Agent (via `dev10x-db:db-psql`):**
 
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/skills/db-psql/scripts/db.sh bs "SELECT id, is_active FROM shop WHERE id = 4182"

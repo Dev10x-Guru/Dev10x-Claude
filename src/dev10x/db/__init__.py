@@ -8,10 +8,10 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from dev10x.core.paths import skill_script
+from dev10x.core.db_script import DB_PLUGIN_NAME, db_script
 from dev10x.domain.common.result import Result, err, ok
 from dev10x.domain.rules.sql import is_read_only_sql
-from dev10x.subprocess_utils import run_script
+from dev10x.subprocess_utils import SCRIPT_NOT_FOUND, get_plugin_root, run_script
 
 
 def query(database: str, sql: str) -> Result[dict[str, Any]]:
@@ -23,8 +23,13 @@ def query(database: str, sql: str) -> Result[dict[str, Any]]:
             blocked=True,
         )
 
-    result = run_script(skill_script(skill="db-psql", rel="db.sh"), database, sql)
+    result = run_script(db_script(plugin_root=get_plugin_root()), database, sql)
 
+    if result.returncode != 0 and result.stderr.startswith(SCRIPT_NOT_FOUND):
+        return err(
+            f"{result.stderr.strip()}. The db.sh script ships with the {DB_PLUGIN_NAME} "
+            f"plugin; install it next to dev10x to run queries."
+        )
     if result.returncode != 0:
         return err(result.stderr.strip())
 

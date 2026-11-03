@@ -11,7 +11,7 @@
     {
       "name": "dev10x",
       "source": "./",
-      "description": "v0.114.0.dev0 — 97 skills for structured commits, PR lifecycle, branch hygiene, ticket management, task tracking, code review, and scoping in Claude Code.",
+      "description": "v0.114.0.dev0 — 94 skills for structured commits, PR lifecycle, branch hygiene, ticket management, task tracking, code review, and scoping in Claude Code.",
       "version": "0.114.0.dev0",
       "keywords": [
         "git", "commits", "pull-requests", "code-review",
@@ -34,6 +34,13 @@
       "description": "v0.114.0.dev0 — 2 skills for read-only infrastructure access: AWS secrets and Kubernetes inspection through aws-vault.",
       "version": "0.114.0.dev0",
       "keywords": ["aws", "aws-vault", "kubernetes", "kubectl", "secrets"]
+    },
+    {
+      "name": "dev10x-db",
+      "source": "./plugins/db",
+      "description": "v0.114.0.dev0 — 3 skills for read-only database work: query planning, a validated psql wrapper, and SQL handoff for changes a person runs.",
+      "version": "0.114.0.dev0",
+      "keywords": ["database", "postgres", "psql", "sql", "read-only"]
     }
   ]
 }
