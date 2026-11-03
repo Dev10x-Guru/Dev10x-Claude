@@ -15,6 +15,11 @@
       "id": "dry-run-before-apply",
       "name": "Dry-run Precedes Apply",
       "description": "Every mutating uvx dev10x permission subcommand (update-paths, ensure-workspace, ensure-base, ensure-safety-keys, generalize, enumerate-mcp, merge-worktree, clean, doctor canonicalize/apply-deprecations/anchor-worktree-roots) runs with --dry-run and shows output to the user BEFORE the equivalent apply call runs."
+    },
+    {
+      "id": "held-rules-gate",
+      "name": "Held-back Rules Prompt (Step 9)",
+      "description": "When merge-worktree holds back rules for a reason other than a prior decline, the skill fires AskUserQuestion (Decline them / Leave undecided / Grant one deliberately), with the recommendation computed from whether the rule is already in the main checkout."
     }
   ],
   "evals": [
@@ -92,6 +97,31 @@
           "dimension": "dry-run-before-apply",
           "check": "behavioral",
           "signal": "For every mutating subcommand, a --dry-run invocation and its output appear in the transcript BEFORE the equivalent apply invocation"
+        }
+      ]
+    },
+    {
+      "id": "held-rules-fire-decline-gate",
+      "name": "Held-back rules get a decline / leave / grant gate",
+      "description": "When the step 9 merge-worktree dry run lists rules held back as blanket or hook-denied, the skill asks once whether to decline them via --exclude, leave them undecided, or grant one through dev10x:permission-grant (GH-1800).",
+      "input": "/dev10x:plugin-maintenance full (dry run holds back Bash(bash:*))",
+      "assertions": [
+        {
+          "dimension": "held-rules-gate",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "assertion": "held_rules_gate_uses_tool",
+          "signal": "AskUserQuestion is called after the merge-worktree dry run lists a held-back rule"
+        },
+        {
+          "dimension": "held-rules-gate",
+          "check": "behavioral",
+          "signal": "The options are Decline them, Leave undecided and Grant one deliberately, with exactly one marked Recommended and listed first"
+        },
+        {
+          "dimension": "held-rules-gate",
+          "check": "behavioral",
+          "signal": "No --exclude is passed to merge-worktree before the supervisor answers"
         }
       ]
     }

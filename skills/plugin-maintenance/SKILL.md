@@ -803,6 +803,22 @@ all worktrees and merges them back.
 uvx dev10x permission merge-worktree --dry-run
 ```
 
+   When the dry run lists rules under "held back" for a reason other
+   than "declined by the supervisor", **REQUIRED: Call
+   `AskUserQuestion`** (do NOT use plain text) once, naming each such
+   rule and its reason (GH-1800). Options:
+   - Decline them — re-run the apply below with one
+     `--exclude '<rule>'` per rule, so later runs stop listing them
+   - Leave undecided — apply without `--exclude`; they stay held
+     and are listed again next run
+   - Grant one deliberately — hand it to `dev10x:permission-grant`,
+     which triages it before anything is written
+
+   Mark the recommendation from state, never by default: when a held
+   rule is already in the main checkout's allow list, the supervisor
+   put it there, so "Leave undecided" leads; otherwise "Decline them"
+   leads. Rules held only because they were declined need no question.
+
 2. Apply:
 
 ```bash
