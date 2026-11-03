@@ -1,0 +1,14 @@
+{
+  "skill_name": "dev10x:py-mockito",
+  "eval_dimensions": [
+    {
+      "name": "task_tracking",
+      "description": "Creates and updates tasks per orchestration contract"
+    },
+    {
+      "name": "announce",
+      "description": "Opens with announce line identifying the skill"
+    }
+  ],
+  "evals": []
+}

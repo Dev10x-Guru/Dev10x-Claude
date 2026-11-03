@@ -46,8 +46,9 @@ families:
       - pr:comment-fixup
 
   - label: Testing
-    description: "pytest, flaky tests, QA scoping"
+    description: "pytest, mockito stubs, flaky tests, QA scoping"
     skills:
+      - dev10x:py-mockito
       - dev10x:py-test
       - dev10x:py-test-flaky
       - dev10x:qa-scope
