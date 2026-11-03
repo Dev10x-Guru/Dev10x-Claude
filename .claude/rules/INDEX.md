@@ -102,6 +102,7 @@ Always apply `references/review-checks-common.md`.
 | `html-artifact-reporting.md` | Optional HTML artifacts for long comparison-shaped reports; markdown stays default | `dev10x:ddd` deliverables, foreman morning report | Referenced, not auto-loaded |
 | `diagrams/rendering.md` | Shared diagram render toolchain contract and failure table | `dev10x:diagram-sequence`, `dev10x:diagram-c4`, `dev10x:diagram-bpmn`, `dev10x:scope`, `dev10x:adr` | Referenced, not auto-loaded |
 | `agent-catalog.md` | Every agent spec — internal reviewers in `.claude/agents/`, plugin-distributed agents in `agents/` — with its trigger (GH-1750) | Adding or auditing an agent spec | Referenced, not auto-loaded |
+| `skill-personas.md` | Optional per-skill `persona:` field, its mirrored `**Persona:**` body line, and the pilot set (GH-1638) | `dev10x:skill-create`; the pilot skills `dev10x:review`, `dev10x:adr`, `dev10x:ticket-scope` | Referenced, not auto-loaded |
 | `skill-size-overrides.md` | SKILL.md / `instructions.md` files allowed past the 200-line budget, with each justification (GH-1750) | Reviewing a skill over budget | Referenced, not auto-loaded |
 
 ## Agent Specs

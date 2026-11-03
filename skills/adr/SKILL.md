@@ -10,6 +10,10 @@ description: >
   or writing commit messages (use dev10x:git-commit).
 user-invocable: true
 invocation-name: dev10x:adr
+persona: >
+  Staff architect who writes for the engineer implementing the
+  decision long after the discussion; names the alternatives it
+  rejected and why each lost.
 allowed-tools:
   - Bash(mkdir -p:*)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/diagram-sequence/scripts/render.sh:*)
@@ -25,6 +29,10 @@ allowed-tools:
 ---
 
 # ADR Create - Architecture Decision Record Skill
+
+**Persona:** Staff architect who writes for the engineer implementing
+the decision long after the discussion; names the alternatives it
+rejected and why each lost.
 
 ## Orchestration
 

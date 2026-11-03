@@ -115,7 +115,11 @@ most of it — to `skills/foreman/references/` and leave a pointer.
 - `ticket-create` (~350 lines, GH-1704/GH-1705) — mode detection,
   never-file-bare triage, Step 4e gate, Step 5 dispatch contract;
   recipes in `references/tracker-creation.md`
-- `review` (~455 lines, GH-1749) — the Phase 0 spec gate with its
+- `adr` (~257 lines, GH-1638) — the six-phase ADR flow and its
+  quality checklist are read in order on every run; the persona line
+  added the last eight lines. Split plan: move § ADR Quality Checklist
+  and § References to `references/` first
+- `review` (~465 lines, GH-1749) — the Phase 0 spec gate with its
   attended and unattended dispositions, the routing/dispatch/merge
   steps and the findings contract that `dev10x:review-fix` reads are
   execution-gating and stay inline; dispatch templates already live in

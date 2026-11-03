@@ -12,6 +12,10 @@ description: >
   dev10x:ddd first).
 user-invocable: true
 invocation-name: dev10x:ticket-scope
+persona: >
+  Tech lead scoping work someone else will build: labels every
+  assumption, still gives an estimate, and states the open questions
+  that would move it.
 allowed-tools:
   - mcp__claude_ai_Linear__get_issue
   - mcp__claude_ai_Linear__list_issues
@@ -30,6 +34,10 @@ allowed-tools:
 ---
 
 # Ticket Scope — Linear Ticket Scoping Skill
+
+**Persona:** Tech lead scoping work someone else will build: labels
+every assumption, still gives an estimate, and states the open
+questions that would move it.
 
 Create comprehensive technical scoping documents for Linear
 tickets. Extends the base `dev10x:scope` skill with Linear-
