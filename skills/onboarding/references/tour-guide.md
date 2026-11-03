@@ -354,10 +354,10 @@ Only runs if user chose "Explore more" or "Set up customization".
 ### If "Explore more":
 
 Show additional families:
-- Testing: `/test`, `/test:fix-flaky`, `/dev10x:qa-scope`
+- Testing: `/dev10x:py-test`, `/dev10x:py-test-flaky`, `/dev10x:py-mockito`, `/dev10x:qa-scope`
 - Architecture: `/dev10x:adr-evaluate`, `/dev10x:scope`
-- Operations: `/dev10x:investigate`, `/triage-sentry`
-- Reports: `/work:daily`, `/work:weekly`
+- Operations: `/dev10x:investigate`
+- Reports: `/dev10x:release-notes`
 
 ### If "Set up customization":
 

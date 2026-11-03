@@ -776,7 +776,7 @@
       },
       {
         "query": "read the sentry issue at https://example-org.sentry.io/issues/5201839452 and tell me what's causing it",
-        "rationale": "Wants investigation only (dev10x:investigate or triage-sentry), not full work orchestration"
+        "rationale": "Wants investigation only (dev10x:investigate), not full work orchestration"
       },
       {
         "query": "let's wrap up for today and save my progress",
