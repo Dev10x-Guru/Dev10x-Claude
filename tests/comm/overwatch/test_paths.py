@@ -22,6 +22,7 @@ PathFn = Callable[..., Path]
                 keeps_page_token=False,
                 renames_sessions=True,
                 rearms_relay=True,
+                supervises_dev_page=True,
             ),
         ),
         (
@@ -31,6 +32,7 @@ PathFn = Callable[..., Path]
                 keeps_page_token=True,
                 renames_sessions=False,
                 rearms_relay=False,
+                supervises_dev_page=False,
             ),
         ),
     ],

@@ -10,7 +10,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 import pytest
-from click.testing import CliRunner
+from click.testing import CliRunner, Result
 from dev10x.domain.dev10x_paths import CONFIG_HOME_ENV_VAR, Dev10xConfigDir
 
 from dev10x.cli import cli
@@ -28,13 +28,27 @@ def config_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Pat
     Dev10xConfigDir.reset_cache()
 
 
-def test_unit_prints_execstart() -> None:
+@pytest.mark.parametrize(
+    ("which", "uv"), [("/opt/bin/uv", "/opt/bin/uv"), (None, "uv")], ids=["found", "missing"]
+)
+def test_unit_prints_execstart(
+    monkeypatch: pytest.MonkeyPatch, which: str | None, uv: str
+) -> None:
+    monkeypatch.setattr(command.shutil, "which", lambda name: which)
+
     result = CliRunner().invoke(cli, ["overwatch", "unit", "--port", "9000"])
 
-    assert ("overwatch serve --port 9000" in result.output, "[Install]" in result.output) == (
-        True,
-        True,
-    )
+    assert (
+        f"overwatch serve --port 9000 --uv {uv}\n" in result.output,
+        "Restart=always" in result.output,
+        "[Install]" in result.output,
+    ) == (True, True, True)
+
+
+def test_there_is_no_dev_unit(config_home: Path) -> None:
+    result = CliRunner().invoke(cli, ["overwatch", "unit", "--dev"])
+
+    assert (result.exit_code, "No such option" in result.output) == (2, True)
 
 
 def test_cli_lists_overwatch() -> None:
@@ -400,72 +414,119 @@ def test_release_page_token_is_fresh_each_boot(config_home: Path) -> None:
     assert (len(tokens), paths.page_token_path().exists()) == (2, False)
 
 
-class TestServeDev:
-    def test_refuses_without_a_pin(self, config_home: Path) -> None:
-        result = CliRunner().invoke(cli, ["overwatch", "serve", "--dev"])
+class FakeThread:
+    def __init__(self) -> None:
+        self.joined = False
 
-        assert (result.exit_code, command.NOT_PINNED in result.output) == (1, True)
+    def join(self) -> None:
+        self.joined = True
 
-    def test_launches_the_checkout_code(
+
+class TestServeWatchesTheDevPin:
+    @pytest.fixture
+    def watched(
         self,
-        pinned: Path,
+        config_home: Path,
         monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        seen: dict[str, object] = {}
-        monkeypatch.setattr(command, "run_launcher", lambda **kwargs: seen.update(kwargs))
+    ) -> dict[str, object]:
+        seen: dict[str, object] = {"thread": FakeThread()}
+
+        def fake_start(**kwargs: object) -> FakeThread:
+            seen["watch"] = kwargs
+            return seen["thread"]  # type: ignore[return-value]
+
+        monkeypatch.setattr(command, "start_dev_watcher", fake_start)
         monkeypatch.setattr(command.signal, "signal", lambda signum, handler: None)
+        return seen
 
-        CliRunner().invoke(cli, ["overwatch", "serve", "--dev", "--uv", "/opt/uv"])
-        launcher = seen["launcher"]
-
-        assert (
-            (
-                launcher.checkout,  # type: ignore[attr-defined]
-                launcher.command[:4],  # type: ignore[attr-defined]
-                seen["interval"],
-            )
-            == (pinned, ["/opt/uv", "run", "--project", str(pinned)], 5.0)
+    def _serve(self, *, tmp_path: Path, args: list[str]) -> Result:
+        return CliRunner().invoke(
+            cli,
+            ["overwatch", "serve", "--uv", "/opt/uv", "--bus-root", str(tmp_path / "bus"), *args],
         )
 
+    def test_release_page_runs_the_watcher_on_its_stop(
+        self,
+        watched: dict[str, object],
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(command, "run_service", lambda **kwargs: watched.update(kwargs))
 
-def test_run_launcher_delegates() -> None:
+        self._serve(tmp_path=tmp_path, args=[])
+        watch = watched["watch"]
+
+        assert (
+            watch["stop"] is watched["stop"],  # type: ignore[index]
+            watch["interval"],  # type: ignore[index]
+            watched["stop"].is_set(),  # type: ignore[attr-defined]
+            watched["thread"].joined,  # type: ignore[attr-defined]
+        ) == (True, 5.0, True, True)
+
+    def test_the_watcher_launches_the_pinned_checkout(
+        self,
+        watched: dict[str, object],
+        pinned: Path,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(command, "run_service", lambda **kwargs: None)
+
+        self._serve(tmp_path=tmp_path, args=[])
+        watcher = watched["watch"]["watcher"]  # type: ignore[index]
+        launcher = watcher.make_launcher(watcher.read_pin())
+
+        assert launcher.command[:4] == ["/opt/uv", "run", "--project", str(pinned)]
+
+    def test_dev_page_never_runs_a_watcher(
+        self,
+        watched: dict[str, object],
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        served: list[dict[str, object]] = []
+        monkeypatch.setattr(command, "run_service", lambda **kwargs: served.append(kwargs))
+
+        result = self._serve(tmp_path=tmp_path, args=["--instance", "dev", "--port", "0"])
+
+        assert (result.exit_code, len(served), "watch" in watched) == (0, 1, False)
+
+    def test_a_failing_service_still_stops_the_watcher(
+        self,
+        watched: dict[str, object],
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        def fail(**kwargs: object) -> None:
+            watched.update(kwargs)
+            raise OSError("port in use")
+
+        monkeypatch.setattr(command, "run_service", fail)
+
+        self._serve(tmp_path=tmp_path, args=[])
+
+        assert (
+            watched["stop"].is_set(),  # type: ignore[attr-defined]
+            watched["thread"].joined,  # type: ignore[attr-defined]
+        ) == (True, True)
+
+
+def test_start_dev_watcher_runs_the_watcher_in_a_thread() -> None:
     calls: list[dict[str, object]] = []
 
-    class Launcher:
+    class Watcher:
         def run(self, **kwargs: object) -> None:
             calls.append(kwargs)
 
     stop = threading.Event()
-    command.run_launcher(launcher=Launcher(), stop=stop, interval=1.0)  # type: ignore[arg-type]
-
-    assert calls == [{"stop": stop, "interval": 1.0}]
-
-
-class TestUnitDev:
-    def test_refuses_without_a_pin(self, config_home: Path) -> None:
-        result = CliRunner().invoke(cli, ["overwatch", "unit", "--dev"])
-
-        assert result.exit_code == 1
-
-    @pytest.mark.parametrize(
-        ("which", "uv"), [("/opt/bin/uv", "/opt/bin/uv"), (None, "uv")], ids=["found", "missing"]
+    thread = command.start_dev_watcher(
+        watcher=Watcher(),  # type: ignore[arg-type]
+        stop=stop,
+        interval=1.0,
     )
-    def test_prints_a_restart_always_unit(
-        self,
-        pinned: Path,
-        monkeypatch: pytest.MonkeyPatch,
-        which: str | None,
-        uv: str,
-    ) -> None:
-        monkeypatch.setattr(command.shutil, "which", lambda name: which)
+    thread.join(timeout=5)
 
-        output = CliRunner().invoke(cli, ["overwatch", "unit", "--dev"]).output
-
-        assert (
-            f"overwatch serve --dev --uv {uv}" in output,
-            "Restart=always" in output,
-            str(pinned) in output,
-        ) == (True, True, True)
+    assert (calls, thread.daemon) == ([{"stop": stop, "interval": 1.0}], True)
 
 
 class TestDevCommands:
@@ -474,7 +535,9 @@ class TestDevCommands:
             cli, ["overwatch", "dev", "pin", "--checkout", str(checkout), "--port", "9301"]
         )
 
-        assert result.output.strip() == f"Dev Overwatch page: {checkout} on port 9301"
+        assert result.output.strip() == (
+            f"Dev Overwatch page: {checkout} on port 9301; {command.LIVE_NOTE}."
+        )
 
     def test_pin_rejects_a_foreign_dir(self, config_home: Path, tmp_path: Path) -> None:
         result = CliRunner().invoke(cli, ["overwatch", "dev", "pin", "--checkout", str(tmp_path)])
@@ -499,16 +562,11 @@ class TestDevCommands:
 
         assert "Open: http://127.0.0.1:8766/?token=dev-tok" in output
 
-    @pytest.mark.parametrize(
-        "args",
-        [["dev", "status"], ["serve", "--dev"], ["unit", "--dev"]],
-        ids=["status", "serve", "unit"],
-    )
-    def test_unusable_pin_says_why(self, config_home: Path, args: list[str]) -> None:
+    def test_unusable_pin_says_why(self, config_home: Path) -> None:
         config_home.mkdir(parents=True)
         (config_home / "overwatch.yaml").write_text("dev: [unclosed\n", encoding="utf-8")
 
-        result = CliRunner().invoke(cli, ["overwatch", *args])
+        result = CliRunner().invoke(cli, ["overwatch", "dev", "status"])
 
         assert (
             result.exit_code,
@@ -528,7 +586,7 @@ class TestDevCommands:
     def test_unpin_when_pinned(self, pinned: Path) -> None:
         output = CliRunner().invoke(cli, ["overwatch", "dev", "unpin"]).output
 
-        assert output.strip() == "Dev checkout unpinned."
+        assert output.strip() == f"Dev checkout unpinned; {command.LIVE_NOTE}."
 
     def test_unpin_when_not_pinned(self, config_home: Path) -> None:
         output = CliRunner().invoke(cli, ["overwatch", "dev", "unpin"]).output
