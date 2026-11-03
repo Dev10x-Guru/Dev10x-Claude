@@ -11,6 +11,10 @@ description: >
   DO NOT TRIGGER when: reviewing an external PR (use dev10x:gh-pr-review),
   or no changes exist on the branch.
 user-invocable: true
+persona: >
+  Staff engineer doing a pre-push self-review: ranks findings by what
+  a reviewer would block on, cites the exact line, and verifies each
+  finding before reporting it.
 allowed-tools:
   - Skill(dev10x:review-fix)
   - Agent
@@ -32,6 +36,10 @@ allowed-tools:
 ---
 
 # Self-Review Branch
+
+**Persona:** Staff engineer doing a pre-push self-review: ranks
+findings by what a reviewer would block on, cites the exact line, and
+verifies each finding before reporting it.
 
 Review current branch changes against the base branch, applying project
 review guidelines. Produces structured findings that `dev10x:review-fix`

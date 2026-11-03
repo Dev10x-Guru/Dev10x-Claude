@@ -73,6 +73,7 @@ allowed-tools:                # pre-approve bash commands (removes prompts)
 | `invocation-name` | Required on every skill; matches `name:` by default, or shorter alias |
 | `user-invocable: true` | Skill appears in MOTD and is callable via Skill tool |
 | `allowed-tools` | Pre-approve bash commands Claude needs; use `:*` for any args |
+| `persona` | Optional, judgment-heavy skills only; mirror it as a `**Persona:**` line after the H1 — see `references/skill-personas.md` |
 
 ## Writing for User Gains (JTBD-influenced)
 
