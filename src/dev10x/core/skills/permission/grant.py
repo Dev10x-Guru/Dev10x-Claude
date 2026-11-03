@@ -537,6 +537,16 @@ def triage(
                 ],
             )
 
+    # GH-1799: the last word before a grant is the spread guard's own list, so
+    # no caller (Overwatch pre-approve included) can write a shape it holds back.
+    blanket = blanket_problem(rule=rule)
+    if blanket:
+        return verdict(
+            kind=Verdict.TOO_BROAD,
+            reason=blanket,
+            advice=["Keep approving it per use; this shape is never granted whole."],
+        )
+
     missing = [
         path
         for path, block in readable.items()
