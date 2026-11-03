@@ -171,7 +171,11 @@ class TestRegister:
 
     @pytest.mark.parametrize(
         ("old", "new"),
-        [("dev10x:qa-self", "dev10x-qa:qa-self"), ("dev10x:k8s", "dev10x-infra:k8s")],
+        [
+            ("dev10x:qa-self", "dev10x-qa:qa-self"),
+            ("dev10x:k8s", "dev10x-infra:k8s"),
+            ("dev10x:db-psql", "dev10x-db:db-psql"),
+        ],
     )
     def test_shipped_aliases_rewrite_a_moved_name(self, old: str, new: str) -> None:
         assert migrate_text(text=f"steps:\n  - skill: {old}\n", aliases=SKILL_NAME_ALIASES) == (

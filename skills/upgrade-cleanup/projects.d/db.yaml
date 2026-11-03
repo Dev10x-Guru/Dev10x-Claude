@@ -6,3 +6,5 @@
 base_permissions:
   # --- Dev10x MCP tools: db server (GH-878) ---
   - "mcp__plugin_dev10x_db__query"
+  # --- dev10x-db skills (GH-1566) ---
+  - "Skill(dev10x-db:*)"

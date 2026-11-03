@@ -1,24 +1,24 @@
 ---
-name: dev10x:sql-handoff
+name: dev10x-db:sql-handoff
 description: >
   Use when a write (UPDATE, INSERT, DELETE, DDL) must reach a database
-  the agent can only read through dev10x:db-psql — so the supervisor
+  the agent can only read through dev10x-db:db-psql — so the supervisor
   gets one paste-safe statement aimed at the right database, and the
   agent proves the effect before building on it.
   TRIGGER when: the agent needs the user to run non-SELECT SQL by hand,
   or the db-psql hook just blocked a write.
-  DO NOT TRIGGER when: the SQL is a SELECT (run it via dev10x:db-psql),
+  DO NOT TRIGGER when: the SQL is a SELECT (run it via dev10x-db:db-psql),
   or the change belongs in a migration file in the codebase.
 user-invocable: true
-invocation-name: dev10x:sql-handoff
+invocation-name: dev10x-db:sql-handoff
 allowed-tools:
   - AskUserQuestion
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/db-psql/scripts/db.sh:*)
 ---
 
-# dev10x:sql-handoff
+# dev10x-db:sql-handoff
 
-**Announce:** "Using dev10x:sql-handoff to hand the write to you and
+**Announce:** "Using dev10x-db:sql-handoff to hand the write to you and
 verify it afterwards."
 
 ## Orchestration
@@ -34,7 +34,7 @@ Mark completed only after Step 5 verifies the write:
 
 ## Overview
 
-The agent may run SELECTs through `dev10x:db-psql`; every write goes
+The agent may run SELECTs through `dev10x-db:db-psql`; every write goes
 through the supervisor's own psql session. The handoff is where a
 write goes wrong: the wrong database, a stale WHERE clause, a
 statement mangled in the copy-paste, or an agent that assumes "done"
@@ -56,7 +56,7 @@ handoff carries exactly one statement.
    Then ask with `AskUserQuestion` — a question that only *refers*
    to the block above, never one that contains it.
 2. **Verify with a SELECT after the user says it ran.** Run a
-   read-back through `dev10x:db-psql` before continuing. Never trust
+   read-back through `dev10x-db:db-psql` before continuing. Never trust
    the paste, a pasted psql output, or "done" on its own.
 3. **One statement per handoff.** State the exact WHERE clause and
    the expected row count (`-- Expect: UPDATE 1`) inside the block.
@@ -120,7 +120,7 @@ read-back will confirm."
 
 ### Step 5: Verify
 
-Run a read-back through `dev10x:db-psql` that selects the changed
+Run a read-back through `dev10x-db:db-psql` that selects the changed
 columns with the same WHERE clause. Compare against the intended
 end state. A mismatch is a finding to report, never something to
 "fix" with another write in the same breath — go back to Step 1.
@@ -164,7 +164,7 @@ UPDATE, an ambiguous-row handoff with a confirming SELECT first, a
 
 ## Integration
 
-- **`dev10x:db`** — plans the query and verifies table and column
+- **`dev10x-db:db`** — plans the query and verifies table and column
   names before the handoff
-- **`dev10x:db-psql`** — runs the confirming and verifying SELECTs;
+- **`dev10x-db:db-psql`** — runs the confirming and verifying SELECTs;
   its "When a Query Is Blocked" section hands off to this skill

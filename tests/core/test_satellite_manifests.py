@@ -99,6 +99,7 @@ class TestRepositoryManifests:
         [
             ("qa", ["dev10x"]),
             ("infra", ["dev10x"]),
+            ("db", ["dev10x"]),
             ("coding", ["dev10x", "dev10x-tasks"]),
             ("core", []),
         ],

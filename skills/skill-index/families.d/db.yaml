@@ -5,5 +5,5 @@ families:
   - label: Data
     description: "Safe read-only queries and hand-run writes"
     skills:
-      - dev10x:db-psql
-      - dev10x:sql-handoff
+      - dev10x-db:db-psql
+      - dev10x-db:sql-handoff

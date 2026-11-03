@@ -5,13 +5,21 @@ import json
 import re
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
 
 from dev10x.comm.skills.notifications.slack_review_request import SLACK_NOTIFY_SCRIPT
-from dev10x.core.paths import skill_files, skill_roots, skill_script
-from dev10x.core.validators.sql_safety import DB_SH_PATH
+from dev10x.core.db_script import DB_KEY, DB_PLUGIN_NAME, DB_SCRIPT_SKILL, db_script
+from dev10x.core.paths import (
+    PLUGIN_MANIFEST,
+    satellite_script,
+    skill_files,
+    skill_roots,
+    skill_script,
+)
+from dev10x.core.plugin_map import PluginMap, load_plugin_map
 from dev10x.subprocess_utils import get_plugin_root
 
 SCRIPT_LITERAL = re.compile(r"^skills/[A-Za-z0-9_-]+/scripts/")
@@ -64,6 +72,103 @@ def test_skill_script_builds_a_satellite_repo_path() -> None:
     )
 
 
+class TestSatelliteScript:
+    """GH-1566: core reaches a script that moved to a satellite."""
+
+    IN_CORE = "plugins/db/skills/db-psql/scripts/db.sh"
+
+    @pytest.fixture
+    def core_root(self, tmp_path: Path) -> Path:
+        root = tmp_path / "cache" / "Dev10x-Guru" / "dev10x" / "0.114.0"
+        root.mkdir(parents=True)
+        return root
+
+    @pytest.fixture
+    def satellite_root(self, core_root: Path) -> Path:
+        return core_root.parent.parent / "dev10x-db" / "0.114.0"
+
+    @pytest.fixture
+    def beside(self, satellite_root: Path) -> Path:
+        script = satellite_root / "skills/db-psql/scripts/db.sh"
+        self._write(path=script, text="")
+        return script
+
+    def _resolve(self, *, core_root: Path) -> str:
+        return satellite_script(
+            plugin_root=core_root,
+            key="db",
+            plugin_name="dev10x-db",
+            skill="db-psql",
+            rel="db.sh",
+        )
+
+    @staticmethod
+    def _write(*, path: Path, text: str) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text)
+
+    def _write_manifest(self, *, satellite_root: Path, text: str) -> None:
+        self._write(path=satellite_root / PLUGIN_MANIFEST, text=text)
+
+    def test_prefers_the_copy_under_core(
+        self,
+        core_root: Path,
+        satellite_root: Path,
+        beside: Path,
+    ) -> None:
+        self._write(path=core_root / self.IN_CORE, text="")
+        self._write_manifest(satellite_root=satellite_root, text='{"name": "dev10x-db"}')
+
+        assert self._resolve(core_root=core_root) == self.IN_CORE
+
+    def test_finds_the_satellite_installed_beside_core(
+        self,
+        core_root: Path,
+        satellite_root: Path,
+        beside: Path,
+    ) -> None:
+        self._write_manifest(satellite_root=satellite_root, text='{"name": "dev10x-db"}')
+
+        assert self._resolve(core_root=core_root) == str(beside)
+
+    @pytest.mark.parametrize(
+        "manifest",
+        [
+            pytest.param('{"name": "someone-else"}', id="other-plugin"),
+            pytest.param("not json", id="unreadable"),
+            pytest.param('["dev10x-db"]', id="not-an-object"),
+        ],
+    )
+    def test_ignores_a_sibling_whose_manifest_names_another_plugin(
+        self,
+        core_root: Path,
+        satellite_root: Path,
+        beside: Path,
+        manifest: str,
+    ) -> None:
+        self._write_manifest(satellite_root=satellite_root, text=manifest)
+
+        assert self._resolve(core_root=core_root) == self.IN_CORE
+
+    def test_ignores_a_sibling_without_a_manifest(self, core_root: Path, beside: Path) -> None:
+        assert self._resolve(core_root=core_root) == self.IN_CORE
+
+    def test_names_the_in_core_path_when_nothing_is_installed(self, core_root: Path) -> None:
+        assert self._resolve(core_root=core_root) == self.IN_CORE
+
+
+class TestDbScriptConstants:
+    @pytest.fixture
+    def plugin_map(self) -> PluginMap:
+        return load_plugin_map()
+
+    def test_names_the_shipped_db_plugin(self, plugin_map: PluginMap) -> None:
+        assert DB_PLUGIN_NAME == plugin_map.plugin_name(key=DB_KEY)
+
+    def test_the_script_skill_ships_with_the_db_plugin(self, plugin_map: PluginMap) -> None:
+        assert DB_SCRIPT_SKILL in plugin_map.plugins[DB_KEY]
+
+
 def test_src_resolves_scripts_through_the_resolver() -> None:
     offenders = [
         f"{path.relative_to(_src_root())}:{lineno} {value}"
@@ -112,15 +217,18 @@ def test_every_resolved_script_exists() -> None:
 
 
 @pytest.mark.parametrize(
-    "script",
+    "build_script",
     [
-        pytest.param(SLACK_NOTIFY_SCRIPT, id="slack-notify"),
-        pytest.param(DB_SH_PATH, id="db.sh"),
+        pytest.param(lambda: SLACK_NOTIFY_SCRIPT, id="slack-notify"),
+        pytest.param(
+            lambda: get_plugin_root() / db_script(plugin_root=get_plugin_root()),
+            id="db.sh",
+        ),
     ],
 )
-def test_hand_built_script_paths_exist(script: Path) -> None:
+def test_hand_built_script_paths_exist(build_script: Callable[[], Path]) -> None:
     """GH-1751: paths assembled outside skill_script() break the same way."""
-    assert script.is_file()
+    assert build_script().is_file()
 
 
 @pytest.mark.parametrize(

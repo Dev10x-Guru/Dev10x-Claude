@@ -9,6 +9,8 @@ import pytest
 from dev10x.domain.common.result import ErrorResult, SuccessResult
 from dev10x.domain.rules.sql import is_read_only_sql
 
+from dev10x.subprocess_utils import SCRIPT_NOT_FOUND
+
 
 class TestIsReadOnlySql:
     @pytest.mark.parametrize(
@@ -220,8 +222,53 @@ class TestQueryFunctionSuccess:
         query(database="backend", sql="SELECT 1")
 
         mock_run_script.assert_called_once_with(
-            "skills/db-psql/scripts/db.sh", "backend", "SELECT 1"
+            "plugins/db/skills/db-psql/scripts/db.sh", "backend", "SELECT 1"
         )
+
+    @patch("dev10x.db.run_script")
+    def test_names_the_db_plugin_when_the_script_is_missing(
+        self,
+        mock_run_script: MagicMock,
+    ) -> None:
+        from dev10x.db import query
+
+        mock_result = MagicMock()
+        mock_result.returncode = -1
+        mock_result.stderr = f"{SCRIPT_NOT_FOUND}: /x/db.sh"
+        mock_run_script.return_value = mock_result
+
+        result = query(database="pp", sql="SELECT 1")
+
+        assert isinstance(result, ErrorResult)
+        assert result.error.startswith(f"{SCRIPT_NOT_FOUND}: /x/db.sh. ")
+        assert "dev10x-db plugin" in result.error
+
+    @pytest.mark.parametrize(
+        ("returncode", "stderr"),
+        [
+            pytest.param(-1, "Process timed out", id="timeout"),
+            pytest.param(-1, "", id="signal"),
+            pytest.param(2, "psql: connection refused", id="psql-error"),
+        ],
+    )
+    @patch("dev10x.db.run_script")
+    def test_reports_other_failures_without_the_plugin_hint(
+        self,
+        mock_run_script: MagicMock,
+        returncode: int,
+        stderr: str,
+    ) -> None:
+        from dev10x.db import query
+
+        mock_result = MagicMock()
+        mock_result.returncode = returncode
+        mock_result.stderr = stderr
+        mock_run_script.return_value = mock_result
+
+        result = query(database="pp", sql="SELECT 1")
+
+        assert isinstance(result, ErrorResult)
+        assert result.error == stderr
 
     @patch("dev10x.db.run_script")
     def test_handles_empty_json_response(self, mock_run_script: MagicMock) -> None:

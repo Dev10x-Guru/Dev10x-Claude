@@ -8,8 +8,9 @@ name readable as a deprecated alias until the row's ``removed_in``. The
 register entry for ``SKILL_NAME_ALIASES`` in
 :mod:`dev10x.core.domain.deprecations` must outlive every row.
 
-B1 (GH-1564) adds the six QA skills that moved to ``dev10x-qa``, and B2
-(GH-1565) the two infrastructure skills that moved to ``dev10x-infra``.
+B1 (GH-1564) adds the six QA skills that moved to ``dev10x-qa``, B2
+(GH-1565) the two infrastructure skills that moved to ``dev10x-infra``,
+and B3 (GH-1566) the three database skills that moved to ``dev10x-db``.
 Every write takes the file's lock and lands atomically, and a second run
 finds nothing left to rewrite.
 """
@@ -45,6 +46,7 @@ FIRST_EXTRACTION_ALIAS_REMOVED_IN = "0.116.0"
 _MOVED_IN_FIRST_EXTRACTION_RELEASE: dict[str, tuple[str, ...]] = {
     "dev10x-qa": ("playwright", "qa-publish", "qa-self", "review-pack", "tts", "yt-upload"),
     "dev10x-infra": ("aws-vault", "k8s"),
+    "dev10x-db": ("db", "db-psql", "sql-handoff"),
 }
 
 SKILL_NAME_ALIASES: tuple[SkillNameAlias, ...] = tuple(

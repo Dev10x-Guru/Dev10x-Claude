@@ -23,7 +23,7 @@ rules:
     hook_block: true
     compensations:
       - type: use-skill
-        skill: dev10x:db-psql
+        skill: dev10x-db:db-psql
         guardrails: SQL validation, SELECT-only enforcement
         fallback: >
           Writes are not the agent's to run. Print the SQL and ask the
@@ -38,7 +38,7 @@ rules:
       This rule is the dev10x:diag-friction steer; the enforcing gate is
       the DX004 sql-safety validator, which runs at every profile tier.
     related:
-      - dev10x:db
+      - dev10x-db:db
       - tt:db
 
   - name: psql
@@ -49,10 +49,10 @@ rules:
     hook_block: false
     compensations:
       - type: use-skill
-        skill: dev10x:db-psql
+        skill: dev10x-db:db-psql
     reason: >
       Direct psql calls bypass SQL validation hooks and may
       accidentally execute write operations.
     related:
-      - dev10x:db
+      - dev10x-db:db
       - tt:db

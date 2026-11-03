@@ -469,6 +469,19 @@ The supervisor decided the Stage B open decisions on 2026-10-19
      rule is replaced; a `deny` or `ask` rule is kept and a relocated
      copy added. A git-tracked settings file is skipped, as for every
      `update-paths` rewrite.
+   - B3 (GH-1566) keeps `command-skill-map.d/db.yaml`,
+     `families.d/db.yaml` and `projects.d/db.yaml` in core's tree too.
+     `projects.d/db.yaml` gains `Skill(dev10x-db:*)` next to the
+     `mcp__plugin_dev10x_db__query` allow it already held.
+   - The `db` MCP server stays in core, but its `query` tool and the
+     DX004 hook's messages use `db.sh`, which moves with `db-psql`.
+     Core finds it through `dev10x.core.paths.satellite_script`.
+     The resolver tries the satellite under core's own root first,
+     which covers a checkout and a marketplace clone. It then tries
+     the satellite installed beside core in the cache
+     (`…/dev10x-db/<ver>/`, lockstep version). With neither present,
+     `query` returns an error that names `dev10x-db`. B9's coding
+     scripts, which `cli` tools run, can use the same resolver.
 5. **Old names stay readable for two releases (GH-1564).** Each moved
    skill gets one `SKILL_NAME_ALIASES` row, and
    `dev10x config migrate-skill-names` rewrites user configs. QA ships
@@ -480,6 +493,8 @@ The supervisor decided the Stage B open decisions on 2026-10-19
      and the register entry does not move. An extraction that ships
      in a later release gets its own removal version, two releases
      after that release.
+   - B3 (GH-1566) also lands before `0.114.0`, so its three rows end
+     at `0.116.0` and the register entry stays put.
 
 ### Open decisions (record before the dependent step)
 

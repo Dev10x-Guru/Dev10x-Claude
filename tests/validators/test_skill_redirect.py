@@ -96,7 +96,7 @@ class TestPsqlWriteRedirect:
         inp = _make_input(command=command)
         result = validator.validate(inp=inp)
         assert result is not None
-        assert "dev10x:db-psql" in result.message
+        assert "dev10x-db:db-psql" in result.message
 
     @pytest.mark.parametrize(
         "command",

@@ -1,14 +1,14 @@
 ---
-name: dev10x:db-psql
+name: dev10x-db:db-psql
 description: >
   Safe read-only psql wrapper for Claude Code. Provides db.sh with
   SQL validation hook so database queries are safe and auditable.
   Configure databases in databases.yaml with env var or keyring backends.
   TRIGGER when: executing SQL against configured databases.
-  DO NOT TRIGGER when: planning queries (use dev10x:db), or working
+  DO NOT TRIGGER when: planning queries (use dev10x-db:db), or working
   with non-database tasks.
 user-invocable: true
-invocation-name: dev10x:db-psql
+invocation-name: dev10x-db:db-psql
 allowed-tools:
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/db-psql/scripts/db.sh:*)
 ---
@@ -167,10 +167,10 @@ Never attempt to bypass the safety checks.
 
 For the full handoff — one statement per block, never SQL inside an
 `AskUserQuestion` prompt, and a SELECT read-back after the user runs
-it — follow **`dev10x:sql-handoff`**.
+it — follow **`dev10x-db:sql-handoff`**.
 
 ## Integration
 
-- Uses **`dev10x:db`** for query planning and schema discovery
+- Uses **`dev10x-db:db`** for query planning and schema discovery
 - Project-specific skills (e.g., `tt:db`) provide `databases.yaml`
   with aliases and schema references

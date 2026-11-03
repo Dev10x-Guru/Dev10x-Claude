@@ -95,6 +95,7 @@ def effective_cwd() -> str | None:
 # key off concurrent burst volume, locking out the whole install rather
 # than the offending worktree.
 _DEFAULT_MAX_CONCURRENT_SUBPROCESSES = 12
+SCRIPT_NOT_FOUND = "Script not found"
 
 _spawn_gates: MutableMapping[asyncio.AbstractEventLoop, asyncio.Semaphore] = WeakKeyDictionary()
 
@@ -332,7 +333,7 @@ def run_script(
             args=[str(full_path), *args],
             returncode=-1,
             stdout="",
-            stderr=f"Script not found: {full_path}",
+            stderr=f"{SCRIPT_NOT_FOUND}: {full_path}",
         )
 
     env = os.environ.copy()
@@ -552,7 +553,7 @@ async def async_run_script(
             args=[str(full_path), *[str(a) for a in args]],
             returncode=-1,
             stdout="",
-            stderr=f"Script not found: {full_path}",
+            stderr=f"{SCRIPT_NOT_FOUND}: {full_path}",
         )
 
     env = os.environ.copy()

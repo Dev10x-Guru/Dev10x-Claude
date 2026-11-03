@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, ClassVar
 
+from dev10x.core.db_script import db_script
 from dev10x.domain import HookInput, HookResult
 from dev10x.domain.common.bash_tokens import (
     ANY_CASE_ENV_VAR_RE,
@@ -66,7 +67,7 @@ _PLUGIN_ROOT = Path(
         str(Path(__file__).resolve().parents[4]),
     )
 )
-DB_SH_PATH = _PLUGIN_ROOT / "skills" / "db-psql" / "scripts" / "db.sh"
+DB_SH_PATH = _PLUGIN_ROOT / db_script(plugin_root=_PLUGIN_ROOT)
 
 DIRECT_CONN_MSG = (
     "BLOCKED: Direct database connection via psycopg2 or postgres:// URL "

@@ -1,0 +1,14 @@
+{
+  "name": "dev10x-db",
+  "description": "v0.114.0.dev0 — 3 skills for read-only database work: query planning, a validated psql wrapper, and SQL handoff for changes a person runs.",
+  "version": "0.114.0.dev0",
+  "author": {
+    "name": "Janusz Skonieczny",
+    "email": "Dev10xAI@WooYek.com"
+  },
+  "homepage": "https://www.skool.com/Dev10x-1892",
+  "repository": "https://github.com/Dev10x-Guru/dev10x-claude",
+  "license": "MIT",
+  "keywords": ["database", "postgres", "psql", "sql", "read-only"],
+  "dependencies": ["dev10x"]
+}

@@ -231,6 +231,7 @@ groups:
       # Satellite plugins (ADR-0034): one rule per extracted key.
       - Skill(dev10x-qa:*)
       - Skill(dev10x-infra:*)
+      - Skill(dev10x-db:*)
       # A path rule's leading `//` anchors at the filesystem root; a
       # single `/` anchors at the settings source instead (GH-1325).
       # Edit(path) covers all file-editing tools (Write, Edit,
