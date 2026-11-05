@@ -73,7 +73,7 @@
   "project-audit": 19,
   "project-scope": 26,
   "py-mockito": 9,
-  "py-test": 30,
+  "py-test": 34,
   "py-test-flaky": 7,
   "py-uv": 9,
   "qa-scope": 33,
@@ -113,7 +113,7 @@
   "ticket-foo": 1,
   "ticket-jtbd": 18,
   "ticket-scope": 59,
-  "upgrade-cleanup": 31,
+  "upgrade-cleanup": 30,
   "verify-acc-dod": 61,
   "voice-channel": 9,
   "work-on": 173
