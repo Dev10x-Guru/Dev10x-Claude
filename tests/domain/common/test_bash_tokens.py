@@ -55,6 +55,10 @@ class TestStripCommandWrappers:
             (">/dev/null python -c x", ["python", "-c", "x"]),
             ("2> err.log python3 -c x", ["python3", "-c", "x"]),
             ("<in.txt &>>out.log sudo python -c x", ["python", "-c", "x"]),
+            ("setsid -f nice python -c x", ["python", "-c", "x"]),
+            ("chroot /srv/root python -c x", ["python", "-c", "x"]),
+            ("nsenter -t 1 -m python -c x", ["python", "-c", "x"]),
+            ("pkexec --user root python -c x", ["python", "-c", "x"]),
         ],
     )
     def test_returns_the_program_actually_run(self, command: str, expected: list[str]) -> None:
@@ -269,6 +273,10 @@ class TestNestedCommands:
             ("su -lc 'dropdb x' postgres", [NestedCommand(command="dropdb x")]),
             ("su -lcdropdb postgres", [NestedCommand(command="dropdb")]),
             ("su -l postgres", []),
+            ("flock -n -- /tmp/l dropdb x", [NestedCommand(command="dropdb x")]),
+            ("flock /tmp/l -c 'dropdb x'", [NestedCommand(command="dropdb x")]),
+            ("watch -n 5 dropdb x", [NestedCommand(command="dropdb x")]),
+            ("eval dropdb x", [NestedCommand(command="dropdb x")]),
             ("runuser -l app -c 'dropdb x'", [NestedCommand(command="dropdb x")]),
             ("op run --env-file=.env -- psql -c x", [NestedCommand(command="psql -c x")]),
             (
@@ -389,6 +397,9 @@ class TestTaggedCommandUnits:
 
         assert NestedCommand(command="python /a.py") in units
         assert NestedCommand(command="python /a.py", remote=True) not in units
+
+    def test_blank_substitution_adds_no_unit(self) -> None:
+        assert tagged_command_units(command="echo $( )") == (NestedCommand(command="echo $( )"),)
 
     def test_agrees_with_command_units(self) -> None:
         command = "echo $(ssh h 'dropdb x') && kubectl exec p -- psql"

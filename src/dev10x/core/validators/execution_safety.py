@@ -73,6 +73,20 @@ SHELL_WRITE_RE = re.compile(
 # Matches dd of= writes to real files; excludes /dev/null, /dev/stdout, /dev/stderr
 _DD_OF_RE = re.compile(r"\bof=(?!/dev/(null|stdout|stderr)\b)\S")
 
+# Fail-closed fallback for a unit the segmenter cannot tokenize (GH-1798):
+# an in-place editor in command position with its in-place flag anywhere
+# after it on the line. Over-matching is the safe direction here.
+_INPLACE_FALLBACK_RE = re.compile(
+    "|".join(
+        (
+            command_position_re(program="sed|perl").pattern + r"[^\n]*?\s-[A-Za-z]*i",
+            command_position_re(program="g?awk").pattern
+            + r"[^\n]*?\s(?:-i|--include)\s+['\"]?inplace\b",
+            command_position_re(program="dd").pattern + r"[^\n]*?" + _DD_OF_RE.pattern,
+        )
+    )
+)
+
 APPROVED_ABS_PREFIXES = (
     f"{ClaudeDir.tools_dir()}/",
     f"{ClaudeDir.skills_dir()}/",
@@ -497,8 +511,8 @@ class ExecutionSafetyValidator(ValidatorBase):
         Scans every segment of every unit, so `cat x | sed -i ...`,
         `true; sed -i ...` and `find . -exec sed -i ...` are all caught.
         Returns a HookResult on the first flagged segment, None otherwise.
-        An unparseable unit is skipped: the in-place check has no
-        fail-closed fallback, as before.
+        An unparseable unit fails closed on `_INPLACE_FALLBACK_RE`, like
+        the shell-write and interpreter checks (GH-1798).
         """
         _INPLACE_CMDS = frozenset({"sed", "perl", "gawk", "awk", "dd"})
 
@@ -506,6 +520,8 @@ class ExecutionSafetyValidator(ValidatorBase):
             try:
                 programs = segment_programs(command=unit)
             except UntokenizableCommandError:
+                if _INPLACE_FALLBACK_RE.search(unit):
+                    return HookResult(message=INPLACE_EDIT_MSG)
                 continue
 
             for _, parts in programs:
