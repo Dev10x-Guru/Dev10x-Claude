@@ -1,6 +1,6 @@
 # ADR-0032: How the Stop gate stops asking an empty chair
 
-- **Status:** Proposed (awaiting supervisor decision)
+- **Status:** Accepted, Option D′ (supervisor decision, 2026-11-05)
 - **Date:** 2026-09-27; refreshed 2026-11-03 against `a3ea3142`
 - **Supersedes:** none
 - **Amends:** ADR-0016 D-2, under Option D′ only, by naming the Stop
@@ -142,10 +142,32 @@ The first draft's Option D, corrected by its own advocate:
 - **B, read `friction.yaml` in the hook:** re-derives precedence and
   ignores `allowed_overlays`, overrides and the GH-978 fallback.
 
+## Decision
+
+On 2026-11-05 the supervisor chose **Option D′**, ahead of the
+evaluation's top-ranked C+: `afk` speaks for presence at this gate as it
+does at every other one.
+
+1. `stand_down` joins `_ENUM_TOGGLES` with baseline `ask`, and the `afk`
+   overlay sets it to `auto-advance`.
+2. On `blocked` only, `build_stop_verdict` resolves the toggle
+   in-process. Any resolver error keeps today's verdict.
+3. `auto-advance` blocks with an instruction: run the open-loop sweep,
+   act on anything pending, otherwise re-create `Verify AC` and end
+   without `AskUserQuestion`. The same verdict records the stand-down
+   fingerprint.
+4. The five prerequisites listed under D′ ship first, or in the same
+   change. They are: move the D-7 writer to a domain module,
+   `asyncio.run` in the hook, bound the `--git-common-dir` lookup,
+   parse `friction.yaml` once, and add the Stop hook to
+   `test_startup_time.py`.
+5. Open questions 2 (should `solo-maintainer` set `stand_down` too?)
+   and 3 (fix GH-149 breakers first?) stay open.
+
 ## Ranking
 
-The evaluation ranks **C+, then D′, then C**, with **medium**
-confidence. The decision is the supervisor's.
+The evaluation ranked **C+, then D′, then C**, with **medium**
+confidence. The supervisor chose D′ (see Decision).
 
 - C+ fixes the measured failure (unanswered widgets) with the least
   surface, and it keeps the gate's one job: making sure an agent never
