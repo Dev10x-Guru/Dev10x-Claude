@@ -690,7 +690,7 @@ that can be overridden per project.
 1. `.claude/Dev10x/playbooks/work-on.yaml` — project-local override
 2. `~/.config/Dev10x/playbooks/work-on.yaml` — global with repo
    matching (get repo via `git remote get-url origin`, walk
-   `projects[].match` globs, use first hit's `overrides`/`fragments`);
+   `projects[].match_repo` globs, use first hit's `overrides`/`fragments`);
    fall back to `~/.claude/memory/Dev10x/playbooks/work-on.yaml` for
    backwards compatibility when the XDG path is absent.
 3. `${CLAUDE_PLUGIN_ROOT}/skills/work-on/references/playbook.d/coding.yaml`
@@ -755,8 +755,9 @@ resolution algorithm needs.
    b. Try `~/.config/Dev10x/playbooks/work-on.yaml` (global); if
       absent, fall back to `~/.claude/memory/Dev10x/playbooks/work-on.yaml`
       for backwards compatibility — if found (either path), get repo
-      via `git remote get-url origin`, walk `projects[].match` globs;
-      use first matching entry's config.
+      via `git remote get-url origin`, walk `projects[].match_repo`
+      globs (an entry with only the retired `match:` key selects
+      nothing); use first matching entry's config.
       Top-level `fragments` are shared across all matched projects.
    c. Fall back to `${CLAUDE_PLUGIN_ROOT}/skills/work-on/references/playbook.d/coding.yaml`
 3. **VERIFY: Confirm the playbook loaded successfully.** Check that
