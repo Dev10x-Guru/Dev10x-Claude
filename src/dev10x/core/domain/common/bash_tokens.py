@@ -443,7 +443,9 @@ _TWO_CHAR_OPERATORS = frozenset({";;", "&&", "||", "|&"})
 # A set, not a string: after a quoted part `last_unquoted` is "", and
 # `"" in "<>"` is True, which glued a background `&` onto `'a'&`.
 _REDIRECT_CHARS = frozenset("<>")
-_BLANKS = " \t\r"
+# Not `\r`: bash does not split on it, so `git\rstatus` is one word.
+_BLANKS = " \t"
+_ANSI_C_ESCAPES = {"n": "\n", "t": "\t", "r": "\r", "a": "\a", "e": "\x1b", "0": "\0"}
 _DOUBLE_QUOTE_ESCAPES = '$`"\\\n'
 
 # Reserved words that may open a segment without being the program it
@@ -481,6 +483,18 @@ class Redirect:
     def feeds_inline_text(self) -> bool:
         """True for a heredoc or here-string: stdin is text in the command."""
         return self.operator.lstrip("0123456789").startswith("<<")
+
+    @property
+    def touches_no_file(self) -> bool:
+        """True for ``/dev/null`` or an fd duplicate (``2>&1``, ``>&-``).
+
+        An auto-approval (GH-1795) may vouch only for these: any other
+        redirect reads or writes a file no allow-rule named.
+        """
+        operator = self.operator.lstrip("0123456789")
+        if operator in (">&", "<&"):
+            return self.target.isdigit() or self.target == "-"
+        return not self.feeds_inline_text and self.target == "/dev/null"
 
 
 @dataclass(frozen=True)
@@ -631,6 +645,9 @@ class _Scanner:
                 chars.append(self.source[self.index + 1 : self.index + 2])
                 self.index += 2
                 last_unquoted = ""
+            elif char == "$" and self.source.startswith("$'", self.index):
+                chars.append(self._ansi_c_quoted())
+                last_unquoted = ""
             elif char == "'":
                 chars.append(self._single_quoted())
                 last_unquoted = ""
@@ -650,6 +667,30 @@ class _Scanner:
         text = self.source[self.index + 1 : end]
         self.index = end + 1
         return text
+
+    def _ansi_c_quoted(self) -> str:
+        """``$'…'``: a backslash escapes the next character, ``\\'`` included.
+
+        Reading it as a plain single-quoted span ends it at ``\\'``, and the
+        quote parity then disagrees with bash: ``$'\\''; rm -rf ~; $'\\''``
+        is two operators to bash and one argument to a naive scanner
+        (GH-1795 review). Escapes are decoded only as far as a guard needs.
+        """
+        chars: list[str] = []
+        self.index += 2
+        while self.index < len(self.source):
+            char = self.source[self.index]
+            if char == "'":
+                self.index += 1
+                return "".join(chars)
+            if char == "\\" and self.index + 1 < len(self.source):
+                escaped = self.source[self.index + 1]
+                chars.append(_ANSI_C_ESCAPES.get(escaped, escaped))
+                self.index += 2
+                continue
+            chars.append(char)
+            self.index += 1
+        raise UntokenizableCommandError("unterminated ANSI-C quote")
 
     def _double_quoted(self) -> str:
         chars: list[str] = []
@@ -742,19 +783,21 @@ def command_segments(*, command: str) -> tuple[CommandSegment, ...]:
 
 
 def is_simple_command(*, command: str) -> bool:
-    """True when ``command`` runs exactly one command and nothing nested.
+    """True when ``command`` runs exactly one command and touches no file.
 
     The precondition for an auto-approval that matched a rule against the
     whole string (GH-1795): `foo && rm -rf ~` starts with an allowed `foo`
-    but runs two commands. One segment, no substitution, no runner body,
-    and tokenizable, or it is not simple.
+    but runs two commands, and `foo > ~/.bashrc` writes a file the rule
+    never named. One segment, no substitution, no runner body, only
+    redirects that touch no file, and tokenizable, or it is not simple.
     """
     if len(command_units(command=command)) != 1:
         return False
     try:
-        return len(command_segments(command=command)) == 1
+        segments = command_segments(command=command)
     except UntokenizableCommandError:
         return False
+    return len(segments) == 1 and all(r.touches_no_file for r in segments[0].redirects)
 
 
 def segment_programs(*, command: str) -> list[tuple[CommandSegment, list[str]]]:
