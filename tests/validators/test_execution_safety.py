@@ -1055,6 +1055,9 @@ class TestExtraRunners:
             ("env -u HOME -S'bash -c x'", SHELL_INTERP_MSG),
             ("env --split-string='-i python -c x'", PYTHON3_INLINE_MSG),
             ("setsid sed -i s/a/b/ f", INPLACE_EDIT_MSG),
+            ("/bin/bash -c x", SHELL_INTERP_MSG),
+            ("sudo /usr/bin/sh -c x", SHELL_INTERP_MSG),
+            ("/usr/bin/zsh <<EOF\nrm x\nEOF", SHELL_INTERP_MSG),
         ],
     )
     def test_blocks(self, validator: ExecutionSafetyValidator, command: str, message: str) -> None:
