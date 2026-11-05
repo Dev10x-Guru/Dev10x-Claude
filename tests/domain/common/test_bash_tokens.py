@@ -59,10 +59,31 @@ class TestStripCommandWrappers:
             ("chroot /srv/root python -c x", ["python", "-c", "x"]),
             ("nsenter -t 1 -m python -c x", ["python", "-c", "x"]),
             ("pkexec --user root python -c x", ["python", "-c", "x"]),
+            ("chroot --userspec root:root /srv python -c x", ["python", "-c", "x"]),
+            ("env -uSTATE python -c x", ["python", "-c", "x"]),
         ],
     )
     def test_returns_the_program_actually_run(self, command: str, expected: list[str]) -> None:
         assert strip_command_wrappers(parts=command.split()) == expected
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "env -S 'python -c x'",
+            "env -iS 'python -c x'",
+            "env -iS'python -c x'",
+            "env --split-string 'python -c x'",
+            "env --split-string='-i python -c x'",
+            "env -u HOME -S 'FOO=1 python -c x'",
+        ],
+    )
+    def test_splices_an_env_split_string(self, command: str) -> None:
+        """GH-1798: `env -S` runs the words its string splits into."""
+        assert strip_command_wrappers(parts=split_tokens(command=command)) == [
+            "python",
+            "-c",
+            "x",
+        ]
 
 
 def _argvs(command: str) -> list[list[str]]:
@@ -244,6 +265,9 @@ class TestCommandPositionRe:
             "ssh host python -c 'x",
             "ssh -p 22 db01 python -c 'x",
             "su app -c 'python -c \"x",
+            ">/dev/null python -c 'x",
+            "2> err.log FOO=1 python -c 'x",
+            "true; > out python -c 'x",
         ],
     )
     def test_matches_program_in_command_position(self, command: str) -> None:

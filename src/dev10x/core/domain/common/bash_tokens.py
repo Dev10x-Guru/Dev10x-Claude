@@ -105,7 +105,7 @@ _COMMAND_WRAPPERS: dict[str, _Wrapper] = {
     # positional is the new root; its own options use the `=` form.
     "setsid": _Wrapper(),
     "pkexec": _Wrapper(value_options=frozenset({"--user"})),
-    "chroot": _Wrapper(positionals=1),
+    "chroot": _Wrapper(value_options=frozenset({"--userspec", "--groups"}), positionals=1),
     "nsenter": _Wrapper(
         value_options=frozenset({"-t", "--target", "-S", "--setuid", "-G", "--setgid"})
     ),
@@ -184,16 +184,32 @@ def _skip_options(*, parts: list[str], idx: int, value_options: frozenset[str]) 
     return idx
 
 
-def _split_option_value(*, token: str, option: str) -> str | None:
-    """The command string ``token`` attaches to ``option``, if any."""
-    attached = f"{option}=" if option.startswith("--") else option
-    if token.startswith(attached) and len(token) > len(attached):
-        return token[len(attached) :]
-    return None
+def _split_string_value(
+    *, token: str, following: str, wrapper: _Wrapper
+) -> tuple[str, int] | None:
+    """The command string ``token`` carries for a split option, and the
+    number of words it spans, or ``None`` when it is not one.
+
+    Covers ``--split-string X``, ``--split-string=X``, ``-S X``, ``-SX``
+    and a bundle ending in or attaching to ``-S`` (``-iS X``, ``-iSX``).
+    A bundle ends at its first value letter of any kind, so ``-uSTATE``
+    unsets ``STATE`` rather than splitting ``TATE``.
+    """
+    options = wrapper.split_options
+    if token.startswith("--"):
+        name, equals, value = token.partition("=")
+        if name not in options:
+            return None
+        return (value, 1) if equals else (following, 2)
+    position = _bundle_value_index(token=token, value_options=wrapper.value_options | options)
+    if position is None or f"-{token[position]}" not in options:
+        return None
+    attached = token[position + 1 :]
+    return (attached, 1) if attached else (following, 2)
 
 
 def _splice_split_strings(*, parts: list[str], idx: int, wrapper: _Wrapper) -> list[str]:
-    """``parts`` with each ``env -S`` string replaced by the words it holds.
+    """``parts`` with the first ``env -S`` string replaced by its words.
 
     Scans the wrapper's options from ``idx``. The spliced words are read
     as the wrapper's own arguments again, as ``env`` itself does.
@@ -201,13 +217,11 @@ def _splice_split_strings(*, parts: list[str], idx: int, wrapper: _Wrapper) -> l
     scan = idx
     while scan < len(parts) and parts[scan].startswith("-") and parts[scan] != "--":
         token = parts[scan]
-        if token in wrapper.split_options:
-            following = parts[scan + 1] if scan + 1 < len(parts) else ""
-            return [*parts[:scan], *split_tokens(command=following), *parts[scan + 2 :]]
-        for option in wrapper.split_options:
-            attached = _split_option_value(token=token, option=option)
-            if attached is not None:
-                return [*parts[:scan], *split_tokens(command=attached), *parts[scan + 1 :]]
+        following = parts[scan + 1] if scan + 1 < len(parts) else ""
+        split = _split_string_value(token=token, following=following, wrapper=wrapper)
+        if split is not None:
+            command, consumed = split
+            return [*parts[:scan], *split_tokens(command=command), *parts[scan + consumed :]]
         scan += 2 if token in wrapper.value_options else 1
     return parts
 
@@ -749,6 +763,9 @@ def segment_programs(*, command: str) -> list[tuple[CommandSegment, list[str]]]:
 # quote of a word (the command string `su -c '…` or `ssh host '…` runs).
 _COMMAND_BOUNDARY = r"(?:^|[|;&(\n{]|\s['\"])\s*"
 _ENV_ASSIGNMENTS = r"(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*"
+# Redirects ahead of the program, attached (`2>/dev/null`) or bare
+# (`> out`), as `strip_command_wrappers` skips them on the tokenized path.
+_LEADING_REDIRECTS = r"(?:(?:\d+|&)?[<>][<>&|]*(?:\S+|\s+\S+)\s+)*"
 _WRAPPER_NAMES = "|".join(sorted(_COMMAND_WRAPPERS))
 _DIRECTORY = r"(?:[\w./~-]*/)?"
 # An option with at most one value word, so `sudo -u app` and
@@ -777,6 +794,7 @@ def command_position_re(*, program: str) -> re.Pattern[str]:
     """
     return re.compile(
         _COMMAND_BOUNDARY
+        + _LEADING_REDIRECTS
         + _ENV_ASSIGNMENTS
         + _WRAPPER_PREFIX
         + _DIRECTORY

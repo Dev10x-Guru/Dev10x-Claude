@@ -267,7 +267,8 @@ def _python_argv(parts: list[str]) -> list[str] | None:
 
 
 def _exact_argv(parts: list[str], *, name: str) -> list[str] | None:
-    return parts[1:] if parts[0] == name else None
+    # By basename, as for python: `/bin/bash -c x` runs bash (GH-1798).
+    return parts[1:] if Path(parts[0]).name == name else None
 
 
 class _Run(StrEnum):
