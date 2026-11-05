@@ -120,15 +120,16 @@ class TestChainStampsRuleId:
         )
         assert result.rule_id == "DX003"
 
-    def test_allow_passes_through_without_rule_id_field(self) -> None:
+    def test_allow_is_stamped_too(self) -> None:
+        """GH-1795: an allow can skip the prompt, so it must be attributable."""
         result = _run_chain(
             validator=StubValidator(
-                rule_id="DX010",
-                result=HookAllow(message="fine"),
+                rule_id="DX011",
+                result=HookAllow(message="fine", decides=True),
                 profile=ProfileTier.STANDARD,
             )
         )
-        assert not hasattr(result, "rule_id")
+        assert result.rule_id == "DX011"
 
     def test_validator_without_a_rule_id_leaves_result_unstamped(self) -> None:
         result = _run_chain(

@@ -303,17 +303,17 @@ def _stamp_rule_id(
 
     Only the chain knows which validator spoke, so it stamps ``rule_id``
     here. A validator that already set one keeps it — the stamp never
-    overwrites a deliberate value. ``HookAllow`` carries no ``rule_id``
-    field and passes through untouched; attribution matters for the
-    decisions that cost the user something (deny, ask).
+    overwrites a deliberate value. ``HookAllow`` is stamped too since an
+    allow can skip the prompt (GH-1795): an auto-approval nobody can
+    attribute is one nobody can audit.
 
     The domain types are imported inside the function — the same
     deferred-import pattern :func:`_safety_fail_closed` uses — so the
     module keeps its ``TYPE_CHECKING``-only import boundary.
     """
-    from dev10x.domain import HookAsk, HookHint, HookResult
+    from dev10x.domain import HookAllow, HookAsk, HookHint, HookResult
 
-    if not isinstance(result, HookResult | HookAsk | HookHint):
+    if not isinstance(result, HookResult | HookAsk | HookHint | HookAllow):
         return result
     if result.rule_id:
         return result

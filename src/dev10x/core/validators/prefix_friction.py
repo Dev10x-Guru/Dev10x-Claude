@@ -22,6 +22,7 @@ from dev10x.domain.claude_paths import ClaudeDir
 from dev10x.domain.common.allow_rule import AllowRule, AllowRuleLoader
 from dev10x.domain.common.bash_tokens import (
     GIT_C_DIR_RE,
+    is_simple_command,
     strip_line_continuations,
     strip_quoted_spans,
 )
@@ -654,7 +655,14 @@ class PrefixFrictionValidator(ValidatorBase):
             _matches_allow_rule(inner, self._allow_patterns) is not None
             or _matches_allow_rule(normalized, self._allow_patterns) is not None
         ):
-            return HookAllow(message=UV_RUN_NORMALIZE_MSG.format(inner=inner))
+            # The allow skips the prompt (GH-1795), and the rule matched a
+            # prefix of the whole string, so it may only vouch for one
+            # simple command: `uv run --env-file e foo && rm -rf ~` starts
+            # with an allowed `foo` too.
+            return HookAllow(
+                message=UV_RUN_NORMALIZE_MSG.format(inner=inner),
+                decides=is_simple_command(command=inp.command),
+            )
         return None
 
     def _check_cd_revparse_chain(self, *, inp: HookInput) -> HookResult | None:
