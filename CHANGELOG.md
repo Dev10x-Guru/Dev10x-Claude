@@ -10,6 +10,12 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 - **`dev10x:py-mockito`** (GH-909) — python-mockito and pytest-mockito
   test patterns ship with the plugin in the coding area, instead of as
   a user-local skill nobody else could install.
+- **`business` work-on play** (GH-1026) — a light UI-change-to-PR
+  profile for people who are not developers: branch, describe, edit,
+  preview, commit, PR, CI and review replies, without grooming or
+  merging. A repository opts in through its playbook override; see
+  `skills/work-on/references/business-profile.md`. The matching gate
+  preset waits for the single-baseline decision (FRIC-M1).
 
 ## 0.113.0 — Overwatch Watches, the Supervisor Decides
 

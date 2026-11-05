@@ -7,6 +7,9 @@
 # Play names match Phase 1 classification (for work-on):
 #   feature, bugfix, pr-continuation, local-only, investigation,
 #   structured-spec
+# Plus `business` (GH-1026): not a Phase 1 classification — a project
+# opts in by pointing its feature/bugfix plays at the
+# `business-change` fragment. See ../business-profile.md.
 
 fragments:
   shipping-pipeline:
@@ -237,6 +240,92 @@ fragments:
       prompt: >
         Always delegate to dev10x:verify-acc-dod skill
         regardless of mode. The skill owns its own gates.
+      skills: [dev10x:verify-acc-dod]
+
+  # Light UI/content change to PR for a non-developer (GH-1026).
+  # A profile over the shipping kernel, not a separate package: it
+  # keeps the hooks and validators and drops the developer-only
+  # machinery — no design epic, no self-review fan-out, no history
+  # grooming, no merge. A developer merges what the PR shows.
+  business-change:
+    - subject: Set up workspace
+      type: detailed
+      prompt: >
+        Create a branch for the change from the base branch. Name
+        it after the ticket when there is one.
+      skills: [dev10x:ticket-branch]
+    - subject: Describe the change
+      type: detailed
+      prompt: >
+        Restate the requested change in one or two plain sentences:
+        what the reader of the page or screen will see differently.
+        Name the files you expect to touch. When the request is
+        ambiguous, REQUIRED: call AskUserQuestion (not plain text)
+        with the readings you see as options before editing — a
+        wrong guess costs the requester a review cycle.
+    - subject: Make the change
+      type: epic
+      prompt: >
+        Edit only what the description names — copy, labels,
+        styles, images, layout. Leave logic, data access and
+        configuration alone; if the change needs them, stop and
+        say so, because that is a developer's change.
+    - subject: Preview the change
+      type: detailed
+      prompt: >
+        Show the requester what changed before anything is
+        committed: a short plain-language summary and the diff of
+        each file. Run the project's full checks the same way the
+        coding plays do (JS/TS via run_node_tests, Python via
+        Skill(test) with no path narrowing; lint via `pre-commit run
+        --files <changed files>` when the project has a pre-commit
+        config, or run_node_tests script="lint"). Report a failure
+        in plain words with the file it points at. Then REQUIRED:
+        call AskUserQuestion (not plain text) with options "Commit
+        this change", "Change something" and "Stop here". Exactly
+        one carries "(Recommended)" and is listed first: "Commit
+        this change" when the checks pass, "Change something" when
+        they fail — so nothing is committed that the requester did
+        not see.
+    - subject: Commit the change
+      type: detailed
+      prompt: >
+        Commit through the commit skill so the message carries the
+        gitmoji, ticket and an outcome-focused title.
+      skills: [dev10x:git-commit]
+    - subject: Create PR
+      type: detailed
+      prompt: >
+        Open the PR through the PR skill and let its preview gate
+        show the title and body before it is created — the
+        requester confirms what the reviewer will read.
+      skills: [dev10x:gh-pr-create]
+    - subject: Monitor CI
+      type: detailed
+      prompt: >
+        Watch CI on the PR. Fix failures caused by the change; when
+        a failure is outside what the change touched, report it and
+        stop fixing rather than editing code the requester did not
+        ask to change — the play still ends at Verify acceptance
+        criteria. If the repo's CI skips draft PRs, read
+        mcp__plugin_dev10x_cli__supervisor_review_status first:
+        under `none` mark the PR ready via the `pr_ready` MCP
+        wrapper before monitoring; under `required` keep the draft
+        and record in Verify-AC that CI has not run on it.
+      skills: [dev10x:gh-pr-monitor]
+    - subject: Respond to review comments
+      type: epic
+      prompt: >
+        Address each review comment with a fixup commit and a
+        reply. Short-circuit when unresolved_threads and
+        check_top_level_comments both report zero. History is not
+        groomed here: the developer who merges does that.
+      skills: [dev10x:gh-pr-respond]
+    - subject: Verify acceptance criteria
+      type: detailed
+      prompt: >
+        Delegate to dev10x:verify-acc-dod. The open PR, not a
+        merge, is the deliverable of this play.
       skills: [dev10x:verify-acc-dod]
 
 # Mode definitions — structural modes that adapt step behavior.
@@ -664,3 +753,15 @@ defaults:
         skills: [dev10x:spec-sync]
         optional: true
       - fragment: shipping-pipeline
+
+  business:
+    prompt: >
+      Use for a small UI or content change shipped as a PR by
+      someone who is not a developer (GH-1026). It ends at an open
+      PR with green CI and answered review comments — grooming and
+      merging stay with a developer. Phase 1 never classifies into
+      this play; a project adopts it by pointing its feature and
+      bugfix plays at the `business-change` fragment (see
+      references/business-profile.md).
+    steps:
+      - fragment: business-change
