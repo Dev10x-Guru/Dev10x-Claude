@@ -15,6 +15,7 @@ from __future__ import annotations
 import os
 import re
 from dataclasses import dataclass, field
+from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, ClassVar
 
 from dev10x.domain import HookAllow, HookInput, HookResult
@@ -23,6 +24,7 @@ from dev10x.domain.common.allow_rule import AllowRule, AllowRuleLoader
 from dev10x.domain.common.bash_tokens import (
     GIT_C_DIR_RE,
     is_simple_command,
+    split_tokens,
     strip_line_continuations,
     strip_quoted_spans,
 )
@@ -143,6 +145,34 @@ def _strip_uv_run_env_flags(command: str) -> str | None:
         return None
     inner = " ".join(tokens[idx:]).strip()
     return inner or None
+
+
+# Flags whose value moves what `uv run` executes out of the checkout the
+# user's rule was written for (GH-1795 review): `--python` runs the named
+# interpreter, `--project`/`--directory` run another tree's build backend,
+# conftest or manage.py.
+_UV_INTERPRETER_FLAGS = frozenset({"--python"})
+_UV_TREE_FLAGS = frozenset({"--directory", "--project"})
+
+
+def _uv_flags_stay_in_tree(command: str) -> bool:
+    """True when no env flag points `uv run` outside the current checkout.
+
+    A relative path without `..`, `~` or `$` stays in the tree; anything
+    else, or any `--python`, may advise but never auto-approve.
+    """
+    tokens = split_tokens(command=command)
+    for idx, token in enumerate(tokens):
+        name, equals, attached = token.partition("=")
+        if name in _UV_INTERPRETER_FLAGS:
+            return False
+        if name not in _UV_TREE_FLAGS:
+            continue
+        value = attached if equals else (tokens[idx + 1] if idx + 1 < len(tokens) else "")
+        path = PurePosixPath(value)
+        if not value or path.is_absolute() or ".." in path.parts or value[0] in "~$":
+            return False
+    return True
 
 
 # GH-119: redirect followed by positional args swallows the post-redirect
@@ -657,11 +687,12 @@ class PrefixFrictionValidator(ValidatorBase):
         ):
             # The allow skips the prompt (GH-1795), and the rule matched a
             # prefix of the whole string, so it may only vouch for one
-            # simple command: `uv run --env-file e foo && rm -rf ~` starts
-            # with an allowed `foo` too.
+            # simple command (`uv run --frozen foo && rm -rf ~` starts with
+            # an allowed `foo` too) whose flags keep it in this checkout.
             return HookAllow(
                 message=UV_RUN_NORMALIZE_MSG.format(inner=inner),
-                decides=is_simple_command(command=inp.command),
+                decides=is_simple_command(command=inp.command)
+                and _uv_flags_stay_in_tree(inp.command),
             )
         return None
 

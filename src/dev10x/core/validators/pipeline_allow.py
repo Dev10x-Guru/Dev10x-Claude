@@ -37,7 +37,6 @@ from typing import ClassVar
 from dev10x.domain import HookAllow, HookInput
 from dev10x.domain.common.bash_tokens import (
     CommandSegment,
-    Redirect,
     UntokenizableCommandError,
     command_segments,
     substitution_bodies,
@@ -50,19 +49,10 @@ from dev10x.validators.prefix_friction import (
 )
 
 _ARG_EXECUTORS = frozenset({"xargs", "tee"})
-_HARMLESS_TARGETS = frozenset({"/dev/null"})
 
 _AUTO_APPROVE_MSG = (
     "✓ Pipeline auto-approved — every segment matches an existing Bash allow-rule (Dev10x DX011)."
 )
-
-
-def _is_harmless(redirect: Redirect) -> bool:
-    """True for a redirect that touches no file: ``/dev/null`` or ``2>&1``."""
-    operator = redirect.operator.lstrip("0123456789")
-    if operator in (">&", "<&"):
-        return redirect.target.isdigit() or redirect.target == "-"
-    return not redirect.feeds_inline_text and redirect.target in _HARMLESS_TARGETS
 
 
 def _pipeline_segments(*, command: str) -> tuple[CommandSegment, ...] | None:
@@ -82,7 +72,7 @@ def _pipeline_segments(*, command: str) -> tuple[CommandSegment, ...] | None:
     if segments[0].opener or any(segment.opener != "|" for segment in segments[1:]):
         return None
     if any(
-        not segment.argv or not all(_is_harmless(r) for r in segment.redirects)
+        not segment.argv or not all(r.touches_no_file for r in segment.redirects)
         for segment in segments
     ):
         return None
