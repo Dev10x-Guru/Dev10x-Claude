@@ -60,7 +60,7 @@ def skill_sequence(steps: list[dict[str, Any]]) -> list[str]:
 
 @pytest.fixture(scope="module")
 def subjects(steps: list[dict[str, Any]]) -> list[str]:
-    return [step["subject"] for step in steps]
+    return [step.get("subject") or f"fragment:{step['fragment']}" for step in steps]
 
 
 @pytest.fixture(scope="module")

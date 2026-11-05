@@ -38,7 +38,7 @@
   "git": 50,
   "git-alias-setup": 9,
   "git-branch-prune": 13,
-  "git-commit": 126,
+  "git-commit": 127,
   "git-commit-split": 19,
   "git-fixup": 30,
   "git-groom": 105,
@@ -78,7 +78,7 @@
   "py-uv": 9,
   "qa-scope": 33,
   "reasons-canvas": 2,
-  "reflect": 15,
+  "reflect": 28,
   "release-notes": 18,
   "request-review": 32,
   "review": 79,
@@ -114,7 +114,7 @@
   "ticket-jtbd": 18,
   "ticket-scope": 59,
   "upgrade-cleanup": 31,
-  "verify-acc-dod": 59,
+  "verify-acc-dod": 61,
   "voice-channel": 9,
   "work-on": 173
 }

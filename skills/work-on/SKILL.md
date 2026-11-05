@@ -24,6 +24,7 @@ allowed-tools:
   - Skill(dev10x:git)
   - Skill(dev10x:git-commit)
   - Skill(dev10x:git-groom)
+  - Skill(dev10x:reflect)
   - Skill(dev10x:session-config-seed)
   - Skill(dev10x:skill-create)
   - Skill(dev10x:ticket-branch)

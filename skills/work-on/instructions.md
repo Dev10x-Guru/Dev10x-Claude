@@ -21,7 +21,7 @@ new tasks mid-session. Skipping it removes that capability.
 (GH-149).** Until the supervisor explicitly closes the session
 (`dev10x:session-wrap-up` or session restart), the task list MUST
 contain at least one open task. The terminal task is always
-`Verify acceptance criteria` — it is the last task in every play
+`Verify acceptance criteria` — the last *gate* in every play —
 and it MUST NOT be marked `completed` or `deleted` until the
 supervisor confirms the work is shippable (PR linked, CI green,
 no unresolved review comments, AC satisfied). When new
@@ -29,6 +29,21 @@ instructions arrive mid-session, the new TODOs land **before**
 the Verify-AC task — they do not replace it. An empty task list
 at the moment of a new prompt creates competition for attention
 and is a Phase 4 violation.
+
+**Reflection after Verify AC (GH-1822).** Every default play
+ends with `Reflect lessons into the knowledge vault` (the
+`session-reflection` fragment → `dev10x:reflect`), listed right
+after Verify AC. It is **non-blocking**: run it once
+`dev10x:verify-acc-dod` has reported, complete or skip it within
+the same turn, and leave Verify AC open. It never replaces or
+closes the terminal gate — it only files what the session
+learned. With no vault configured it prints one line and is done.
+
+**Exception — `investigation`.** That play has no Verify AC step;
+its reflection follows "Decide" and is the last task. Because a
+lone open task cannot be closed (task guard, GH-149),
+`dev10x:reflect` creates `Verify acceptance criteria` before it
+completes, so the session still ends on the terminal gate.
 
 **REQUIRED: Create phase tasks before ANY work.** At session
 start, create exactly 4 top-level tasks — one per phase:
@@ -784,8 +799,10 @@ resolution algorithm needs.
    playbook's `fragments` map (user fragments shadow defaults).
    Replace the reference with the fragment's steps, applying
    any `condition` override from the reference to each expanded
-   step. Error on missing fragments; detect circular refs
-   (max depth 3).
+   step. A fragment may itself reference a fragment (the shipping
+   fragments end with `- fragment: session-reflection`); expand
+   recursively and carry the outer `condition` inward. Error on
+   missing fragments; detect circular refs (max depth 3).
 6. **Apply active modes:** Read the resolved `active_modes` — the
    matching `projects[]` entry of `~/.config/Dev10x/friction.yaml`,
    falling back to its `defaults:` block (ADR-0018) — and the project
@@ -832,11 +849,13 @@ feature branch already exists, skip the "Set up workspace" step.
 If running in a worktree with a generic branch, keep it.
 
 These plan steps become subtasks of the Phase 4 top-level task.
-The last subtask is always acceptance criteria verification.
+The last gate is always acceptance criteria verification; the
+non-blocking reflection step (GH-1822) is listed after it and
+leaves it open.
 
 ### Acceptance Criteria Verification
 
-The **last task** in every plan verifies the work is shippable
+The **terminal gate** in every plan verifies the work is shippable
 or ready for handover. This task is the session's terminal
 gate — see the empty-task-list invariant above (GH-149). It
 remains `pending` (or `in_progress` while the supervisor is
@@ -888,7 +907,11 @@ the fragment and produced two adjacent Verify-AC tasks. The
 mechanical-instantiation rule (one TaskCreate per resolved step)
 would faithfully create both.
 
-When fragment expansion yields two adjacent Verify-AC steps,
+Each Verify-AC is followed by its own reflection step carrying the
+same path condition, so the pairs are adjacent rather than the two
+Verify-AC steps themselves; the rule below applies to the pair.
+
+When fragment expansion yields two Verify-AC steps,
 they are NOT co-equal: the fragment's step is the executable DoD
 delegation *and* the terminal gate on the PR path, while the
 play-level step is the terminal gate on the no-PR path. Collapse
@@ -899,11 +922,20 @@ to one by honoring the play-level step's path condition:
   fragment terminates the plan and the play-level duplicate is
   conditioned out; on the no-PR path the fragment is skipped and
   the play-level step is the sole terminal gate.
-- If you observe two adjacent Verify-AC tasks after resolution,
-  drop the one whose path condition is not satisfied — do not
-  create both. This is the one sanctioned exception to strict
+- If you observe two Verify-AC tasks (each with its reflection
+  step) after resolution, drop the pair whose path condition is
+  not satisfied — do not create both. This is the one sanctioned exception to strict
   one-TaskCreate-per-step instantiation (GH-729/GH-928), because
   the two steps describe mutually-exclusive paths.
+- **When the path is not known yet** (`local-only` decides it in
+  Phase 4, at "Decide"), instantiate only the play-level
+  `if-no-pr` pair in Phase 3. If "Decide" picks the PR path, create
+  the shipping-fragment tasks (ending with its own Verify AC and
+  reflection) **before** removing the play-level pair, so a Verify
+  AC is open at every moment; the play-level Verify AC is then
+  `deleted` as superseded, not completed. This is the only case in
+  which a pending Verify AC may be deleted — its replacement already
+  exists, so the invariant it protects still holds.
 
 ### Example Plays (Defaults)
 
@@ -911,6 +943,11 @@ These are the built-in default plays. Full YAML definitions
 with pre-templated epic children live in the `dev10x:playbook`
 skill. Users can customize these via
 `/dev10x:playbook edit work-on <play>`.
+
+Every play below also ends with `[detailed] Reflect lessons into
+the knowledge vault → dev10x:reflect`, listed after Verify
+acceptance criteria (after "Decide" in `investigation`). The trees
+omit it for brevity; Phase 3 still creates it as a task (GH-1822).
 
 **Feature from ticket** (subtasks of Phase 4):
 ```
