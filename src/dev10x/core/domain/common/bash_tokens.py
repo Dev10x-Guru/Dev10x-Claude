@@ -741,6 +741,22 @@ def command_segments(*, command: str) -> tuple[CommandSegment, ...]:
     return tuple(segments)
 
 
+def is_simple_command(*, command: str) -> bool:
+    """True when ``command`` runs exactly one command and nothing nested.
+
+    The precondition for an auto-approval that matched a rule against the
+    whole string (GH-1795): `foo && rm -rf ~` starts with an allowed `foo`
+    but runs two commands. One segment, no substitution, no runner body,
+    and tokenizable, or it is not simple.
+    """
+    if len(command_units(command=command)) != 1:
+        return False
+    try:
+        return len(command_segments(command=command)) == 1
+    except UntokenizableCommandError:
+        return False
+
+
 def segment_programs(*, command: str) -> list[tuple[CommandSegment, list[str]]]:
     """Each segment of ``command`` with the argv of the program it runs.
 

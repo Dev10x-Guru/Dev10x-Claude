@@ -16,6 +16,7 @@ import json
 import logging
 import os
 import sys
+from dataclasses import replace
 from typing import NoReturn
 
 from dev10x.domain.events.hook_event import HookEventName
@@ -76,21 +77,36 @@ def select_result(
     """The one result the hook should emit for a validator chain run.
 
     ``emit`` exits, so the first result emitted is the only one that
-    counts. A hint decides nothing, so it must never stand in front of a
-    decision: emitting it first would let a later deny through unseen
-    (GH-1725). Decisions keep their chain order; hints, when nothing
-    decided, are merged into a single context block.
+    counts. Precedence is deny > ask > allow, wherever each sits in the
+    chain (GH-1795): an allow can now skip the prompt, so stopping at the
+    first one would let it shadow a later validator's deny. A hint decides
+    nothing and never stands in front of a decision (GH-1725).
+
+    Advisory allows (``decides`` false) count as hints. Every hint's
+    message rides along as context on a deciding allow, or is merged into
+    one context block when nothing decided.
     """
-    for result in results:
-        if not isinstance(result, HookHint):
-            return result
-    hints = [result for result in results if isinstance(result, HookHint)]
-    if not hints:
-        return None
-    return HookHint(
-        message="\n\n".join(hint.message for hint in hints),
-        rule_id=hints[0].rule_id,
+    for kind in (HookResult, HookAsk):
+        decision = next((result for result in results if isinstance(result, kind)), None)
+        if decision is not None:
+            return decision
+
+    advice = [
+        result
+        for result in results
+        if isinstance(result, HookHint) or (isinstance(result, HookAllow) and not result.decides)
+    ]
+    context = "\n\n".join(result.message for result in advice if result.message)
+    allow = next(
+        (result for result in results if isinstance(result, HookAllow) and result.decides),
+        None,
     )
+    if allow is not None:
+        merged = "\n\n".join(message for message in (allow.message, context) if message)
+        return replace(allow, message=merged)
+    if not context:
+        return None
+    return HookHint(message=context, rule_id=next(r.rule_id for r in advice if r.message))
 
 
 def _emit_context(*, message: str) -> NoReturn:
@@ -114,10 +130,10 @@ def emit(result: HookResult | HookAllow | HookAsk | HookHint | HookRetry) -> NoR
     ``HookResult`` denies the tool call (exit 2). ``HookAsk`` returns
     ``permissionDecision: "ask"`` so Claude Code shows the in-session
     approval dialog (GH-604). ``HookRetry`` lets a PermissionDenied
-    hook tell the model it may retry. ``HookAllow`` carries no
-    permission decision: its envelope sat unread on stderr until
-    GH-1775, so emitting ``allow`` would switch on auto-approvals no one
-    has reviewed. Its message, if any, reaches the agent as context.
+    hook tell the model it may retry. A deciding ``HookAllow`` returns
+    ``permissionDecision: "allow"`` and skips the prompt (GH-1795); its
+    message is the decision reason and reaches the agent as context. An
+    advisory allow emits context only, like a hint.
     """
     if isinstance(result, HookResult):
         _record_attribution(rule_id=result.rule_id, reason=result.message)
@@ -129,8 +145,19 @@ def emit(result: HookResult | HookAllow | HookAsk | HookHint | HookRetry) -> NoR
         sys.exit(2)
 
     if isinstance(result, HookAllow):
+        if not result.decides:
+            if result.message:
+                _emit_context(message=result.message)
+            sys.exit(0)
+        _record_attribution(rule_id=result.rule_id, reason=result.message)
+        allow_output: dict[str, str] = {
+            "hookEventName": HookEventName.PRE_TOOL_USE,
+            "permissionDecision": "allow",
+        }
         if result.message:
-            _emit_context(message=result.message)
+            allow_output["permissionDecisionReason"] = result.message
+            allow_output["additionalContext"] = result.message
+        print(json.dumps({"hookSpecificOutput": allow_output}))
         sys.exit(0)
 
     if isinstance(result, HookHint):

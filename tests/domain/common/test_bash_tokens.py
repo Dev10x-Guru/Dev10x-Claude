@@ -13,6 +13,7 @@ from dev10x.domain.common.bash_tokens import (
     command_position_re,
     command_segments,
     command_units,
+    is_simple_command,
     nested_commands,
     segment_programs,
     split_tokens,
@@ -75,6 +76,7 @@ class TestStripCommandWrappers:
             "env --split-string 'python -c x'",
             "env --split-string='-i python -c x'",
             "env -u HOME -S 'FOO=1 python -c x'",
+            "env --unset HOME -S 'python -c x'",
         ],
     )
     def test_splices_an_env_split_string(self, command: str) -> None:
@@ -203,6 +205,32 @@ class TestSegmentPrograms:
     def test_raises_on_untokenizable_input(self) -> None:
         with pytest.raises(UntokenizableCommandError):
             segment_programs(command="echo 'x")
+
+
+class TestIsSimpleCommand:
+    """GH-1795: the precondition for a whole-string auto-approval."""
+
+    @pytest.mark.parametrize(
+        "command", ["git status", "uv run pytest -k 'a;b'", "nc -zv host 22 2>/dev/null"]
+    )
+    def test_one_command_is_simple(self, command: str) -> None:
+        assert is_simple_command(command=command)
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "foo && rm -rf ~",
+            "foo; bar",
+            "foo | bar",
+            "foo\nbar",
+            "echo $(rm x)",
+            "ssh h 'rm -rf ~'",
+            "foo 'unterminated",
+            "",
+        ],
+    )
+    def test_anything_else_is_not(self, command: str) -> None:
+        assert not is_simple_command(command=command)
 
 
 class TestProgramProbe:

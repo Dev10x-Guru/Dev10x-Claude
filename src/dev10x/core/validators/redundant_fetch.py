@@ -13,8 +13,9 @@ that is already available in a prior tool result:
    but this validator surfaces the *intent* (redundant fetch) rather
    than the symptom (inline python).
 
-Output is always :class:`HookAllow` with a ``systemMessage`` — the
-call proceeds, but the supervisor sees the hint at decision time.
+Output is always a :class:`HookHint` — no permission decision, so the
+call proceeds exactly as it would have and the agent sees the advice as
+context (GH-1795: it never meant to approve anything).
 Hard ``deny`` would be wrong here because a fresh fetch is sometimes
 legitimate (file outside diff paths, branch tip moved, full file
 content needed around a hunk).
@@ -30,7 +31,7 @@ import re
 from dataclasses import dataclass
 from typing import ClassVar
 
-from dev10x.domain import HookAllow, HookInput
+from dev10x.domain import HookHint, HookInput
 from dev10x.domain.profile_tier import ProfileTier
 from dev10x.validators.base import ValidatorBase
 
@@ -76,15 +77,15 @@ class RedundantFetchValidator(ValidatorBase):
             return True
         return "contents/" in cmd and "gh" in cmd and "api" in cmd
 
-    def validate(self, inp: HookInput) -> HookAllow | None:
+    def validate(self, inp: HookInput) -> HookHint | None:
         cmd = inp.command
 
         if _BASE64_PIPE_RE.search(cmd):
-            return HookAllow(message=_BASE64_ADVISORY)
+            return HookHint(message=_BASE64_ADVISORY)
 
         match = _CONTENTS_FETCH_RE.search(cmd)
         if match:
             path = match.group("path").split("?")[0]
-            return HookAllow(message=_contents_advisory(path=path))
+            return HookHint(message=_contents_advisory(path=path))
 
         return None

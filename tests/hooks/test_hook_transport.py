@@ -52,10 +52,45 @@ class TestSelectResult:
 
         assert select_result([HookHint(message="tip"), deny]) == deny
 
-    def test_first_decision_keeps_chain_order(self) -> None:
-        first = HookAsk(message="ask")
+    def test_a_later_deny_beats_an_earlier_ask(self) -> None:
+        """GH-1795: precedence is deny > ask > allow, not chain order."""
+        deny = HookResult(message="no")
 
-        assert select_result([first, HookResult(message="no")]) == first
+        assert select_result([HookAsk(message="ask"), deny]) == deny
+
+    def test_a_later_deny_beats_an_earlier_allow(self) -> None:
+        deny = HookResult(message="no", rule_id="DX003")
+
+        assert select_result([HookAllow(message="ok", decides=True), deny]) == deny
+
+    def test_a_later_ask_beats_an_earlier_allow(self) -> None:
+        ask = HookAsk(message="sensitive", rule_id="DX014")
+
+        assert select_result([HookAllow(message="ok", decides=True), ask]) == ask
+
+    def test_first_of_a_kind_keeps_chain_order(self) -> None:
+        first = HookResult(message="first")
+
+        assert select_result([first, HookResult(message="second")]) == first
+
+    def test_a_deciding_allow_carries_the_hints(self) -> None:
+        selected = select_result(
+            [
+                HookHint(message="tip", rule_id="DX006"),
+                HookAllow(message="ok", decides=True, rule_id="DX011"),
+                HookAllow(message="note"),
+            ]
+        )
+
+        assert selected == HookAllow(message="ok\n\ntip\n\nnote", decides=True, rule_id="DX011")
+
+    def test_an_advisory_allow_counts_as_a_hint(self) -> None:
+        selected = select_result([HookAllow(rule_id="DX001"), HookAllow(message="m", rule_id="X")])
+
+        assert selected == HookHint(message="m", rule_id="X")
+
+    def test_messageless_advisory_allows_emit_nothing(self) -> None:
+        assert select_result([HookAllow(), HookAllow()]) is None
 
     def test_hints_alone_merge_into_one(self) -> None:
         merged = select_result(
@@ -79,8 +114,36 @@ class TestEmitHookResult:
         assert output["systemMessage"] == "blocked"
 
 
+class TestEmitDecidingHookAllow:
+    """GH-1795: a rule-backed allow skips the permission prompt."""
+
+    def test_writes_the_allow_envelope_to_stdout(self, capsys: pytest.CaptureFixture[str]) -> None:
+        with pytest.raises(SystemExit) as exc_info:
+            emit(HookAllow(message="every segment allowed", decides=True))
+        captured = capsys.readouterr()
+
+        assert exc_info.value.code == 0
+        assert json.loads(captured.out) == {
+            "hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "permissionDecision": "allow",
+                "permissionDecisionReason": "every segment allowed",
+                "additionalContext": "every segment allowed",
+            }
+        }
+        assert captured.err == ""
+
+    def test_needs_no_message(self, capsys: pytest.CaptureFixture[str]) -> None:
+        with pytest.raises(SystemExit):
+            emit(HookAllow(decides=True))
+
+        assert json.loads(capsys.readouterr().out) == {
+            "hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "allow"}
+        }
+
+
 class TestEmitHookAllow:
-    """GH-1775: allow decides nothing until its validators are audited."""
+    """GH-1775: an advisory allow decides nothing."""
 
     def test_exits_with_code_0(self) -> None:
         with pytest.raises(SystemExit) as exc_info:

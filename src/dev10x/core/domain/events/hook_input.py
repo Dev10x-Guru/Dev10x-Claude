@@ -53,10 +53,28 @@ class HookResult:
 
 @dataclass(frozen=True)
 class HookAllow:
-    message: str = ""
+    """A validator's verdict that the call is safe.
 
-    def to_dict(self) -> dict[str, str]:
-        return {"message": self.message, "decision": "allow"}
+    ``decides`` marks a rule-backed allow that skips the permission
+    prompt (``permissionDecision: "allow"``). Without it the allow is
+    advisory: its message reaches the agent as context and the call goes
+    through the normal permission check. GH-1795 grants ``decides`` only
+    to validators that match a user's own rules (DX007, DX011, DX014).
+    """
+
+    message: str = ""
+    decides: bool = False
+    rule_id: str = ""
+
+    def to_dict(self) -> dict[str, str | bool]:
+        payload: dict[str, str | bool] = {
+            "message": self.message,
+            "decision": "allow",
+            "decides": self.decides,
+        }
+        if self.rule_id:
+            payload["rule_id"] = self.rule_id
+        return payload
 
 
 @dataclass(frozen=True)

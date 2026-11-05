@@ -37,6 +37,7 @@ from dataclasses import dataclass, field
 from typing import ClassVar
 
 from dev10x.domain import HookAllow, HookAsk, HookInput
+from dev10x.domain.common.bash_tokens import is_simple_command
 from dev10x.domain.profile_tier import ProfileTier
 from dev10x.domain.sensitivity import (
     ExceptionEffect,
@@ -148,8 +149,11 @@ class SensitivityTargetValidator(ValidatorBase):
             command=inp.command,
             exceptions=self._resolved_exceptions(),
         )
-        if effect is ExceptionEffect.ALLOW:
-            return HookAllow()
+        if effect is ExceptionEffect.ALLOW and is_simple_command(command=inp.command):
+            # A blessed exception skips the prompt (GH-1795), and its
+            # shape/target regex matched the whole string, so it vouches
+            # only for one simple command. A chain falls through to ask.
+            return HookAllow(decides=True)
         message = _ASK_MSG_TEMPLATE.format(
             count=len(matches),
             matches_detail=_format_matches(matches=matches),

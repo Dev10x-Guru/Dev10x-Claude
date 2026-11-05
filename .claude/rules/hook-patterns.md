@@ -475,11 +475,12 @@ Use it for a reorder-the-flags nudge, where a deny would be wrong and an
 
 1. **A hint never stands in front of a decision.**
    `emit()` exits, so `hook_transport.select_result` picks what is
-   emitted: the first deny, ask or allow in chain order, else every hint
-   merged into one block.
+   emitted: a deny, else an ask, else a deciding allow, else every hint
+   merged into one block (GH-1795).
    Iterating `chain.run()` and emitting in order would let a hint emitted
    first hide a later deny.
-   The flip side: an allow from another validator drops the hint.
+   A deciding allow carries the hints along as context; a deny or ask
+   drops them.
 2. **`additionalContext` goes to stdout.**
    That is the stream Claude Code reads it from on an exit-0 hook.
    Every other exit-0 envelope follows the same rule; see § Hook Output
@@ -508,14 +509,36 @@ dropped. `hook_transport.emit` owns the contract:
 | `HookAsk` | 0 | stdout | In-session approval prompt (DX014) |
 | `HookRetry` | 0 | stdout | PermissionDenied tells the model it may retry |
 | `HookHint` | 0 | stdout | `additionalContext` only, no decision |
-| `HookAllow` | 0 | stdout | No decision; its message, if any, as `additionalContext` |
+| `HookAllow(decides=True)` | 0 | stdout | `permissionDecision: "allow"`, prompt skipped |
+| `HookAllow` (advisory) | 0 | stdout | No decision; its message, if any, as `additionalContext` |
 
-`HookAllow` deliberately emits no `permissionDecision`. Until GH-1775
-every allow envelope went to stderr, so the validators returning one
-(safe-subshell, safe-expansion, pipeline-allow, sensitivity exceptions,
-prefix-friction, redundant-fetch) have never auto-approved anything.
-Switching them on is a permission-posture change and needs each one
-reviewed first, not a stream fix.
+Until GH-1775 every allow envelope went to stderr, so no allow ever
+skipped a prompt. GH-1795 reviewed each one and switched on only the
+rule-backed allows, the ones that match a rule the user wrote:
+
+1. DX007 prefix-friction: `uv run` with env flags whose inner command
+   matches an allow-rule.
+2. DX011 pipeline-allow: every pipeline segment matches an allow-rule.
+3. DX014 sensitivity-target: a blessed `sensitivity-exceptions.yaml`
+   entry.
+
+DX007 and DX014 match their rule against the whole command string, so
+each decides only for a simple command (`bash_tokens.is_simple_command`:
+one segment, nothing nested). `foo && rm -rf ~` starts with an allowed
+`foo` too. DX011 reads segments through the shared segmenter and
+abstains on any operator but `|`, any substitution, and any redirect
+other than `/dev/null` or an fd duplicate.
+
+DX001 safe-subshell and DX012 safe-expansion stay advisory. DX012 would
+approve `rm -rf $HOME/x` because its metacharacters are inert, and
+DX001 judges only the first word (`echo $(git rev-parse HEAD) && rm -rf
+~`). DX009 redundant-fetch returns a `HookHint`.
+
+**Precedence is deny > ask > allow, wherever each sits in the chain.**
+`select_result` used to stop at the first decision, which was harmless
+while an allow decided nothing; once it skips the prompt, a deny later
+in the chain must still win. Hints and advisory allows never decide;
+their messages ride along as `additionalContext` on a deciding allow.
 
 A new exit-0 envelope goes to stdout and names its `hookEventName`; a
 `hookSpecificOutput` without one fails Claude Code's output validation

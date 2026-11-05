@@ -64,6 +64,11 @@ class TestShouldRun:
     def test_false_without_pipe(self, validator: PipelineAllowValidator, command: str) -> None:
         assert validator.should_run(inp=_input(command=command)) is False
 
+
+@pytest.mark.usefixtures("fake_allow_patterns")
+class TestAbstainsOutsideAPlainPipeline:
+    """GH-1795: the allow skips the prompt, so anything else abstains."""
+
     @pytest.mark.parametrize(
         "command",
         [
@@ -71,36 +76,25 @@ class TestShouldRun:
             "git status ; git log | tail",
             "git log | grep foo || echo none",
             "git log | tail && echo done",
-        ],
-    )
-    def test_false_with_chaining_operators(
-        self, validator: PipelineAllowValidator, command: str
-    ) -> None:
-        assert validator.should_run(inp=_input(command=command)) is False
-
-    @pytest.mark.parametrize(
-        "command",
-        [
+            "git log | tail -20 &",
+            "git log | tail -20;",
+            "git log | tail |",
+            "git log |& tail",
+            "git log | tail\ngit status",
             "diff <(sort a) <(sort b) | head",
             "cat >(grep foo) | tail",
+            "cat $(git rev-parse HEAD) | tail",
+            "cat `git rev-parse HEAD` | tail",
+            "git log > out.txt | tail",
+            "git log | tail >> notes.md",
+            "cat < secret.txt | wc -l",
+            "(git log) | tail",
+            "git log | tail 'unterminated",
+            "/usr/bin/xargs -n1 git show | tail",
         ],
     )
-    def test_false_with_process_substitution(
-        self, validator: PipelineAllowValidator, command: str
-    ) -> None:
-        assert validator.should_run(inp=_input(command=command)) is False
-
-    def test_false_with_command_substitution(self, validator: PipelineAllowValidator) -> None:
-        cmd = "echo $(git rev-parse HEAD) | tail"
-        assert validator.should_run(inp=_input(command=cmd)) is False
-
-    def test_false_with_backquote_substitution(self, validator: PipelineAllowValidator) -> None:
-        cmd = "echo `git rev-parse HEAD` | tail"
-        assert validator.should_run(inp=_input(command=cmd)) is False
-
-    def test_false_with_trailing_background(self, validator: PipelineAllowValidator) -> None:
-        cmd = "git log | tail -20 &"
-        assert validator.should_run(inp=_input(command=cmd)) is False
+    def test_abstains(self, validator: PipelineAllowValidator, command: str) -> None:
+        assert validator.validate(inp=_input(command=command)) is None
 
 
 @pytest.mark.usefixtures("fake_allow_patterns")
@@ -134,6 +128,25 @@ class TestValidateAutoApproval:
         result = validator.validate(inp=_input(command=cmd))
         assert isinstance(result, HookAllow)
         assert "DX011" in result.message
+
+    def test_the_allow_decides(self, validator: PipelineAllowValidator) -> None:
+        """GH-1795: a rule-backed pipeline allow skips the prompt."""
+        result = validator.validate(inp=_input(command="git log | tail"))
+
+        assert result == HookAllow(message=result.message, decides=True)
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "grep 'a|b' file.txt | tail",
+            "git log 2>&1 | head >&2",
+            "rg x </dev/null 2>/dev/null | wc -l",
+        ],
+    )
+    def test_approves_quoted_pipes_and_harmless_redirects(
+        self, validator: PipelineAllowValidator, command: str
+    ) -> None:
+        assert isinstance(validator.validate(inp=_input(command=command)), HookAllow)
 
 
 @pytest.mark.usefixtures("fake_allow_patterns")
