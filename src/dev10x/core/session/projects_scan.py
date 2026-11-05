@@ -43,6 +43,7 @@ def _repo_scheme_files() -> list[Path]:
     files = [
         Dev10xConfigDir.settings_pr_merge_yaml(),
         Dev10xConfigDir.gitmoji_yaml(),
+        Dev10xConfigDir.knowledge_vault_yaml(),
     ]
     playbooks = Dev10xConfigDir.playbooks_dir()
     if playbooks.is_dir():

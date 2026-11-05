@@ -3,6 +3,14 @@
 # dev10x.core.skills.permission.catalog_paths; see the base file's
 # header for the catalog itself.
 
+# dev10x:reflect (GH-1822): `config` only reads; `index-add` / `log-add`
+# write one line into a note inside the configured vault, idempotently and
+# under a lock, and refuse any path outside it.
+command_spellings:
+  - prefixes: ["", "uvx ", "uv run "]
+    commands:
+      - dev10x skill reflect
+
 base_permissions:
   # --- Dev10x MCP tools: cli server (GH-878, GH-1215) ---
   - "mcp__plugin_dev10x_cli__task_index_get"

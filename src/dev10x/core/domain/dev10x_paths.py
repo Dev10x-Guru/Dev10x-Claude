@@ -304,6 +304,21 @@ class Dev10xConfigDir:
         """Armed Google Chat watches and their cursors (GH-1682)."""
         return cls._resolve("gchat-watch.json")
 
+    @classmethod
+    def knowledge_vault_yaml(cls) -> Path:
+        """Where `dev10x:reflect` files session lessons (GH-1822).
+
+        Repo-addressed: top-level defaults plus `projects[].match_repo`
+        overrides. Introduced after the ``~/.config/Dev10x`` move, so
+        there is no legacy path.
+        """
+        return cls._resolve("knowledge-vault.yaml")
+
+    @classmethod
+    def reflect_locks_dir(cls) -> Path:
+        """Lock sidecars for vault notes, kept out of the vault (GH-1822)."""
+        return cls._resolve("locks", "reflect")
+
 
 def _with_lazy_migration(current: Path, legacy_provider: Callable[[], Path]) -> Path:
     migrate_path(legacy=legacy_provider(), current=current)

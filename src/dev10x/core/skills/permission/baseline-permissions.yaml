@@ -305,6 +305,9 @@ groups:
       # GH-1627 — dry-run by default; `--apply` runs only after the
       # dev10x:skill-prune AskUserQuestion confirmation
       - Bash(uvx dev10x skill prune-overrides:*)
+      # GH-1822 — writes one line into a vault note under a lock; refuses
+      # any path outside the configured vault
+      - Bash(uvx dev10x skill reflect:*)
       # GH-1692 — binds 127.0.0.1 only; `unit` prints and installs nothing
       - Bash(uvx dev10x overwatch serve:*)
       - Bash(uvx dev10x overwatch unit:*)
