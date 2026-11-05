@@ -1,6 +1,6 @@
 # ADR-0031: Where the repo-scoped permission overlay lives
 
-- **Status:** Proposed (awaiting supervisor decision)
+- **Status:** Accepted, Option E (supervisor decision, 2026-11-05)
 - **Date:** 2026-09-27; refreshed 2026-11-03 against `a3ea3142`
 - **Supersedes:** none
 - **Amends:** ADR-0025 § 4 under Options E and F (A keeps it as
@@ -134,9 +134,22 @@ Retired from the first draft: **B** (a `match:` section in the userspace
 `settings.local.json`, a source of truth that dies with its checkout).
 Neither gained support from the new code.
 
+## Decision
+
+On 2026-11-05 the supervisor chose **Option E**, and made asks a floor.
+
+1. **The repo tier lives in `granted-permissions.yaml`** as
+   `repos: {<identity>: {...}}`, keyed by the git common dir and never by
+   a glob. `friction.yaml` stays selector-only.
+2. **Shipped asks are non-suppressible.** `base_asks` joins
+   `SUPPRESSION_REFUSED_KEYS` beside the three deny keys. A user overlay
+   can add allows, but it cannot silence a catalog ask (Open question 1).
+3. Open questions 2 to 5 stay open. They are follow-up work under E, and
+   are not part of this decision.
+
 ## Ranking
 
-The evaluation ranks **E, then A, then F**, with **medium** confidence.
+The evaluation ranked **E, then A, then F**, with **medium** confidence.
 The decision is the supervisor's.
 
 - E and A both meet all four GH-1313 acceptance items. E gets there with
@@ -151,9 +164,9 @@ The decision is the supervisor's.
 
 ## Open questions (independent of A / E / F unless noted)
 
-1. **Should asks be non-suppressible?** The proposal is to add
-   `base_asks` to `SUPPRESSION_REFUSED_KEYS`. Today a user `remove:` can
-   silence an ask.
+1. **Should asks be non-suppressible?** *Decided: yes* (see Decision).
+   `base_asks` joins `SUPPRESSION_REFUSED_KEYS`. Until that lands, a user
+   `remove:` can still silence an ask.
 2. **`local_only` memory (A or E only).** It needs a key, and
    `merge-worktree` needs the three-tier verdict (local-only / project /
    global-candidate), with global-candidate kept proposal-only.
