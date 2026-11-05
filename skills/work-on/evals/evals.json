@@ -127,9 +127,15 @@
         },
         {
           "id": "plan-ends-with-acceptance",
-          "text": "Last subtask is always acceptance criteria verification",
+          "text": "The terminal gate is always acceptance criteria verification, followed only by the non-blocking reflection step",
           "check": "task_exists",
           "signals": ["acceptance criteria", "verify"]
+        },
+        {
+          "id": "plan-ends-with-reflection",
+          "text": "The last subtask is 'Reflect lessons into the knowledge vault' (dev10x:reflect), created after Verify acceptance criteria; completing it never marks Verify AC completed (GH-1822)",
+          "check": "task_exists",
+          "signals": ["Reflect lessons into the knowledge vault", "dev10x:reflect"]
         },
         {
           "id": "plan-approval-gate",
@@ -382,7 +388,7 @@
         },
         {
           "id": "plan-ends-with-acceptance",
-          "text": "Last subtask is always acceptance criteria verification, even for local-only",
+          "text": "The terminal gate is acceptance criteria verification, even for local-only; only the reflection step for the same path follows it",
           "check": "task_exists",
           "signals": ["acceptance criteria"]
         }

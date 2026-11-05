@@ -138,6 +138,26 @@ fragments:
         Always delegate to dev10x:verify-acc-dod skill
         regardless of mode. The skill owns its own gates.
       skills: [dev10x:verify-acc-dod]
+    - fragment: session-reflection
+
+  # The last step of every default play (GH-1822): file what the session
+  # learned into the configured knowledge vault. It comes AFTER Verify
+  # acceptance criteria but never closes it — Verify AC stays the open
+  # terminal task the supervisor signs off (GH-149). Reflection is
+  # non-blocking: it finishes or skips inside the turn, so the Stop gate
+  # sees Verify AC as the only open task again.
+  session-reflection:
+    - subject: Reflect lessons into the knowledge vault
+      type: detailed
+      prompt: >
+        Non-blocking final step. Run it once dev10x:verify-acc-dod has
+        reported, while "Verify acceptance criteria" stays open for the
+        supervisor — never mark Verify AC completed or deleted here.
+        dev10x:reflect skips with one line when no vault is
+        configured. Complete (or skip) this step before the turn ends;
+        when it would be the last open task, the skill seeds Verify AC
+        first.
+      skills: [dev10x:reflect]
 
   # Bundled multi-issue implementation (GH-196).
   # Replaces the single "Implement changes" epic when work-on
@@ -241,6 +261,7 @@ fragments:
         Always delegate to dev10x:verify-acc-dod skill
         regardless of mode. The skill owns its own gates.
       skills: [dev10x:verify-acc-dod]
+    - fragment: session-reflection
 
   # Light UI/content change to PR for a non-developer (GH-1026).
   # A profile over the shipping kernel, not a separate package: it
@@ -327,6 +348,7 @@ fragments:
         Delegate to dev10x:verify-acc-dod. The open PR, not a
         merge, is the deliverable of this play.
       skills: [dev10x:verify-acc-dod]
+    - fragment: session-reflection
 
 # Mode definitions — structural modes that adapt step behavior.
 # Activated via active_modes in session.yaml or project playbook.
@@ -615,6 +637,11 @@ defaults:
           if-pr-decided path is already terminated by the shipping
           fragment's own Verify-AC step. Verify locally that all
           expected deliverables are done.
+      # Same path split as the Verify-AC step above: the PR path
+      # reflects inside the shipping fragment, so this one runs only
+      # when no PR was made (GH-1822).
+      - fragment: session-reflection
+        condition: if-no-pr
 
   investigation:
     prompt: >
@@ -661,6 +688,10 @@ defaults:
           If a fix is warranted, offer to switch to a bugfix
           plan. If more investigation is needed, suggest
           creating a follow-up ticket.
+      # No Verify-AC here, so reflect would be the last open task:
+      # dev10x:reflect seeds Verify acceptance criteria before it
+      # completes (GH-149 task guard, GH-1822).
+      - fragment: session-reflection
 
   structured-spec:
     prompt: >
