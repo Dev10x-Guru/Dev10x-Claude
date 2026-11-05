@@ -400,10 +400,11 @@ class TestInplaceEdit:
         result = validator.validate(inp=inp)
         assert result is None
 
-    def test_returns_none_on_unbalanced_quotes(self, validator: ExecutionSafetyValidator) -> None:
+    def test_blocks_on_unbalanced_quotes(self, validator: ExecutionSafetyValidator) -> None:
+        """GH-1798: an untokenizable in-place edit fails closed."""
         inp = _make_input(command="sed -i 's/a/b")
         result = validator.validate(inp=inp)
-        assert result is None
+        assert result is not None
 
     def test_allows_non_inplace_command_in_pipeline(
         self, validator: ExecutionSafetyValidator
@@ -992,7 +993,85 @@ class TestSharedSegmenterRouting:
     def test_allows(self, validator: ExecutionSafetyValidator, command: str) -> None:
         assert validator.validate(inp=_make_input(command=command)) is None
 
-    def test_untokenizable_sed_unit_is_left_alone(
-        self, validator: ExecutionSafetyValidator
-    ) -> None:
-        assert validator._check_inplace_edit(command="sed -i 's/a/b/ f") is None
+
+class TestInplaceEditFailsClosed:
+    """GH-1798: an untokenizable in-place edit is blocked, not skipped."""
+
+    @pytest.fixture()
+    def validator(self) -> ExecutionSafetyValidator:
+        return ExecutionSafetyValidator()
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "sed -i 's/a/b/ f",
+            "true; sudo sed -ni 's/a/b/ f",
+            "perl -pi -e 's/a/b/ f",
+            "gawk -i inplace '{print} f",
+            "dd if=/dev/zero of=disk.img 'x",
+            "su app -c 'sed -i s/a/b/ f",
+        ],
+    )
+    def test_blocks(self, validator: ExecutionSafetyValidator, command: str) -> None:
+        result = validator._check_inplace_edit(command=command)
+
+        assert result is not None
+        assert result.message == INPLACE_EDIT_MSG
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "sed -n 's/a/b/ f",
+            "awk '{print} f",
+            "dd if=f of=/dev/null 'x",
+            "grep sed -i 'x",
+        ],
+    )
+    def test_allows(self, validator: ExecutionSafetyValidator, command: str) -> None:
+        assert validator._check_inplace_edit(command=command) is None
+
+
+class TestExtraRunners:
+    """GH-1798: setsid, pkexec, chroot, nsenter, flock, watch, eval, env -S."""
+
+    @pytest.fixture()
+    def validator(self) -> ExecutionSafetyValidator:
+        return ExecutionSafetyValidator()
+
+    @pytest.mark.parametrize(
+        ("command", "message"),
+        [
+            ("setsid -f python -c x", PYTHON3_INLINE_MSG),
+            ("pkexec --user root bash -c x", SHELL_INTERP_MSG),
+            ("chroot /srv/root python3 -c x", PYTHON3_INLINE_MSG),
+            ("nsenter -t 1 -m python -c x", PYTHON3_INLINE_MSG),
+            ("flock /tmp/l python -c x", PYTHON3_INLINE_MSG),
+            ("flock -w 5 /tmp/l -c 'python -c x'", PYTHON3_INLINE_MSG),
+            ("flock --command='bash -c x' /tmp/l", SHELL_INTERP_MSG),
+            ("watch -n 5 python -c x", PYTHON3_INLINE_MSG),
+            ("eval 'python -c x'", PYTHON3_INLINE_MSG),
+            ("eval sed -i s/a/b/ f", INPLACE_EDIT_MSG),
+            ("env -S 'python -c x'", PYTHON3_INLINE_MSG),
+            ("env -u HOME -S'bash -c x'", SHELL_INTERP_MSG),
+            ("env --split-string='-i python -c x'", PYTHON3_INLINE_MSG),
+            ("setsid sed -i s/a/b/ f", INPLACE_EDIT_MSG),
+        ],
+    )
+    def test_blocks(self, validator: ExecutionSafetyValidator, command: str, message: str) -> None:
+        result = validator.validate(inp=_make_input(command=command))
+
+        assert result is not None
+        assert result.message == message
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "watch -n 2 git status",
+            "flock /tmp/l make build",
+            "eval echo hi",
+            "env -S 'git status'",
+            "setsid python script.py",
+        ],
+    )
+    def test_allows(self, validator: ExecutionSafetyValidator, command: str) -> None:
+        assert validator.validate(inp=_make_input(command=command)) is None

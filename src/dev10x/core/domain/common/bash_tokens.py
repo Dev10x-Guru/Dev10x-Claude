@@ -52,10 +52,16 @@ class _Wrapper:
 
     value_options: frozenset[str] = frozenset()
     positionals: int = 0
+    # Options whose value is itself a command line, split into words in
+    # place: `env -S 'python -c x'` runs `python -c x` (GH-1798).
+    split_options: frozenset[str] = frozenset()
 
 
 _COMMAND_WRAPPERS: dict[str, _Wrapper] = {
-    "env": _Wrapper(value_options=frozenset({"-u", "--unset", "-C", "--chdir"})),
+    "env": _Wrapper(
+        value_options=frozenset({"-u", "--unset", "-C", "--chdir"}),
+        split_options=frozenset({"-S", "--split-string"}),
+    ),
     "timeout": _Wrapper(
         value_options=frozenset({"-s", "--signal", "-k", "--kill-after"}), positionals=1
     ),
@@ -95,6 +101,14 @@ _COMMAND_WRAPPERS: dict[str, _Wrapper] = {
         )
     ),
     "doas": _Wrapper(value_options=frozenset({"-u", "-C"})),
+    # More runners that execute the rest of argv (GH-1798). chroot's
+    # positional is the new root; its own options use the `=` form.
+    "setsid": _Wrapper(),
+    "pkexec": _Wrapper(value_options=frozenset({"--user"})),
+    "chroot": _Wrapper(positionals=1),
+    "nsenter": _Wrapper(
+        value_options=frozenset({"-t", "--target", "-S", "--setuid", "-G", "--setgid"})
+    ),
     "xargs": _Wrapper(
         value_options=frozenset(
             {
@@ -170,6 +184,34 @@ def _skip_options(*, parts: list[str], idx: int, value_options: frozenset[str]) 
     return idx
 
 
+def _split_option_value(*, token: str, option: str) -> str | None:
+    """The command string ``token`` attaches to ``option``, if any."""
+    attached = f"{option}=" if option.startswith("--") else option
+    if token.startswith(attached) and len(token) > len(attached):
+        return token[len(attached) :]
+    return None
+
+
+def _splice_split_strings(*, parts: list[str], idx: int, wrapper: _Wrapper) -> list[str]:
+    """``parts`` with each ``env -S`` string replaced by the words it holds.
+
+    Scans the wrapper's options from ``idx``. The spliced words are read
+    as the wrapper's own arguments again, as ``env`` itself does.
+    """
+    scan = idx
+    while scan < len(parts) and parts[scan].startswith("-") and parts[scan] != "--":
+        token = parts[scan]
+        if token in wrapper.split_options:
+            following = parts[scan + 1] if scan + 1 < len(parts) else ""
+            return [*parts[:scan], *split_tokens(command=following), *parts[scan + 2 :]]
+        for option in wrapper.split_options:
+            attached = _split_option_value(token=token, option=option)
+            if attached is not None:
+                return [*parts[:scan], *split_tokens(command=attached), *parts[scan + 1 :]]
+        scan += 2 if token in wrapper.value_options else 1
+    return parts
+
+
 def _skip_wrapper_options(*, parts: list[str], idx: int, wrapper: _Wrapper) -> int:
     idx = _skip_options(parts=parts, idx=idx, value_options=wrapper.value_options)
     return min(idx + wrapper.positionals, len(parts))
@@ -182,7 +224,9 @@ def strip_command_wrappers(*, parts: list[str]) -> list[str]:
     Guards that judge ``parts[0]`` otherwise see ``timeout`` and abstain,
     which is the evasion GH-1630's review found for DX003 and DX004.
     ``sudo``, ``doas`` and ``xargs`` unwrap the same way (GH-1774), so
-    ``sudo -u app python -c …`` is judged as the ``python`` call it is.
+    ``sudo -u app python -c …`` is judged as the ``python`` call it is,
+    and so do ``setsid``, ``pkexec``, ``chroot``, ``nsenter`` and the
+    string ``env -S`` splits (GH-1798).
     A redirect may precede the program too: ``>/dev/null python -c …``.
     """
     idx = 0
@@ -199,6 +243,8 @@ def strip_command_wrappers(*, parts: list[str]) -> list[str]:
         wrapper = _COMMAND_WRAPPERS.get(token.rsplit("/", 1)[-1])
         if wrapper is None:
             break
+        if wrapper.split_options:
+            parts = _splice_split_strings(parts=parts, idx=idx + 1, wrapper=wrapper)
         idx = _skip_wrapper_options(parts=parts, idx=idx + 1, wrapper=wrapper)
     return parts[idx:]
 
@@ -766,7 +812,15 @@ _SU_RUNNERS = frozenset({"su", "runuser"})
 _SU_COMMAND_OPTIONS = frozenset({"-c", "--command", "--session-command"})
 _FIND_EXEC_ACTIONS = frozenset({"-exec", "-execdir", "-ok", "-okdir"})
 _FIND_EXEC_TERMINATORS = frozenset({";", "+"})
-_RUNNER_NAMES = "|".join(sorted({"ssh", "op", "find", *_CONTAINER_CLIS, *_SU_RUNNERS}))
+# Runners that re-read their arguments as one shell command line
+# (GH-1798): `eval` and `watch` join them; `flock` takes a `-c` string or
+# runs the words after its lock file.
+_FLOCK_VALUE_OPTIONS = frozenset({"-w", "--wait", "--timeout", "-E", "--conflict-exit-code"})
+_FLOCK_COMMAND_OPTIONS = frozenset({"-c", "--command"})
+_WATCH_VALUE_OPTIONS = frozenset({"-n", "--interval", "-q", "--equexit"})
+_RUNNER_NAMES = "|".join(
+    sorted({"ssh", "op", "find", "eval", "watch", "flock", *_CONTAINER_CLIS, *_SU_RUNNERS})
+)
 _SHELL_QUOTING = str.maketrans("", "", "\"'\\")
 
 
@@ -852,6 +906,42 @@ def _su_command(*, parts: list[str]) -> str:
     return ""
 
 
+def _flock_command_option(*, token: str, following: str) -> str | None:
+    if token in _FLOCK_COMMAND_OPTIONS:
+        return following
+    name, _, value = token.partition("=")
+    if value and name in _FLOCK_COMMAND_OPTIONS:
+        return value
+    return None
+
+
+def _flock_command(*, parts: list[str]) -> str:
+    idx = 1
+    while idx < len(parts) and parts[idx].startswith("-") and parts[idx] != "-":
+        token = parts[idx]
+        idx += 1
+        following = parts[idx] if idx < len(parts) else ""
+        command = _flock_command_option(token=token, following=following)
+        if command is not None:
+            return command
+        if token == "--":
+            break
+        if token in _FLOCK_VALUE_OPTIONS:
+            idx += 1
+    # The lock file, then either `-c 'cmd'` or the command's own words.
+    rest = parts[idx + 1 :]
+    if rest:
+        command = _flock_command_option(token=rest[0], following=rest[1] if len(rest) > 1 else "")
+        if command is not None:
+            return command
+    return shlex.join(rest)
+
+
+def _watch_command(*, parts: list[str]) -> str:
+    idx = _skip_options(parts=parts, idx=1, value_options=_WATCH_VALUE_OPTIONS)
+    return " ".join(parts[idx:])
+
+
 def _find_exec_commands(*, parts: list[str]) -> list[str]:
     commands: list[str] = []
     idx = 1
@@ -885,6 +975,12 @@ def nested_commands(*, parts: list[str]) -> list[NestedCommand]:
         commands = _find_exec_commands(parts=parts)
     elif name == "op":
         commands = [_op_run_command(parts=parts)]
+    elif name == "eval":
+        commands = [" ".join(parts[1:])]
+    elif name == "watch":
+        commands = [_watch_command(parts=parts)]
+    elif name == "flock":
+        commands = [_flock_command(parts=parts)]
     elif name == "ssh":
         return [NestedCommand(command=_ssh_command(parts=parts), remote=True)]
     elif name in _CONTAINER_CLIS:
