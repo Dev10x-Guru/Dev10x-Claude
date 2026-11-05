@@ -275,8 +275,45 @@ class TestBigQueryReadOnly:
 
         assert validator.validate(inp=_make_input(command=command)) is None
 
-    def test_should_not_run_for_a_word_containing_bq(self, validator: SqlSafetyValidator) -> None:
-        assert validator.should_run(inp=_make_input(command="ls abq-files")) is False
+    def test_should_not_run_for_a_word_starting_with_bq(
+        self, validator: SqlSafetyValidator
+    ) -> None:
+        assert validator.should_run(inp=_make_input(command="ls bqfiles")) is False
+
+    def test_word_ending_in_bq_wakes_the_probe_but_blocks_nothing(
+        self, validator: SqlSafetyValidator
+    ) -> None:
+        """GH-1798: no leading boundary, so `-c'bq …'` is not missed."""
+        inp = _make_input(command="ls abq-files")
+
+        assert validator.should_run(inp=inp) is True
+        assert validator.validate(inp=inp) is None
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "su u -c'bq query --replace \"SELECT 1\"'",
+            "bq query 'SELECT 1' >| out.txt --destination_table=t",
+            "bq query 3> err.log --replace 'SELECT 1'",
+        ],
+    )
+    def test_blocks_writes_past_quoting_and_redirects(
+        self, validator: SqlSafetyValidator, command: str
+    ) -> None:
+        assert validator.validate(inp=_make_input(command=command)) is not None
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "bq query 'SELECT 1' >| out.txt",
+            "bq query 'SELECT 1' &>> log",
+            "bq query 'SELECT 1' 3>&1",
+        ],
+    )
+    def test_redirect_target_is_not_read_as_sql(
+        self, validator: SqlSafetyValidator, command: str
+    ) -> None:
+        assert validator.validate(inp=_make_input(command=command)) is None
 
 
 class TestDirectConnection:

@@ -13,6 +13,7 @@ from __future__ import annotations
 import re
 import shlex
 from dataclasses import dataclass
+from enum import Enum, auto
 from functools import lru_cache
 
 # Both lexing entry points are pure, and one hook process asks several
@@ -119,10 +120,28 @@ _COMMAND_WRAPPERS: dict[str, _Wrapper] = {
 }
 
 
-# A redirect word: optional fd number or `&`, then `<` or `>`. A bare
-# operator has its target in the next word; an attached one does not.
-_REDIRECT_TOKEN_RE = re.compile(r"^(?:\d+|&)?[<>]")
-_BARE_REDIRECT_RE = re.compile(r"(?:\d+|&)?(?:[<>]{1,3}|>[&|]|<&)")
+# The one redirect grammar (GH-1798): an optional fd number, then the
+# operator. Whatever follows the operator in the same word is its target;
+# a bare operator takes the next word. The scanner matches it against raw
+# source, so a quoted or escaped `>` never reads as a redirect;
+# `strip_command_wrappers` matches it against already-split tokens.
+_REDIRECT_OPERATOR_RE = re.compile(r"\d*(?:<<<|<<-|<<|<>|<&|<|>>|>&|>\||>)|&>>|&>")
+_HEREDOC_OPERATORS = frozenset({"<<", "<<-"})
+
+
+def _bundle_value_index(*, token: str, value_options: frozenset[str]) -> int | None:
+    """Index in ``token`` of a short-option bundle's first value letter.
+
+    getopt ends a bundle at its first value-taking letter, and the rest of
+    the token is that letter's value. ``None`` when ``token`` is not a
+    bundle or carries no value letter.
+    """
+    if token.startswith("--") or not token.startswith("-") or len(token) < 2:
+        return None
+    for position, letter in enumerate(token[1:], start=1):
+        if f"-{letter}" in value_options:
+            return position
+    return None
 
 
 def _bundle_takes_next_value(*, token: str, value_options: frozenset[str]) -> bool:
@@ -132,13 +151,10 @@ def _bundle_takes_next_value(*, token: str, value_options: frozenset[str]) -> bo
     last letter takes the next token. A value letter mid-bundle has its
     value attached (``-u5``), so nothing more is consumed.
     """
-    if token.startswith("--") or len(token) < 3:
+    if len(token) < 3:
         return False
-    letters = token[1:]
-    for position, letter in enumerate(letters):
-        if f"-{letter}" in value_options:
-            return position == len(letters) - 1
-    return False
+    position = _bundle_value_index(token=token, value_options=value_options)
+    return position == len(token) - 1
 
 
 def _skip_options(*, parts: list[str], idx: int, value_options: frozenset[str]) -> int:
@@ -175,9 +191,10 @@ def strip_command_wrappers(*, parts: list[str]) -> list[str]:
         if ANY_CASE_ENV_VAR_RE.match(token):
             idx += 1
             continue
-        if _REDIRECT_TOKEN_RE.match(token):
+        redirect = _REDIRECT_OPERATOR_RE.match(token)
+        if redirect:
             # A bare operator (`>`, `2>`) takes the next word as its target.
-            idx += 2 if _BARE_REDIRECT_RE.fullmatch(token) else 1
+            idx += 1 if token[redirect.end() :] else 2
             continue
         wrapper = _COMMAND_WRAPPERS.get(token.rsplit("/", 1)[-1])
         if wrapper is None:
@@ -315,25 +332,47 @@ def command_units(*, command: str, include_remote: bool = True) -> tuple[str, ..
     leaves out what runs on another host or in a container, and everything
     nested inside it, for checks that judge local paths.
     """
-    units = [command]
-    seen = {command}
+    return tuple(
+        unit.command
+        for unit in tagged_command_units(command=command)
+        if include_remote or not unit.remote
+    )
+
+
+@lru_cache(maxsize=_LEX_CACHE_SIZE)
+def tagged_command_units(*, command: str) -> tuple[NestedCommand, ...]:
+    """:func:`command_units`, each tagged with whether it runs remotely.
+
+    One pass (GH-1798): a guard that needs both every unit and the remote
+    flag used to flatten twice. A unit is remote when every path to it
+    goes through ``ssh`` or a container; one local path makes it local,
+    which is what flattening without the remote bodies used to decide.
+    """
+    remote_by_unit = {command: False}
     pending = [command]
     while pending:
         unit = pending.pop()
+        parent_remote = remote_by_unit[unit]
         bodies = [
-            *substitution_bodies(unit, include_backticks=True),
             *(
-                nested.command
+                NestedCommand(command=body, remote=parent_remote)
+                for body in substitution_bodies(unit, include_backticks=True)
+            ),
+            *(
+                NestedCommand(command=nested.command, remote=parent_remote or nested.remote)
                 for nested in _runner_bodies(unit=unit)
-                if include_remote or not nested.remote
             ),
         ]
         for body in bodies:
-            if body.strip() and body not in seen:
-                seen.add(body)
-                units.append(body)
-                pending.append(body)
-    return tuple(units)
+            if not body.command.strip():
+                continue
+            known = remote_by_unit.get(body.command)
+            if known is None or (known and not body.remote):
+                remote_by_unit[body.command] = body.remote
+                pending.append(body.command)
+    return tuple(
+        NestedCommand(command=unit, remote=remote) for unit, remote in remote_by_unit.items()
+    )
 
 
 _PIPE_OPERATORS = frozenset({"|", "|&"})
@@ -364,11 +403,38 @@ class UntokenizableCommandError(ValueError):
 
 
 @dataclass(frozen=True)
+class Redirect:
+    """One redirection: its operator (fd number included) and target word.
+
+    A heredoc's target is its delimiter; the body never reaches a segment.
+    """
+
+    operator: str
+    target: str = ""
+
+    @property
+    def writes(self) -> bool:
+        """True for an output redirect (``>``, ``2>>``, ``&>``, ``>&2``)."""
+        return ">" in self.operator
+
+    @property
+    def feeds_inline_text(self) -> bool:
+        """True for a heredoc or here-string: stdin is text in the command."""
+        return self.operator.lstrip("0123456789").startswith("<<")
+
+
+@dataclass(frozen=True)
 class CommandSegment:
-    """One simple command: its argv and the operator that opened it."""
+    """One simple command: its argv, its redirects, and its opener.
+
+    Redirect words and their targets are kept out of ``argv`` (GH-1798),
+    wherever they sit, so ``python >/dev/null -c x`` and ``>/dev/null
+    python -c x`` give the same argv.
+    """
 
     argv: tuple[str, ...]
     opener: str = ""
+    redirects: tuple[Redirect, ...] = ()
 
     @property
     def is_piped(self) -> bool:
@@ -380,6 +446,16 @@ class CommandSegment:
 class _Token:
     text: str
     is_operator: bool = False
+    redirect: str = ""
+
+
+class _WordState(Enum):
+    START = auto()
+    FD = auto()
+    OPERATOR = auto()
+    TARGET = auto()
+    WORD = auto()
+    BREAK = auto()
 
 
 @dataclass
@@ -416,21 +492,40 @@ class _Scanner:
                     self._skip_heredoc_bodies(heredocs=heredocs)
                     heredocs = []
             else:
-                start = self.index
+                redirect = _REDIRECT_OPERATOR_RE.match(self.source, self.index)
+                operator = redirect.group() if redirect else ""
                 word = self._word()
-                tokens.append(_Token(text=word))
-                opens_heredoc = self.source.startswith("<<", start)
+                tokens.append(_Token(text=word, redirect=operator))
+                heredoc_operator = operator.lstrip("0123456789")
                 if awaiting_delimiter is not None:
                     heredocs.append((word, awaiting_delimiter))
                     awaiting_delimiter = None
-                elif opens_heredoc and not self.source.startswith("<<<", start):
-                    strip_tabs = word.startswith("<<-")
-                    delimiter = word[3:] if strip_tabs else word[2:]
+                elif heredoc_operator in _HEREDOC_OPERATORS:
+                    strip_tabs = heredoc_operator == "<<-"
+                    delimiter = word[len(operator) :]
                     if delimiter:
                         heredocs.append((delimiter, strip_tabs))
                     else:
                         awaiting_delimiter = strip_tabs
         return tokens
+
+    @staticmethod
+    def _advance(*, state: _WordState, char: str) -> _WordState:
+        if char in _REDIRECT_CHARS:
+            if state in (_WordState.START, _WordState.FD, _WordState.OPERATOR):
+                return _WordState.OPERATOR
+            return _WordState.BREAK
+        if char in "&|":
+            # Only a glued `&`/`|` gets here: `&>` opens a word, `>&` and
+            # `>|` continue an operator, and `a&>f` starts a new word.
+            if state in (_WordState.START, _WordState.OPERATOR):
+                return _WordState.OPERATOR
+            return _WordState.BREAK
+        if char.isdigit() and state in (_WordState.START, _WordState.FD):
+            return _WordState.FD
+        if state in (_WordState.OPERATOR, _WordState.TARGET):
+            return _WordState.TARGET
+        return _WordState.WORD
 
     def _skip_comment(self) -> None:
         end = self.source.find("\n", self.index)
@@ -450,6 +545,11 @@ class _Scanner:
     def _word(self) -> str:
         chars: list[str] = []
         last_unquoted = ""
+        # Where the word stands against the redirect grammar: still at its
+        # start, inside a leading fd number, inside the operator, or past
+        # it. An unquoted `<`/`>` after anything else ends the word, the
+        # way bash reads `echo a>f` as `echo a` plus `>f` (GH-1798).
+        state = _WordState.START
         while self.index < len(self.source):
             char = self.source[self.index]
             if char in _BLANKS:
@@ -461,6 +561,9 @@ class _Scanner:
                 ) or (char == "|" and last_unquoted == ">")
                 if not glued:
                     break
+            state = self._advance(state=state, char=char)
+            if state is _WordState.BREAK:
+                break
             if char == "\\":
                 if self.source.startswith("\\\n", self.index):
                     self.index += 2
@@ -525,6 +628,7 @@ def command_segments(*, command: str) -> tuple[CommandSegment, ...]:
     stays part of it. Splits on ``;``, ``&``, ``&&``, ``|``, ``||``,
     ``|&``, ``(``, ``)`` and newlines, drops comments and heredoc bodies,
     and drops a leading reserved word (:data:`SHELL_KEYWORDS`).
+    Redirects go to :attr:`CommandSegment.redirects`, never to ``argv``.
     Substitution bodies are not unwrapped here; :func:`command_units`
     hands each one over as its own command.
 
@@ -534,52 +638,103 @@ def command_segments(*, command: str) -> tuple[CommandSegment, ...]:
     """
     segments: list[CommandSegment] = []
     argv: list[str] = []
+    redirects: list[Redirect] = []
+    bare_operator: str | None = None
     opener = ""
     for token in _Scanner(source=command).tokens():
         if token.is_operator:
+            if bare_operator is not None:
+                redirects.append(Redirect(operator=bare_operator))
+                bare_operator = None
             # A newline ends a command the way `;` does.
             operator = ";" if token.text == "\n" else token.text
-            if argv:
-                segments.append(CommandSegment(argv=tuple(argv), opener=opener))
+            if argv or redirects:
+                segments.append(
+                    CommandSegment(argv=tuple(argv), opener=opener, redirects=tuple(redirects))
+                )
                 argv = []
+                redirects = []
                 opener = operator
             elif opener not in _PIPE_OPERATORS:
                 opener = operator
             continue
+        if bare_operator is not None:
+            redirects.append(Redirect(operator=bare_operator, target=token.text))
+            bare_operator = None
+            continue
+        if token.redirect:
+            target = token.text[len(token.redirect) :]
+            if target:
+                redirects.append(Redirect(operator=token.redirect, target=target))
+            else:
+                bare_operator = token.redirect
+            continue
         if not argv and token.text in SHELL_KEYWORDS:
             continue
         argv.append(token.text)
-    if argv:
-        segments.append(CommandSegment(argv=tuple(argv), opener=opener))
+    if bare_operator is not None:
+        redirects.append(Redirect(operator=bare_operator))
+    if argv or redirects:
+        segments.append(
+            CommandSegment(argv=tuple(argv), opener=opener, redirects=tuple(redirects))
+        )
     return tuple(segments)
 
 
-# A command boundary: start of input or a shell operator, then any env
-# assignments and process wrappers or runners with their option tokens.
-COMMAND_BOUNDARY = r"(?:^|[|;&(\n{])\s*"
-ENV_ASSIGNMENTS = r"(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*"
+def segment_programs(*, command: str) -> list[tuple[CommandSegment, list[str]]]:
+    """Each segment of ``command`` with the argv of the program it runs.
+
+    Wrappers, runners and env assignments are stripped
+    (:func:`strip_command_wrappers`), and a segment that runs nothing
+    (``FOO=1``, ``> f``) is skipped. This is the loop every guard used to
+    write for itself (GH-1798).
+
+    Raises :class:`UntokenizableCommandError` like :func:`command_segments`,
+    so a caller picks its own fallback.
+    """
+    return [
+        (segment, parts)
+        for segment in command_segments(command=command)
+        if (parts := strip_command_wrappers(parts=list(segment.argv)))
+    ]
+
+
+# A command boundary: start of input, a shell operator, or the opening
+# quote of a word (the command string `su -c '…` or `ssh host '…` runs).
+_COMMAND_BOUNDARY = r"(?:^|[|;&(\n{]|\s['\"])\s*"
+_ENV_ASSIGNMENTS = r"(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*"
 _WRAPPER_NAMES = "|".join(sorted(_COMMAND_WRAPPERS))
-WRAPPER_PREFIX = rf"(?:(?:[\w./~-]*/)?(?:{_WRAPPER_NAMES})\s+(?:(?:-\S*|\d\S*)\s+)*)*"
+_DIRECTORY = r"(?:[\w./~-]*/)?"
+# An option with at most one value word, so `sudo -u app` and
+# `timeout 30` are both seen past. Over-reading a word is the safe
+# direction here: the program can still match after it.
+_WRAPPER_OPTIONS = r"(?:(?:-\S*|\d\S*)\s+(?:[^\s|;&-]\S*\s+)?)*"
+_WRAPPER_PREFIX = (
+    rf"(?:{_DIRECTORY}(?:{_WRAPPER_NAMES})\s+{_WRAPPER_OPTIONS}"
+    rf"|{_DIRECTORY}ssh\s+{_WRAPPER_OPTIONS}[^\s|;&-]\S*\s+{_WRAPPER_OPTIONS})*"
+)
 
 
 def command_position_re(*, program: str) -> re.Pattern[str]:
     """Match ``program`` in command position, not as an argument (GH-971).
 
     ``program`` is a regex fragment. The match must follow a command
-    boundary, optionally behind env assignments, wrappers or runners
-    (``sudo``, ``timeout 30``) and a directory prefix (``/bin/sh``). A
-    bare word search would also match a filename argument such as
-    ``bin/x.sh``.
+    boundary, optionally behind env assignments, wrappers, runners and
+    their option values (``sudo -u app``, ``timeout 30``, ``ssh host``)
+    and a directory prefix (``/bin/sh``). A bare word search would also
+    match a filename argument such as ``bin/x.sh``.
 
-    This is the fail-closed fallback for :class:`UntokenizableCommandError`:
-    it over-matches by design, and a wrapper option that takes a word
-    value (``sudo -u app``) is past what it can see.
+    This is the fail-closed fallback for :class:`UntokenizableCommandError`,
+    which is why it also treats an opening quote as a boundary: an
+    unbalanced quote usually sits in the command string a runner was
+    handed (``su -c 'dropdb x``). It over-matches by design.
     """
     return re.compile(
-        COMMAND_BOUNDARY
-        + ENV_ASSIGNMENTS
-        + WRAPPER_PREFIX
-        + r"(?:[\w./~-]*/)?(?:"
+        _COMMAND_BOUNDARY
+        + _ENV_ASSIGNMENTS
+        + _WRAPPER_PREFIX
+        + _DIRECTORY
+        + r"(?:"
         + program
         + r")\b"
     )
@@ -611,9 +766,7 @@ _SU_RUNNERS = frozenset({"su", "runuser"})
 _SU_COMMAND_OPTIONS = frozenset({"-c", "--command", "--session-command"})
 _FIND_EXEC_ACTIONS = frozenset({"-exec", "-execdir", "-ok", "-okdir"})
 _FIND_EXEC_TERMINATORS = frozenset({";", "+"})
-_RUNNER_WORD_RE = re.compile(
-    r"\b(?:" + "|".join(sorted({"ssh", "op", "find", *_CONTAINER_CLIS, *_SU_RUNNERS})) + r")\b"
-)
+_RUNNER_NAMES = "|".join(sorted({"ssh", "op", "find", *_CONTAINER_CLIS, *_SU_RUNNERS}))
 _SHELL_QUOTING = str.maketrans("", "", "\"'\\")
 
 
@@ -624,6 +777,37 @@ def without_shell_quoting(*, text: str) -> str:
     neither, so a probe that gates a check must search this instead.
     """
     return text.translate(_SHELL_QUOTING)
+
+
+@dataclass(frozen=True)
+class ProgramProbe:
+    """A cheap gate: could ``command`` run ``program`` at all? (GH-1798)
+
+    Each guard used to pick its own spelling: a raw substring
+    (``"python" in command``), a ``\\b…\\b`` regex, or a quote-stripped
+    search. The rule lives here instead:
+
+    - quoting is dropped first, so ``p''ython`` and ``b\\q`` are seen;
+    - no leading boundary, because ``su u -c'bq query'`` reads ``-cbq``
+      once its quotes are gone;
+    - a trailing boundary, so ``bq`` does not wake on ``bqtool``.
+
+    A probe only decides whether the structured check runs, so an
+    over-match costs one lexer pass and never a false block.
+    """
+
+    pattern: re.Pattern[str]
+
+    @classmethod
+    def for_program(cls, *, program: str) -> ProgramProbe:
+        """Probe for ``program``, a regex fragment (alternatives allowed)."""
+        return cls(pattern=re.compile(rf"(?:{program})\b"))
+
+    def found_in(self, *, command: str) -> bool:
+        return self.pattern.search(without_shell_quoting(text=command)) is not None
+
+
+_RUNNER_PROBE = ProgramProbe.for_program(program=_RUNNER_NAMES)
 
 
 def _ssh_command(*, parts: list[str]) -> str:
@@ -661,10 +845,10 @@ def _su_command(*, parts: list[str]) -> str:
         name, _, value = token.partition("=")
         if value and name in _SU_COMMAND_OPTIONS:
             return value
-        if token.startswith("-") and not token.startswith("--") and "c" in token[1:]:
+        position = _bundle_value_index(token=token, value_options=_SU_COMMAND_OPTIONS)
+        if position is not None:
             # `-lc 'cmd'` bundles `-c` last; `-c'cmd'` attaches its value.
-            attached = token[token.index("c", 1) + 1 :]
-            return attached or following
+            return token[position + 1 :] or following
     return ""
 
 
@@ -716,7 +900,7 @@ def nested_commands(*, parts: list[str]) -> list[NestedCommand]:
 def _runner_bodies(*, unit: str) -> list[NestedCommand]:
     # Cheap word probe first: the hook runs on every Bash call under a CI
     # latency benchmark, and most commands name no runner at all.
-    if not _RUNNER_WORD_RE.search(without_shell_quoting(text=unit)):
+    if not _RUNNER_PROBE.found_in(command=unit):
         return []
     try:
         segments = command_segments(command=unit)

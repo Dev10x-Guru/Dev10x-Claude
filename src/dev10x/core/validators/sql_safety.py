@@ -26,12 +26,12 @@ from dev10x.core.db_script import db_script
 from dev10x.domain import HookInput, HookResult
 from dev10x.domain.common.bash_tokens import (
     ANY_CASE_ENV_VAR_RE,
+    ProgramProbe,
     UntokenizableCommandError,
     command_position_re,
     command_segments,
     command_units,
     strip_command_wrappers,
-    without_shell_quoting,
 )
 from dev10x.domain.common.result import ErrorResult, Result, err, ok
 from dev10x.domain.profile_tier import ProfileTier
@@ -123,13 +123,6 @@ _BQ_VALUE_FLAGS = frozenset(
         "--external_table_definition",
     }
 )
-
-# shlex keeps redirections as ordinary tokens, so `bq query < q.sql`
-# would otherwise read the filename as query text. A spaced operator
-# consumes the next token; an attached one (`<q.sql`, `2>/dev/null`) is
-# a single token.
-_REDIRECT_OPERATORS = frozenset({"<", "<<", "<<<", ">", ">>", "2>", "2>>", "&>"})
-_FD_REDIRECT_PREFIXES = frozenset({"1>", "2>", "&>"})
 
 BQ_STDIN_MSG = (
     "BLOCKED: `bq query` without inline SQL reads the query from stdin, "
@@ -426,17 +419,22 @@ def _bq_flag_name(token: str) -> str:
 
 
 def _check_bq_query(*, args: list[str]) -> HookResult | None:
+    """Judge ``bq query``'s own arguments.
+
+    ``args`` come from a :class:`CommandSegment`, whose argv carries no
+    redirect words (GH-1798), so ``bq query < q.sql`` reaches here with no
+    SQL at all and is refused as a stdin read.
+    """
     sql_tokens: list[str] = []
     remaining = iter(args)
     for token in remaining:
         flag = _bq_flag_name(token)
         if flag in _BQ_WRITE_FLAGS:
             return HookResult(message=_bq_write_message(detail=f"{flag} writes a table."))
-        takes_next_value = "=" not in token and flag in _BQ_VALUE_FLAGS
-        if takes_next_value or token in _REDIRECT_OPERATORS:
+        if "=" not in token and flag in _BQ_VALUE_FLAGS:
             next(remaining, None)
             continue
-        if token.startswith(("-", "<", ">")) or token[:2] in _FD_REDIRECT_PREFIXES:
+        if token.startswith("-"):
             continue
         sql_tokens.append(token)
 
@@ -456,7 +454,7 @@ def _check_bq_query(*, args: list[str]) -> HookResult | None:
     return None
 
 
-_BQ_WORD_RE = re.compile(r"\bbq\b")
+_BQ_PROBE = ProgramProbe.for_program(program="bq")
 
 # Fail-closed fallback for a unit the segmenter cannot tokenize: a `bq`
 # call in command position that names the `query` subcommand.
@@ -485,10 +483,7 @@ _PG_WRITE_BINARIES = frozenset(
 )
 _PG_RESTORE = "pg_restore"
 _PG_BINARIES = _PG_WRITE_BINARIES | {_PG_RESTORE}
-# No leading word boundary: `su pg -c'dropdb x'` reads `-cdropdb` once its
-# quotes are dropped. The probe only gates the structured scan, so an
-# over-match costs a lexer pass, never a false block.
-_PG_BINARY_RE = re.compile(r"(?:" + "|".join(sorted(_PG_BINARIES)) + r")\b")
+_PG_BINARY_PROBE = ProgramProbe.for_program(program="|".join(sorted(_PG_BINARIES)))
 
 # Fail-closed fallback when a unit cannot be tokenized: a write binary in
 # command position, optionally behind env assignments, wrappers or a path.
@@ -534,16 +529,6 @@ def _pg_restore_targets_database(args: list[str]) -> bool:
     return False
 
 
-def _mentions_pg_binary(*, command: str) -> bool:
-    # The fast path must see the word the shell will run: `d""ropdb` and
-    # `dr\opdb` tokenize to `dropdb` while the raw text does not contain it.
-    return _PG_BINARY_RE.search(without_shell_quoting(text=command)) is not None
-
-
-def _mentions_bq(*, command: str) -> bool:
-    return _BQ_WORD_RE.search(without_shell_quoting(text=command)) is not None
-
-
 def _is_command_probe(*, parts: list[str]) -> bool:
     head = [token for token in parts if not ANY_CASE_ENV_VAR_RE.match(token)][:2]
     return len(head) == 2 and head[0] == "command" and head[1] in _COMMAND_PROBE_FLAGS
@@ -581,7 +566,8 @@ def _pg_write_binaries_in(*, unit: str) -> Iterator[str]:
     except UntokenizableCommandError:
         match = _PG_COMMAND_POSITION_RE.search(unit)
         if match:
-            yield Path(match.group(0).split()[-1]).name
+            # The match may open on the quote of a runner's command string.
+            yield Path(match.group(0).split()[-1].lstrip("'\"")).name
         return
     for segment in segments:
         binary = _pg_write_binary(list(segment.argv))
@@ -603,8 +589,8 @@ class SqlSafetyValidator(ValidatorBase):
             or "psycopg2" in cmd
             or "postgres://" in cmd
             or "postgresql://" in cmd
-            or _mentions_bq(command=cmd)
-            or _mentions_pg_binary(command=cmd)
+            or _BQ_PROBE.found_in(command=cmd)
+            or _PG_BINARY_PROBE.found_in(command=cmd)
         )
 
     def validate(self, inp: HookInput) -> HookResult | None:
@@ -635,7 +621,7 @@ class SqlSafetyValidator(ValidatorBase):
     def _check_pg_write_binaries(self, *, command: str) -> HookResult | None:
         # should_run also admits psql/bq/db.sh commands; only one naming a
         # Postgres binary pays for the substitution scan and the lexer.
-        if not _mentions_pg_binary(command=command):
+        if not _PG_BINARY_PROBE.found_in(command=command):
             return None
         binary = next(
             (
@@ -655,7 +641,7 @@ class SqlSafetyValidator(ValidatorBase):
         A unit the segmenter cannot tokenize fails closed when it names
         ``bq … query`` in command position; skipping it was the evasion.
         """
-        if not _mentions_bq(command=command):
+        if not _BQ_PROBE.found_in(command=command):
             return None
         for unit in command_units(command=command):
             try:

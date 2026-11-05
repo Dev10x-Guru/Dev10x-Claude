@@ -946,6 +946,52 @@ class TestEveryOperatorAndRunner:
     def test_allows(self, validator: ExecutionSafetyValidator, command: str) -> None:
         assert validator.validate(inp=_make_input(command=command)) is None
 
+
+class TestSharedSegmenterRouting:
+    """GH-1798: probes, redirects and heredocs go through one segmenter."""
+
+    @pytest.fixture()
+    def validator(self) -> ExecutionSafetyValidator:
+        return ExecutionSafetyValidator()
+
+    @pytest.mark.parametrize(
+        ("command", "message"),
+        [
+            ("p''ython -c x", PYTHON3_INLINE_MSG),
+            ("py\\thon3 -c x", PYTHON3_INLINE_MSG),
+            ("ba''sh -c x", SHELL_INTERP_MSG),
+            ("python >/dev/null -c x", PYTHON3_INLINE_MSG),
+            ("python 2>&1 -c x", PYTHON3_INLINE_MSG),
+            ("python3<<EOF\nimport os\nEOF", PYTHON3_INLINE_MSG),
+            ("python3 0<<EOF\nimport os\nEOF", PYTHON3_INLINE_MSG),
+            ("python3 x.py 2>err <<<'import os'", PYTHON3_INLINE_MSG),
+            ("echo a>f", SHELL_WRITE_MSG),
+            ("echo 'a'>>f", SHELL_WRITE_MSG),
+            ("printf x >| f", SHELL_WRITE_MSG),
+            ("cat<<EOF > f\nbody\nEOF", SHELL_WRITE_MSG),
+            ("ssh h 'python -c x' > out.log", PYTHON3_INLINE_MSG),
+        ],
+    )
+    def test_blocks(self, validator: ExecutionSafetyValidator, command: str, message: str) -> None:
+        result = validator.validate(inp=_make_input(command=command))
+
+        assert result is not None
+        assert result.message == message
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "echo 'a>b'",
+            'echo "x > y" "<<EOF"',
+            "echo \\> x",
+            "python3 tool.py | sort <<EOF\nbody\nEOF",
+            "uv run pytest -k python <<EOF\nbody\nEOF",
+            "ssh host python /srv/app.py > out.log",
+        ],
+    )
+    def test_allows(self, validator: ExecutionSafetyValidator, command: str) -> None:
+        assert validator.validate(inp=_make_input(command=command)) is None
+
     def test_untokenizable_sed_unit_is_left_alone(
         self, validator: ExecutionSafetyValidator
     ) -> None:
