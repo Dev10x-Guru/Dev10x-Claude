@@ -3,8 +3,9 @@
 
 families:
   - label: Session
-    description: "Track progress, defer & resume work"
+    description: "Track progress, defer & resume work, keep the lessons"
     skills:
       - dev10x:session-wrap-up
+      - dev10x:reflect
       - dev10x:park
       - dev10x:park-discover

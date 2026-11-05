@@ -16,6 +16,13 @@ This project adheres to [Semantic Versioning](https://semver.org/).
   merging. A repository opts in through its playbook override; see
   `skills/work-on/references/business-profile.md`. The matching gate
   preset waits for the single-baseline decision (FRIC-M1).
+- **`dev10x:reflect`** (GH-1822) — every default work-on play now ends
+  by filing the session's lessons (solution, platform, way of working)
+  into the knowledge vault named in `knowledge-vault.yaml`. It runs
+  after Verify acceptance criteria without closing it, and skips with
+  one line when no vault is configured. Shared index and log notes are
+  written through `dev10x skill reflect`, under a lock, so parallel
+  sessions keep every line.
 
 ## 0.113.0 — Overwatch Watches, the Supervisor Decides
 

@@ -77,7 +77,7 @@ glob. **Two addressing schemes exist, and the key name says which**
 
 | Key | Compared against | Files |
 |---|---|---|
-| `match_repo:` | the repo's `nameWithOwner` — `org/repo` | `playbooks/<skill>.yaml`, `settings-pr-merge.yaml`, `gitmoji.yaml` |
+| `match_repo:` | the repo's `nameWithOwner` — `org/repo` | `playbooks/<skill>.yaml`, `settings-pr-merge.yaml`, `gitmoji.yaml`, `knowledge-vault.yaml` |
 | `match:` | an **absolute directory path** | `friction.yaml` |
 
 Both use standard Unix glob syntax (`fnmatch`): `*` matches any string
@@ -131,8 +131,8 @@ guarantee.
 
 The per-file tiers, paths and formats — playbooks, `friction.yaml`,
 PR merge settings, acceptance criteria, gitmoji, database schema and
-connections, GitHub reviewers, Slack and plugin-maintenance
-preferences — are in [`config-files.md`](config-files.md) (GH-1785).
+connections, GitHub reviewers, Slack, the knowledge vault and
+plugin-maintenance preferences — are in [`config-files.md`](config-files.md) (GH-1785).
 
 A config file that keeps its name moving out of the legacy
 `~/.claude/memory/Dev10x/` directory needs no migration entry:
@@ -162,3 +162,4 @@ that is renamed or comes from elsewhere is listed by hand in
 | `dev10x:request-review` | reviewers, slack-config | 2 |
 | `dev10x:fanout` | session | 1 |
 | `dev10x:plugin-maintenance` | preferences | 2 |
+| `dev10x:reflect` | knowledge-vault | 2 |

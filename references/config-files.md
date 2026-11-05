@@ -139,6 +139,29 @@ not read; `dev10x config migrate` copies it to tier 2.
 |------|------|
 | 2 | `~/.config/Dev10x/slack-config-code-review-requests.yaml` |
 
+## Knowledge Vault
+
+| Tier | Path |
+|------|------|
+| 2 | `~/.config/Dev10x/knowledge-vault.yaml` |
+
+Where `dev10x:reflect` files session lessons (GH-1822). No file, no
+`vault:`, or `enabled: false` skips reflection with a one-line note.
+The first matching `projects[].match_repo` entry overrides top-level
+keys; `folders` merges key by key. Full key list:
+`skills/reflect/references/configuration.md`.
+
+```yaml
+vault: ~/Notes/Knowledge        # must exist
+folders: {retro: Retros, patterns: Patterns}
+projects:
+  - match_repo: "example-org/*"
+    folders: {retro: Clients/Example/Retros}
+```
+
+Index and log notes are written only through `dev10x skill reflect
+index-add` / `log-add`, which lock each note and stay inside the vault.
+
 ## Plugin Maintenance Preferences
 
 | Tier | Path |
