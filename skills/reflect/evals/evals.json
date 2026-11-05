@@ -1,0 +1,109 @@
+{
+  "skill_name": "dev10x:reflect",
+  "eval_dimensions": [
+    {
+      "id": "task-tracking",
+      "name": "Task Tracking",
+      "description": "Creates one reflect task at startup and completes it after the report or the unconfigured skip"
+    },
+    {
+      "id": "config-resolution",
+      "name": "Config Resolution",
+      "description": "Resolves the vault through `dev10x skill reflect config`; never hardcodes or guesses a vault path"
+    },
+    {
+      "id": "graceful-skip",
+      "name": "Graceful Skip",
+      "description": "With no vault configured, prints exactly one 'Reflection skipped' line and writes nothing"
+    },
+    {
+      "id": "locked-shared-notes",
+      "name": "Locked Shared Notes",
+      "description": "Index and log notes change only through `dev10x skill reflect index-add` / `log-add`, never Write or Edit"
+    },
+    {
+      "id": "decision-gates",
+      "name": "Decision Gates",
+      "description": "A lesson that contradicts an existing note fires AskUserQuestion with the dated-correction option recommended"
+    },
+    {
+      "id": "task-list-invariant",
+      "name": "Task List Invariant",
+      "description": "Never marks the terminal Verify acceptance criteria task completed; creates it first when reflect would be the last open task"
+    }
+  ],
+  "evals": [
+    {
+      "id": "unconfigured-vault-skips",
+      "name": "Unconfigured vault is a one-line skip",
+      "description": "No knowledge-vault.yaml exists; the skill must resolve config, print one line and stop.",
+      "input": "/dev10x:reflect",
+      "setup": {"knowledge_vault_yaml": null},
+      "assertions": [
+        {"dimension": "task-tracking", "check": "tool_called", "tool": "TaskCreate", "signal": "Standalone run: TaskCreate called with subject 'Reflect lessons into the knowledge vault' after TaskList finds none"},
+        {"dimension": "config-resolution", "check": "tool_called", "tool": "Bash", "signal": "Runs 'dev10x skill reflect config' before any vault access"},
+        {"dimension": "graceful-skip", "check": "output_contains", "value": "Reflection skipped", "signal": "Prints a single 'Reflection skipped: <reason>' line"},
+        {"dimension": "graceful-skip", "check": "behavioral", "value": "no-writes", "signal": "No Write, Edit, index-add or log-add call follows the skip"}
+      ]
+    },
+    {
+      "id": "shared-notes-through-cli",
+      "name": "Index and log notes are written through the locked CLI",
+      "description": "A configured vault with an existing folder index; the retro is new, the index and log are shared.",
+      "input": "reflect on this session",
+      "setup": {"knowledge_vault_yaml": "vault: /tmp/vault\n", "existing_notes": ["Retros/index.md", "Retros/log.md"]},
+      "assertions": [
+        {"dimension": "locked-shared-notes", "check": "tool_called", "tool": "Bash", "signal": "Runs 'dev10x skill reflect index-add --folder Retros ...' for the new retro"},
+        {"dimension": "locked-shared-notes", "check": "tool_called", "tool": "Bash", "signal": "Runs 'dev10x skill reflect log-add --folder Retros ...'"},
+        {"dimension": "locked-shared-notes", "check": "behavioral", "value": "no-direct-index-edit", "signal": "Write/Edit never target Retros/index.md or Retros/log.md"},
+        {"dimension": "config-resolution", "check": "behavioral", "value": "configured-folders", "signal": "The retro is written under the folder returned for the 'retro' kind, not a hardcoded path"}
+      ]
+    },
+    {
+      "id": "contradiction-gate",
+      "name": "Contradicting an existing note asks first",
+      "description": "A lesson overturns a claim in an existing platform note during an attended session.",
+      "input": "lessons learned — store this in the vault",
+      "setup": {"existing_notes": ["Platform/Checkout flow.md"], "attended": true},
+      "assertions": [
+        {"dimension": "decision-gates", "check": "tool_called", "tool": "AskUserQuestion", "signal": "AskUserQuestion offers Append a dated correction / Rewrite the claim / Leave the note"},
+        {"dimension": "decision-gates", "check": "output_contains", "value": "Append a dated correction (Recommended)", "signal": "The dated-correction option is first and recommended"}
+      ]
+    },
+    {
+      "id": "final-play-step-keeps-verify-ac-open",
+      "name": "Final play step leaves Verify AC open",
+      "description": "Invoked as a play's last step after dev10x:verify-acc-dod reported; Verify acceptance criteria is still pending.",
+      "input": "Skill(dev10x:reflect)",
+      "setup": {"open_tasks": ["Verify acceptance criteria", "Reflect lessons into the knowledge vault"]},
+      "assertions": [
+        {"dimension": "task-list-invariant", "check": "behavioral", "value": "verify-ac-untouched", "signal": "No TaskUpdate marks the Verify acceptance criteria task completed or deleted"},
+        {"dimension": "task-tracking", "check": "behavioral", "value": "reuses-play-task", "signal": "No TaskCreate for a reflect task: the existing 'Reflect lessons into the knowledge vault' task is set in_progress and then completed"},
+        {"dimension": "task-tracking", "check": "tool_called", "tool": "TaskUpdate", "signal": "The play's 'Reflect lessons into the knowledge vault' task is marked completed before the turn ends"}
+      ]
+    },
+    {
+      "id": "investigation-play-seeds-verify-ac",
+      "name": "Reflect as last open task seeds Verify AC first",
+      "description": "Investigation play has no Verify AC; reflect is the only open task.",
+      "input": "Skill(dev10x:reflect)",
+      "setup": {"open_tasks": ["Reflect lessons into the knowledge vault"]},
+      "assertions": [
+        {"dimension": "task-list-invariant", "check": "task_exists", "value": "Verify acceptance criteria", "signal": "TaskCreate for 'Verify acceptance criteria' happens before the reflect task is completed"}
+      ]
+    }
+  ],
+  "trigger_evals": {
+    "description": "Queries that should/should-not trigger dev10x:reflect",
+    "should_trigger": [
+      {"query": "reflect on this session and store the lessons", "rationale": "Explicit reflection request"},
+      {"query": "retro this session into the vault", "rationale": "Retro + vault is the primary use case"},
+      {"query": "lessons learned from this incident, please", "rationale": "Lessons-learned phrasing"}
+    ],
+    "should_not_trigger": [
+      {"query": "let's wrap up for today", "rationale": "Session end with open loops — use dev10x:session-wrap-up"},
+      {"query": "park this idea for later", "rationale": "Single deferral — use dev10x:park"},
+      {"query": "start on GH-42", "rationale": "Starting work — use dev10x:work-on"}
+    ]
+  }
+}

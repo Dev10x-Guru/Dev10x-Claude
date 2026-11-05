@@ -82,6 +82,7 @@ plugins:
     - park-remind
     - park-todo
     - plan-sync
+    - reflect
     - session-tasks
     - session-wrap-up
   scoping:
