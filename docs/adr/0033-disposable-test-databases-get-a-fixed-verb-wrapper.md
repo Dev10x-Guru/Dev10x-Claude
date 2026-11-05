@@ -1,6 +1,8 @@
 # ADR-0033: How unattended work recreates a disposable test database while DX004 stays absolute
 
-- **Status:** Proposed (awaiting supervisor decision)
+- **Status:** Accepted, Option E (supervisor decision, 2026-11-05);
+  Option A is deferred until a case the test runner cannot handle is on
+  record
 - **Date:** 2026-09-27; refreshed 2026-11-03 against `a3ea3142`
 - **Supersedes:** none
 - **Amends:** none
@@ -136,10 +138,27 @@ run, and the command string cannot see a port-forward.
 Unchanged. Every unattended run that needs a fresh database loses the
 night. That is the E25 cost.
 
+## Decision
+
+On 2026-11-05 the supervisor chose **Option E**: no new database write
+tool.
+
+1. DX004's three deny messages (`sql_safety.py:195-198, 523-528,
+   761-766`) name `run_tests(args=["--create-db"])` and
+   `run_node_tests(script=…)` as the route for runner-owned test
+   databases.
+2. `dev10x:py-test` gains a test-database recreation section.
+3. A database the runner does not own falls back to Option D (park the
+   task). Option A is reopened only when such a case is on record.
+4. DX004's blanket deny and the GH-1732 binary denies are untouched.
+
+The filename still names the first draft's wrapper. It is kept so
+existing links keep working.
+
 ## Ranking
 
-The evaluation ranks **E first, then A on evidence**, with
-**low-to-medium** confidence. The decision is the supervisor's.
+The evaluation ranked **E first, then A on evidence**, with
+**low-to-medium** confidence. The supervisor chose E (see Decision).
 
 - E solves the common case today for the cost of three message edits and
   a doc section.
