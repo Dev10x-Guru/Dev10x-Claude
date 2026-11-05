@@ -7,15 +7,19 @@ from dev10x.domain.common.bash_tokens import (
     GIT_C_DIR_RE,
     GIT_C_PREFIX_RE,
     NestedCommand,
+    ProgramProbe,
+    Redirect,
     UntokenizableCommandError,
     command_position_re,
     command_segments,
     command_units,
     nested_commands,
+    segment_programs,
     split_tokens,
     strip_command_wrappers,
     strip_line_continuations,
     strip_quoted_spans,
+    tagged_command_units,
 )
 
 
@@ -79,34 +83,121 @@ class TestCommandSegments:
             ("echo 'a;b|c' \"d&e\"", [["echo", "a;b|c", "d&e"]]),
             ("echo 'line1\nline2'", [["echo", "line1\nline2"]]),
             ("git commit -m x \\\n  --amend", [["git", "commit", "-m", "x", "--amend"]]),
-            ("cmd 2>&1 | tee f", [["cmd", "2>&1"], ["tee", "f"]]),
-            ("echo x >&2", [["echo", "x", ">&2"]]),
-            ("echo x &>f", [["echo", "x", "&>f"]]),
+            ("cmd 2>&1 | tee f", [["cmd"], ["tee", "f"]]),
+            ("echo x >&2", [["echo", "x"]]),
+            ("echo x &>f", [["echo", "x"]]),
             ("true # note\npython -c y", [["true"], ["python", "-c", "y"]]),
             ("dropdb x # don't", [["dropdb", "x"]]),
             ("echo a#b", [["echo", "a#b"]]),
-            ("echo ';' > f", [["echo", ";", ">", "f"]]),
+            ("echo ';' > f", [["echo", ";"]]),
             ("sed -e ';' -i f", [["sed", "-e", ";", "-i", "f"]]),
             (
                 "find . \\( -name a \\) -exec rm {} \\;",
                 [["find", ".", "(", "-name", "a", ")", "-exec", "rm", "{}", ";"]],
             ),
             ("echo '>' & dropdb x", [["echo", ">"], ["dropdb", "x"]]),
-            ("echo x >| f", [["echo", "x", ">|", "f"]]),
+            ("echo x >| f", [["echo", "x"]]),
             ("echo 'a'& dropdb x", [["echo", "a"], ["dropdb", "x"]]),
             ("drop\\\ndb x", [["dropdb", "x"]]),
             ('echo "a"&& dropdb x', [["echo", "a"], ["dropdb", "x"]]),
             ('echo "a\\"b" \'c\\d\'', [["echo", 'a"b', "c\\d"]]),
-            ("cat <<EOF > f\nruff check .\nEOF\nls", [["cat", "<<EOF", ">", "f"], ["ls"]]),
-            ("cat <<'EOF'\n$(rm x) don't\nEOF", [["cat", "<<EOF"]]),
-            ("cat <<-EOF\n\tbody\n\tEOF\nls", [["cat", "<<-EOF"], ["ls"]]),
-            ("cat << EOF\nbody\nEOF\nls", [["cat", "<<", "EOF"], ["ls"]]),
-            ("cat <<<'x;y'", [["cat", "<<<x;y"]]),
+            ("cat <<EOF > f\nruff check .\nEOF\nls", [["cat"], ["ls"]]),
+            ("cat <<'EOF'\n$(rm x) don't\nEOF", [["cat"]]),
+            ("cat <<-EOF\n\tbody\n\tEOF\nls", [["cat"], ["ls"]]),
+            ("cat << EOF\nbody\nEOF\nls", [["cat"], ["ls"]]),
+            ("cat<<EOF\nruff check .\nEOF\nls", [["cat"], ["ls"]]),
+            ("cat 0<<EOF\nruff check .\nEOF\nls", [["cat"], ["ls"]]),
+            ("cat <<<'x;y'", [["cat"]]),
             ("", []),
         ],
     )
     def test_splits_on_every_operator(self, command: str, expected: list[list[str]]) -> None:
         assert _argvs(command) == expected
+
+
+class TestRedirects:
+    """GH-1798: the scanner owns the one redirect grammar."""
+
+    @pytest.mark.parametrize(
+        ("command", "argv", "redirects"),
+        [
+            ("python >/dev/null -c x", ["python", "-c", "x"], [(">", "/dev/null")]),
+            (">/dev/null python -c x", ["python", "-c", "x"], [(">", "/dev/null")]),
+            ("echo a>f", ["echo", "a"], [(">", "f")]),
+            ("echo 'a'>f", ["echo", "a"], [(">", "f")]),
+            ("echo a2>f", ["echo", "a2"], [(">", "f")]),
+            ("cmd 2> err 3>&1", ["cmd"], [("2>", "err"), ("3>&", "1")]),
+            ("cmd &>> log <&0 >| f", ["cmd"], [("&>>", "log"), ("<&", "0"), (">|", "f")]),
+            ("cmd a&>f", ["cmd", "a"], [("&>", "f")]),
+            ("cmd >f>g", ["cmd"], [(">", "f"), (">", "g")]),
+            ("cat << 'EOF'\nbody\nEOF", ["cat"], [("<<", "EOF")]),
+            ("cat <<<x", ["cat"], [("<<<", "x")]),
+            ("echo '>' \\> \">\"", ["echo", ">", ">", ">"], []),
+            ("> f", [], [(">", "f")]),
+            ("cmd >", ["cmd"], [(">", "")]),
+            ("cmd > ; ls", ["cmd"], [(">", "")]),
+        ],
+    )
+    def test_redirects_leave_argv(
+        self, command: str, argv: list[str], redirects: list[tuple[str, str]]
+    ) -> None:
+        segment = command_segments(command=command)[0]
+
+        assert list(segment.argv) == argv
+        assert [(r.operator, r.target) for r in segment.redirects] == redirects
+
+    @pytest.mark.parametrize(
+        ("operator", "writes", "inline_text"),
+        [
+            (">", True, False),
+            ("2>>", True, False),
+            ("&>", True, False),
+            ("<", False, False),
+            ("<<", False, True),
+            ("0<<-", False, True),
+            ("<<<", False, True),
+        ],
+    )
+    def test_classifies_the_operator(self, operator: str, writes: bool, inline_text: bool) -> None:
+        redirect = Redirect(operator=operator)
+
+        assert (redirect.writes, redirect.feeds_inline_text) == (writes, inline_text)
+
+
+class TestSegmentPrograms:
+    def test_strips_wrappers_and_skips_empty_segments(self) -> None:
+        programs = segment_programs(command="FOO=1; > f; sudo -u a python -c x | wc")
+
+        assert [parts for _, parts in programs] == [["python", "-c", "x"], ["wc"]]
+
+    def test_keeps_the_segment_for_its_redirects(self) -> None:
+        [(segment, _)] = segment_programs(command="python 2>/dev/null")
+
+        assert segment.redirects == (Redirect(operator="2>", target="/dev/null"),)
+
+    def test_raises_on_untokenizable_input(self) -> None:
+        with pytest.raises(UntokenizableCommandError):
+            segment_programs(command="echo 'x")
+
+
+class TestProgramProbe:
+    """GH-1798: one boundary rule for every guard's pre-filter."""
+
+    @pytest.mark.parametrize(
+        "command",
+        ["bq query x", "b''q query", "b\\q query", "su u -c'bq query'", "/opt/bin/bq ls"],
+    )
+    def test_finds_the_program_however_it_is_quoted(self, command: str) -> None:
+        assert ProgramProbe.for_program(program="bq").found_in(command=command)
+
+    @pytest.mark.parametrize("command", ["bqtool x", "echo bqx", "git status"])
+    def test_needs_a_trailing_boundary(self, command: str) -> None:
+        assert not ProgramProbe.for_program(program="bq").found_in(command=command)
+
+    def test_accepts_alternatives(self) -> None:
+        probe = ProgramProbe.for_program(program="dropdb|createdb")
+
+        assert probe.found_in(command="c''reatedb app")
 
     @pytest.mark.parametrize(
         ("command", "piped"),
@@ -144,6 +235,11 @@ class TestCommandPositionRe:
             "{ python -c 'x",
             "FOO=1 /usr/bin/python -c 'x",
             "sudo -E timeout 30 python -c 'x",
+            "sudo -u app python -c 'x",
+            "doas -u app -C conf python -c 'x",
+            "ssh host python -c 'x",
+            "ssh -p 22 db01 python -c 'x",
+            "su app -c 'python -c \"x",
         ],
     )
     def test_matches_program_in_command_position(self, command: str) -> None:
@@ -171,6 +267,8 @@ class TestNestedCommands:
             ("su --command='python -c x' app", [NestedCommand(command="python -c x")]),
             ("su postgres -c'dropdb x'", [NestedCommand(command="dropdb x")]),
             ("su -lc 'dropdb x' postgres", [NestedCommand(command="dropdb x")]),
+            ("su -lcdropdb postgres", [NestedCommand(command="dropdb")]),
+            ("su -l postgres", []),
             ("runuser -l app -c 'dropdb x'", [NestedCommand(command="dropdb x")]),
             ("op run --env-file=.env -- psql -c x", [NestedCommand(command="psql -c x")]),
             (
@@ -261,6 +359,43 @@ class TestCommandUnits:
 
     def test_untokenizable_runner_unit_adds_nothing(self) -> None:
         assert command_units(command="ssh host 'unterminated") == ("ssh host 'unterminated",)
+
+    def test_redirect_stays_out_of_a_runner_body(self) -> None:
+        assert command_units(command="ssh host 'dropdb x' > out.log") == (
+            "ssh host 'dropdb x' > out.log",
+            "dropdb x",
+        )
+
+
+class TestTaggedCommandUnits:
+    """GH-1798: units and their remote flag come from one pass."""
+
+    def test_tags_each_unit(self) -> None:
+        command = "su app -c 'ssh host python /srv/x.py'"
+
+        assert tagged_command_units(command=command) == (
+            NestedCommand(command=command),
+            NestedCommand(command="ssh host python /srv/x.py"),
+            NestedCommand(command="python /srv/x.py", remote=True),
+        )
+
+    def test_runner_inside_a_remote_body_stays_remote(self) -> None:
+        units = tagged_command_units(command="ssh h \"su u -c 'python /srv/x.py'\"")
+
+        assert NestedCommand(command="python /srv/x.py", remote=True) in units
+
+    def test_one_local_path_makes_a_unit_local(self) -> None:
+        units = tagged_command_units(command="ssh h 'python /a.py'; su u -c 'python /a.py'")
+
+        assert NestedCommand(command="python /a.py") in units
+        assert NestedCommand(command="python /a.py", remote=True) not in units
+
+    def test_agrees_with_command_units(self) -> None:
+        command = "echo $(ssh h 'dropdb x') && kubectl exec p -- psql"
+
+        assert [unit.command for unit in tagged_command_units(command=command)] == list(
+            command_units(command=command)
+        )
 
 
 class TestEnvVarRe:

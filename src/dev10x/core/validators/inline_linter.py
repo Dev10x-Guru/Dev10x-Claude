@@ -25,8 +25,7 @@ from typing import ClassVar
 from dev10x.domain import HookInput, HookResult
 from dev10x.domain.common.bash_tokens import (
     UntokenizableCommandError,
-    command_segments,
-    strip_command_wrappers,
+    segment_programs,
 )
 from dev10x.domain.profile_tier import ProfileTier
 from dev10x.validators.base import ValidatorBase
@@ -115,16 +114,13 @@ class InlineLinterValidator(ValidatorBase):
 
     def validate(self, inp: HookInput) -> HookResult | None:
         try:
-            segments = command_segments(command=inp.command)
+            programs = segment_programs(command=inp.command)
         except UntokenizableCommandError:
             # Abstain rather than fail closed: this is a friction rule, an
             # unterminated quote offers no invocation to anchor on, and
             # bash rejects the command anyway (GH-1133).
             return None
-        for segment in segments:
-            parts = strip_command_wrappers(parts=list(segment.argv))
-            if not parts:
-                continue
+        for _, parts in programs:
             if _is_pm_lint_script(parts):
                 return HookResult(message=INLINE_LINTER_MSG)
             if _effective_tool(parts) in LINTER_TOOLS:

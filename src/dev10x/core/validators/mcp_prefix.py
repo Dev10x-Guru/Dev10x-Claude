@@ -24,8 +24,7 @@ from typing import ClassVar
 from dev10x.domain import HookInput, HookResult
 from dev10x.domain.common.bash_tokens import (
     UntokenizableCommandError,
-    command_segments,
-    strip_command_wrappers,
+    segment_programs,
 )
 from dev10x.domain.common.mcp_tool_name import McpToolName
 from dev10x.domain.profile_tier import ProfileTier
@@ -57,14 +56,13 @@ class McpPrefixValidator(ValidatorBase):
 
     def validate(self, inp: HookInput) -> HookResult | None:
         try:
-            segments = command_segments(command=inp.command)
+            programs = segment_programs(command=inp.command)
         except UntokenizableCommandError:
             # A friction rule: an unparseable command has no invocation
             # to anchor on, so abstain as before.
             return None
 
-        for segment in segments:
-            parts = strip_command_wrappers(parts=list(segment.argv))
-            if parts and McpToolName.is_command_token(parts[0]):
+        for _, parts in programs:
+            if McpToolName.is_command_token(parts[0]):
                 return HookResult(message=MCP_PREFIX_MSG.format(tool=parts[0]))
         return None
