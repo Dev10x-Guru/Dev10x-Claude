@@ -51,10 +51,11 @@ that emptiness "must not be treated as evidence of anything else".
 Conflating the two would block every turn of every such session, which
 is the very over-firing this rule ends.
 
-That leaves exactly one blocking state: a task list that exists and is
-wholly completed. There the next move genuinely is the supervisor's,
+That leaves one blocking state on the task list: a list that exists and
+is wholly completed. There the next move genuinely is the supervisor's,
 and the steer asks to stand down — carrying its own recommended option
-rather than an open-ended "reformulate something".
+rather than an open-ended "reformulate something". (GH-1365 adds the
+dirty-tree block on that same finished list.)
 
 **A deferral in prose is not a decision.** An earlier cut of this rule
 also blocked on closing shapes like "shall I push?" / "want me to…",
@@ -64,6 +65,17 @@ and reversible, so the answer is always yes, and asking is the defect.
 Blocking never made the agent push — it made it render a widget about
 work it should have simply done. Removing that carve-out took the last
 guess about English out of the gate; everything left is structural.
+
+**A promise nothing kept is the one exception (GH-1829).** "Now I'll
+run the tests" with no tool after it is not a deferral — it tells the
+supervisor work is under way when nothing is. Detecting it needs
+phrases, so they live in ``stop_intent_patterns.yaml`` rather than in
+code, keyed by language, with exemptions for a wait, a promise
+conditioned on the supervisor's word, and deliberate deferral. The
+check runs after both loop guards, standby and an open widget, and
+before the task list, so it fires with or without a plan — except
+for a turn parked on dispatched subagents (GH-1464). A pattern file
+that cannot be read disarms it rather than blocking.
 
 **The loop guard is not optional.** A hook that always blocks, without
 one, never lets a turn finish. Two independent guards, because the
@@ -108,7 +120,10 @@ from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from enum import StrEnum
+from functools import lru_cache
 from pathlib import Path
+
+import yaml
 
 from dev10x.domain.documents.plan import is_terminal_task_subject
 from dev10x.domain.file_locks import atomic_write_text
@@ -195,6 +210,11 @@ class StopSignal(StrEnum):
     stand-down answer held until the task set changes, and a persisted
     plan this session did not write. Each is its own member so the audit
     log can say which one kept a session quiet.
+
+    ``PROMISED_ACTION`` is GH-1829's block: a turn that closes on "now
+    I'll run the tests" with no tool after it. Its own member so the
+    audit log can show how often the phrase list fires — the evidence
+    any later widening or narrowing of that list needs.
     """
 
     STOP_HOOK_ACTIVE = "stop_hook_active"
@@ -209,6 +229,7 @@ class StopSignal(StrEnum):
     COOLDOWN = "cooldown_marker"
     NO_TRANSCRIPT = "no_transcript"
     ASKED = "asked"
+    PROMISED_ACTION = "promised_action"
     BLOCKED = "blocked"
 
     def __repr__(self) -> str:
@@ -248,7 +269,7 @@ class StopVerdict:
     block: bool
     reason: str = ""
     #: Which branch of :func:`decide` produced this verdict (GH-1257).
-    #: Four of the five mean "let the turn end", and the caller needs to
+    #: Most members mean "let the turn end", and the caller needs to
     #: tell them apart: retiring the cooldown marker is only safe with
     #: positive evidence that ``stop_hook_active`` arrives set, and the
     #: audit log recorded nothing but wrap-phase timing, so the
@@ -800,6 +821,184 @@ def asked_a_question(*, entries: list[dict]) -> bool:
     return False
 
 
+INTENT_PATTERNS_PATH = Path(__file__).with_name("stop_intent_patterns.yaml")
+
+
+@dataclass(frozen=True)
+class IntentPatterns:
+    """The phrases that declare an imminent action, and their exemptions."""
+
+    intent: tuple[re.Pattern[str], ...] = ()
+    exempt: tuple[re.Pattern[str], ...] = ()
+
+
+def _compile_patterns(*, label: str, raw: object) -> tuple[list[re.Pattern[str]], bool]:
+    """Compile one ``intent`` / ``exempt`` list, and say whether any entry failed.
+
+    An absent key is an empty list, not a failure. Anything else that
+    cannot become a pattern — a non-list value, a non-string entry, a
+    regex that does not compile — is dropped with one diagnostic, so a
+    one-character YAML slip is visible instead of silently disarming
+    the gate.
+    """
+    if raw is None:
+        return [], False
+    if not isinstance(raw, list):
+        _diagnose(what=f"reading {label}", error=ValueError("expected a list"))
+        return [], True
+
+    compiled: list[re.Pattern[str]] = []
+    failed = False
+    for pattern in raw:
+        if not isinstance(pattern, str):
+            _diagnose(what=f"reading {label} entry {pattern!r}", error=ValueError("not a string"))
+            failed = True
+            continue
+        try:
+            compiled.append(re.compile(pattern, re.IGNORECASE))
+        except re.error as error:
+            _diagnose(what=f"compiling {label} pattern {pattern!r}", error=ValueError(error))
+            failed = True
+    return compiled, failed
+
+
+def parse_intent_patterns(*, data: object) -> IntentPatterns:
+    """Merge every language's lists from the parsed data file (GH-1829).
+
+    A language is a key under ``languages:`` so a new one is added
+    without touching code. An unusable entry is dropped with a
+    diagnostic rather than failing the hook: a pattern that cannot run
+    is not evidence that a turn broke its word.
+
+    The two lists fail in opposite directions, so they are not dropped
+    alike. A lost ``intent`` pattern means fewer blocks, which is the
+    direction every degradation here takes. A lost ``exempt`` pattern
+    means *more* blocks — a promise that should have been exempt starts
+    firing — so any broken exemption disarms the gate entirely.
+    """
+    languages = data.get("languages") if isinstance(data, dict) else None
+    if not isinstance(languages, dict):
+        _diagnose(what="reading the intent patterns", error=ValueError("no 'languages' mapping"))
+        return IntentPatterns()
+
+    intent: list[re.Pattern[str]] = []
+    exempt: list[re.Pattern[str]] = []
+    for name, language in languages.items():
+        if not isinstance(language, dict):
+            _diagnose(what=f"reading intent language {name!r}", error=ValueError("not a mapping"))
+            continue
+        compiled, _ = _compile_patterns(label=f"{name} intent", raw=language.get("intent"))
+        intent.extend(compiled)
+        compiled, failed = _compile_patterns(label=f"{name} exempt", raw=language.get("exempt"))
+        if failed:
+            return IntentPatterns()
+        exempt.extend(compiled)
+    return IntentPatterns(intent=tuple(intent), exempt=tuple(exempt))
+
+
+@lru_cache(maxsize=1)
+def load_intent_patterns(*, path: Path = INTENT_PATTERNS_PATH) -> IntentPatterns:
+    """The intent patterns shipped beside this module, read once per process.
+
+    ``UnicodeDecodeError`` is a ``ValueError``, so a corrupt file lands
+    in the parse branch rather than escaping and taking the whole Stop
+    verdict — dirty tree and stand-down included — down with it.
+    """
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except OSError as error:
+        _diagnose(what="reading the intent patterns", error=error)
+        return IntentPatterns()
+    except (ValueError, yaml.YAMLError) as error:
+        _diagnose(what="parsing the intent patterns", error=ValueError(error))
+        return IntentPatterns()
+    return parse_intent_patterns(data=data)
+
+
+#: How much of the closing paragraph the intent patterns see. A promise
+#: sits at the end of a turn, and the cap bounds the cost of every
+#: pattern a future language adds, whatever its shape.
+_CLOSING_TAIL_CHARS = 2000
+
+
+def _closing_paragraph(*, text: str) -> str:
+    """The tail of the last non-blank paragraph, apostrophes made straight.
+
+    Only the close is judged. A summary that says "I'll keep the old
+    name" three paragraphs up has moved on; the sentence the turn ends
+    on is the one a supervisor reads as the state of play.
+    """
+    paragraphs = [part.strip() for part in re.split(r"\n\s*\n", text) if part.strip()]
+    closing = paragraphs[-1][-_CLOSING_TAIL_CHARS:] if paragraphs else ""
+    return closing.replace("’", "'").replace("‘", "'")
+
+
+def _tool_ran_after_text(*, entries: list[dict]) -> bool:
+    """Whether any tool call follows the turn's last prose block.
+
+    A stated intention followed by the call that carries it out is
+    narration, not a broken promise — so only a turn whose prose is the
+    very last thing it emitted can have promised something it skipped.
+    """
+    seen_tool = False
+    for entry in reversed(entries):
+        for block in reversed(_content_blocks(entry=entry)):
+            if block.get("type") == "text" and str(block.get("text", "")).strip():
+                return seen_tool
+            if block.get("type") == "tool_use":
+                seen_tool = True
+    return seen_tool
+
+
+def promised_action(
+    *,
+    entries: list[dict],
+    patterns: IntentPatterns | None = None,
+) -> str:
+    """The closing paragraph when it promises an action nothing performed.
+
+    Returns ``""`` when the turn is fine: no prose, a tool ran after the
+    prose, no intent phrase in the close, or an exempt phrase there —
+    a wait, a promise conditioned on the supervisor, or work deferred
+    past this session on purpose.
+    """
+    if _tool_ran_after_text(entries=entries):
+        return ""
+    closing = _closing_paragraph(text=final_text(entries=entries))
+    if not closing:
+        return ""
+    active = load_intent_patterns() if patterns is None else patterns
+    if not any(pattern.search(closing) for pattern in active.intent):
+        return ""
+    if any(pattern.search(closing) for pattern in active.exempt):
+        return ""
+    return closing
+
+
+def _promised_action_reason(*, closing: str) -> str:
+    """The steer for a turn that ended on an intention instead of an action.
+
+    An instruction, not a question (GH-1339): the next action is the
+    one the agent itself just named. The only alternative offered is
+    the one that hands the supervisor something real — an explicit
+    question or an honest status line.
+    """
+    quoted = "\n".join(f"> {line}" for line in closing.splitlines())
+    return (
+        "⛔  This turn ends on a promise, and nothing ran after it:\n\n"
+        f"{quoted}\n\n"
+        "A supervisor reads that as work in progress and comes back to an "
+        "idle session.\n\n"
+        "**Do the action now** — make the tool call you just described. "
+        "Narrating the next step is not taking it.\n\n"
+        "**Or end the turn honestly.** If the step genuinely needs the "
+        "supervisor, ask through `AskUserQuestion` with the recommended "
+        "option first. If you are stopping for another reason, say so as a "
+        "status line naming what is done and what is not — not as a future "
+        "tense."
+    )
+
+
 def final_text(*, entries: list[dict]) -> str:
     """The last assistant prose in the turn, or ``""`` if there is none."""
     for entry in reversed(entries):
@@ -1058,6 +1257,7 @@ def decide(
     now: float | None = None,
     session_started: str | None = None,
     current_branch: str | None = None,
+    patterns: IntentPatterns | None = None,
 ) -> StopVerdict:
     """Return the Stop verdict for one hook invocation.
 
@@ -1074,6 +1274,11 @@ def decide(
     ``session_started`` and ``current_branch`` arrive the same way
     (GH-1470): they decide whether ``plan`` is this session's at all,
     and ``None`` for either skips that half of the check.
+
+    ``patterns`` are the promised-action phrases (GH-1829). ``None``
+    reads the file shipped beside this module, which is a constant of
+    the install rather than session state; passing them in keeps a
+    caller or a test independent of that file.
     """
     if data.get("stop_hook_active"):
         return StopVerdict(block=False, signal=StopSignal.STOP_HOOK_ACTIVE)
@@ -1097,6 +1302,24 @@ def decide(
         return StopVerdict(block=False, signal=StopSignal.ASKED)
 
     signal = task_signal(plan=plan)
+
+    # Checked before the rest of the task list (GH-1829): a promise
+    # nothing kept misleads the supervisor whether or not a plan exists,
+    # and a model without the task tools is the likeliest to narrate.
+    # The one exception is a turn parked on dispatched subagents
+    # (GH-1464) — "next I'll collate the results" is then exactly what
+    # the harness will resume it to do.
+    closing = (
+        ""
+        if signal.awaits_dispatched_work
+        else promised_action(entries=entries, patterns=patterns)
+    )
+    if closing:
+        return StopVerdict(
+            block=True,
+            reason=_promised_action_reason(closing=closing),
+            signal=StopSignal.PROMISED_ACTION,
+        )
 
     if not signal.has_task_list:
         # No list is no evidence either way (GH-1055). A model without
