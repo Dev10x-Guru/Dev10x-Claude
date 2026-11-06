@@ -99,3 +99,105 @@ async def ci_check_status(
                 wait_for=wait_for,
             )
         )
+
+
+@server.tool()
+async def pr_wait(
+    pr_number: int,
+    until: str,
+    repo: str | None = None,
+    poll_interval: int = 30,
+    max_polls: int = 40,
+    since_sha: str | None = None,
+    bot: str | None = None,
+    cwd: str | None = None,
+) -> dict:
+    """Block until a PR condition holds, cannot hold, or the budget ends (GH-1833).
+
+    Args:
+        pr_number: PR number
+        until: One of merged, closed, merged_or_closed, head_changed,
+            approved, bot_at_head. ``closed`` means closed WITHOUT merge;
+            ``merged_or_closed`` accepts either.
+        repo: Repository in owner/repo format. Auto-detected from cwd if omitted.
+        poll_interval: Seconds between polls (default 30, floor 5)
+        max_polls: Polls to request. Granted only as far as
+            ``MAX_TOOL_CALL_SECONDS`` affords (GH-1288), so the default 40
+            at 30s is served as 34. Asking for more does not buy more — a
+            longer wait is a second call or a background Monitor.
+        since_sha: Baseline head for ``head_changed``; defaults to the
+            head read on the first poll.
+        bot: Bot login for ``bot_at_head`` (``[bot]`` suffix optional).
+            When omitted, any bot-authored PR review at the head counts.
+        cwd: Effective working directory (GH-979).
+
+    Returns:
+        ``met`` / ``timed_out`` / ``unreachable`` booleans, ``observed``
+        (state, merged, head_sha, plus the condition's own evidence),
+        ``polls`` / ``polls_granted`` / ``polls_requested`` /
+        ``budget_clamped``, and ``probe_errors`` for polls that could not
+        read the PR. ``unreachable`` ends the wait early when the PR left
+        the state the condition needs — merged while waiting for
+        ``closed``, closed while waiting for an approval.
+    """
+    from dev10x.coding.monitor import pr_wait as pw
+    from dev10x.subprocess_utils import use_cwd
+
+    with use_cwd(cwd):
+        return to_wire(
+            await pw.pr_wait(
+                pr_number=pr_number,
+                until=until,
+                repo=repo,
+                poll_interval=poll_interval,
+                max_polls=max_polls,
+                since_sha=since_sha,
+                bot=bot,
+            )
+        )
+
+
+@server.tool()
+async def wait_for(
+    kind: str,
+    target: str,
+    timeout: float = 300,
+    pattern: str | None = None,
+    poll_interval: float = 2.0,
+    expect_status: int | None = None,
+    cwd: str | None = None,
+) -> dict:
+    """Block until a local condition holds or the timeout ends (GH-1833).
+
+    Args:
+        kind: One of file, file_text, regex, http, process_gone, time.
+        target: Path for file / file_text / regex (relative to ``cwd``);
+            http(s) URL for http; PID or ``pgrep -f`` pattern for
+            process_gone; ISO-8601 timestamp for time (naive means UTC).
+        timeout: Seconds to wait (default 300). Clamped to
+            ``MAX_TOOL_CALL_SECONDS``; ``clamped`` says when it was.
+        pattern: Literal text for file_text, regex for regex.
+        poll_interval: Seconds between probes (default 2).
+        expect_status: Exact HTTP status for http; any 2xx/3xx when omitted.
+        cwd: Effective working directory (GH-979).
+
+    Returns:
+        ``met``, ``timed_out``, ``observed`` (what the last probe saw),
+        ``polls``, ``elapsed``, ``timeout``, ``timeout_requested`` and
+        ``clamped``. Never an exit code: a condition that did not hold is
+        ``met: false``, not an error.
+    """
+    from dev10x.coding.monitor import wait_for as wf
+    from dev10x.subprocess_utils import use_cwd
+
+    with use_cwd(cwd):
+        return to_wire(
+            await wf.wait_for(
+                kind=kind,
+                target=target,
+                timeout=timeout,
+                pattern=pattern,
+                poll_interval=poll_interval,
+                expect_status=expect_status,
+            )
+        )

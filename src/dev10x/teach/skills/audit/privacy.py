@@ -176,6 +176,11 @@ _NET_IMPORT_EXEMPT_PATHS: tuple[str, ...] = (
     # 127.0.0.1, so nothing leaves the machine. Covered by the
     # AskUserQuestion-hook bullet in PRIVACY_POLICY.md (GH-1692).
     "src/dev10x/comm/hooks/overwatch_decision.py",
+    # wait_for MCP tool: `kind="http"` sends a plain GET to the one URL
+    # its caller passes — typically a local health check — and reads only
+    # the status code. Caller-invoked, no fixed destination, no data sent.
+    # Covered by the wait_for bullet in PRIVACY_POLICY.md (GH-1833).
+    "src/dev10x/coding/monitor/wait_for.py",
 )
 
 # Files exempt from service detection. The scanner defines the

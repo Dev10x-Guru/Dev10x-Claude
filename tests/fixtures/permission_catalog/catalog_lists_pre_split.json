@@ -285,6 +285,7 @@
     "mcp__plugin_dev10x_cli__pr_ready",
     "mcp__plugin_dev10x_cli__pr_review_comment_edit",
     "mcp__plugin_dev10x_cli__pr_review_edit",
+    "mcp__plugin_dev10x_cli__pr_wait",
     "mcp__plugin_dev10x_cli__pre_pr_checks",
     "mcp__plugin_dev10x_cli__preset_pin_status",
     "mcp__plugin_dev10x_cli__push_safe",
@@ -312,6 +313,7 @@
     "mcp__plugin_dev10x_cli__usage_blocks",
     "mcp__plugin_dev10x_cli__validate_candidate_patterns",
     "mcp__plugin_dev10x_cli__verify_pr_state",
+    "mcp__plugin_dev10x_cli__wait_for",
     "mcp__plugin_dev10x_db__query"
   ],
   "tracker_denies.linear": [
