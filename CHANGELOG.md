@@ -5,24 +5,151 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
-### Added
+## 0.114.0 — Split the Plugin, Prove the Head
 
-- **`dev10x:py-mockito`** (GH-909) — python-mockito and pytest-mockito
-  test patterns ship with the plugin in the coding area, instead of as
-  a user-local skill nobody else could install.
-- **`business` work-on play** (GH-1026) — a light UI-change-to-PR
-  profile for people who are not developers: branch, describe, edit,
-  preview, commit, PR, CI and review replies, without grooming or
-  merging. A repository opts in through its playbook override; see
-  `skills/work-on/references/business-profile.md`. The matching gate
-  preset waits for the single-baseline decision (FRIC-M1).
-- **`dev10x:reflect`** (GH-1822) — every default work-on play now ends
-  by filing the session's lessons (solution, platform, way of working)
-  into the knowledge vault named in `knowledge-vault.yaml`. It runs
-  after Verify acceptance criteria without closing it, and skips with
-  one line when no vault is configured. Shared index and log notes are
-  written through `dev10x skill reflect`, under a lock, so parallel
-  sessions keep every line.
+Released 2026-11-08
+
+### Breaking
+
+- **QA, infrastructure and database skills ship as their own plugins**
+  — a user who never records a walkthrough, touches AWS/Kubernetes or
+  queries a database no longer loads those skills in every repo
+  (ADR-0034 Stage B). Install the satellite where you need it:
+  - `dev10x-qa` — `playwright`, `qa-publish`, `qa-self`, `review-pack`,
+    `tts`, `yt-upload` are now `dev10x-qa:<skill>`
+    ([GH-1564](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1564));
+  - `dev10x-infra` — `aws-vault`, `k8s` are now `dev10x-infra:<skill>`
+    ([GH-1565](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1565));
+  - `dev10x-db` — `db`, `db-psql`, `sql-handoff` are now
+    `dev10x-db:<skill>`; the `mcp__plugin_dev10x_db__query` tool keeps
+    its name but needs the satellite for `db.sh`
+    ([GH-1566](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1566)).
+
+  Run `/dev10x:upgrade-cleanup` after upgrading: it migrates old skill
+  names (`dev10x config migrate-skill-names`), keeps script grants and
+  names any satellite you still need. It does not install them; run
+  `claude plugin install <plugin>@Dev10x-Guru` yourself
+  ([GH-1793](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1793)).
+  Old infra and db names stay readable until 0.116.0.
+- **More commands now prompt** — `rg`, `sort` and `make` invocations
+  that can run another program, commands behind eight more runners
+  (`setsid`, `pkexec`, `chroot`, `nsenter`, `flock`, `watch`, `eval`,
+  `env -S`), and shells run by path are now judged by the guards
+  instead of passing as harmless
+  ([GH-1759](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1759),
+  [GH-1773](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1773),
+  [GH-1798](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1798))
+
+### Features
+
+- **Reviewers see a narrated demo before the diff** — the feature,
+  bugfix and business plays run an exploratory `dev10x-qa:qa-self`
+  pass with a narrated recording and publish a review pack on the PR
+  before review is requested; it skips with a note when nothing is
+  user-facing or no environment is configured
+  ([GH-1827](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1827))
+- **No merge on a bot review that never saw the head** — new
+  `bot_review_status` MCP tool reports, per review bot, the reviewed
+  SHA against the PR head, open inline findings and draft skips;
+  `gh-pr-monitor` waits on it and `gh-pr-merge` checks it
+  ([GH-1832](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1832))
+- **Review fixes get reviewed too** — `dev10x:review --loop` dispatches
+  fresh reviewers each round until a round finds nothing to fix, and
+  stops after round 4 with an escalation gate; the shipping pipeline's
+  Code review step now runs it
+  ([GH-1831](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1831))
+- **No merge past a head no clean review covered** — a clean
+  `dev10x:review` stamps the commit and tree with the new
+  `review_stamp_write` MCP tool, and DX019 denies `merge_pr`, `pr_ready`
+  and `request_review` without a matching stamp. Opt-in: the gate applies
+  only where `friction.yaml` sets `review_stamp: required`
+  ([GH-1830](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1830))
+- **Report pages that land on the first try** — `dev10x:artifact` brings
+  a brand-neutral template and diagram mechanics to the plugin, with
+  the bpmn.io watermark its license requires kept visible
+  ([GH-1849](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1849),
+  [GH-1860](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1860))
+- **One bounded wait instead of a one-off polling script** — new
+  `pr_wait` (merged, closed, head changed, approved, bot at head) and
+  `wait_for` (file, text, regex, HTTP, process gone, time) MCP tools,
+  capped by the transport budget
+  ([GH-1833](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1833))
+- **A turn cannot end on a promise nothing carried out** — the Stop
+  hook blocks a final "next I'll…" when no tool ran after it and no
+  question is open
+  ([GH-1829](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1829))
+- **Every play files what the session learned** — `dev10x:reflect`
+  ends each default work-on play by writing lessons into the vault
+  named in `knowledge-vault.yaml`, under a lock so parallel sessions
+  keep every line; it skips when no vault is configured
+  ([GH-1822](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1822))
+- **Chat requests survive restarts, sleep and races** — the first slice
+  of the local Chat bus daemon: a SQLite store with an atomic lease
+  queue, idempotent ingest and per-space cursors, plus ADR-0035 for
+  driving local sessions from Google Chat
+  ([GH-1787](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1787))
+- **Skip the prompt for commands your own rules cover** — rule-backed
+  allows for one in-tree command that writes nothing
+  ([GH-1795](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1795))
+- **A light UI-change-to-PR play for non-developers** — the opt-in
+  `business` work-on play: branch, edit, preview, commit, PR, CI and
+  review replies, without grooming or merging
+  ([GH-1026](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1026))
+- **`dev10x:py-mockito` ships with the plugin** instead of as a
+  user-local skill
+  ([GH-909](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/909))
+- **Review, ADR and scoping skills think like an expert** — per-skill
+  personas
+  ([GH-1638](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1638))
+- **Overwatch** — the relay keeps answering after a herdr restart, and
+  the dev page switches by pin with no second unit
+  ([GH-1737](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1737),
+  [GH-1804](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1804),
+  [GH-1765](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1765))
+- **Skill helper scripts run through MCP tools without prompts**
+  ([GH-1777](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1777));
+  **dead worktree rules and missing grants are surfaced**
+  ([GH-1709](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1709));
+  **a switched-off Claude review is told apart from one that never ran**
+  ([GH-1764](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1764));
+  **a ci-review replica is shared only after it is read**
+  ([GH-1762](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1762))
+
+### Security
+
+- **Blanket allow rules no longer spread** — worktree sync, merges and
+  Overwatch pre-approve hold back rules that reach rc files, MCP shells
+  or secrets, and ask the supervisor what to do with them
+  ([GH-1790](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1790),
+  [GH-1799](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1799),
+  [GH-1800](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1800))
+- **Local files and env stay out of untrusted diagram renders and
+  scope** ([GH-1783](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1783),
+  [GH-1797](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1797))
+
+### Fixes
+
+- **Git state and plan come back after `/compact`**
+  ([GH-1788](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1788))
+- **DX014 sensitivity prompts reach the supervisor**
+  ([GH-1775](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1775))
+- **An unattended review no longer stalls on a spec gap**
+  ([GH-1749](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1749))
+- **AskUserQuestion previews render apart from their options**
+  ([GH-1791](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1791))
+- **Rewritten files keep their permissions** (no more lost executable
+  bits) ([GH-1564](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1564))
+- **A run names the retired config it ignored**
+  ([GH-1785](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1785))
+
+### Docs
+
+- ADR-0031 (repo-keyed permission overlay), ADR-0032 (Stop gate under
+  afk) and ADR-0033 (rebuilding test databases) record
+  the supervisor's decisions
+  ([GH-1313](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1313),
+  [GH-1348](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1348),
+  [GH-1324](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1324))
 
 ## 0.113.0 — Overwatch Watches, the Supervisor Decides
 
