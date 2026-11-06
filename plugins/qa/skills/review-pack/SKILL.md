@@ -122,6 +122,10 @@ Options:
    identifier.
 6. **Run the pre-send gate** below, then hand off to
    `dev10x:request-review`.
+   With `--no-request-review` (pack only), stop after the gate and
+   return the pack link: the caller requests review itself. The
+   work-on self-QA step uses this, so its play's own review-request
+   step stays the only one.
 
 ## Video — a full qa-self capture, never a silent screen recording
 

@@ -69,6 +69,16 @@ version: "0.114.0.dev0"
 # `investigation` has no Verify AC step, so dev10x:reflect creates one
 # before completing. Validated by
 # tests/skills/playbook/test_session_reflection_step.py.
+#
+# Self-QA convention (GH-1827): plays that ship a user-facing change run
+# the `self-qa-evidence` fragment (qa-scope → qa-self --exploratory with a
+# narrated video → review-pack) right before the review request; the
+# fragment's comment in coding.yaml states the exact placement. It skips
+# with one printed line when there is no user-facing change or no
+# runnable environment. Per project: `active_modes:
+# [qa-off]` drops it, `[qa-record-only]` records without publishing, and
+# a same-named fragment in an override file shadows it. Validated by
+# tests/skills/playbook/test_self_qa_step.py.
 
 # User overrides — added when user customizes a plan.
 # persist: true = reuse across sessions; false = one-time.

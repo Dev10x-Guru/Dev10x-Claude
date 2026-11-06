@@ -126,6 +126,12 @@
           "signals": ["Request review"]
         },
         {
+          "id": "plan-includes-self-qa",
+          "text": "Plan includes 'Record self-QA video and review pack' (dev10x:qa-scope → dev10x-qa:qa-self --exploratory → dev10x-qa:review-pack) directly before the review request (before review responses in the business play); it skips with one printed line when there is no user-facing change or no runnable environment, and keeps the external-publish gates (GH-1827)",
+          "check": "task_exists",
+          "signals": ["Record self-QA video and review pack", "dev10x:qa-scope"]
+        },
+        {
           "id": "plan-ends-with-acceptance",
           "text": "The terminal gate is always acceptance criteria verification, followed only by the non-blocking reflection step",
           "check": "task_exists",

@@ -949,6 +949,18 @@ the knowledge vault → dev10x:reflect`, listed after Verify
 acceptance criteria (after "Decide" in `investigation`). The trees
 omit it for brevity; Phase 3 still creates it as a task (GH-1822).
 
+Plays that ship a user-facing change (`feature`, `bugfix`,
+`local-only` on the PR path, `structured-spec`, `business`) also
+carry `[detailed] Record self-QA video and review pack →
+dev10x:qa-scope, dev10x-qa:qa-self, dev10x-qa:review-pack` after
+the Verify (tests and lint) step and right before the review
+request — in `business`, before the review responses, since that
+play requests no review (GH-1827). The trees omit it too. It
+skips with one printed line when qa-scope finds no user-facing
+change or no environment can run the PR; it keeps the publish
+gates of the skills it delegates to. A project drops it with the
+`qa-off` mode or records without publishing with `qa-record-only`.
+
 **Feature from ticket** (subtasks of Phase 4):
 ```
 4.1  [detailed] Set up workspace          → dev10x:ticket-branch

@@ -55,6 +55,19 @@ body, and a truncated read drops them silently.
 If you did not see the last line of the file, you have not read
 the contract.
 
+## Exploratory mode
+
+`--exploratory <PR>` QAs a pull request that has no QA ticket. The
+work-on shipping pipeline uses it to record a narrated self-QA video
+before the review request (GH-1827). Cases come from the
+`dev10x:qa-scope` report and the diff, the video is narrated (a piece
+that fails for an external reason ships without it, reason stated),
+and the run returns its evidence instead of posting to a ticket.
+`dev10x-qa:review-pack` publishes it through `dev10x-qa:qa-publish`
+or `dev10x-qa:yt-upload`. Read
+[`references/exploratory-mode.md`](references/exploratory-mode.md)
+alongside `instructions.md`; both gates below still apply.
+
 ## Gates
 
 Two blocking gates in `instructions.md` are enforced with

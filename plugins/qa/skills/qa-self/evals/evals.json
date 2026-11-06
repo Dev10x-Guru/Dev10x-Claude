@@ -157,6 +157,41 @@
           "signal": "click_wrapper_ordering — interactions go through Annotator.click(announce=...) so pointing precedes narration precedes the action"
         }
       ]
+    },
+    {
+      "id": "exploratory-pr-run",
+      "name": "Exploratory mode QAs a PR without a QA ticket and hands publishing back",
+      "description": "The work-on shipping pipeline asks for a narrated self-QA pass on a user-facing PR that has no QA ticket (GH-1827)",
+      "input": "Skill(dev10x-qa:qa-self, args=\"--exploratory 1234\") on a PR whose qa-scope report lists two changed screens; staging runs the PR head",
+      "assertions": [
+        {
+          "dimension": "review-gate",
+          "check": "behavioral",
+          "signal": "cases_from_scope — cases are derived from the qa-scope report and the diff, not from a QA ticket"
+        },
+        {
+          "dimension": "annotated-recording",
+          "check": "behavioral",
+          "signal": "narrated_take — the video carries cursor overlay, per-case captions and tts narration, or states why a piece is missing"
+        },
+        {
+          "dimension": "review-gate",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "assertion": "exploratory_gate_uses_tool",
+          "signal": "gate_kept — AskUserQuestion is called at the Phase 4.4 evidence review before anything leaves the machine, never a plain-text question"
+        },
+        {
+          "dimension": "review-gate",
+          "check": "behavioral",
+          "signal": "no_ticket_post — Phase 5 is skipped; the run returns artifact paths for dev10x-qa:review-pack to publish"
+        },
+        {
+          "dimension": "artifact-verification",
+          "check": "behavioral",
+          "signal": "skip_without_environment — with no staging deploy and no local stack, nothing is recorded and the one-line 'Self-QA skipped: no runnable environment' note is returned"
+        }
+      ]
     }
   ]
 }
