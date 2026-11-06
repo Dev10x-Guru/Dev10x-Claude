@@ -1,0 +1,34 @@
+{
+  "data": {
+    "repository": {
+      "pullRequest": {
+        "isDraft": false,
+        "headRefOid": "4444444444444444444444444444444444444444",
+        "commits": {
+          "nodes": [
+            {
+              "commit": {
+                "oid": "4444444444444444444444444444444444444444",
+                "committedDate": "2026-11-05T12:00:00Z"
+              }
+            }
+          ]
+        },
+        "reviews": {"nodes": []},
+        "reviewThreads": {"nodes": []},
+        "comments": {
+          "nodes": [
+            {
+              "author": {"__typename": "Bot", "login": "github-actions"},
+              "createdAt": "2026-11-05T11:30:00Z"
+            },
+            {
+              "author": {"__typename": "Bot", "login": "hygiene-review"},
+              "createdAt": "2026-11-05T12:30:00Z"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

@@ -3,7 +3,7 @@
 Behavioural caveats moved out of `.claude/rules/mcp-tools.md`
 § Canonical Parameter Shapes (GH-1606): `run_node_tests`,
 `create_pr(closes=…)`, `issue_create` / `issue_close`, `push_safe`,
-`unresolved_threads`.
+`unresolved_threads` and `bot_review_status`.
 
 - `run_node_tests` detects its runner when `runner` is omitted (GH-1683):
   `vitest.config.*` → vitest; `jest.config.*` or a `jest` key in
@@ -68,3 +68,13 @@ Behavioural caveats moved out of `.claude/rules/mcp-tools.md`
   up to `limit` merged PRs (slower — one subprocess pair per PR —
   returns `{"prs": [...], "count": N}`). For a single-PR check always
   pass `pr_number` (GH-710).
+- `bot_review_status` (GH-1832): `ready` and `reasons` cover only the
+  bots matched by `blocking_bots` in `settings-pr-merge.yaml`. With
+  none configured nothing can block, so `ready: true` does not mean
+  any bot reviewed the head — check `blocking_bots` is non-empty.
+  `at_head` is `true`, `false` or `null`; read `null` ("cannot tell")
+  as not at head. For a `kind: comment` bot (it posted an issue
+  comment, not a review) `at_head_basis` is `timestamp`: it spoke
+  after the head commit's date, which is weaker than a SHA match.
+  `open_inline_comments` counts unresolved review threads the bot
+  started, not individual comments.

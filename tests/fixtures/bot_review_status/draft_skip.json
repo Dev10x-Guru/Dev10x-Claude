@@ -1,0 +1,30 @@
+{
+  "data": {
+    "repository": {
+      "pullRequest": {
+        "isDraft": true,
+        "headRefOid": "1111111111111111111111111111111111111111",
+        "commits": {
+          "nodes": [
+            {
+              "commit": {
+                "oid": "1111111111111111111111111111111111111111",
+                "committedDate": "2026-11-05T10:00:00Z"
+              }
+            }
+          ]
+        },
+        "reviews": {"nodes": []},
+        "reviewThreads": {"nodes": []},
+        "comments": {
+          "nodes": [
+            {
+              "author": {"__typename": "User", "login": "octo-dev"},
+              "createdAt": "2026-11-05T10:05:00Z"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

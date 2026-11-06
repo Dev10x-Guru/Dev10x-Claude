@@ -231,6 +231,7 @@
     "mcp__plugin_dev10x_cli__audit_hook_recent",
     "mcp__plugin_dev10x_cli__author_reference_rules",
     "mcp__plugin_dev10x_cli__background_preamble",
+    "mcp__plugin_dev10x_cli__bot_review_status",
     "mcp__plugin_dev10x_cli__candidate_rules_report",
     "mcp__plugin_dev10x_cli__check_top_level_comments",
     "mcp__plugin_dev10x_cli__ci_check_status",

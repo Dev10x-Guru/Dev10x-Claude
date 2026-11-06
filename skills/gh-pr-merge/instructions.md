@@ -410,6 +410,37 @@ follow-up issue **before** merge and keep the link. This mirrors
 the disposition requirement of Checks 1b/1c — an under-delivered
 scope must not merge silently.
 
+### Check 1e: Blocking review bots reviewed the head (GH-1832)
+
+Checks 1–1d read comment and PR-body text. Empty text is not a clean review:
+bots skip drafts, some put every finding in inline comments under an
+empty review body, some post an issue comment instead of a review,
+and a review of an earlier push says nothing about the head. Compare
+each bot's reviewed commit with the head:
+
+```
+mcp__plugin_dev10x_cli__bot_review_status(pr_number=NUMBER, repo="OWNER/REPO")
+```
+
+Which bots count is per-repo: `blocking_bots` login globs in
+`<Dev10x config>/settings-pr-merge.yaml` (top-level default, a
+matching `projects[].match_repo` entry overrides it). With none
+configured, nothing blocks and `ready` is `true`.
+
+- `ready: false` → block merge and report each line of `reasons`:
+  a blocking bot with no activity (on a draft the reason says so —
+  mark the PR ready and wait), a review that is not at
+  `head_sha`, or open inline comments from a blocking bot.
+- A stale blocking bot after a force-push is not a failure to
+  override: return to `dev10x:gh-pr-monitor` and wait for the bot
+  to review the new head.
+- For a bot with `kind: comment`, `at_head` rests on time, not a
+  SHA (`at_head_basis: timestamp`): it spoke after the head commit.
+  `at_head: null` means it cannot be told — treat it as not at head.
+- `empty_body_with_inline: true` on any bot means its findings live
+  in inline comments; Check 1 covers them, so never read that
+  bot's empty review body as a sign-off.
+
 ### Check 2: CI checks passing
 
 ```bash
@@ -712,13 +743,13 @@ defaults (`strategy: rebase`, `delete_branch: true`,
 ### Step 3: Run all 9 validation checks
 
 **Comment-check ordering (GH-462 F3):** Checks 1, 1b, 1c,
-and 1d fetch comment/PR-body state that is time-sensitive —
+1d and 1e fetch comment/PR-body state that is time-sensitive —
 automated review bots continue posting comments during the CI
 window, and the `Fixes:`/`Closes:` links Check 1d reads can be
 edited then too, so state read before CI settles is stale. Run
 Checks 2–7 first (CI, draft, mergeable, working copy,
 fixup, approval). Only after Check 2 confirms CI is green
-(all checks `pass`) re-fetch and run Checks 1, 1b, 1c, and 1d
+(all checks `pass`) re-fetch and run Checks 1, 1b, 1c, 1d and 1e
 as a final gate immediately before Step 5 merge. This
 eliminates the race where a bot posts a REQUIRED finding
 after the comment check but before the merge.
@@ -741,6 +772,7 @@ Present results as a checklist:
 - [x] No unresolved review threads (0 unresolved)
 - [x] No unaddressed automated review comments (0 found)
 - [x] Fixes-linked issue scope delivered (2/2 links)
+- [x] Blocking review bots at head (claude @ 1a2b3c4, 0 open inline)
 - [x] CI checks passing (12/12 green)
 - [x] PR is not in draft
 - [x] No merge conflicts (MERGEABLE)

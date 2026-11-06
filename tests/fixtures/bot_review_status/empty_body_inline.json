@@ -1,0 +1,72 @@
+{
+  "data": {
+    "repository": {
+      "pullRequest": {
+        "isDraft": false,
+        "headRefOid": "2222222222222222222222222222222222222222",
+        "commits": {
+          "nodes": [
+            {
+              "commit": {
+                "oid": "2222222222222222222222222222222222222222",
+                "committedDate": "2026-11-05T10:00:00Z"
+              }
+            }
+          ]
+        },
+        "reviews": {
+          "nodes": [
+            {
+              "author": {"__typename": "Bot", "login": "claude"},
+              "state": "COMMENTED",
+              "body": "",
+              "submittedAt": "2026-11-05T10:20:00Z",
+              "commit": {"oid": "2222222222222222222222222222222222222222"}
+            }
+          ]
+        },
+        "reviewThreads": {
+          "nodes": [
+            {
+              "isResolved": false,
+              "first": {
+                "nodes": [
+                  {
+                    "author": {"__typename": "Bot", "login": "claude"},
+                    "createdAt": "2026-11-05T10:20:00Z"
+                  }
+                ]
+              },
+              "last": {"nodes": [{"createdAt": "2026-11-05T10:20:00Z"}]}
+            },
+            {
+              "isResolved": false,
+              "first": {
+                "nodes": [
+                  {
+                    "author": {"__typename": "Bot", "login": "claude"},
+                    "createdAt": "2026-11-05T10:20:00Z"
+                  }
+                ]
+              },
+              "last": {"nodes": [{"createdAt": "2026-11-05T10:31:00Z"}]}
+            },
+            {
+              "isResolved": true,
+              "first": {
+                "nodes": [
+                  {
+                    "author": {"__typename": "Bot", "login": "claude"},
+                    "createdAt": "2026-11-05T10:20:00Z"
+                  }
+                ]
+              },
+              "last": {"nodes": [{"createdAt": "2026-11-05T10:25:00Z"}]}
+            }
+          ]
+        },
+        "comments": {"nodes": []}
+      }
+    }
+  }
+}
