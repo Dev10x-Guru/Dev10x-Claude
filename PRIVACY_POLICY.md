@@ -48,6 +48,10 @@ Audit collection can be disabled by exporting
   calls other than those you explicitly invoke (for example,
   `git push`, `gh pr create`, or an authenticated MCP tool
   request).
+- The `wait_for` MCP tool with `kind="http"` sends a plain `GET` to
+  the one URL its caller passes, and only until the wait ends.
+  It reads the status code; no response body, credentials or local
+  data are sent or kept.
 - The `AskUserQuestion` hook sends a session's open questions to
   the local Overwatch page at `127.0.0.1` and nowhere else, and
   only while you run `dev10x overwatch serve`. The page itself
