@@ -9,8 +9,9 @@ families:
       - dev10x:ticket-scope
       - dev10x:ticket-create
   - label: Diagrams
-    description: "Draw sequence, C4, and BPMN diagrams"
+    description: "Draw sequence, C4, and BPMN diagrams; publish report pages"
     skills:
       - dev10x:diagram-sequence
       - dev10x:diagram-c4
       - dev10x:diagram-bpmn
+      - dev10x:artifact
