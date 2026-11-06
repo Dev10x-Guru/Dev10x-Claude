@@ -4,7 +4,7 @@ import json
 import sqlite3
 
 import pytest
-from dev10x.domain.common.result import ErrorResult, SuccessResult
+from dev10x.domain.common.result import ErrorResult
 
 from dev10x.comm.chatbus.events import (
     REACTION_CREATED,
@@ -13,7 +13,7 @@ from dev10x.comm.chatbus.events import (
     EventSource,
 )
 from dev10x.comm.chatbus.ingest import Cursor, IngestReport, get_cursor, ingest_events
-from tests.comm.chatbus.factories import NOW, SPACE, message_event
+from tests.comm.chatbus.factories import NOW, SPACE, expect_error, message_event, unwrap
 
 
 def _ingest(
@@ -22,9 +22,9 @@ def _ingest(
     events: list[ChatEvent],
     read_up_to: Cursor | None = None,
 ) -> IngestReport:
-    result = ingest_events(conn=conn, space=SPACE, events=events, now=NOW, read_up_to=read_up_to)
-    assert isinstance(result, SuccessResult)
-    return result.value
+    return unwrap(
+        ingest_events(conn=conn, space=SPACE, events=events, now=NOW, read_up_to=read_up_to)
+    )
 
 
 def _cursor_after(event: ChatEvent) -> Cursor:
@@ -170,15 +170,15 @@ class TestCursorWaitsForCommit:
             " BEGIN SELECT RAISE(ABORT, 'disk full'); END"
         )
         events = [message_event(number=1, minutes_ago=2), message_event(number=2, minutes_ago=1)]
-        failed = ingest_events(
-            conn=conn,
-            space=SPACE,
-            events=events,
-            now=NOW,
-            read_up_to=_cursor_after(events[-1]),
+        return expect_error(
+            ingest_events(
+                conn=conn,
+                space=SPACE,
+                events=events,
+                now=NOW,
+                read_up_to=_cursor_after(events[-1]),
+            )
         )
-        assert isinstance(failed, ErrorResult)
-        return failed
 
     def test_reports_error(self, result: ErrorResult) -> None:
         assert "disk full" in result.error
@@ -190,48 +190,11 @@ class TestCursorWaitsForCommit:
         assert conn.execute("SELECT COUNT(*) FROM events").fetchone()[0] == 0
 
 
-class TestUnencodablePayload:
-    """A payload JSON cannot encode fails the batch as a Result, not an exception."""
-
-    @pytest.fixture
-    def result(self, conn: sqlite3.Connection) -> ErrorResult:
-        good = message_event(number=1, minutes_ago=2)
-        bad = ChatEvent(
-            type=good.type,
-            resource_name=f"{SPACE}/messages/m002",
-            space=SPACE,
-            sender="users/111",
-            event_time=NOW,
-            payload={"message": {"attachment": object()}},
-            source=EventSource.POLL,
-        )
-        failed = ingest_events(
-            conn=conn,
-            space=SPACE,
-            events=[good, bad],
-            now=NOW,
-            read_up_to=_cursor_after(bad),
-        )
-        assert isinstance(failed, ErrorResult)
-        return failed
-
-    def test_names_space(self, result: ErrorResult) -> None:
-        assert result.details == {"space": SPACE}
-
-    def test_nothing_stored(self, conn: sqlite3.Connection, result: ErrorResult) -> None:
-        assert conn.execute("SELECT COUNT(*) FROM events").fetchone()[0] == 0
-
-    def test_cursor_unchanged(self, conn: sqlite3.Connection, result: ErrorResult) -> None:
-        assert get_cursor(conn=conn, space=SPACE) is None
-
-
 class TestForeignSpace:
     @pytest.fixture
     def result(self, conn: sqlite3.Connection) -> ErrorResult:
         stray = message_event(number=1, space="spaces/BBBB")
-        rejected = ingest_events(conn=conn, space=SPACE, events=[stray], now=NOW)
-        assert isinstance(rejected, ErrorResult)
-        return rejected
+        return expect_error(ingest_events(conn=conn, space=SPACE, events=[stray], now=NOW))
 
     def test_names_foreign_space(self, result: ErrorResult) -> None:
         assert result.details == {"spaces": ["spaces/BBBB"]}

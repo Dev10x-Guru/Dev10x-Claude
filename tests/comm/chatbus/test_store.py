@@ -1,20 +1,29 @@
 from __future__ import annotations
 
 import logging
+import os
 import sqlite3
 from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
-from dev10x.domain.common.result import ErrorResult, SuccessResult
+from dev10x.domain.common.result import ErrorResult
+from dev10x.domain.dev10x_paths import CONFIG_HOME_ENV_VAR
 
 from dev10x.comm.chatbus.schema import SCHEMA_VERSION
-from dev10x.comm.chatbus.store import _rollback, migrate, open_store, write_transaction
+from dev10x.comm.chatbus.store import (
+    _rollback,
+    configure,
+    migrate,
+    open_store,
+    write_transaction,
+)
+from tests.comm.chatbus.factories import expect_error, unwrap
 
 
 class TestChatBusDbPath:
-    def test_lives_under_config_home(self, config_home: Path, db_path: Path) -> None:
-        assert db_path == config_home / "chat-bus" / "bus.sqlite3"
+    def test_lives_under_config_home(self, db_path: Path) -> None:
+        assert db_path == Path(os.environ[CONFIG_HOME_ENV_VAR]) / "chat-bus" / "bus.sqlite3"
 
 
 class TestOpenStore:
@@ -62,54 +71,65 @@ class TestPrivateFiles:
         assert modes == {"dir": 0o700, "db": 0o600, "wal": 0o600}
 
 
-class TestExistingWideDirectory:
+class TestExistingWideStore:
+    """A directory and file left wide by an older version are tightened on open."""
+
     @pytest.fixture
-    def mode(self, db_path: Path) -> Iterator[int]:
+    def modes(self, db_path: Path) -> Iterator[tuple[int, int]]:
         db_path.parent.mkdir(mode=0o755, parents=True)
         db_path.parent.chmod(0o755)
-        opened = open_store(path=db_path)
-        assert isinstance(opened, SuccessResult)
-        yield db_path.parent.stat().st_mode & 0o777
-        opened.value.close()
+        db_path.touch()
+        db_path.chmod(0o644)
+        conn = unwrap(open_store(path=db_path))
+        yield (db_path.parent.stat().st_mode & 0o777, db_path.stat().st_mode & 0o777)
+        conn.close()
 
-    def test_tightens_existing_directory(self, mode: int) -> None:
-        assert mode == 0o700
+    def test_tightens_directory_and_file(self, modes: tuple[int, int]) -> None:
+        assert modes == (0o700, 0o600)
 
 
 class TestChmodFailure:
-    @pytest.fixture
-    def result(self, db_path: Path, monkeypatch: pytest.MonkeyPatch) -> ErrorResult:
+    @pytest.mark.parametrize(
+        ("refused_mode", "message"),
+        [
+            pytest.param(0o700, "Cannot open the Chat bus store", id="directory"),
+            pytest.param(0o600, "Cannot restrict access", id="file"),
+        ],
+    )
+    def test_reports_failure(
+        self,
+        db_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        refused_mode: int,
+        message: str,
+    ) -> None:
+        original = Path.chmod
+
         def refuse(self: Path, mode: int) -> None:
-            raise PermissionError(f"chmod {mode:o} refused")
+            if mode == refused_mode:
+                raise PermissionError(f"chmod {mode:o} refused")
+            original(self, mode)
 
         monkeypatch.setattr(Path, "chmod", refuse)
-        opened = open_store(path=db_path)
-        assert isinstance(opened, ErrorResult)
-        return opened
-
-    def test_reports_restriction_failure(self, result: ErrorResult) -> None:
-        assert "Cannot restrict access" in result.error
+        assert message in expect_error(open_store(path=db_path)).error
 
 
 class TestReopen:
     @pytest.fixture
-    def reopened(self, conn: sqlite3.Connection, db_path: Path) -> Iterator[SuccessResult]:
-        result = open_store(path=db_path)
-        assert isinstance(result, SuccessResult)
-        yield result
-        result.value.close()
+    def reopened(self, conn: sqlite3.Connection, db_path: Path) -> Iterator[sqlite3.Connection]:
+        second = unwrap(open_store(path=db_path))
+        yield second
+        second.close()
 
-    def test_second_open_keeps_version(self, reopened: SuccessResult) -> None:
-        assert reopened.value.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+    def test_second_open_keeps_version(self, reopened: sqlite3.Connection) -> None:
+        assert reopened.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
 
 
 class TestNewerSchema:
     @pytest.fixture
     def result(self, conn: sqlite3.Connection, db_path: Path) -> ErrorResult:
         conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION + 1}")
-        opened = open_store(path=db_path)
-        assert isinstance(opened, ErrorResult)
-        return opened
+        return expect_error(open_store(path=db_path))
 
     def test_refuses_to_open(self, result: ErrorResult) -> None:
         assert "newer dev10x" in result.error
@@ -123,9 +143,7 @@ class TestUnopenablePath:
     def result(self, tmp_path: Path) -> ErrorResult:
         blocker = tmp_path / "not-a-dir"
         blocker.write_text("")
-        opened = open_store(path=blocker / "bus.sqlite3")
-        assert isinstance(opened, ErrorResult)
-        return opened
+        return expect_error(open_store(path=blocker / "bus.sqlite3"))
 
     def test_reports_path(self, result: ErrorResult, tmp_path: Path) -> None:
         assert str(tmp_path / "not-a-dir") in result.error
@@ -138,36 +156,32 @@ class TestNotADatabase:
     def result(self, tmp_path: Path) -> ErrorResult:
         garbage = tmp_path / "bus.sqlite3"
         garbage.write_bytes(b"this is not an sqlite file" * 100)
-        opened = open_store(path=garbage)
-        assert isinstance(opened, ErrorResult)
-        return opened
+        return expect_error(open_store(path=garbage))
 
     def test_reports_configuration_failure(self, result: ErrorResult) -> None:
         assert "Cannot configure" in result.error
 
 
 class TestWalUnavailable:
-    """An in-memory database cannot use WAL; the store refuses rather than degrade."""
+    """An in-memory database cannot use WAL; configuration refuses rather than degrade."""
 
     @pytest.fixture
-    def result(self) -> ErrorResult:
-        opened = open_store(path=Path(":memory:"))
-        assert isinstance(opened, ErrorResult)
-        return opened
+    def result(self) -> Iterator[ErrorResult]:
+        memory = sqlite3.connect(":memory:", isolation_level=None)
+        yield expect_error(configure(conn=memory, path=Path("in-memory")))
+        memory.close()
 
     def test_names_refused_mode(self, result: ErrorResult) -> None:
-        assert result.details == {"path": ":memory:", "journal_mode": "memory"}
+        assert result.details == {"path": "in-memory", "journal_mode": "memory"}
 
 
 class TestMigrationFailure:
     @pytest.fixture
-    def result(self, tmp_path: Path) -> ErrorResult:
+    def result(self, tmp_path: Path) -> Iterator[ErrorResult]:
         raw = sqlite3.connect(tmp_path / "broken.sqlite3", isolation_level=None)
         raw.execute("CREATE TABLE events (id INTEGER)")
-        migrated = migrate(conn=raw)
+        yield expect_error(migrate(conn=raw))
         raw.close()
-        assert isinstance(migrated, ErrorResult)
-        return migrated
 
     def test_reports_migration_error(self, result: ErrorResult) -> None:
         assert "migration failed" in result.error
@@ -212,18 +226,12 @@ class TestFailedCommit:
     def test_raises_commit_error(self, commit_error: sqlite3.IntegrityError) -> None:
         assert "FOREIGN KEY" in str(commit_error)
 
-    def test_connection_left_outside_transaction(
-        self,
-        raw: sqlite3.Connection,
-        commit_error: sqlite3.IntegrityError,
-    ) -> None:
+    @pytest.mark.usefixtures("commit_error")
+    def test_connection_left_outside_transaction(self, raw: sqlite3.Connection) -> None:
         assert raw.in_transaction is False
 
-    def test_next_transaction_starts(
-        self,
-        raw: sqlite3.Connection,
-        commit_error: sqlite3.IntegrityError,
-    ) -> None:
+    @pytest.mark.usefixtures("commit_error")
+    def test_next_transaction_starts(self, raw: sqlite3.Connection) -> None:
         with write_transaction(conn=raw) as tx:
             tx.execute("INSERT INTO parent (id) VALUES (1)")
         assert raw.execute("SELECT COUNT(*) FROM parent").fetchone()[0] == 1

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
@@ -28,6 +29,13 @@ def to_db_time(*, moment: datetime) -> str:
 
 @dataclass(frozen=True)
 class ChatEvent:
+    """One Chat event in the Pub/Sub shape.
+
+    Construction rejects what the store cannot hold (a naive time, a
+    payload JSON cannot encode), so a source fails on the one bad event
+    it parsed instead of failing a whole ingest batch later.
+    """
+
     type: str
     resource_name: str
     space: str
@@ -35,6 +43,12 @@ class ChatEvent:
     event_time: datetime
     payload: Mapping[str, Any]
     source: EventSource
+    db_time: str = field(init=False, repr=False)
+    payload_json: str = field(init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "db_time", to_db_time(moment=self.event_time))
+        object.__setattr__(self, "payload_json", json.dumps(self.payload, sort_keys=True))
 
     @property
     def event_key(self) -> str:
@@ -42,4 +56,4 @@ class ChatEvent:
 
     @property
     def position(self) -> tuple[str, str]:
-        return (to_db_time(moment=self.event_time), self.resource_name)
+        return (self.db_time, self.resource_name)
