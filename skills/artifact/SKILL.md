@@ -44,23 +44,29 @@ Artifact tool contract. It never replaces it: the tool's own rules
 theming, phone width) win wherever they speak. Do not restate them
 here or in the page.
 
-When the session exposes no Artifact tool, say so, write the filled
-page as a local `.html` file and give its path. An artifact is a
-rendering, never the durable record — see
-[`references/html-artifact-reporting.md`](../../references/html-artifact-reporting.md).
+When the session exposes no Artifact tool, say so and write the filled
+page as a local `.html` file, adding the `<!doctype html>`, charset and
+viewport the host would supply, then give its path. The user asked for
+this page, so the markdown default in
+[`references/html-artifact-reporting.md`](../../references/html-artifact-reporting.md)
+covers only reports where a page is optional. As that file says, an
+artifact is a rendering, never the durable record.
 
 ## Order of work
 
-1. **Call `Artifact` with `action: "quickstart"` first** and follow
-   what it returns (the type to start from, the design guidance). If
-   it names a typed Artifact that fits (slides, a document, a
-   dashboard of live data), use that instead of this template.
+1. **Call `Artifact` with `action: "quickstart"` and `intent: "other"`
+   first** and follow what it returns (the type to start from, the
+   design guidance). If it names a typed Artifact that fits (slides, a
+   document, a dashboard of live data), use that instead of this
+   template.
 2. **Look for project rules before filling the page.** They replace
    the template defaults; none found means the neutral defaults stay.
    - **Brand:** a brand skill named in the session's skill list,
      CLAUDE.md or organization instructions. Load it with the Skill
      tool and swap its colors and fonts into the `:root` tokens — the
-     light block, both dark blocks and the `--bpmn-*` tokens.
+     light block, both dark blocks and the `--bpmn-*` tokens — and into
+     the C4 `classDef` lines, then match the color words in the
+     `#context` lede.
    - **Content:** a required prefix for unverified claims (the
      template's `[Unverified]` marker is a placeholder), a disclaimer
      the organization requires, the spelling the project writes in,
@@ -130,5 +136,7 @@ followed.
 | Loading mermaid in the page beyond the template's preview-only fallback | Double render, or two mermaid versions fighting over the same `<pre>`. |
 | bpmn-js rendered at load inside a hidden view | Blank or microscopic diagram until the page is resized. |
 | Hex colors in BPMN XML | Black boxes on the dark theme. |
+| Raw `<b>` or `<br/>` in a `<pre class="mermaid">` | The tags vanish and box labels run together; write `&lt;b&gt;` and `&lt;br/&gt;`. |
+| Hiding `.bjs-powered-by` | The bpmn-js license requires the bpmn.io watermark to stay fully visible, so hiding it breaches the license on every page with a BPMN view. |
 | A row-level table of customers, or an internal identifier | PII or an internal lookup leaks with the link. |
 | Publishing to a new path for each revision | The link already posted in chat goes stale. |

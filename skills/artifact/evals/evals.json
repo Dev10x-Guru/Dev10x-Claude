@@ -38,7 +38,7 @@
           "dimension": "quickstart-first",
           "check": "tool_parameters",
           "value": "Artifact",
-          "signal": "quickstart_first — the first Artifact call passes action quickstart and comes before the first Write of the page file"
+          "signal": "quickstart_first — the first Artifact call passes action quickstart with intent other and comes before the first Write of the page file"
         },
         {
           "dimension": "project-rules-applied",
@@ -49,7 +49,7 @@
         {
           "dimension": "project-rules-applied",
           "check": "behavioral",
-          "signal": "tokens_swapped — the published page's light, prefers-color-scheme dark and [data-theme=dark] :root blocks and the --bpmn-* tokens carry the brand skill's values, not the template defaults; unconfirmed claims use [Verify], and no [Unverified] marker remains"
+          "signal": "tokens_swapped — the published page's light, prefers-color-scheme dark and [data-theme=dark] :root blocks, the --bpmn-* tokens and the C4 classDef lines carry the brand skill's values, not the template defaults; unconfirmed claims use [Verify], and no [Unverified] marker remains"
         },
         {
           "dimension": "layout-contract",
