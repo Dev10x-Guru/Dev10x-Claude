@@ -305,6 +305,15 @@ class Dev10xConfigDir:
         return cls._resolve("gchat-watch.json")
 
     @classmethod
+    def chat_bus_db(cls) -> Path:
+        """SQLite store of the local Google Chat bus (GH-1787, ADR-0035).
+
+        Introduced after the ``~/.config/Dev10x`` move, so there is no
+        legacy path.
+        """
+        return cls._resolve("chat-bus", "bus.sqlite3")
+
+    @classmethod
     def knowledge_vault_yaml(cls) -> Path:
         """Where `dev10x:reflect` files session lessons (GH-1822).
 
