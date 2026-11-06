@@ -1,0 +1,33 @@
+@startuml resume-backfill
+!theme plain
+title ADR-0035 — Start or resume: recover, backfill, then go live
+
+participant "Daemon tick" as Tick
+participant "Workspace Events" as WSE
+participant "Chat API" as Chat
+participant "Ingest" as Ingest
+database "SQLite store" as DB
+participant "Pub/Sub pull" as Pull
+
+Tick -> Tick : wall-clock gap > 2 x tick\n(or start-up)
+Tick -> DB : expired leases become claimable\n(claimed_until <= now)
+Tick -> WSE : subscription alive?
+alt lapsed
+  Tick -> WSE : recreate subscription
+end
+loop each watched space
+  Tick -> DB : read cursor (time, name)
+  alt cursor older than max window
+    Tick -> DB : record gap (shown in Overwatch)
+  end
+  Tick -> Chat : messages.list\ncreateTime > cursor - look-back
+  Tick -> Chat : reactions.list for messages\nwhose reaction summary changed
+  Tick -> DB : diff against reaction snapshot
+  Tick -> Ingest : Pub/Sub-shaped events,\nsource=backfill
+  Ingest -> DB : INSERT ... ON CONFLICT(event_key)\nDO NOTHING
+  Ingest -> DB : advance cursor\n(same transaction)
+end
+Tick -> Pull : resume pulling
+Pull -> Ingest : late duplicates
+Ingest -> DB : dropped by event_key
+@enduml

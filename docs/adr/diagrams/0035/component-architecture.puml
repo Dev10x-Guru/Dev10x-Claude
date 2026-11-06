@@ -1,0 +1,46 @@
+@startuml component-architecture
+!theme plain
+title ADR-0035 — Local Google Chat bus daemon
+
+cloud "Google Workspace" {
+  [Chat API] as ChatAPI
+  [Workspace Events\nsubscription (4 h TTL)] as WSE
+  queue "Pub/Sub topic +\npull subscription" as PubSub
+}
+
+node "Engineer's machine" {
+  package "systemd --user: dev10x-chatbus.service" {
+    [Pub/Sub pull source] as PullSrc
+    [Chat poll source\n(watched spaces, look-back)] as PollSrc
+    [Backfill\n(start / resume)] as Backfill
+    [Ingest\n(idempotent, event_key UNIQUE)] as Ingest
+    [Authorizer\n(gchat-config.yaml users.bus_role)] as Authz
+    [Dispatcher] as Dispatch
+  }
+  database "chat-bus/bus.sqlite3\n(WAL)" as Store
+  [Overwatch page\n(read-only queue view)] as Overwatch
+  [chat_queue_* MCP tools\n(list / claim / reply / ack)] as MCP
+  [herdr\n(worktree + agent)] as Herdr
+  [Claude sessions] as Sessions
+}
+
+WSE --> PubSub : reaction.created / deleted\n(includeResource)
+PullSrc --> PubSub : pull + ack
+PullSrc --> WSE : renew hourly
+PollSrc --> ChatAPI : messages.list
+Backfill --> ChatAPI : messages.list,\nreactions.list
+Backfill --> WSE : recreate if lapsed
+PullSrc --> Ingest
+PollSrc --> Ingest
+Backfill --> Ingest : synthesized,\nsource=backfill
+Ingest --> Store
+Ingest --> Authz
+Authz --> Store : commands,\nwork items
+Dispatch --> Store : claim (lease)
+Dispatch --> Herdr : approved\nprivileged item
+Herdr --> Sessions
+MCP --> Store : claim / ack
+MCP --> ChatAPI : reply as bot\n(item's thread only)
+Sessions --> MCP
+Overwatch --> Store : read
+@enduml
