@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import logging
 import sqlite3
 from collections.abc import Sequence
@@ -68,11 +67,11 @@ def _insert(
             event.space,
             event.resource_name,
             event.sender,
-            to_db_time(moment=event.event_time),
+            event.db_time,
             received_at,
             event.source.value,
             int(behind_cursor),
-            json.dumps(event.payload, sort_keys=True),
+            event.payload_json,
         ),
     ).fetchone()
     return row is not None
@@ -139,9 +138,7 @@ def ingest_events(
             ):
                 _store_cursor(conn=tx, space=space, cursor=read_up_to, updated_at=stamp)
                 cursor = read_up_to
-    except (sqlite3.Error, TypeError, ValueError) as exc:
-        # TypeError/ValueError: a payload json.dumps cannot encode. One bad
-        # event fails its batch as a Result rather than killing the caller.
+    except sqlite3.Error as exc:
         log.error("Chat bus ingest failed for %s: %s", space, exc)
         return err(f"Chat bus ingest failed for {space}: {exc}", space=space)
     if recovered:

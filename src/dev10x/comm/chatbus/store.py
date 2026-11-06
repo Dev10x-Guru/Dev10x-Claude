@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import sqlite3
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -44,30 +44,26 @@ def _rollback(*, conn: sqlite3.Connection) -> None:
 
 
 def migrate(*, conn: sqlite3.Connection) -> Result[int]:
-    newer_version: int | None = None
     try:
         with write_transaction(conn=conn) as tx:
             version = tx.execute("PRAGMA user_version").fetchone()[0]
             if version > SCHEMA_VERSION:
-                newer_version = version
-            else:
-                for statements in MIGRATIONS[version:]:
-                    for statement in statements:
-                        tx.execute(statement)
-                tx.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+                return err(
+                    "The Chat bus store was written by a newer dev10x. Upgrade dev10x to open it.",
+                    found=version,
+                    supported=SCHEMA_VERSION,
+                )
+            for statements in MIGRATIONS[version:]:
+                for statement in statements:
+                    tx.execute(statement)
+            tx.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
     except sqlite3.Error as exc:
         log.error("Chat bus schema migration failed: %s", exc)
         return err(f"Chat bus schema migration failed: {exc}")
-    if newer_version is not None:
-        return err(
-            "The Chat bus store was written by a newer dev10x. Upgrade dev10x to open it.",
-            found=newer_version,
-            supported=SCHEMA_VERSION,
-        )
     return ok(SCHEMA_VERSION)
 
 
-def _configure(*, conn: sqlite3.Connection, path: Path) -> Result[None]:
+def configure(*, conn: sqlite3.Connection, path: Path) -> Result[None]:
     try:
         conn.row_factory = sqlite3.Row
         journal_mode = str(conn.execute("PRAGMA journal_mode = WAL").fetchone()[0])
@@ -87,10 +83,10 @@ def _configure(*, conn: sqlite3.Connection, path: Path) -> Result[None]:
     return ok(None)
 
 
-def _restrict_access(*, path: Path) -> Result[None]:
-    # mkdir(mode=...) leaves an existing directory alone, so set both.
+def _restrict_file(*, path: Path) -> Result[None]:
+    # The private directory already shields a new file; this repairs a
+    # database file left wider by an older version or a manual copy.
     try:
-        path.parent.chmod(STORE_DIR_MODE)
         path.chmod(STORE_FILE_MODE)
     except OSError as exc:
         log.error("Cannot restrict access to the Chat bus store at %s: %s", path, exc)
@@ -101,20 +97,21 @@ def _restrict_access(*, path: Path) -> Result[None]:
 def open_store(*, path: Path) -> Result[sqlite3.Connection]:
     try:
         path.parent.mkdir(mode=STORE_DIR_MODE, parents=True, exist_ok=True)
+        # mkdir(mode=...) leaves an existing directory alone. Tighten it
+        # before SQLite creates any file inside, so none is ever exposed.
+        path.parent.chmod(STORE_DIR_MODE)
         conn = sqlite3.connect(path, timeout=BUSY_TIMEOUT_SECONDS, isolation_level=None)
     except (OSError, sqlite3.Error) as exc:
         log.error("Cannot open the Chat bus store at %s: %s", path, exc)
         return err(f"Cannot open the Chat bus store at {path}: {exc}")
-    configured = _configure(conn=conn, path=path)
-    if isinstance(configured, ErrorResult):
-        conn.close()
-        return configured
-    restricted = _restrict_access(path=path)
-    if isinstance(restricted, ErrorResult):
-        conn.close()
-        return restricted
-    migrated = migrate(conn=conn)
-    if isinstance(migrated, ErrorResult):
-        conn.close()
-        return migrated
+    steps: tuple[Callable[[], Result[object]], ...] = (
+        lambda: configure(conn=conn, path=path),
+        lambda: _restrict_file(path=path),
+        lambda: migrate(conn=conn),
+    )
+    for step in steps:
+        outcome = step()
+        if isinstance(outcome, ErrorResult):
+            conn.close()
+            return outcome
     return ok(conn)

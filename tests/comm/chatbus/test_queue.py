@@ -21,14 +21,14 @@ from dev10x.comm.chatbus.queue import (
     release,
 )
 from dev10x.comm.chatbus.store import open_store
-from tests.comm.chatbus.factories import NOW, SPACE, message_event
+from tests.comm.chatbus.factories import NOW, SPACE, message_event, unwrap
 
 LEASE = timedelta(minutes=5)
 
 
 def _event_ids(*, conn: sqlite3.Connection, count: int) -> list[int]:
     events = [message_event(number=number) for number in range(1, count + 1)]
-    assert isinstance(ingest_events(conn=conn, space=SPACE, events=events, now=NOW), SuccessResult)
+    unwrap(ingest_events(conn=conn, space=SPACE, events=events, now=NOW))
     return [row[0] for row in conn.execute("SELECT id FROM events ORDER BY id").fetchall()]
 
 
@@ -39,20 +39,18 @@ def _enqueue(
     kind: WorkKind = WorkKind.REPLY,
     status: WorkStatus = WorkStatus.QUEUED,
 ) -> WorkItem:
-    result = enqueue(conn=conn, event_id=event_id, kind=kind, now=NOW, status=status)
-    assert isinstance(result, SuccessResult)
-    return result.value
+    return unwrap(enqueue(conn=conn, event_id=event_id, kind=kind, now=NOW, status=status))
 
 
 def _claim(*, conn: sqlite3.Connection, claimer: str, minutes_later: int = 0) -> WorkItem | None:
-    result = claim(
-        conn=conn,
-        claimer=claimer,
-        lease=LEASE,
-        now=NOW + timedelta(minutes=minutes_later),
+    return unwrap(
+        claim(
+            conn=conn,
+            claimer=claimer,
+            lease=LEASE,
+            now=NOW + timedelta(minutes=minutes_later),
+        )
     )
-    assert isinstance(result, SuccessResult)
-    return result.value
 
 
 @pytest.fixture
@@ -329,9 +327,7 @@ class TestConcurrentClaims:
 
         def drain(name: str) -> None:
             try:
-                opened = open_store(path=db_path)
-                assert isinstance(opened, SuccessResult)
-                worker = opened.value
+                worker = unwrap(open_store(path=db_path))
                 try:
                     start.wait(timeout=self.JOIN_TIMEOUT_SECONDS)
                     while (item := _claim(conn=worker, claimer=name)) is not None:
@@ -354,11 +350,6 @@ class TestConcurrentClaims:
         outcome.stuck = [thread.name for thread in threads if thread.is_alive()]
         return outcome
 
-    def test_no_worker_failed(self, race: _Race) -> None:
-        assert race.errors == []
-
-    def test_no_worker_hung(self, race: _Race) -> None:
-        assert race.stuck == []
-
     def test_every_item_claimed_exactly_once(self, race: _Race) -> None:
-        assert sorted(race.claimed) == sorted(race.enqueued)
+        # One test, so the four-thread race runs once rather than per assertion.
+        assert (race.errors, race.stuck, sorted(race.claimed)) == ([], [], sorted(race.enqueued))

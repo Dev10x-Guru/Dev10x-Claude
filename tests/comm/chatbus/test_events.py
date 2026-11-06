@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from dev10x.comm.chatbus.events import REACTION_DELETED, ChatEvent, EventSource, to_db_time
+from dev10x.comm.chatbus.events import MESSAGE_CREATED, ChatEvent, EventSource, to_db_time
 from tests.comm.chatbus.factories import NOW, SPACE, message_event
 
 
@@ -27,14 +27,40 @@ class TestChatEvent:
         return message_event(number=7, minutes_ago=1, source=EventSource.BACKFILL)
 
     def test_event_key_joins_type_and_resource(self, event: ChatEvent) -> None:
-        assert event.event_key == (
-            f"google.workspace.chat.message.v1.created:{SPACE}/messages/m007"
-        )
+        assert event.event_key == f"{MESSAGE_CREATED}:{SPACE}/messages/m007"
 
     def test_position_orders_by_time_then_name(self, event: ChatEvent) -> None:
         assert event.position == ("2026-11-06T11:59:00.000000Z", f"{SPACE}/messages/m007")
 
+    def test_payload_serialized_with_sorted_keys(self, event: ChatEvent) -> None:
+        assert event.payload_json == (
+            f'{{"message": {{"name": "{SPACE}/messages/m007", "text": "message 7"}}}}'
+        )
 
-class TestEventTypes:
-    def test_deleted_reaction_uses_workspace_events_name(self) -> None:
-        assert REACTION_DELETED == "google.workspace.chat.reaction.v1.deleted"
+
+def _event(
+    *,
+    event_time: datetime = NOW,
+    payload: dict[str, object] | None = None,
+) -> ChatEvent:
+    return ChatEvent(
+        type=MESSAGE_CREATED,
+        resource_name=f"{SPACE}/messages/m001",
+        space=SPACE,
+        sender="users/111",
+        event_time=event_time,
+        payload=payload or {},
+        source=EventSource.POLL,
+    )
+
+
+class TestRejectedAtConstruction:
+    """A source fails on the one bad event it parsed, never later inside an ingest batch."""
+
+    def test_unencodable_payload(self) -> None:
+        with pytest.raises(TypeError, match="not JSON serializable"):
+            _event(payload={"attachment": object()})
+
+    def test_naive_event_time(self) -> None:
+        with pytest.raises(ValueError, match="timezone-aware"):
+            _event(event_time=datetime(2026, 11, 6, 12, 0, 0))
