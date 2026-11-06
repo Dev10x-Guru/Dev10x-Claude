@@ -1,0 +1,131 @@
+{
+  "skill_name": "dev10x:artifact",
+  "eval_dimensions": [
+    {
+      "id": "quickstart-first",
+      "name": "Tool Contract Before Template",
+      "description": "The agent calls Artifact with action quickstart before writing any page file, and uses a typed Artifact instead of the template when quickstart names one that fits."
+    },
+    {
+      "id": "project-rules-applied",
+      "name": "Project Rules Replace Neutral Defaults",
+      "description": "When the project has a brand skill or content rules, the agent loads them and swaps brand colors and fonts into every :root token block (light, both dark blocks, --bpmn-*) and uses the project's unverified-claim prefix instead of the [Unverified] placeholder. Without them, the neutral defaults stay."
+    },
+    {
+      "id": "layout-contract",
+      "name": "Answer-First, Full-Width, Sectioned Layout",
+      "description": "The page has no max-width layout column, a sticky aside of hash-routed views, the summary (claim, decisions, key facts) as the first view and the evidence view last."
+    },
+    {
+      "id": "diagram-mechanics",
+      "name": "Diagrams Render In Both Themes",
+      "description": "Mermaid blocks are left to the host (no page-level mermaid script beyond the template's fallback), bpmn-js renders when its view is shown, and BPMN XML colors use {{--token}} placeholders rather than hex values."
+    },
+    {
+      "id": "iterate-in-place",
+      "name": "Revisions Keep The Shared URL",
+      "description": "Revisions Edit the same scratchpad file and republish the same path instead of publishing a new path."
+    }
+  ],
+  "evals": [
+    {
+      "id": "rollout-review-with-brand-skill",
+      "name": "Rollout review in a project with a brand skill",
+      "description": "RED baseline: without the skill the agent wrote a centered max-width page, put the decisions at the bottom, loaded mermaid from a CDN (double render), rendered BPMN at load inside a hidden view (blank canvas) and hard-coded hex colors in the BPMN XML.",
+      "input": "/dev10x:artifact \"build a rollout readiness page for the notifications feature: summary, the delivery flow, the lead-handling process as BPMN, and a reply draft for the team thread\" — the session lists a brand skill for the project and CLAUDE.md requires a [Verify] prefix on unconfirmed claims",
+      "assertions": [
+        {
+          "dimension": "quickstart-first",
+          "check": "tool_parameters",
+          "value": "Artifact",
+          "signal": "quickstart_first — the first Artifact call passes action quickstart and comes before the first Write of the page file"
+        },
+        {
+          "dimension": "project-rules-applied",
+          "check": "tool_called",
+          "value": "Skill",
+          "signal": "brand_skill_loaded — the project's brand skill is loaded before the page is filled"
+        },
+        {
+          "dimension": "project-rules-applied",
+          "check": "behavioral",
+          "signal": "tokens_swapped — the published page's light, prefers-color-scheme dark and [data-theme=dark] :root blocks and the --bpmn-* tokens carry the brand skill's values, not the template defaults; unconfirmed claims use [Verify], and no [Unverified] marker remains"
+        },
+        {
+          "dimension": "layout-contract",
+          "check": "behavioral",
+          "signal": "summary_first — the first nav entry and first section is the summary with a decisions panel; no max-width rule wraps .layout"
+        },
+        {
+          "dimension": "diagram-mechanics",
+          "check": "behavioral",
+          "signal": "bpmn_tokens — every color attribute in the BPMN XML uses a {{--bpmn-*}} placeholder and no page-level script loads mermaid outside the template's unclaimed-block fallback"
+        }
+      ]
+    },
+    {
+      "id": "neutral-defaults-without-brand-skill",
+      "name": "A project with no brand skill keeps the neutral template",
+      "description": "With no brand skill and no content rules in the session, the agent fills the template without inventing a brand palette or an organization prefix.",
+      "input": "/dev10x:artifact \"turn this cache investigation into a page I can share\" — no brand skill is listed and CLAUDE.md names no content rules",
+      "assertions": [
+        {
+          "dimension": "project-rules-applied",
+          "check": "behavioral",
+          "signal": "neutral_defaults_kept — the :root tokens match template.html's defaults and unconfirmed claims use the [Unverified] marker"
+        }
+      ]
+    },
+    {
+      "id": "typed-artifact-handoff",
+      "name": "A typed Artifact wins over the template",
+      "description": "When quickstart names a typed Artifact that fits (here, a slide deck), the agent builds from that type and does not copy template.html.",
+      "input": "/dev10x:artifact \"make the quarterly rollout review as slides for Monday's meeting\"",
+      "assertions": [
+        {
+          "dimension": "quickstart-first",
+          "check": "tool_parameters",
+          "value": "Artifact",
+          "signal": "typed_artifact_used — after quickstart names the Slides type, the publish passes that type_url"
+        },
+        {
+          "dimension": "quickstart-first",
+          "check": "behavioral",
+          "signal": "template_not_copied — template.html is not read or written for this request"
+        }
+      ]
+    },
+    {
+      "id": "revision-republishes-same-path",
+      "name": "A requested change republishes in place",
+      "description": "After the first publish the user asks to add a findings group; the agent edits the same file and republishes it so the URL already shared in chat keeps working.",
+      "input": "/dev10x:artifact — after publishing the page, the user says \"add the open risks to Findings\"",
+      "assertions": [
+        {
+          "dimension": "iterate-in-place",
+          "check": "tool_called",
+          "value": "Edit",
+          "signal": "same_file_edited — the existing scratchpad page file is edited, not rewritten under a new name"
+        },
+        {
+          "dimension": "iterate-in-place",
+          "check": "tool_parameters",
+          "value": "Artifact",
+          "signal": "same_path_published — the republish passes the same file_path as the first publish and no new url"
+        }
+      ]
+    }
+  ],
+  "trigger_evals": {
+    "should_trigger": [
+      "Turn this investigation into a page I can share with the team",
+      "Build a decision page for the payment provider choice",
+      "Publish a rollout review artifact with the flow diagram and a reply draft"
+    ],
+    "should_not_trigger": [
+      "Draw a C4 container diagram as a file for the docs",
+      "Make a slide deck for the quarterly review",
+      "Summarize this PR in two sentences"
+    ]
+  }
+}

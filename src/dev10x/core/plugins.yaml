@@ -88,6 +88,7 @@ plugins:
   scoping:
     - adr
     - adr-evaluate
+    - artifact
     - ddd
     - diagram-bpmn
     - diagram-c4
