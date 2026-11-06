@@ -38,6 +38,8 @@ policy plus overlays, resolved by `resolve_gate`.
 | `cautious` | Extra verification, confirm destructive ops | No current equivalent |
 | `pair-review` | Human review at implementation checkpoints | No current equivalent |
 | `auto-plan` | Auto-approve the plan gate only; downstream gates follow baseline policy | Unreachable friction cell (GH-678) |
+| `qa-off` | Drop the self-QA video and review-pack step | No current equivalent (GH-1827) |
+| `qa-record-only` | Record the self-QA video, publish nothing | No current equivalent (GH-1827) |
 
 ### Gate-flipping modes (the `solo-maintainer` / `auto-plan` exception)
 

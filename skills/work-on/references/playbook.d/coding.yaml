@@ -106,6 +106,7 @@ fragments:
         the PR ready (`pr_ready`). Under `required` leave the PR
         as a draft — readiness waits for the supervisor.
       skills: [dev10x:gh-pr-create]
+    - fragment: self-qa-evidence
     - subject: Request review
       type: detailed
       prompt: >
@@ -158,6 +159,49 @@ fragments:
         when it would be the last open task, the skill seeds Verify AC
         first.
       skills: [dev10x:reflect]
+
+  # Proof that someone used the change (GH-1827). Runs after the Verify
+  # (tests and lint) step and right before the review request, so the
+  # reviewer opens a narrated demo instead of a bare diff; Verify
+  # acceptance criteria and reflection still follow. Skips with one
+  # printed line, never silently.
+  # Per project: `active_modes: [qa-off]` drops the step,
+  # `active_modes: [qa-record-only]` records without publishing, and a
+  # `self-qa-evidence` fragment in the project playbook shadows this one.
+  self-qa-evidence:
+    - subject: Record self-QA video and review pack
+      type: detailed
+      prompt: >
+        (1) Run dev10x:qa-scope on the PR. When it reports no
+        user-facing change, print "Self-QA skipped: no user-facing
+        change" and complete the step. (2) Otherwise run
+        dev10x-qa:qa-self with --exploratory <PR> against staging or
+        the configured local stack, recording a narrated video. When
+        no runnable environment resolves, or the dev10x-qa plugin is
+        not installed, print "Self-QA skipped: <reason>" and complete
+        the step. (3) Hand the evidence to dev10x-qa:review-pack with
+        --no-request-review; it links the pack at the top of the PR
+        body and publishes the video through dev10x-qa:qa-publish or
+        dev10x-qa:yt-upload.
+        Keep every external-publish gate those skills own: staging
+        footage only, never production, and no public host for a
+        private repository. A dismissed or failed publish gate leaves
+        the evidence local and is reported, not retried around. The
+        review pack's own pre-send gate stays; this step never
+        requests review itself, the play's next step does.
+      skills: [dev10x:qa-scope, dev10x-qa:qa-self, dev10x-qa:review-pack]
+      modes:
+        qa-off: skip
+        qa-record-only:
+          prompt: >
+            Run dev10x:qa-scope and, when it reports a user-facing
+            change, dev10x-qa:qa-self --exploratory <PR> with a narrated
+            recording. Publish nothing: leave the run directory local,
+            name it in the Verify-AC summary, and print "Self-QA
+            recorded, not published (qa-record-only)". Skip with one
+            printed line on no user-facing change, no runnable
+            environment, or no dev10x-qa plugin installed.
+          skills: [dev10x:qa-scope, dev10x-qa:qa-self]
 
   # Bundled multi-issue implementation (GH-196).
   # Replaces the single "Implement changes" epic when work-on
@@ -334,6 +378,7 @@ fragments:
         wrapper before monitoring; under `required` keep the draft
         and record in Verify-AC that CI has not run on it.
       skills: [dev10x:gh-pr-monitor]
+    - fragment: self-qa-evidence
     - subject: Respond to review comments
       type: epic
       prompt: >

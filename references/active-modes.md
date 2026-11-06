@@ -69,6 +69,27 @@ before `request_review` (ADR-0022 D-3).
 When NOT to use: team repositories where PRs require external
 review. The mode short-circuits the review cycle entirely.
 
+### `qa-off` and `qa-record-only`
+
+Structural switches for the work-on `self-qa-evidence` step, which
+records a narrated self-QA video and review pack before the review
+request (GH-1827). Name them in the project's `active_modes` entry.
+
+Documented behaviors:
+
+- `qa-off` removes the "Record self-QA video and review pack" step
+  from every play
+- `qa-record-only` keeps the step, runs `dev10x:qa-scope` and
+  `dev10x-qa:qa-self --exploratory`, and publishes nothing: no
+  review pack, no upload; the run directory is named in Verify AC
+- Without either mode the step runs in full and skips with one
+  printed line when there is no user-facing change or no runnable
+  environment
+
+When NOT to use: `qa-off` on a repo that ships user-facing changes
+and has a staging or local stack — the skip notes already cover
+changes with nothing to demo.
+
 ### `auto-plan` — no longer adds anything
 
 "Trust the plan" pacing for the plan-approval gate only (GH-678,
