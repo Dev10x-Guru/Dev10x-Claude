@@ -28,13 +28,13 @@ languages:
       - "\\bI(?:'ll|\\s+will)\\s+(?:now|next|then|first|immediately|go\\s+ahead\\s+and)\\b"
       # "I'm about to …", "I am going to …" — but not "going to be honest"
       - "\\bI(?:'m|\\s+am)\\s+(?:about|going)\\s+to\\s+(?!be\\b)"
-      # "Let me run …" — tool-shaped verbs only, so "let me know",
-      # "let me summarize" and "let me be clear" stay quiet
-      - "\\blet\\s+me\\s+(?:run|re-?run|start|check|fix|create|open|push|commit|merge|apply|write|add|update|read|investigate|implement|retry|launch|dispatch|edit|remove|rebase|verify|review|post|file|draft|invoke|call|kick\\s+off|look)\\b"
       # "Next, let's …", "Now let us …"
       - "\\b(?:now|next)(?:\\s*,\\s*|\\s+)let(?:'s|\\s+us)\\b"
-      # A bare "I'll <verb>" / "I will <verb>" naming tool-shaped work
-      - "\\bI(?:'ll|\\s+will)\\s+(?:run|re-?run|start|check|fix|create|open|push|commit|merge|apply|write|add|update|read|investigate|implement|retry|launch|dispatch|proceed|continue|edit|remove|rebase|verify|review|post|file|draft|invoke|call|kick\\s+off)\\b"
+      # A bare "I'll <verb>" / "I will <verb>" / "Let me <verb>" naming
+      # tool-shaped work — so "let me know", "let me summarize" and
+      # "let me be clear" stay quiet
+      - "\\b(?:let\\s+me|I(?:'ll|\\s+will))\\s+(?:run|re-?run|start|check|fix|create|open|push|commit|merge|apply|write|add|update|read|investigate|implement|retry|launch|dispatch|edit|remove|rebase|verify|review|post|file|draft|invoke|call|kick\\s+off)\\b"
+      - "\\b(?:let\\s+me\\s+look|I(?:'ll|\\s+will)\\s+(?:proceed|continue))\\b"
     exempt:
       # Waiting or yielding is a legitimate end of a turn
       - "\\bI(?:'ll|\\s+will)\\s+(?:wait|stand\\s+by|be\\s+here|leave|pause|stop|hold)\\b"
