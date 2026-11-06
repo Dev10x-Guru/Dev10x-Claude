@@ -231,8 +231,19 @@ Three constraints came out of building the first one:
    and playbook instructions ("complete a task, start the next"), and
    a hook re-asserting them after each turn of a long plan added a
    block per turn and nothing else. Open work ends the turn under
-   `open_work`. The blocks that remain fire only once the list says
+   `open_work`. The task-list blocks fire only once the list says
    the work is done — a dirty tree, or the stand-down gate.
+
+6. **A promise nothing kept blocks regardless of the list (GH-1829).**
+   A turn whose closing paragraph declares an imminent action ("Now
+   I'll run the tests") with no tool call after it ends under
+   `promised_action`. It is checked after `stop_hook_active`, the
+   cooldown marker, standby and an open widget, and before the task
+   list, except when every open task is parked on subagents
+   (GH-1464). The phrases live in
+   `src/dev10x/core/hooks/stop_intent_patterns.yaml`, keyed by
+   language. A broken `exempt` pattern disarms the gate, since losing
+   an exemption would mean more blocks.
 
 **Keep the decision out of the hook.** `dev10x.core.hooks.stop_verdict`
 holds the rule and is a pure function over `(payload, plan)`;
