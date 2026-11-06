@@ -15,6 +15,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+import yaml
 from dev10x.hooks.stop_verdict import (
     INTENT_PATTERNS_PATH,
     IntentPatterns,
@@ -29,20 +30,11 @@ from dev10x.hooks.stop_verdict import (
 from .conftest import DEPLETED_PLAN, PENDING_PLAN
 from .test_stop_verdict import _ask, _assistant, _text
 from .test_stop_verdict import _transcript as _write_transcript
+from .test_stop_verdict_open_work import _transcript as _closing_turn
 
 
 def _tool_use() -> dict:
     return {"type": "tool_use", "id": "t1", "name": "Bash", "input": {"command": "pytest"}}
-
-
-def _closing_turn(*, tmp_path: Path, closing: str) -> str:
-    return _write_transcript(
-        tmp_path=tmp_path,
-        entries=[
-            {"type": "user", "message": {"role": "user", "content": "carry on"}},
-            _assistant(blocks=[_text(text=closing)]),
-        ],
-    )
 
 
 def _entries(*, closing: str) -> list[dict]:
@@ -213,34 +205,23 @@ class TestATurnThatKeptItsWordEndsQuietly:
 
         assert verdict.signal == StopSignal.PROMISED_ACTION
 
-    def test_a_tool_in_a_later_entry_is_narration(
-        self, tmp_path: Path, isolated_markers: Path
-    ) -> None:
-        transcript = _write_transcript(
-            tmp_path=tmp_path,
-            entries=[
-                {"type": "user", "message": {"role": "user", "content": "go"}},
+    @pytest.mark.parametrize(
+        "after_prose",
+        [
+            [_assistant(blocks=[_text(text="Now I'll run the tests."), _tool_use()])],
+            [
                 _assistant(blocks=[_text(text="Now I'll run the tests.")]),
                 _assistant(blocks=[_tool_use()]),
             ],
-        )
-
-        verdict = decide(
-            data={"session_id": "n7", "transcript_path": transcript},
-            plan=PENDING_PLAN,
-        )
-
-        assert verdict.signal == StopSignal.OPEN_WORK
-
+        ],
+        ids=["same-entry", "later-entry"],
+    )
     def test_a_tool_after_the_text_is_narration(
-        self, tmp_path: Path, isolated_markers: Path
+        self, tmp_path: Path, isolated_markers: Path, after_prose: list[dict]
     ) -> None:
         transcript = _write_transcript(
             tmp_path=tmp_path,
-            entries=[
-                {"type": "user", "message": {"role": "user", "content": "go"}},
-                _assistant(blocks=[_text(text="Now I'll run the tests."), _tool_use()]),
-            ],
+            entries=[{"type": "user", "message": {"role": "user", "content": "go"}}, *after_prose],
         )
 
         verdict = decide(
@@ -403,6 +384,18 @@ class TestThePatternsLiveInData:
         assert INTENT_PATTERNS_PATH.name == "stop_intent_patterns.yaml"
         assert INTENT_PATTERNS_PATH.is_file()
 
+    def test_the_shipped_file_parses_without_a_warning(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A broken shipped entry is caught here, not by a disarmed gate."""
+        patterns = parse_intent_patterns(
+            data=yaml.safe_load(INTENT_PATTERNS_PATH.read_text(encoding="utf-8"))
+        )
+
+        assert patterns.intent
+        assert patterns.exempt
+        assert capsys.readouterr().err == ""
+
     def test_every_language_is_merged(self) -> None:
         patterns = parse_intent_patterns(
             data={
@@ -460,13 +453,18 @@ class TestThePatternsLiveInData:
         assert patterns == IntentPatterns()
         assert "compiling en exempt pattern" in capsys.readouterr().err
 
-    def test_a_file_that_is_not_utf8_yields_no_patterns(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    @pytest.mark.parametrize(
+        "content",
+        [b"languages:\n  en:\n    intent: ['\xff\xfe']\n", b"languages: [unclosed"],
+        ids=["not-utf8", "malformed-yaml"],
+    )
+    def test_an_unparseable_file_yields_no_patterns(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str], content: bytes
     ) -> None:
-        corrupt = tmp_path / "corrupt.yaml"
-        corrupt.write_bytes(b"languages:\n  en:\n    intent: ['\xff\xfe']\n")
+        broken = tmp_path / "broken.yaml"
+        broken.write_bytes(content)
 
-        patterns = load_intent_patterns(path=corrupt)
+        patterns = load_intent_patterns(path=broken)
 
         assert patterns == IntentPatterns()
         assert "parsing the intent patterns" in capsys.readouterr().err
@@ -478,17 +476,6 @@ class TestThePatternsLiveInData:
 
         assert patterns == IntentPatterns()
         assert "reading the intent patterns" in capsys.readouterr().err
-
-    def test_a_malformed_file_yields_no_patterns(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        broken = tmp_path / "broken.yaml"
-        broken.write_text("languages: [unclosed", encoding="utf-8")
-
-        patterns = load_intent_patterns(path=broken)
-
-        assert patterns == IntentPatterns()
-        assert "parsing the intent patterns" in capsys.readouterr().err
 
     def test_decide_takes_its_patterns_as_an_input(
         self, tmp_path: Path, isolated_markers: Path

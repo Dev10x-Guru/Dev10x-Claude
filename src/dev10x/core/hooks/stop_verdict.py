@@ -928,7 +928,7 @@ def _closing_paragraph(*, text: str) -> str:
     name" three paragraphs up has moved on; the sentence the turn ends
     on is the one a supervisor reads as the state of play.
     """
-    paragraphs = [part.strip() for part in re.split(r"\n\s*\n", text) if part.strip()]
+    paragraphs = [part for part in (raw.strip() for raw in re.split(r"\n\s*\n", text)) if part]
     closing = paragraphs[-1][-_CLOSING_TAIL_CHARS:] if paragraphs else ""
     return closing.replace("’", "'").replace("‘", "'")
 
@@ -1303,18 +1303,11 @@ def decide(
 
     signal = task_signal(plan=plan)
 
-    # Checked before the rest of the task list (GH-1829): a promise
-    # nothing kept misleads the supervisor whether or not a plan exists,
-    # and a model without the task tools is the likeliest to narrate.
-    # The one exception is a turn parked on dispatched subagents
-    # (GH-1464) — "next I'll collate the results" is then exactly what
-    # the harness will resume it to do.
-    closing = (
-        ""
-        if signal.awaits_dispatched_work
-        else promised_action(entries=entries, patterns=patterns)
-    )
-    if closing:
+    # A turn parked on subagents (GH-1464) is exempt: "next I'll collate
+    # the results" is exactly what the harness will resume it to do.
+    if not signal.awaits_dispatched_work and (
+        closing := promised_action(entries=entries, patterns=patterns)
+    ):
         return StopVerdict(
             block=True,
             reason=_promised_action_reason(closing=closing),
