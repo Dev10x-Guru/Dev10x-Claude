@@ -50,6 +50,11 @@ base_permissions:
   - "mcp__plugin_dev10x_cli__setup_aliases"
   - "mcp__plugin_dev10x_cli__check_top_level_comments"
   - "mcp__plugin_dev10x_cli__unresolved_threads"
+  # GH-1832: read-only per-bot head/review status for monitor + merge
+  - "mcp__plugin_dev10x_cli__bot_review_status"
+  # pr_wait (GH-1833): read-only bounded PR wait; gh-pr-monitor waits
+  # on `until="bot_at_head"` with it (GH-1832)
+  - "mcp__plugin_dev10x_cli__pr_wait"
   - "mcp__plugin_dev10x_cli__ci_check_status"
   - "mcp__plugin_dev10x_cli__find_fixup_target"
   - "mcp__plugin_dev10x_cli__audit_handoff_report"

@@ -234,6 +234,43 @@
       "title": "background_preambleArguments",
       "type": "object"
     },
+    "bot_review_status": {
+      "properties": {
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "pr_number": {
+          "title": "Pr Number",
+          "type": "integer"
+        },
+        "repo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repo"
+        }
+      },
+      "required": [
+        "pr_number"
+      ],
+      "title": "bot_review_statusArguments",
+      "type": "object"
+    },
     "candidate_rules_report": {
       "properties": {
         "cwd": {

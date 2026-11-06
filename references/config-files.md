@@ -95,6 +95,7 @@ projects:
     strategy: rebase
     delete_branch: true
     solo_maintainer: true
+    blocking_bots: ["claude"]  # GH-1832 login globs, `[bot]` dropped
 ```
 
 ## Acceptance Criteria

@@ -715,8 +715,9 @@ Dispatch `haiku-thread-scan` (Micro-agent B). It returns:
 ```
 
 Sum ALL FOUR arrays (incl. `needs_disposition`, GH-808 F1). If any
-are non-empty → enter Phase 2. If all four are empty → mark the PR
-ready (`gh pr ready {pr_number}`) and proceed to Phase 2.5. A
+are non-empty → enter Phase 2. If all four are empty AND blocking
+bots are at head (`references/bot-review-wait.md`, GH-1832) → mark
+the PR ready (`gh pr ready {pr_number}`) and proceed to Phase 2.5. A
 non-blocking INFO in `needs_disposition` counts — it must be
 addressed or explicitly deferred before the PR reads clean.
 
@@ -813,6 +814,7 @@ Move to Phase 2.5 when ALL of these are true:
   top-level PR comment replies
 - No unaddressed top-level automated review comments (GH-698)
   — check `issueComments` for severity markers from bot users
+- Blocking bots at head (`references/bot-review-wait.md`)
 - PR has at least one approval OR no reviews yet
 
 ---

@@ -29,6 +29,7 @@ pre-ADR-0034 name (GH-1546).
 
 from __future__ import annotations
 
+from dev10x.coding.github.bot_reviews import bot_review_status
 from dev10x.coding.github.bulk import (
     _bulk_execute,
     issues_bulk_create,
@@ -134,6 +135,8 @@ __all__ = [
     "_parse_gh_api_result",
     "_resolve_repo",
     "_run_and_parse",
+    # bot_reviews
+    "bot_review_status",
     # ci_rerun
     "ci_rerun",
     # detection

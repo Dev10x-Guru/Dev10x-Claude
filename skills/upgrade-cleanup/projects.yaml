@@ -274,10 +274,10 @@ base_permissions:
   # its raw form (a REST POST to `.../rerequest`) is on an ask rule,
   # and `gh run rerun` covers Actions only. Repo-bound with a retry cap.
   - "mcp__plugin_dev10x_cli__ci_rerun"
-  # pr_wait / wait_for (GH-1833): read-only bounded waits that replace
-  # one-off polling scripts. No skill declares them yet, so core owns
-  # them (GH-1589).
-  - "mcp__plugin_dev10x_cli__pr_wait"
+  # wait_for (GH-1833): read-only bounded wait that replaces one-off
+  # polling scripts. No skill declares it yet, so core owns it
+  # (GH-1589). pr_wait moved to the coding fragment once gh-pr-monitor
+  # declared it (GH-1832).
   - "mcp__plugin_dev10x_cli__wait_for"
   # The milestone create/bulk writes are scoping's, milestone_close is
   # coding's, the park family's task_index_* writes are tasks', and the

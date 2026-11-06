@@ -1485,6 +1485,40 @@ async def check_top_level_comments(
 
 
 @github_tool
+async def bot_review_status(
+    pr_number: int,
+    repo: str | None = None,
+    cwd: str | None = None,
+) -> Result[dict]:
+    """Report whether each review bot has reviewed the current PR head (GH-1832).
+
+    Comment text alone cannot say a PR is clean: bots skip drafts, some
+    hide findings in inline comments under an empty review body, some
+    post an issue comment instead of a review, and a review of an older
+    push says nothing about the head. This compares each bot's reviewed
+    commit with the head.
+
+    Args:
+        pr_number: PR number to inspect
+        repo: Repository in owner/repo format. Auto-detected from cwd if omitted.
+        cwd: Effective working directory (GH-979).
+
+    Returns:
+        Dictionary with keys: pr_number, repo, head_sha,
+        head_committed_at, is_draft, bots (per bot: login, kind
+        review|comment, reviewed_sha, at_head true|false|null,
+        at_head_basis sha|timestamp, review_state, review_body_empty,
+        open_inline_comments — unresolved review threads the bot
+        started, empty_body_with_inline, last_activity, blocking),
+        blocking_bots (globs from ``settings-pr-merge.yaml``),
+        missing_blocking_bots, truncated (connections past 100 items),
+        ready (bool), reasons (list[str]), config_source,
+        project_status.
+    """
+    return await gh.bot_review_status(pr_number=pr_number, repo=repo)
+
+
+@github_tool
 async def unresolved_threads(
     repo: str | None = None,
     pr_number: int | None = None,

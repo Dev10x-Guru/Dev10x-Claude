@@ -98,6 +98,7 @@ supporting each tool:
 | `reconcile_fixes_links` | `cli` | GH-1777 | v0.113.0+ |
 | `pr_wait` | `cli` | GH-1833 | v0.114.0+ |
 | `wait_for` | `cli` | GH-1833 | v0.114.0+ (`process_gone` patterns need `pgrep`) |
+| `bot_review_status` | `cli` | GH-1832 | v0.114.0+ |
 | `query` | `db` | PR #126 | v0.25.0+ |
 
 When adding a new tool, update this table and note any dependencies on

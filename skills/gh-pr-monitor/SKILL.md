@@ -27,6 +27,8 @@ allowed-tools:
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/gh-pr-merge/scripts/:*)
   - mcp__plugin_dev10x_cli__ci_check_status
   - mcp__plugin_dev10x_cli__check_top_level_comments
+  - mcp__plugin_dev10x_cli__bot_review_status
+  - mcp__plugin_dev10x_cli__pr_wait
   - mcp__plugin_dev10x_cli__milestone_close
   - mcp__plugin_dev10x_cli__background_preamble
   - mcp__plugin_dev10x_cli__resolve_gate

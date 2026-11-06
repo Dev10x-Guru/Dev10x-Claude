@@ -1,0 +1,54 @@
+{
+  "data": {
+    "repository": {
+      "pullRequest": {
+        "isDraft": false,
+        "headRefOid": "3333333333333333333333333333333333333333",
+        "commits": {
+          "nodes": [
+            {
+              "commit": {
+                "oid": "3333333333333333333333333333333333333333",
+                "committedDate": "2026-11-05T12:00:00Z"
+              }
+            }
+          ]
+        },
+        "reviews": {
+          "nodes": [
+            {
+              "author": {"__typename": "Bot", "login": "claude"},
+              "state": "CHANGES_REQUESTED",
+              "body": "Two findings.",
+              "submittedAt": "2026-11-05T09:00:00Z",
+              "commit": {"oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+            },
+            {
+              "author": {"__typename": "Bot", "login": "claude"},
+              "state": "APPROVED",
+              "body": "Looks good.",
+              "submittedAt": "2026-11-05T11:00:00Z",
+              "commit": {"oid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}
+            },
+            {
+              "author": {"__typename": "Bot", "login": "copilot-pull-request-reviewer"},
+              "state": "COMMENTED",
+              "body": "Summary",
+              "submittedAt": "2026-11-05T12:10:00Z",
+              "commit": {"oid": "3333333333333333333333333333333333333333"}
+            },
+            {
+              "author": {"__typename": "User", "login": "octo-dev"},
+              "state": "APPROVED",
+              "body": "",
+              "submittedAt": "2026-11-05T12:15:00Z",
+              "commit": {"oid": "3333333333333333333333333333333333333333"}
+            }
+          ]
+        },
+        "reviewThreads": {"nodes": []},
+        "comments": {"nodes": []}
+      }
+    }
+  }
+}

@@ -195,6 +195,7 @@ one session). Use these shapes verbatim:
 | `pr_comments` | `pr_number`, `action` (no default) | omitting `action` |
 | `unresolved_threads` | none; optional `repo` (defaults from `cwd`, GH-1683); pass `pr_number` for a single PR | omitting `pr_number` for a per-PR check |
 | `check_top_level_comments` | `pr_number`; optional `repo` (defaults from `cwd`, GH-1683) | expecting `unresolved_threads`'s sweep-all-PRs mode — this tool has none (GH-1285) |
+| `bot_review_status` | `pr_number`; optional `repo` (defaults from `cwd`) | reading `ready: true` as "a bot reviewed the head" — see `caveats-issues-and-push.md` (GH-1832) |
 | `push_safe` | `args` list, e.g. `["-u", "origin", "<branch>"]` | bare call; passing `protected_branches=[]` expecting protection off — an empty list reads as "no override" (GH-1031) |
 | `resolve_review_thread` | `thread_ids` (list) | singular `thread_id` |
 | `resolve_gate` | `gate` (toggle name); optional `context` dict of gate facts | passing preset/friction values — the tool reads session policy itself (ADR-0016 D-2); passing `human_review` on `gate="merge"` — durable policy, read unconditionally and echoed back in `ignored_context_fields` (GH-1000) |
@@ -234,7 +235,7 @@ non-obvious default:
 | File | Tools |
 |------|-------|
 | [`caveats-writes.md`](../../references/mcp-tools/caveats-writes.md) | `task_index_*`, `pr_labels`, `issue_labels`, `notify_*` / `pr_notify` dead-letter log, `pr_ready`, `create_pr` (body, trailer, `head`, `milestone`, partial delivery), `merge_pr(use_bot)`, `pr_get` `files` |
-| [`caveats-issues-and-push.md`](../../references/mcp-tools/caveats-issues-and-push.md) | `run_node_tests` runner detection, `create_pr(closes=…)`, `issue_create` / `issues_bulk_create`, `issue_close`, `push_safe` payload and protection tiers, `unresolved_threads` modes |
+| [`caveats-issues-and-push.md`](../../references/mcp-tools/caveats-issues-and-push.md) | `run_node_tests` runner detection, `create_pr(closes=…)`, `issue_create` / `issues_bulk_create`, `issue_close`, `push_safe` payload and protection tiers, `unresolved_threads` modes, `bot_review_status` verdict |
 | [`caveats-ci-check-status.md`](../../references/mcp-tools/caveats-ci-check-status.md) | `ci_check_status` — `wait_out_pending`, `wait_for`, poll budget, transient failures, zero/green corroboration, `required_verdict: "empty"` |
 | [`caveats-waits.md`](../../references/mcp-tools/caveats-waits.md) | `pr_wait` conditions and `bot_at_head` scope, `wait_for` kinds, the budget cap and the Monitor pattern for longer waits |
 | [`caveats-config-pins.md`](../../references/mcp-tools/caveats-config-pins.md) | `pin_tracker`, `pin_ide`, `pin_gate_preset`, `pin_supervisor_review` and their `*_status` readers, `resolve_gate` payload |
