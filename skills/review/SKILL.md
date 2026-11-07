@@ -33,6 +33,10 @@ allowed-tools:
   - mcp__plugin_dev10x_cli__resolve_gate
   - mcp__plugin_dev10x_cli__detect_base_branch
   - Bash(git fetch:*)
+  - Bash(git rev-parse:*)
+  - Bash(rg:*)
+  - mcp__plugin_dev10x_cli__mktmp
+  - mcp__plugin_dev10x_cli__review_stamp_write
 ---
 
 # Self-Review Branch
@@ -49,6 +53,9 @@ can consume to create fixup commits.
 
 - `--unattended` — skip finding approval, auto-advance to
   `dev10x:review-fix` for all actionable findings
+- `--loop` — re-review each round of fixes with fresh reviewers until
+  a round finds no defects, capped at 4 rounds (Step 6b). Combines
+  with `--unattended`; the `work-on` shipping pipeline passes both
 - No arguments — attended mode, present findings for user approval
 
 ## When to Use
@@ -355,6 +362,12 @@ Write the findings array as JSON to the temp file path.
 
 ### Step 6: Present Findings
 
+**With `--loop`, Step 6b drives this step.** Go to Step 6b now: it
+decides, per round, which findings reach the fixer and when, and uses
+the mechanics below to hand them over. Never invoke the fixer from
+here first. Without `--loop`, continue below; every path ends at
+Step 6c.
+
 **Unattended mode** (`--unattended`):
 - Skip presentation
 - Filter findings by confidence threshold (default: 70).
@@ -362,7 +375,7 @@ Write the findings array as JSON to the temp file path.
   severity `ERROR` or `WARNING` to `dev10x:review-fix`
 - Below-threshold findings are logged as INFO in summary
 - Invoke: `Skill(skill="dev10x:review-fix", args="<findings-file-path>")`
-- Auto-advance after fixer completes
+- Auto-advance after fixer completes, to Step 6c
 
 **Attended mode** (default):
 - Present findings grouped by severity, then by file
@@ -377,13 +390,14 @@ skip-through (GH-447 F5).
 
 **Unattended mode exemption (GH-760 F6):** When invoked with
 `--unattended` flag (e.g., from `dev10x:work-on` shipping
-pipeline), skip this gate and auto-advance. The parent
+pipeline), skip this gate and auto-advance to Step 6c. The parent
 orchestrator already approved the work plan — pausing for
 zero-findings confirmation adds friction without safety value.
 
 **Attended mode** options:
-- Continue (Recommended) — Proceed to next pipeline step
-- Re-review — Run the review again with different scope
+- Continue (Recommended) — Proceed to Step 6c
+- Re-review — Run the review again with different scope (in a `--loop`
+  round, the same scope: Step 6b item 4)
 
 **When findings > 0:**
 
@@ -395,10 +409,105 @@ Options:
 - Skip — No fixes, continue with pipeline
 
 If "Pick findings": present each finding with fix/skip choice,
-collect approved findings, then invoke `dev10x:review-fix`.
+collect approved findings, then invoke `dev10x:review-fix`. Picking
+none is a Skip.
 
 If "Fix all" or after picking: invoke `dev10x:review-fix` with
 the findings file path.
+
+### Step 6b: Loop Mode (`--loop`, GH-1831)
+
+Without `--loop`, skip to Step 6c. With it, the review runs in rounds
+until a round is clean. The round rules, the defect/polish split and
+the round ledger are in
+[`references/loop-mode.md`](references/loop-mode.md) — Read it before
+round 1 and create the ledger it describes.
+
+**A round's fix set** is what it would hand to `dev10x:review-fix`:
+round 1 hands every ERROR/WARNING finding at confidence >= 70 (defects
+and polish); later rounds hand defects only. **A round is clean** when
+its fix set is empty. A round that fixed anything — round-1 polish
+included — is followed by a round that reviews those fixes.
+
+**REQUIRED: Execute each round in order.**
+
+1. Record `round_start_sha` (`git rev-parse HEAD`) in the ledger.
+2. Review the round's scope with **new** `Agent` calls: round 1 runs
+   Steps 1b–4 on the whole branch; later rounds run Steps 3–4 on
+   `git diff <previous round_start_sha>..HEAD` plus its blast radius.
+   Never `SendMessage` an earlier round's reviewer, and never judge
+   your own fix.
+3. Run Step 5, then classify the findings into defects and polish in
+   the ledger; the findings JSON keeps its format.
+4. Clean round → end the loop. Attended, first fire the Step 6
+   zero-findings gate, even when the round also listed INFO,
+   below-threshold or polish findings: name them in the question.
+   **Re-review** repeats this round on the same scope with new `Agent`
+   calls and no new ledger entry, then returns to item 3. Then go to
+   Step 6c.
+5. Round 4 or later and not clean → fire the round-cap gate below
+   **before** fixing anything.
+6. Hand the fix set over with Step 6's mechanics: unattended, straight
+   to `dev10x:review-fix`, filtered to the fix set; attended, through
+   the Step 6 findings gate, where **Fix all** and **Pick findings**
+   cover the fix set only — from round 2 on, polish is listed, not
+   offered.
+   A fix-set finding left unpicked, or reported as deferred by
+   `dev10x:review-fix`, goes into the ledger's `declined` list: no later
+   delta has to touch it, so that loop never stamps.
+   An attended **Skip** ends the loop unstamped: go to Step 7.
+7. The fixer made no commit → end the loop: run Step 7 and end with
+   `BLOCKED: review-loop: <N> findings, fixer made no commit`.
+   Otherwise record `fixed_head_sha` and start the next round.
+
+**Round-cap gate.** Which option comes first and carries
+`(Recommended)` is computed from the ledger's defect counts
+(`references/loop-mode.md` § Escalation recommendation).
+
+- **Attended mode — REQUIRED: Call `AskUserQuestion`** (do NOT use
+  plain text, call spec:
+  [ask-loop-escalation.md](./tool-calls/ask-loop-escalation.md)).
+  Options, ordered by the ledger:
+  - Continue one more round — run item 6 for this round, then the
+    next round; the gate fires again after every unclean round
+  - Ship with open defects listed — end the loop unfixed, go to Step 7
+  - Stop and hand back — end the review, return to the supervisor
+- **`--unattended`** — call `mcp__plugin_dev10x_cli__resolve_gate(
+  gate="shipping_continuation", context={})` and branch on `effect`:
+  - `ask`, or an `error` key — fire the widget above.
+  - `auto-advance` / `skip` — take **Stop and hand back** without a
+    widget (surface the `record` line on auto-advance), run Step 7,
+    and end with `BLOCKED: review-loop: <N> defects after <R> rounds`
+    as the last line so the caller queues the decision.
+
+  Never take **Continue one more round** or **Ship with open defects
+  listed** without a human answer: both decide what an unbounded or
+  defective loop is worth, which is the supervisor's call.
+
+### Step 6c: Stamp a Clean Pass (GH-1830)
+
+**REQUIRED when the review is clean.** A single pass is clean when it
+found no ERROR/WARNING finding at confidence >= 70 and so handed
+nothing to `dev10x:review-fix`; a loop is clean when a round's fix set
+was empty (`references/loop-mode.md` § Round rules, item 7). Call
+`mcp__plugin_dev10x_cli__review_stamp_write(cwd=<absolute checkout>)`
+and report the returned `head_sha` in Step 7. Otherwise go to Step 7.
+
+Never stamp a pass that handed findings to the fixer: those fixups
+are unreviewed, which is exactly what the stamp must not certify.
+Never stamp a pass with findings the user chose to **Skip** or left
+unpicked — declining a fix does not make the finding go away, so an
+empty fix set from a declined gate is not a clean round. Never stamp
+a loop whose ledger holds a `declined` finding from any round, even
+when its last round is clean. Never stamp a loop that ended on **Ship
+with open defects listed**, **Stop and hand back** or a
+`BLOCKED: review-loop` line. A clean round reached after **Continue
+one more round** is stamped like any other.
+
+The stamp records the HEAD and tree the clean pass reviewed. In repos
+whose `friction.yaml` entry sets `review_stamp: required`, the DX019
+hook denies `merge_pr`, `pr_ready` and `request_review` until the PR
+head matches that stamp (same commit, or same tree after a groom).
 
 ### Step 7: Summary
 
@@ -417,6 +526,10 @@ Report:
 - Total findings by severity, and the false-positive drop count
 - Which were sent to fixer (if any)
 - Any deferred findings (INFO severity or user-skipped)
+- With `--loop`: the per-round defect and polish counts, how the loop
+  ended (clean, no-commit round, or cap), the polish list, and the HEAD
+  SHA the clean round reviewed (`references/loop-mode.md` § Summary
+  additions)
 
 ## Findings Format (Handoff Protocol)
 

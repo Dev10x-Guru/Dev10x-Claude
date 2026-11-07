@@ -1730,6 +1730,10 @@ Session `da0d9c73` invoked the skill without this flag,
 causing it to skip the mandatory attended-mode gate and the
 findings file write. The playbook `prompt:` says to use
 `--unattended` — this is not advisory, it is required.
+Pass `--loop` with it (`args="--unattended --loop"`, GH-1831) so
+each round of fixes is re-reviewed by fresh reviewers until a round
+finds no defects; the loop stops at 4 rounds and hands the decision
+back instead of churning.
 
 **Auto-advance on draft PR creation:** Create the draft PR and
 immediately proceed to **Monitor CI** — this is mandatory, not
@@ -2027,7 +2031,7 @@ Common skill delegations:
 | Draft Job Story | `dev10x:jtbd` skill (attended mode) |
 | Update ticket status | Linear MCP (see references/team-info.md) |
 | Fetch PR context | `gh pr view` + `gh pr diff` |
-| Code review | `dev10x:review` (`--unattended`) + `dev10x:review-fix` skills |
+| Code review | `dev10x:review` (`--unattended --loop`) + `dev10x:review-fix` skills |
 | Commit changes | `dev10x:git-commit` skill |
 | Create draft PR | `dev10x:gh-pr-create` skill (`--unattended`) |
 | Monitor CI | `dev10x:gh-pr-monitor` skill |
