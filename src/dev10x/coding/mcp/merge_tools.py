@@ -72,3 +72,29 @@ async def reconcile_fixes_links(
         repo_dir=repo_dir,
         acknowledge=acknowledge,
     )
+
+
+@mcp_tool
+async def review_stamp_write(cwd: str | None = None) -> Result[dict]:
+    """Record that a clean self-review covered the checked-out head (GH-1830).
+
+    Call only after a ``dev10x:review`` round that found no defects. The
+    stamp is built from local git state (HEAD, its tree, the ``origin``
+    remote and the branch), never from caller-supplied SHAs; ``cwd``
+    only selects the checkout. Where a repo's ``friction.yaml`` sets
+    ``review_stamp: required``, DX019 compares it with the PR head
+    before ``merge_pr``, ``pr_ready`` or ``request_review``. The stamp
+    records the caller's word that a clean review ran; it does not
+    prove one did, so it stops a session that forgot, not one that lies.
+
+    Args:
+        cwd: Effective working directory (GH-979) — the checkout that was
+            reviewed.
+
+    Returns:
+        Dictionary with ``repo`` (owner/repo), ``branch``, ``head_sha``,
+        ``tree_sha``, ``reviewed_at`` and ``path`` of the stamp store.
+    """
+    from dev10x.coding.merge.review_stamp import record_clean_review
+
+    return await record_clean_review()

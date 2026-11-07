@@ -10,7 +10,7 @@ paths:
 
 # Hook Implementation Patterns
 
-> **[OVERRIDE DETECTED]** — ~580 lines against the 200-line rule-file
+> **[OVERRIDE DETECTED]** — ~610 lines against the 200-line rule-file
 > budget in `.claude/rules/INDEX.md` (GH-1438), the largest breach in
 > `.claude/rules/` since GH-1606 trimmed `mcp-tools.md`. Its `paths:`
 > front matter keeps it out of sessions that touch no hook code.
@@ -19,7 +19,7 @@ paths:
 > "how does a hook get added or changed here": cross-language parity
 > (Python/shell), the direct-shebang + orchestrator dispatch pattern,
 > the Stop-verdict merge rules, the PostToolUse formatter's hunk-scope
-> contract, and the DX001-DX018 profile-tier table all answer that
+> contract, and the DX001-DX019 profile-tier table all answer that
 > one question, and a reviewer checking one section routinely needs
 > the rule two sections over (e.g. a new Stop feature needs both the
 > orchestrator-consolidation rule and the verdict-merge rule).
@@ -362,6 +362,7 @@ higher tiers — `minimal` rules are always active.
 | DX016 | inline-linter | standard |
 | DX017 | write-destination | standard |
 | DX018 | exec-flag | standard |
+| DX019 | review-stamp (MCP ship tools, own hook entry) | standard |
 
 ### DX014 Sensitivity Axis: `ask`, Not `deny` (GH-604)
 

@@ -65,6 +65,10 @@ _DURABLE_KEYS = (
     # format it authors (e.g. `.ipynb`) once, for every session and
     # worktree, instead of every caller exporting an env var.
     "dx017",
+    # DX019 (GH-1830): `required` walls merge_pr / pr_ready / request_review
+    # behind a clean-review stamp at the PR head; absent or `none` leaves them
+    # alone.
+    "review_stamp",
 )
 
 # Public alias for cross-module callers (e.g. the GH-812 R4 migration) that

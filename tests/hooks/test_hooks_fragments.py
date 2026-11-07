@@ -55,6 +55,13 @@ def pre_split_entries() -> set[HookEntry]:
         ("PostToolUse", "Skill", _wrapped(name="skill-post", script="skill-post.py"), 3),
         ("PostToolUse", "Edit|Write", _wrapped(name="ruff-format", script="ruff-format.py"), 15),
         (
+            "PreToolUse",
+            "mcp__plugin_dev10x_cli__merge_pr|mcp__plugin_dev10x_cli__pr_ready"
+            "|mcp__plugin_dev10x_cli__request_review",
+            _wrapped(name="validate-ship-gate", script="validate-ship-gate.py"),
+            60,
+        ),
+        (
             "PostToolUse",
             "TaskCreate|TaskUpdate",
             _wrapped(name="task-plan-sync", script="task-plan-sync.py"),

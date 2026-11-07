@@ -3900,6 +3900,24 @@
       "title": "resolve_review_threadArguments",
       "type": "object"
     },
+    "review_stamp_write": {
+      "properties": {
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        }
+      },
+      "title": "review_stamp_writeArguments",
+      "type": "object"
+    },
     "rule_confidence_report": {
       "properties": {
         "cwd": {
