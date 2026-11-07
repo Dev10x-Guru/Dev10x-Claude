@@ -149,6 +149,16 @@ tool it names.
   `branch_deletion_error`, since the REST merge does not delete the
   head ref and a protected ref refuses the follow-up `DELETE`.
 
+- **Review stamp gate (DX019, GH-1830).** Where a repo's `friction.yaml`
+  entry sets `review_stamp: required`, a PreToolUse hook denies
+  `merge_pr`, `pr_ready` and `request_review` (not `pr_ready(undo=true)`)
+  unless `review_stamp_write` stamped the PR head after a clean
+  `dev10x:review`. The head comes from `gh pr view` on `pr_number` /
+  `repo`; the stamped commit, or the stamped tree after a groom, passes.
+  A missing `pr_number`, an unreadable head or a validator error denies.
+  Re-run `dev10x:review --loop` and push. Escapes: `review_stamp: none`,
+  `DEV10X_HOOK_DISABLE=DX019`; `DEV10X_HOOK_PROFILE=minimal` drops it too.
+
 - `pr_get` returns `files`, the complete changed-file list (GH-1265).
   Callers previously hand-rolled `gh api repos/.../pulls/N/files`, whose
   30-item default page silently truncated a 41-file PR and produced a

@@ -324,6 +324,11 @@ class Dev10xConfigDir:
         return cls._resolve("knowledge-vault.yaml")
 
     @classmethod
+    def review_stamps_json(cls) -> Path:
+        """Head SHAs a clean self-review covered, per repo and branch (GH-1830)."""
+        return cls._resolve("review-stamps.json")
+
+    @classmethod
     def reflect_locks_dir(cls) -> Path:
         """Lock sidecars for vault notes, kept out of the vault (GH-1822)."""
         return cls._resolve("locks", "reflect")

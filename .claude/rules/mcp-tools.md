@@ -234,7 +234,7 @@ non-obvious default:
 
 | File | Tools |
 |------|-------|
-| [`caveats-writes.md`](../../references/mcp-tools/caveats-writes.md) | `task_index_*`, `pr_labels`, `issue_labels`, `notify_*` / `pr_notify` dead-letter log, `pr_ready`, `create_pr` (body, trailer, `head`, `milestone`, partial delivery), `merge_pr(use_bot)`, `pr_get` `files` |
+| [`caveats-writes.md`](../../references/mcp-tools/caveats-writes.md) | `task_index_*`, `pr_labels`, `issue_labels`, `notify_*` / `pr_notify` dead-letter log, `pr_ready`, `create_pr` (body, trailer, `head`, `milestone`, partial delivery), `merge_pr(use_bot)`, `pr_get` `files`, the DX019 review-stamp gate on `merge_pr` / `pr_ready` / `request_review` |
 | [`caveats-issues-and-push.md`](../../references/mcp-tools/caveats-issues-and-push.md) | `run_node_tests` runner detection, `create_pr(closes=…)`, `issue_create` / `issues_bulk_create`, `issue_close`, `push_safe` payload and protection tiers, `unresolved_threads` modes, `bot_review_status` verdict |
 | [`caveats-ci-check-status.md`](../../references/mcp-tools/caveats-ci-check-status.md) | `ci_check_status` — `wait_out_pending`, `wait_for`, poll budget, transient failures, zero/green corroboration, `required_verdict: "empty"` |
 | [`caveats-waits.md`](../../references/mcp-tools/caveats-waits.md) | `pr_wait` conditions and `bot_at_head` scope, `wait_for` kinds, the budget cap and the Monitor pattern for longer waits |

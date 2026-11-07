@@ -79,3 +79,33 @@ class TestReconcileFixesLinks:
         result = await cli_server.reconcile_fixes_links(body="", base="origin/develop")
 
         assert result["error"] == "git log origin/develop..HEAD failed: bad ref"
+
+
+class TestReviewStampWrite:
+    @pytest.mark.asyncio
+    @patch("dev10x.coding.merge.review_stamp.record_clean_review", new_callable=AsyncMock)
+    async def test_returns_the_recorded_stamp(self, mock_fn: AsyncMock) -> None:
+        mock_fn.return_value = ok({"head_sha": "abc", "branch": "feature"})
+
+        result = await cli_server.review_stamp_write()
+
+        assert result == {"head_sha": "abc", "branch": "feature"}
+
+    @pytest.mark.asyncio
+    @patch("dev10x.coding.merge.review_stamp.record_clean_review", new_callable=AsyncMock)
+    async def test_binds_cwd(self, mock_fn: AsyncMock, tmp_path) -> None:
+        mock_fn.return_value = ok({})
+
+        with patch("dev10x.subprocess_utils.use_cwd") as mock_use_cwd:
+            await cli_server.review_stamp_write(cwd=str(tmp_path))
+
+        mock_use_cwd.assert_called_once_with(str(tmp_path))
+
+    @pytest.mark.asyncio
+    @patch("dev10x.coding.merge.review_stamp.record_clean_review", new_callable=AsyncMock)
+    async def test_returns_error_on_failure(self, mock_fn: AsyncMock) -> None:
+        mock_fn.return_value = err("HEAD is detached")
+
+        result = await cli_server.review_stamp_write()
+
+        assert result["error"] == "HEAD is detached"
