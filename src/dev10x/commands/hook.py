@@ -62,6 +62,43 @@ def _validate_bash_body() -> None:
     sys.exit(0)
 
 
+# Rule ids that gate MCP ship tools rather than shell commands (GH-1830).
+# Only these run for an MCP payload: the Bash validators read
+# `tool_input.command` and have no opinion on an MCP call.
+_SHIP_GATE_RULES = ("DX019",)
+
+
+@hook.command(name="validate-ship-gate")
+def validate_ship_gate() -> None:
+    """Gate merge_pr / pr_ready / request_review on a review stamp (DX019).
+
+    Reads JSON from stdin. Exit codes: 0=allow, 2=block.
+    """
+    from dev10x.domain.events.hook_event import HookEventName
+    from dev10x.hooks.audit_emit import audit_hook
+
+    _run = audit_hook(name="validate-ship-gate", event=HookEventName.PRE_TOOL_USE)(
+        _validate_ship_gate_body
+    )
+    _run()
+
+
+def _validate_ship_gate_body() -> None:
+    from dev10x.hooks.hook_transport import emit, read_hook_input, select_result
+    from dev10x.validators import ValidatorChain, ValidatorRegistry, get_registry
+
+    inp = read_hook_input()
+    registry = get_registry()
+    specs = [spec for rule_id in _SHIP_GATE_RULES if (spec := registry.find_by_rule_id(rule_id))]
+    chain = ValidatorChain(registry=ValidatorRegistry(specs=specs, filters=registry.filters))
+
+    result = select_result(chain.run(inp=inp))
+    if result is not None:
+        emit(result)
+
+    sys.exit(0)
+
+
 @hook.group(name="plan")
 def plan() -> None:
     """Plan synchronization commands."""

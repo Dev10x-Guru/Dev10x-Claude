@@ -152,6 +152,12 @@ _SPECS: list[ValidatorSpec] = [
         rule_id="DX018",
         profile=ProfileTier.STANDARD,
     ),
+    ValidatorSpec(
+        module_path="dev10x.validators.review_stamp",
+        class_name="ReviewStampValidator",
+        rule_id="DX019",
+        profile=ProfileTier.STANDARD,
+    ),
 ]
 
 

@@ -296,6 +296,7 @@
     "mcp__plugin_dev10x_cli__resolve_gate",
     "mcp__plugin_dev10x_cli__resolve_plugin_origin",
     "mcp__plugin_dev10x_cli__resolve_review_thread",
+    "mcp__plugin_dev10x_cli__review_stamp_write",
     "mcp__plugin_dev10x_cli__rule_confidence_report",
     "mcp__plugin_dev10x_cli__run_node_tests",
     "mcp__plugin_dev10x_cli__run_tests",

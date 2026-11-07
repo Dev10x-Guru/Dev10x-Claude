@@ -1,6 +1,18 @@
 {
-  "description": "Coding hooks: format the edited Python hunk after Edit/Write",
+  "description": "Coding hooks: gate ship tools on a review stamp; format the edited Python hunk after Edit/Write",
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "mcp__plugin_dev10x_cli__merge_pr|mcp__plugin_dev10x_cli__pr_ready|mcp__plugin_dev10x_cli__request_review",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PLUGIN_ROOT/hooks/scripts/audit-wrap validate-ship-gate $CLAUDE_PLUGIN_ROOT/hooks/scripts/validate-ship-gate.py",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Edit|Write",
