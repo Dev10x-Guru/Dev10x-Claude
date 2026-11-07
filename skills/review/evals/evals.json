@@ -35,6 +35,31 @@
       "id": "findings-contract-unchanged",
       "name": "Findings JSON Contract Unchanged (GH-1741)",
       "description": "Merged subagent findings are written in the existing handoff format (severity ERROR/WARNING/INFO, confidence, source, file, line, description, suggested_fix, category) with no added keys, so dev10x:review-fix consumes them unchanged."
+    },
+    {
+      "id": "loop-fresh-reviewers",
+      "name": "Every Loop Round Uses Fresh Reviewers (GH-1831)",
+      "description": "With --loop, each round issues new Agent calls; no round continues an earlier reviewer via SendMessage, and the orchestrator never declares its own fix correct in place of a reviewer round."
+    },
+    {
+      "id": "loop-delta-scope",
+      "name": "Rounds 2+ Review Only the Delta and Its Blast Radius (GH-1831)",
+      "description": "From round 2 on, the reviewed scope is git diff <round_start_sha>..HEAD plus the files referencing symbols that delta changed; files outside it are not re-dispatched."
+    },
+    {
+      "id": "loop-defect-convergence",
+      "name": "Only Defects Keep the Loop Going (GH-1831)",
+      "description": "Findings are classified as defects or polish in the round ledger (not in the findings JSON); a round with zero defects ends the loop as clean even when polish remains, and from round 2 on only defects are sent to dev10x:review-fix."
+    },
+    {
+      "id": "loop-round-cap-escalation",
+      "name": "Hard Stop After Round 4 Escalates (GH-1831)",
+      "description": "When round 4 still yields defects, round 5 never starts on its own: attended mode fires AskUserQuestion with the ledger-derived option first; --unattended resolves shipping_continuation and, on auto-advance, stops with a BLOCKED: review-loop status line, never auto-continuing or auto-shipping."
+    },
+    {
+      "id": "clean-pass-stamp",
+      "name": "Only a Clean Pass Writes the Review Stamp (GH-1830)",
+      "description": "A pass that handed nothing to dev10x:review-fix — a single pass with no ERROR/WARNING finding at confidence >= 70, or a loop round with an empty fix set — calls review_stamp_write; a pass that handed findings to the fixer, skipped findings, or a loop ending on Ship, Stop or a BLOCKED: review-loop line never does."
     }
   ],
   "evals": [
@@ -245,6 +270,260 @@
           "dimension": "parallel-domain-dispatch",
           "check": "behavioral",
           "signal": "app/views.py, which matches no plugin reviewer's Triggers, is reviewed by the orchestrator against references/review-checks-common.md, and the summary says so"
+        }
+      ]
+    },
+    {
+      "id": "loop-round-two-dispatches-fresh-agents-on-delta",
+      "name": "Round 2 re-reviews the fixups with new agents on the delta only",
+      "description": "Round 1 finds a bug in src/dev10x/foo.py; review-fix commits a fixup touching foo.py. Round 2 dispatches new Agent calls covering foo.py and the files referencing the changed function, and nothing else.",
+      "input": "/dev10x:review --unattended --loop (round 1: 1 defect in src/dev10x/foo.py; fixup changes parse_args(); src/dev10x/cli.py calls parse_args)",
+      "assertions": [
+        {
+          "dimension": "loop-fresh-reviewers",
+          "check": "tool_called",
+          "tool": "Agent",
+          "signal": "Round 2 issues new Agent calls; SendMessage is never used to re-engage a round-1 reviewer"
+        },
+        {
+          "dimension": "loop-delta-scope",
+          "check": "behavioral",
+          "signal": "Round 2 Agent prompts inline only src/dev10x/foo.py and src/dev10x/cli.py; untouched branch files from round 1 are not re-dispatched"
+        },
+        {
+          "dimension": "loop-fresh-reviewers",
+          "check": "behavioral",
+          "signal": "The loop does not end on the orchestrator's own judgment that the fix is correct; it ends only on a reviewer round with zero defects"
+        }
+      ]
+    },
+    {
+      "id": "loop-polish-only-round-is-clean",
+      "name": "A round with only polish findings ends the loop",
+      "description": "Round 2 returns two style WARNINGs (confidence 80) and no defect; the loop ends clean without a round 3 and the polish appears in the summary.",
+      "input": "/dev10x:review --unattended --loop (round 2: 2 style WARNING findings, 0 defects)",
+      "assertions": [
+        {
+          "dimension": "loop-defect-convergence",
+          "check": "behavioral",
+          "signal": "No round 3 starts and dev10x:review-fix is not invoked for the round-2 polish; the summary lists both polish findings and reports the loop ended clean"
+        },
+        {
+          "dimension": "findings-contract-unchanged",
+          "check": "behavioral",
+          "signal": "The findings JSON carries no defect/polish key; the classification lives only in the round ledger"
+        },
+        {
+          "dimension": "clean-pass-stamp",
+          "check": "tool_called",
+          "tool": "mcp__plugin_dev10x_cli__review_stamp_write",
+          "signal": "review_stamp_write is called once after the clean round 2"
+        }
+      ]
+    },
+    {
+      "id": "skipped-defects-are-not-clean",
+      "name": "Skipping defects in attended mode writes no stamp",
+      "description": "An attended pass finds 2 ERROR findings and the user picks Skip, or Pick findings with none approved; nothing reaches the fixer, but the pass is not clean.",
+      "input": "/dev10x:review (attended mode, 2 ERROR findings, user picks Skip or approves none under Pick findings)",
+      "assertions": [
+        {
+          "dimension": "clean-pass-stamp",
+          "check": "behavioral",
+          "signal": "mcp__plugin_dev10x_cli__review_stamp_write is never called; the summary lists both findings as open"
+        }
+      ]
+    },
+    {
+      "id": "round-one-polish-is-reviewed-again",
+      "name": "Round-1 polish fixes get a second round",
+      "description": "Round 1 of a loop finds only 2 style WARNINGs (confidence 80) and no defect; they go to the fixer, so round 1 is not clean and round 2 reviews the fixups.",
+      "input": "/dev10x:review --unattended --loop (round 1: 0 defects, 2 polish; round 2: 0 defects)",
+      "assertions": [
+        {
+          "dimension": "loop-defect-convergence",
+          "check": "behavioral",
+          "signal": "Skill(dev10x:review-fix) runs in round 1, round 2 dispatches new Agent calls on the fixup delta, and review_stamp_write is called only after round 2"
+        }
+      ]
+    },
+    {
+      "id": "loop-cap-attended-fires-gate",
+      "name": "Round 4 with open defects fires the escalation gate",
+      "description": "Attended loop with defect counts 5, 3, 2, 1 across rounds 1-4; round 5 does not start until the supervisor answers.",
+      "input": "/dev10x:review --loop (defects per round: 5, 3, 2, 1)",
+      "assertions": [
+        {
+          "dimension": "loop-round-cap-escalation",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "AskUserQuestion fires with 'Continue one more round (Recommended)' first, because the count fell every round, plus 'Ship with open defects listed' and 'Stop and hand back'"
+        },
+        {
+          "dimension": "loop-round-cap-escalation",
+          "check": "plain_text",
+          "signal": "No inline 'still finding issues, keep going?' text substitutes for the widget"
+        },
+        {
+          "dimension": "loop-round-cap-escalation",
+          "check": "behavioral",
+          "signal": "No round-5 Agent call is issued and Skill(dev10x:review-fix) is not invoked for round 4 before the gate resolves"
+        }
+      ]
+    },
+    {
+      "id": "loop-no-commit-ends-blocked",
+      "name": "A fixer that commits nothing ends the loop",
+      "description": "Unattended loop round 2 hands 1 defect to dev10x:review-fix, which makes no commit; with no delta there is nothing to re-review.",
+      "input": "/dev10x:review --unattended --loop (round 2: 1 defect; review-fix creates no commit)",
+      "assertions": [
+        {
+          "dimension": "loop-defect-convergence",
+          "check": "behavioral",
+          "signal": "No round 3 starts; the summary runs and the final line starts with 'BLOCKED: review-loop:' and names the fixer making no commit"
+        },
+        {
+          "dimension": "clean-pass-stamp",
+          "check": "behavioral",
+          "signal": "mcp__plugin_dev10x_cli__review_stamp_write is never called"
+        }
+      ]
+    },
+    {
+      "id": "loop-attended-skip-ends-unstamped",
+      "name": "An attended Skip inside the loop ends it unstamped",
+      "description": "Attended loop round 2 has 1 defect; the user picks Skip at the Step 6 findings gate.",
+      "input": "/dev10x:review --loop (round 2: 1 defect; user picks Skip)",
+      "assertions": [
+        {
+          "dimension": "loop-defect-convergence",
+          "check": "behavioral",
+          "signal": "Skill(dev10x:review-fix) is not invoked for round 2, no round 3 starts, and the summary lists the skipped defect as open"
+        },
+        {
+          "dimension": "clean-pass-stamp",
+          "check": "behavioral",
+          "signal": "mcp__plugin_dev10x_cli__review_stamp_write is never called"
+        }
+      ]
+    },
+    {
+      "id": "loop-partial-pick-blocks-stamp",
+      "name": "A finding left unpicked keeps a later clean round from stamping",
+      "description": "Attended loop round 1 has 2 defects; the user picks one under Pick findings. Round 2 reviews that fix and is clean, but its delta never reaches the declined defect.",
+      "input": "/dev10x:review --loop (round 1: 2 defects, user picks 1; round 2: clean)",
+      "assertions": [
+        {
+          "dimension": "loop-defect-convergence",
+          "check": "behavioral",
+          "signal": "The ledger's declined list names the unpicked defect, and the summary lists it as open"
+        },
+        {
+          "dimension": "clean-pass-stamp",
+          "check": "behavioral",
+          "signal": "mcp__plugin_dev10x_cli__review_stamp_write is never called, although round 2 is clean"
+        }
+      ]
+    },
+    {
+      "id": "loop-fixer-deferred-blocks-stamp",
+      "name": "A finding the fixer deferred keeps a later clean round from stamping",
+      "description": "Unattended loop round 1 has 2 defects; the fixer commits one and reports the other as deferred. Round 2 reviews that commit and is clean, but its delta never reaches the deferred defect.",
+      "input": "/dev10x:review --unattended --loop (round 1: 2 defects, fixer defers 1; round 2: clean)",
+      "assertions": [
+        {
+          "dimension": "loop-defect-convergence",
+          "check": "behavioral",
+          "signal": "The ledger's declined list names the deferred defect, and the summary lists it as open"
+        },
+        {
+          "dimension": "clean-pass-stamp",
+          "check": "behavioral",
+          "signal": "mcp__plugin_dev10x_cli__review_stamp_write is never called, although round 2 is clean"
+        }
+      ]
+    },
+    {
+      "id": "loop-clean-round-gate-with-info-findings",
+      "name": "An attended clean round confirms through the zero-findings gate",
+      "description": "Attended loop round 2 is clean but lists 1 INFO finding and 1 polish finding; the user answers Re-review, and the repeat is clean too.",
+      "input": "/dev10x:review --loop (round 2: clean, 1 INFO, 1 polish; user picks Re-review, then Continue)",
+      "assertions": [
+        {
+          "dimension": "zero-findings-gate",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "The Continue / Re-review gate fires and names the INFO and polish findings; the Fix all / Pick findings / Skip gate does not fire"
+        },
+        {
+          "dimension": "loop-fresh-reviewers",
+          "check": "behavioral",
+          "signal": "Re-review dispatches new Agent calls on round 2's scope and adds no ledger entry"
+        }
+      ]
+    },
+    {
+      "id": "loop-cap-churn-recommends-stop",
+      "name": "A churning loop recommends stopping",
+      "description": "Defect counts 3, 2, 2, 3 across rounds 1-4 are not falling; the gate leads with Stop and hand back.",
+      "input": "/dev10x:review --loop (defects per round: 3, 2, 2, 3)",
+      "assertions": [
+        {
+          "dimension": "loop-round-cap-escalation",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "The first option is 'Stop and hand back (Recommended)'; exactly one option carries (Recommended)"
+        }
+      ]
+    },
+    {
+      "id": "loop-cap-unattended-stops-blocked",
+      "name": "--unattended at the cap stops instead of continuing",
+      "description": "Unattended loop reaches round 4 with open defects and resolve_gate(shipping_continuation) returns auto-advance.",
+      "input": "/dev10x:review --unattended --loop (round 4: 2 defects; resolve_gate returns auto-advance)",
+      "assertions": [
+        {
+          "dimension": "loop-round-cap-escalation",
+          "check": "tool_called",
+          "tool": "mcp__plugin_dev10x_cli__resolve_gate",
+          "signal": "resolve_gate is called with gate=shipping_continuation"
+        },
+        {
+          "dimension": "loop-round-cap-escalation",
+          "check": "behavioral",
+          "signal": "No AskUserQuestion and no round 5; the summary runs and the final line starts with 'BLOCKED: review-loop:'"
+        },
+        {
+          "dimension": "clean-pass-stamp",
+          "check": "behavioral",
+          "signal": "mcp__plugin_dev10x_cli__review_stamp_write is never called"
+        }
+      ]
+    },
+    {
+      "id": "clean-round-writes-stamp",
+      "name": "A clean loop round stamps the reviewed head",
+      "description": "Round 2 of an unattended loop finds no defects; the skill stamps the head before the summary and reports its SHA.",
+      "input": "/dev10x:review --unattended --loop (round 1: 1 defect fixed; round 2: 0 defects)",
+      "assertions": [
+        {
+          "dimension": "clean-pass-stamp",
+          "check": "tool_called",
+          "tool": "mcp__plugin_dev10x_cli__review_stamp_write",
+          "signal": "review_stamp_write is called once, after round 2 and with an absolute cwd; the summary names the returned head_sha"
+        }
+      ]
+    },
+    {
+      "id": "fixed-single-pass-writes-no-stamp",
+      "name": "A single pass that sent findings to the fixer is not clean",
+      "description": "Without --loop, a pass hands 2 defects to dev10x:review-fix; the resulting fixups are unreviewed, so no stamp is written.",
+      "input": "/dev10x:review --unattended (2 ERROR findings, confidence 90)",
+      "assertions": [
+        {
+          "dimension": "clean-pass-stamp",
+          "check": "behavioral",
+          "signal": "Skill(dev10x:review-fix) runs and mcp__plugin_dev10x_cli__review_stamp_write is never called"
         }
       ]
     }

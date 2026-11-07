@@ -28,13 +28,19 @@ fragments:
       type: detailed
       prompt: >
         Self-review the current branch to catch issues before
-        creating the PR. Run with --unattended. Auto-fix all
-        findings. Auto-advance without supervisor gate.
+        creating the PR. Run with --unattended --loop: every round
+        of fixes is re-reviewed by fresh reviewers until a round
+        finds no defects, capped at 4 rounds (GH-1831). Auto-fix
+        findings. Auto-advance without supervisor gate. If the
+        review ends "BLOCKED: review-loop", queue that decision for
+        the supervisor and do not create or advance the PR until
+        it is answered.
       skills: [dev10x:review, dev10x:review-fix]
       modes:
         supervised:
           prompt: >
-            Present findings for approval before auto-fixing.
+            Run with --loop. Present findings for approval before
+            auto-fixing.
     - subject: Simplify post-review changes
       type: detailed
       condition: review-fix-produced-changes
@@ -125,13 +131,23 @@ fragments:
       prompt: >
         Merge the PR after all checks pass. Use the merge
         strategy from project settings (rebase preferred to
-        preserve groomed commit history).
+        preserve groomed commit history). If the DX019 review
+        stamp gate denies, run dev10x:review --unattended --loop
+        on the PR branch, push its fixups via dev10x:git, wait for
+        CI on the new head, then retry. If that review ends
+        "BLOCKED: review-loop", stop and queue the decision for the
+        supervisor. Never disable the rule.
       skills: [dev10x:gh-pr-merge]
       modes:
         solo-maintainer:
           prompt: >
             Solo maintainer — no reviewers to wait for. Merge
-            immediately after marking ready and CI passes.
+            immediately after marking ready and CI passes. If the
+            DX019 review stamp gate denies, run dev10x:review
+            --unattended --loop on the PR branch, push its fixups via
+            dev10x:git, wait for CI on the new head, then retry. If
+            that review ends "BLOCKED: review-loop", stop and queue
+            the decision for the supervisor. Never disable the rule.
       condition: solo-maintainer
     - subject: Verify acceptance criteria
       type: detailed
@@ -240,8 +256,12 @@ fragments:
     - subject: Code review
       type: detailed
       prompt: >
-        Self-review changes to catch issues before pushing.
-        Fix any findings before proceeding.
+        Self-review changes to catch issues before pushing. Run
+        with --unattended --loop so the fixups are re-reviewed by
+        fresh reviewers until a round is clean (GH-1831). If the
+        review ends "BLOCKED: review-loop", queue that decision for
+        the supervisor and do not push or advance the PR until it
+        is answered.
       skills: [dev10x:review, dev10x:review-fix]
     - subject: Commit outstanding changes
       type: detailed
@@ -291,13 +311,23 @@ fragments:
       prompt: >
         Merge the PR after all checks pass. Use the merge
         strategy from project settings (rebase preferred to
-        preserve groomed commit history).
+        preserve groomed commit history). If the DX019 review
+        stamp gate denies, run dev10x:review --unattended --loop
+        on the PR branch, push its fixups via dev10x:git, wait for
+        CI on the new head, then retry. If that review ends
+        "BLOCKED: review-loop", stop and queue the decision for the
+        supervisor. Never disable the rule.
       skills: [dev10x:gh-pr-merge]
       modes:
         solo-maintainer:
           prompt: >
             Solo maintainer — no reviewers to wait for. Merge
-            immediately after marking ready and CI passes.
+            immediately after marking ready and CI passes. If the
+            DX019 review stamp gate denies, run dev10x:review
+            --unattended --loop on the PR branch, push its fixups via
+            dev10x:git, wait for CI on the new head, then retry. If
+            that review ends "BLOCKED: review-loop", stop and queue
+            the decision for the supervisor. Never disable the rule.
       condition: solo-maintainer
     - subject: Verify acceptance criteria
       type: detailed
