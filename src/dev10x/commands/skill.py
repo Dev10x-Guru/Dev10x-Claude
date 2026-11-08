@@ -637,6 +637,13 @@ def _vault_config_or_fail() -> VaultConfig:
     return resolved.value
 
 
+def _echo_unconfigured_skip(*, config: VaultConfig) -> None:
+    """No vault is an answer, not an error: same exit 0 as `config` (GH-1826)."""
+    import json
+
+    click.echo(json.dumps({"path": None, "action": "skipped", "reason": config.reason}))
+
+
 @reflect.command(name="config")
 def reflect_config() -> None:
     """Print the resolved vault, or `configured: false` with the reason."""
@@ -663,7 +670,8 @@ def reflect_index_add(*, folder: str, line: str, seed_listing: bool) -> None:
 
     config = _vault_config_or_fail()
     if not config.configured:
-        fail_json(error=config.reason)
+        _echo_unconfigured_skip(config=config)
+        return
     result = add_index_line(config=config, folder=folder, line=line, seed_listing=seed_listing)
     if isinstance(result, ErrorResult):
         fail_json(error=result)
@@ -696,7 +704,8 @@ def reflect_log_add(*, folder: str, entry: str, day: datetime | None, create: bo
 
     config = _vault_config_or_fail()
     if not config.configured:
-        fail_json(error=config.reason)
+        _echo_unconfigured_skip(config=config)
+        return
     result = add_log_entry(
         config=config,
         folder=folder,

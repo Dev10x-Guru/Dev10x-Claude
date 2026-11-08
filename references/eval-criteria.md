@@ -51,7 +51,7 @@ All evals live in `skills/<feature>/evals/evals.json`:
 
 | Type | Use | Example |
 |------|-----|---------|
-| `output_contains` | Signal appears in skill output | `"signal": "Deploy successful"` |
+| `output_contains` | Text appears in skill output | `"value": "Deploy successful"` (older evals: `"signal"`) |
 | `output_not_contains` | Signal does NOT appear | Verify cleanup happened |
 | `command_contains` | Command was executed | `"signals": ["gh pr create", "--draft"]` |
 | `command_absent` | Command was NOT executed | Verify no destructive operations |
@@ -72,6 +72,10 @@ All evals live in `skills/<feature>/evals/evals.json`:
 | `tool_called` | Tool was invoked | `"signals": ["Agent", "subagent_type"]` |
 | `tool_called_count` | Count of tool calls | Signal format: `"="` or `">"`/`"<"` (e.g., `"=4"`) |
 | `tool_not_called` | Tool was NOT invoked | Verify no unintended delegation |
+| `tool_called_before` | First `signals` token appears before the second | `"signals": ["AskUserQuestion", "Approve"]` |
+
+`references/eval-schema.md` § Check Types is the authoritative table;
+keep the two in step.
 
 ### Behavioral Checks
 

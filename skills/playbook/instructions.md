@@ -309,7 +309,8 @@ projects:
 
 A step entry with `fragment: <name>` is replaced at resolution
 time by the steps from the named fragment. The reference may
-carry a `condition` override that applies to every expanded step.
+carry a `condition` that applies to every expanded step; a step
+with its own `condition` keeps it, joined as `<outer> and <inner>`.
 
 Fragments work in both default playbooks and user override files.
 User overrides can define their own `fragments:` section and
@@ -329,10 +330,11 @@ reference those fragments (or default fragments) in their plays.
 4. Walk the step list; when `fragment: <name>` is found,
    look up the name in the merged fragments map
 5. Copy fragment steps inline, applying `condition` from the
-   reference to each expanded step
+   reference to each expanded step. A step's own `condition` is
+   not replaced: the two join as `<outer> and <inner>`
 6. `subject` and `type` from fragment steps are immutable —
-   only `condition` and `prompt` can be overridden at the
-   reference site
+   only `condition` (joined, see 5) and `prompt` can be set at
+   the reference site
 7. Detect circular references (max depth 3)
 8. Missing fragment → clear error, do not silently skip
 

@@ -15,7 +15,12 @@ from typing import Any
 
 import pytest
 
-from tests.skills.playbook.play_expansion import VERIFY_AC, expand_plays, play_names
+from tests.skills.playbook.play_expansion import (
+    VERIFY_AC,
+    combine_conditions,
+    expand_plays,
+    play_names,
+)
 
 REFLECT = "Reflect lessons into the knowledge vault"
 # No Verify AC step: dev10x:reflect seeds one before it completes, so the
@@ -71,3 +76,28 @@ def test_local_only_reflects_once_per_path(playbook: dict[str, Any]) -> None:
     ]
 
     assert conditions == ["if-pr-decided", "if-no-pr"]
+
+
+@pytest.mark.parametrize(
+    ("outer", "inner", "expected"),
+    [
+        (None, None, None),
+        ("if-pr-decided", None, "if-pr-decided"),
+        (None, "solo-maintainer", "solo-maintainer"),
+        ("if-pr-decided", "solo-maintainer", "if-pr-decided and solo-maintainer"),
+    ],
+)
+def test_reference_and_step_conditions_both_apply(
+    outer: str | None, inner: str | None, expected: str | None
+) -> None:
+    assert combine_conditions(outer=outer, inner=inner) == expected
+
+
+def test_conditioned_step_inside_conditioned_reference_keeps_both(
+    playbook: dict[str, Any],
+) -> None:
+    (merge,) = [
+        step for step in expand_plays(playbook)["local-only"] if step["subject"] == "Merge PR"
+    ]
+
+    assert merge["condition"] == "if-pr-decided and solo-maintainer"

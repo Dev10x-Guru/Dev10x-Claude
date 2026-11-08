@@ -35,7 +35,7 @@ DEFAULT_FOLDERS: dict[str, str] = {
     "patterns": "Patterns",
 }
 
-_MERGED_MAPPINGS = ("folders",)
+_MERGED_MAPPINGS = ("folders", "log_folders")
 
 
 @dataclass(frozen=True)
@@ -47,6 +47,7 @@ class VaultConfig:
     reason: str = ""
     vault: Path | None = None
     folders: dict[str, str] = field(default_factory=dict)
+    log_folders: dict[str, str] = field(default_factory=dict)
     index_note: str = DEFAULT_INDEX_NOTE
     log_note: str = DEFAULT_LOG_NOTE
     rules_note: Path | None = None
@@ -60,12 +61,23 @@ class VaultConfig:
             "source": self.source,
             "vault": str(self.vault) if self.vault else None,
             "folders": dict(self.folders),
+            "log_folders": {
+                kind: self.log_folder(kind=kind) for kind in {**self.folders, **self.log_folders}
+            },
             "index_note": self.index_note,
             "log_note": self.log_note,
             "rules_note": str(self.rules_note) if self.rules_note else None,
             "repo": self.repo,
             "project_status": self.project_status,
         }
+
+    def log_folder(self, *, kind: str) -> str:
+        """The folder whose log records a ``kind`` note; its own folder by default.
+
+        A vault may keep one log for a project folder while retros live in
+        a subfolder (``Project/log.md`` linking ``Project/Retros/<note>``).
+        """
+        return self.log_folders.get(kind, self.folders.get(kind, ""))
 
 
 def _merge(*, base: dict[str, Any], entry: dict[str, Any]) -> dict[str, Any]:
@@ -74,6 +86,12 @@ def _merge(*, base: dict[str, Any], entry: dict[str, Any]) -> dict[str, Any]:
         base_map, entry_map = base.get(key), entry.get(key)
         if isinstance(base_map, dict) and isinstance(entry_map, dict):
             merged[key] = {**base_map, **entry_map}
+    rehomed, logs = entry.get("folders"), merged.get("log_folders")
+    if isinstance(rehomed, dict) and isinstance(logs, dict):
+        own = entry.get("log_folders") or {}
+        merged["log_folders"] = {
+            kind: folder for kind, folder in logs.items() if kind not in rehomed or kind in own
+        }
     return merged
 
 
@@ -116,19 +134,25 @@ def _expand(raw: str) -> Path:
     return Path(os.path.expandvars(os.path.expanduser(raw)))
 
 
-def _folders(raw: Any) -> Result[dict[str, str]]:
-    folders = dict(DEFAULT_FOLDERS)
+def _folders(
+    raw: Any,
+    *,
+    key: str = "folders",
+    defaults: dict[str, str] = DEFAULT_FOLDERS,
+) -> Result[dict[str, str]]:
+    folders = dict(defaults)
     if raw is None:
         return ok(folders)
     if not isinstance(raw, dict):
-        return err("`folders:` must be a mapping of lesson kind to vault-relative folder")
+        return err(f"`{key}:` must be a mapping of lesson kind to vault-relative folder")
     for kind, folder in raw.items():
         if not isinstance(folder, str) or not folder.strip():
-            return err(f"`folders.{kind}` must be a non-empty vault-relative path")
-        confined = confine(vault=Path("/vault"), relative=folder)
+            return err(f"`{key}.{kind}` must be a non-empty vault-relative path")
+        cleaned = folder.strip()
+        confined = confine(vault=Path("/vault"), relative=cleaned)
         if not isinstance(confined, SuccessResult):
-            return err(f"`folders.{kind}`: {confined.error}")
-        folders[str(kind)] = folder.strip().strip("/")
+            return err(f"`{key}.{kind}`: {confined.error}")
+        folders[str(kind)] = cleaned.rstrip("/")
     return ok(folders)
 
 
@@ -223,6 +247,9 @@ def resolve_vault_config(
     folders = _folders(settings.get("folders"))
     if not isinstance(folders, SuccessResult):
         return err(folders.error, source=source)
+    log_folders = _folders(settings.get("log_folders"), key="log_folders", defaults={})
+    if not isinstance(log_folders, SuccessResult):
+        return err(log_folders.error, source=source)
 
     names: dict[str, str] = {}
     for key, default in (("index_note", DEFAULT_INDEX_NOTE), ("log_note", DEFAULT_LOG_NOTE)):
@@ -245,6 +272,7 @@ def resolve_vault_config(
             configured=True,
             vault=vault,
             folders=folders.value,
+            log_folders=log_folders.value,
             index_note=names["index_note"],
             log_note=names["log_note"],
             rules_note=rules_note,

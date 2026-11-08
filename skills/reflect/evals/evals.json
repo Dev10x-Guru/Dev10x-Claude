@@ -43,7 +43,8 @@
         {"dimension": "task-tracking", "check": "tool_called", "tool": "TaskCreate", "signal": "Standalone run: TaskCreate called with subject 'Reflect lessons into the knowledge vault' after TaskList finds none"},
         {"dimension": "config-resolution", "check": "tool_called", "tool": "Bash", "signal": "Runs 'dev10x skill reflect config' before any vault access"},
         {"dimension": "graceful-skip", "check": "output_contains", "value": "Reflection skipped", "signal": "Prints a single 'Reflection skipped: <reason>' line"},
-        {"dimension": "graceful-skip", "check": "behavioral", "value": "no-writes", "signal": "No Write, Edit, index-add or log-add call follows the skip"}
+        {"dimension": "graceful-skip", "check": "behavioral", "value": "no-writes", "signal": "No Write, Edit, index-add or log-add call follows the skip"},
+        {"dimension": "graceful-skip", "check": "behavioral", "value": "cli-skip-exit-zero", "signal": "If index-add or log-add runs anyway, it exits 0 with action 'skipped', the same contract as config"}
       ]
     },
     {
@@ -73,11 +74,12 @@
     {
       "id": "final-play-step-keeps-verify-ac-open",
       "name": "Final play step leaves Verify AC open",
-      "description": "Invoked as a play's last step after dev10x:verify-acc-dod reported; Verify acceptance criteria is still pending.",
+      "description": "Invoked as a play's last step after dev10x:verify-acc-dod reported; Verify acceptance criteria is still pending. The order relative to Verify AC is set by the play (tests/skills/playbook/test_session_reflection_step.py), not observable in one skill run, so this eval checks only that Verify AC is left open.",
       "input": "Skill(dev10x:reflect)",
       "setup": {"open_tasks": ["Verify acceptance criteria", "Reflect lessons into the knowledge vault"]},
       "assertions": [
         {"dimension": "task-list-invariant", "check": "behavioral", "value": "verify-ac-untouched", "signal": "No TaskUpdate marks the Verify acceptance criteria task completed or deleted"},
+        {"dimension": "task-list-invariant", "check": "task_exists", "value": "Verify acceptance criteria", "signal": "'Verify acceptance criteria' is still open when the run ends"},
         {"dimension": "task-tracking", "check": "behavioral", "value": "reuses-play-task", "signal": "No TaskCreate for a reflect task: the existing 'Reflect lessons into the knowledge vault' task is set in_progress and then completed"},
         {"dimension": "task-tracking", "check": "tool_called", "tool": "TaskUpdate", "signal": "The play's 'Reflect lessons into the knowledge vault' task is marked completed before the turn ends"}
       ]
@@ -89,7 +91,8 @@
       "input": "Skill(dev10x:reflect)",
       "setup": {"open_tasks": ["Reflect lessons into the knowledge vault"]},
       "assertions": [
-        {"dimension": "task-list-invariant", "check": "task_exists", "value": "Verify acceptance criteria", "signal": "TaskCreate for 'Verify acceptance criteria' happens before the reflect task is completed"}
+        {"dimension": "task-list-invariant", "check": "tool_called_before", "signals": ["TaskCreate(subject=\"Verify acceptance criteria\"", "status=\"completed\""], "signal": "TaskCreate for 'Verify acceptance criteria' happens before the TaskUpdate that completes the reflect task; tokens name the two events because the startup TaskUpdate(status=\"in_progress\") precedes both"},
+        {"dimension": "task-list-invariant", "check": "task_exists", "value": "Verify acceptance criteria", "signal": "'Verify acceptance criteria' is still open when the run ends"}
       ]
     }
   ],

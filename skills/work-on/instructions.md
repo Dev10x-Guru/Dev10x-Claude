@@ -798,10 +798,13 @@ resolution algorithm needs.
    user override file's `fragments` map, then in the default
    playbook's `fragments` map (user fragments shadow defaults).
    Replace the reference with the fragment's steps, applying
-   any `condition` override from the reference to each expanded
+   any `condition` from the reference to each expanded
    step. A fragment may itself reference a fragment (the shipping
    fragments end with `- fragment: session-reflection`); expand
-   recursively and carry the outer `condition` inward. Error on
+   recursively and carry the outer `condition` inward. A step
+   that has its own `condition` keeps it: the two join as
+   `<outer> and <inner>` (e.g. `if-pr-decided and
+   solo-maintainer`), so neither one is dropped. Error on
    missing fragments; detect circular refs (max depth 3).
 6. **Apply active modes:** Read the resolved `active_modes` — the
    matching `projects[]` entry of `~/.config/Dev10x/friction.yaml`,

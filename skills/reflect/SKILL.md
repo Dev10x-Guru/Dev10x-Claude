@@ -68,8 +68,8 @@ uvx dev10x skill reflect config
   complete the task and stop; the config file has a typo the user
   should fix (`references/configuration.md`). A broken config must not
   hold the plan open.
-- Otherwise keep `vault`, `folders`, `index_note`, `log_note` and
-  `rules_note`. When `rules_note` is set, Read it before writing: the
+- Otherwise keep `vault`, `folders`, `log_folders`, `index_note`,
+  `log_note` and `rules_note`. When `rules_note` is set, Read it before writing: the
   vault's own conventions (front matter, naming) win over the template.
 
 ## Step 1: Answer the reflection prompt
@@ -139,11 +139,15 @@ Write or Edit them directly; the CLI locks, re-reads and is idempotent:
 
 ```bash
 uvx dev10x skill reflect index-add --folder "<folder>" --line "- [[<Note>]] — <one line>" --seed-listing
-uvx dev10x skill reflect log-add --folder "<folder>" --entry "<Retro|Pattern>: [[<Note>]] — <one line>"
+uvx dev10x skill reflect log-add --folder "<log folder>" --entry "<Retro|Pattern>: [[<Note>]] — <one line>"
 ```
 
+`<log folder>` is `log_folders[<kind>]` from Step 0 — the note's own
+folder unless the vault keeps one log higher up. Both commands reuse
+the list marker the note already has, so pass `- ` regardless.
 `log-add` reports `skipped` for a folder without a log note; pass
-`--create` only when the vault's conventions call for one. Check every
+`--create` only when the vault's conventions call for one. A
+symlinked index or log note is refused, not followed. Check every
 link you wrote resolves to a real note.
 
 ## Step 5b: Agent memory

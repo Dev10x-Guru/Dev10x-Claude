@@ -60,7 +60,8 @@ version: "0.116.0.dev0"
 # time. The reference may carry `condition` or `prompt` overrides that
 # apply to every expanded step. A fragment may reference another fragment
 # (expanded recursively, max depth 3); the outer reference's `condition`
-# reaches the inner steps too.
+# reaches the inner steps too. A step with its own `condition` keeps both:
+# they join as `<outer> and <inner>`, so neither side wins (GH-1826).
 #
 # Terminal convention (GH-149, GH-1822): every default play ends with
 # the `session-reflection` fragment (dev10x:reflect), placed right after
