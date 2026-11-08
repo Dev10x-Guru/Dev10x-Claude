@@ -182,10 +182,14 @@ async def wait_for(
         cwd: Effective working directory (GH-979).
 
     Returns:
-        ``met``, ``timed_out``, ``observed`` (what the last probe saw),
-        ``polls``, ``elapsed``, ``timeout``, ``timeout_requested`` and
-        ``clamped``. Never an exit code: a condition that did not hold is
-        ``met: false``, not an error.
+        ``met``, ``timed_out``, ``unreachable``, ``observed`` (what the
+        last probe saw), ``polls``, ``elapsed``, ``timeout``,
+        ``timeout_requested`` and ``clamped``. Never an exit code: a
+        condition that did not hold is ``met: false``, not an error.
+        ``unreachable: true`` means the probe could never succeed (no
+        ``pgrep``, a pattern ``pgrep`` rejects, a target that is not a
+        readable regular file) and the wait ended early (GH-1852); a
+        refused HTTP connection keeps waiting.
     """
     from dev10x.coding.monitor import wait_for as wf
     from dev10x.subprocess_utils import use_cwd
