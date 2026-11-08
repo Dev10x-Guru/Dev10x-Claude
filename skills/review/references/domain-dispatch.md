@@ -68,6 +68,10 @@ Agent(
     Review only the changed lines and what they break; issues in
     untouched code are out of scope. Do not edit files.
 
+    If a hook blocks a command, use the sanctioned tool or stop and
+    end with `BLOCKED: <denied command>` — never DONE on a partial
+    review. Never work around it.
+
     {status-line block from
      references/orchestration/subagent-status-protocol.md
      § Prompt template — DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT /

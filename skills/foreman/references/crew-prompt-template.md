@@ -61,6 +61,11 @@ here, use the paired shape — or report and STOP.
 Note what half of these are: the fallback our own docs name. A
 fallback fires when your wrappers are gone — which is exactly when it
 prompts. Losing a tool means REPORT, never improvise a shape.
+
+If a hook blocks a command, use the sanctioned tool, or Write
+`- <UTC timestamp> BLOCKED: hook denied <command>` (timestamp from
+`date -u`) as your last status line and stop. Never work around it,
+and never mark it DONE — the stall alarm is how the overseer finds you.
 ```
 
 ## 2b. Tool-surface bootstrap (immediately after the fatal-shapes block)

@@ -112,7 +112,10 @@ Prefer:
 Your tool surface is pre-seeded — the tools you need are already
 allowed. Use them. Do NOT ask to "switch to auto mode" or disable
 permission prompts to escape a blocked command (GH-310 footgun). If a
-command is blocked, switch to the wrapper / structured tool named above.
+hook blocks a command, use the sanctioned tool or stop and report.
+Never work around it — running the same thing another way (a
+formatter through `node` after `npx` was denied, a hand-rolled harness
+in place of the skill that owns the job) voids the guard (GH-1835).
 <!-- END PREAMBLE -->
 
 ## Pre-seed (dispatcher responsibility)
