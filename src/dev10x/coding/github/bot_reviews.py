@@ -36,24 +36,27 @@ KIND_COMMENT = "comment"
 _BASIS = {KIND_REVIEW: "sha", KIND_COMMENT: "timestamp"}
 
 
+PR_FIELDS = (
+    "isDraft headRefOid "
+    "commits(last: 1) { nodes { commit { oid committedDate "
+    "checkSuites(first: 20) { nodes { createdAt } } } } } "
+    "timelineItems(last: 20, itemTypes: [HEAD_REF_FORCE_PUSHED_EVENT]) { nodes { "
+    "... on HeadRefForcePushedEvent { createdAt afterCommit { oid } } } } "
+    "reviews(last: 100) { pageInfo { hasPreviousPage } nodes { "
+    "author { __typename login } state body submittedAt commit { oid } } } "
+    "reviewThreads(first: 100) { pageInfo { hasNextPage } nodes { isResolved "
+    "first: comments(first: 1) { nodes { author { __typename login } createdAt } } "
+    "last: comments(last: 1) { nodes { createdAt } } } } "
+    "comments(last: 100) { pageInfo { hasPreviousPage } "
+    "nodes { author { __typename login } createdAt } } "
+)
+
+
 def _query(*, owner: str, name: str, pr_number: int) -> str:
     return (
         "query { "
         f"repository(owner: {json.dumps(owner)}, name: {json.dumps(name)}) "
-        f"{{ pullRequest(number: {pr_number}) {{ "
-        "isDraft headRefOid "
-        "commits(last: 1) { nodes { commit { oid committedDate "
-        "checkSuites(first: 20) { nodes { createdAt } } } } } "
-        "timelineItems(last: 20, itemTypes: [HEAD_REF_FORCE_PUSHED_EVENT]) { nodes { "
-        "... on HeadRefForcePushedEvent { createdAt afterCommit { oid } } } } "
-        "reviews(last: 100) { pageInfo { hasPreviousPage } nodes { "
-        "author { __typename login } state body submittedAt commit { oid } } } "
-        "reviewThreads(first: 100) { pageInfo { hasNextPage } nodes { isResolved "
-        "first: comments(first: 1) { nodes { author { __typename login } createdAt } } "
-        "last: comments(last: 1) { nodes { createdAt } } } } "
-        "comments(last: 100) { pageInfo { hasPreviousPage } "
-        "nodes { author { __typename login } createdAt } } "
-        "} } }"
+        f"{{ pullRequest(number: {pr_number}) {{ {PR_FIELDS}}} }} }}"
     )
 
 
