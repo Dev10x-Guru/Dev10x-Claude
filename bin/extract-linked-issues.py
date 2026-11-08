@@ -18,6 +18,10 @@ shapes are covered by a regression test rather than by a merge.
 
 Reads the body on stdin, writes one `<owner>/<repo>#<number>` line per
 reference to stdout, deduplicated and in first-seen order.
+
+With `--explicit-none` it instead prints the reason carried by a
+`Fixes: none — <reason>` trailer, or nothing when the body has none
+(GH-1819).
 """
 
 from __future__ import annotations
@@ -72,16 +76,53 @@ def extract(*, body: str, repo: str) -> list[str]:
     return found
 
 
+# `Fixes: none — part of #N` / `Fixes: none — self-motivated` is the
+# documented way to say "this PR closes nothing" (GH-1604). It must be
+# its own line so prose that merely quotes the trailer does not count,
+# and it must carry a reason, or it would silence GH-1196 for free.
+# Matching one stripped line at a time keeps CRLF bodies (github.com
+# saves those) working and the match linear on a hostile 64 KB body.
+_EXPLICIT_NONE = re.compile(
+    r"fixes:[ \t]*none(?![\w-])[ \t]*[-–—]+(?P<reason>.*)",
+    re.IGNORECASE,
+)
+
+
+def explicit_none_reason(*, body: str) -> str | None:
+    """Return the reason of a `Fixes: none — <reason>` line, else None."""
+    for line in body.splitlines():
+        match = _EXPLICIT_NONE.fullmatch(line.strip())
+        if match is None:
+            continue
+        reason = match.group("reason").strip()
+        if reason:
+            return reason
+    return None
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--repo",
-        required=True,
         help="owner/repo that bare GH-N / #N references resolve against",
     )
+    parser.add_argument(
+        "--explicit-none",
+        action="store_true",
+        help="print the reason of a `Fixes: none — <reason>` trailer instead",
+    )
     args = parser.parse_args()
+    if not args.explicit_none and not args.repo:
+        parser.error("--repo is required unless --explicit-none is given")
 
-    for ref in extract(body=sys.stdin.read(), repo=args.repo):
+    body = sys.stdin.read()
+    if args.explicit_none:
+        reason = explicit_none_reason(body=body)
+        if reason is not None:
+            print(reason)
+        return 0
+
+    for ref in extract(body=body, repo=args.repo):
         print(ref)
     return 0
 

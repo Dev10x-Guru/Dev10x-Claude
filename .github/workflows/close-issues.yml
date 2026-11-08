@@ -39,10 +39,22 @@ jobs:
           # constituents -- GitHub's native auto-close fires on a merge to
           # the *default* branch, and this repo merges to `develop`. So
           # "found nothing" must be loud, not a green check.
+          #
+          # GH-1819: the exception is a body that SAYS it closes nothing.
+          # `Fixes: none — part of #N` is the sanctioned partial-delivery
+          # trailer; failing it turned every correctly scoped partial PR
+          # red. A body with no `Fixes:` line at all still fails below.
           if [ -z "$refs" ]; then
+            reason=$(printf '%s' "$PR_BODY" \
+              | ./bin/extract-linked-issues.py --explicit-none)
+            if [ -n "$reason" ]; then
+              echo "::notice::PR declares 'Fixes: none' ($reason); nothing to close."
+              exit 0
+            fi
             echo "::error::No closable issue references found in the PR body."
             echo "Recognised shapes: 'Fixes: GH-123', 'Fixes: #123',"
             echo "'Closes #123', 'Resolves #123', and full issue URLs."
+            echo "A PR that closes nothing declares 'Fixes: none — <reason>'."
             exit 1
           fi
 

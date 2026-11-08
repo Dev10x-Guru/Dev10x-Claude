@@ -9,6 +9,7 @@ uses matched nothing. Every shape below is one a real PR body has used.
 from __future__ import annotations
 
 import importlib.util
+import io
 from pathlib import Path
 
 import pytest
@@ -22,8 +23,10 @@ extract_linked_issues = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(extract_linked_issues)
 
 extract = extract_linked_issues.extract
+explicit_none_reason = extract_linked_issues.explicit_none_reason
 
 REPO = "Dev10x-Guru/Dev10x-Claude"
+_WORKFLOW = _REPO_ROOT / ".github" / "workflows" / "close-issues.yml"
 
 
 class TestBareForms:
@@ -106,3 +109,125 @@ class TestMixedAndDegenerate:
         # The caller treats an empty result as a failure, not a no-op --
         # a bare mention must not be enough to close someone's issue.
         assert extract(body=body, repo=REPO) == []
+
+
+_PARTIAL_DELIVERY_BODY = "\n".join(
+    [
+        "**When** a maintainer lands one slice of #909 ...",
+        "",
+        "Fixes: none — part of #909",
+    ]
+)
+
+
+class TestExplicitNone:
+    """GH-1819: `Fixes: none — <reason>` is a deliberate no-op, not a gap."""
+
+    @pytest.mark.parametrize(
+        ("body", "expected"),
+        [
+            (_PARTIAL_DELIVERY_BODY, "part of #909"),
+            ("Fixes: none — self-motivated", "self-motivated"),
+            ("Fixes: none -- self-motivated", "self-motivated"),
+            ("Fixes: none - self-motivated", "self-motivated"),
+            ("fixes: NONE – part of #12", "part of #12"),
+            ("Fixes: none—part of #12", "part of #12"),
+            ("Story.\n\n  Fixes: none — part of #909  \n", "part of #909"),
+            ("Story.\r\n\r\nFixes: none — part of #909\r\n", "part of #909"),
+            ("Fixes: none —\nFixes: none — part of #909", "part of #909"),
+        ],
+    )
+    def test_explicit_none_trailer_reports_its_reason(
+        self,
+        body: str,
+        expected: str,
+    ) -> None:
+        assert explicit_none_reason(body=body) == expected
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            "",
+            "A body with no references at all.",
+            "Fixes: GH-42",
+            "Fixes: nonexistent-thing",
+            "Fixes: none-yet",
+            "Fixes: none of the above",
+            "Fixes: none",
+            "Fixes: none —",
+            "Story.\r\n\r\nFixes: none\r\n",
+            "Fixes: none —   \r\n",
+            "We considered Fixes: none — but rejected it.",
+            "Fixes: none" + " " * 60_000 + "x",
+        ],
+    )
+    def test_body_without_explicit_none_reports_nothing(self, body: str) -> None:
+        assert explicit_none_reason(body=body) is None
+
+    def test_partial_delivery_body_closes_nothing(self) -> None:
+        # The parent named after `part of` must stay open -- that is the
+        # trailer's whole purpose.
+        assert extract(body=_PARTIAL_DELIVERY_BODY, repo=REPO) == []
+
+
+class TestCli:
+    @pytest.mark.parametrize(
+        ("argv", "body", "expected"),
+        [
+            (["--repo", REPO], "Fixes: GH-7\n", f"{REPO}#7\n"),
+            (["--repo", REPO], _PARTIAL_DELIVERY_BODY, ""),
+            (["--explicit-none"], _PARTIAL_DELIVERY_BODY, "part of #909\n"),
+            (["--explicit-none"], "Fixes: GH-7\n", ""),
+        ],
+    )
+    def test_main_prints_one_mode_per_flag(
+        self,
+        argv: list[str],
+        body: str,
+        expected: str,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        monkeypatch.setattr("sys.argv", ["extract-linked-issues.py", *argv])
+        monkeypatch.setattr("sys.stdin", io.StringIO(body))
+
+        assert extract_linked_issues.main() == 0
+        assert capsys.readouterr().out == expected
+
+    def test_main_requires_repo_unless_explicit_none(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr("sys.argv", ["extract-linked-issues.py"])
+        monkeypatch.setattr("sys.stdin", io.StringIO("Fixes: GH-7\n"))
+
+        with pytest.raises(SystemExit):
+            extract_linked_issues.main()
+
+
+class TestWorkflowWiring:
+    """The workflow must consult the explicit-none mode before failing."""
+
+    @pytest.fixture
+    def empty_refs_block(self) -> str:
+        text = _WORKFLOW.read_text(encoding="utf-8")
+        start = text.index('if [ -z "$refs" ]; then')
+        end = text.index("\n          fi\n", start)
+        return text[start:end]
+
+    def test_only_a_declared_reason_exits_green_before_the_loud_failure(
+        self,
+        empty_refs_block: str,
+    ) -> None:
+        markers = [
+            "--explicit-none",
+            'if [ -n "$reason" ]; then',
+            "exit 0",
+            "\n            fi\n",
+            "::error::",
+            "exit 1",
+        ]
+
+        positions = [empty_refs_block.index(marker) for marker in markers]
+
+        assert positions == sorted(positions)
