@@ -6,6 +6,7 @@ import json
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import pytest
 from dev10x.domain.dev10x_paths import CONFIG_HOME_ENV_VAR, Dev10xConfigDir
@@ -82,6 +83,31 @@ HERDR_AGENTS = {
         ]
     },
 }
+
+
+class RecordingSender:
+    """Stands in for `herdr agent prompt` / `send-keys`: records calls, optionally fails."""
+
+    def __init__(self, *, error: Exception | None = None) -> None:
+        self.calls: list[dict[str, Any]] = []
+        self.error = error
+
+    def __call__(self, **kwargs: Any) -> None:
+        self.calls.append(kwargs)
+        if self.error:
+            raise self.error
+
+
+@pytest.fixture
+def log_path(tmp_path: Path) -> Path:
+    return tmp_path / "actions.jsonl"
+
+
+@pytest.fixture
+def unwritable_log_path(tmp_path: Path) -> Path:
+    blocker = tmp_path / "blocker"
+    blocker.write_text("", encoding="utf-8")
+    return blocker / "actions.jsonl"
 
 
 @pytest.fixture

@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
-from typing import Any
 
 import pytest
 
@@ -23,22 +23,7 @@ from dev10x.comm.overwatch.delivery import (
 )
 from dev10x.comm.overwatch.probes import ProbeError
 from dev10x.comm.skills.bus.maildir import read_message
-
-
-class RecordingSender:
-    def __init__(self, *, error: Exception | None = None) -> None:
-        self.calls: list[dict[str, Any]] = []
-        self.error = error
-
-    def __call__(self, **kwargs: Any) -> None:
-        self.calls.append(kwargs)
-        if self.error:
-            raise self.error
-
-
-@pytest.fixture
-def log_path(tmp_path: Path) -> Path:
-    return tmp_path / "actions.jsonl"
+from tests.comm.overwatch.conftest import RecordingSender
 
 
 @pytest.mark.parametrize(("index", "keys"), [(0, ["1"]), (2, ["3"])])
@@ -80,6 +65,22 @@ class TestDeliverKeys:
 
         assert not log_path.exists()
 
+    def test_a_failed_log_does_not_undo_the_send(
+        self, unwritable_log_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        sender = RecordingSender()
+
+        with caplog.at_level(logging.WARNING, logger="dev10x.comm.overwatch.delivery"):
+            deliver_keys(
+                pane_id="w3:p1",
+                keys=["1"],
+                confirmed_by="janusz",
+                log_path=unwritable_log_path,
+                sender=sender,
+            )
+
+        assert (len(sender.calls), "could not record" in caplog.text) == (1, True)
+
 
 class TestDeliverPrompt:
     def test_logs_after_send(self, log_path: Path) -> None:
@@ -112,6 +113,25 @@ class TestDeliverPrompt:
             )
 
         assert not log_path.exists()
+
+    def test_a_failed_log_does_not_undo_the_send(
+        self, unwritable_log_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        sender = RecordingSender()
+
+        with caplog.at_level(logging.WARNING, logger="dev10x.comm.overwatch.delivery"):
+            deliver_prompt(
+                pane_id="w7:p1",
+                text="/dev10x:overwatch relay",
+                confirmed_by="daemon-boot",
+                log_path=unwritable_log_path,
+                sender=sender,
+            )
+
+        assert (sender.calls, "w7:p1" in caplog.text) == (
+            [{"pane_id": "w7:p1", "text": "/dev10x:overwatch relay"}],
+            True,
+        )
 
 
 class TestRequestPreapproval:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
@@ -10,6 +11,8 @@ from typing import Any
 from dev10x.comm.overwatch.probes import send_keys, submit_prompt
 from dev10x.comm.skills.bus.maildir import Envelope, send
 from dev10x.domain.file_locks import atomic_append_line
+
+log = logging.getLogger(__name__)
 
 PREAPPROVE_SCOPES = ("worktree", "repo-checkouts", "user-global", "dev10x-catalog")
 RELAY_MAILBOX = "overwatch-relay"
@@ -39,6 +42,33 @@ def log_action(
     atomic_append_line(log_path, json.dumps(record))
 
 
+def log_sent(
+    *,
+    log_path: Path,
+    action: str,
+    target: str,
+    detail: str,
+    confirmed_by: str,
+) -> None:
+    """Record an input that already reached the pane; a failed record must not undo it."""
+    try:
+        log_action(
+            log_path=log_path,
+            action=action,
+            target=target,
+            detail=detail,
+            confirmed_by=confirmed_by,
+        )
+    except OSError as exc:
+        log.warning(
+            "overwatch sent %s to %s but could not record it in %s: %s",
+            action,
+            target,
+            log_path,
+            exc,
+        )
+
+
 def deliver_keys(
     *,
     pane_id: str,
@@ -48,7 +78,7 @@ def deliver_keys(
     sender: Callable[..., None] = send_keys,
 ) -> None:
     sender(pane_id=pane_id, keys=keys)
-    log_action(
+    log_sent(
         log_path=log_path,
         action="keys",
         target=pane_id,
@@ -66,7 +96,7 @@ def deliver_prompt(
     sender: Callable[..., None] = submit_prompt,
 ) -> None:
     sender(pane_id=pane_id, text=text)
-    log_action(
+    log_sent(
         log_path=log_path,
         action="prompt",
         target=pane_id,
