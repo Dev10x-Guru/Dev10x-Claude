@@ -21,7 +21,7 @@ pr_wait_module = importlib.import_module("dev10x.coding.monitor.pr_wait")
 polling_module = importlib.import_module("dev10x.core.domain.polling")
 
 PULL = "repos/owner/repo/pulls/7"
-REVIEWS = f"{PULL}/reviews?per_page=100&page="
+REVIEWS = f"{PULL}/reviews?per_page=100"
 HEAD = "a" * 40
 NEW_HEAD = "b" * 40
 
@@ -59,8 +59,8 @@ class Responder:
     async def __call__(self, endpoint: str, **_: Any) -> Any:
         self.calls.append(endpoint)
         if endpoint.startswith(REVIEWS):
-            page = int(endpoint.rsplit("=", 1)[1])
-            return self.review_pages[page - 1]
+            _, _, page = endpoint.partition("&page=")
+            return self.review_pages[int(page or 1) - 1]
         return self.pulls.pop(0) if len(self.pulls) > 1 else self.pulls[0]
 
 
@@ -382,14 +382,15 @@ class TestProbeErrors:
         assert "more than 1000 reviews" in result.error
 
     @pytest.mark.asyncio
-    async def test_non_list_reviews_payload_counts_as_none(self) -> None:
+    async def test_non_list_reviews_payload_is_an_error(self) -> None:
         result = await _wait(
             responder=Responder(pulls=[_pull()], reviews=_completed(stdout="{}")),
             until="approved",
             max_polls=1,
         )
 
-        assert result.value["met"] is False
+        assert isinstance(result, ErrorResult)
+        assert "unexpected reviews for PR 7 shape" in result.error
 
 
 class TestValidation:

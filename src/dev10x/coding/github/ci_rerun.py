@@ -29,10 +29,9 @@ MAX_RUN_ATTEMPTS = 3
 #: failing suites cannot fan out into a burst of POSTs.
 MAX_RETRIES_PER_CALL = 10
 
-#: GitHub's page size cap, and how many pages a listing may follow before
-#: it is reported as ``truncated`` rather than silently cut short.
-PAGE_SIZE = 100
-MAX_LISTING_PAGES = 10
+#: Re-exported from the Gateway, which owns paging (GH-1852).
+PAGE_SIZE = _gateway.PAGE_SIZE
+MAX_LISTING_PAGES = _gateway.MAX_LISTING_PAGES
 
 _ATTEMPTS_FILENAME = "ci-rerun-attempts.json"
 
@@ -41,34 +40,6 @@ _FAILED_CONCLUSIONS = frozenset(
 )
 _ACTIONS_APP_SLUG = "github-actions"
 _SHA_PATTERN = re.compile(r"[0-9a-f]{7,40}", re.IGNORECASE)
-
-
-def _items(*, raw: str, key: str) -> Result[list[dict[str, Any]]]:
-    try:
-        payload = json.loads(raw)
-    except json.JSONDecodeError:
-        return err(f"could not parse the '{key}' listing as JSON")
-    items = payload.get(key) if isinstance(payload, dict) else None
-    if not isinstance(items, list):
-        return err(f"unexpected '{key}' listing shape from GitHub")
-    return ok([item for item in items if isinstance(item, dict)])
-
-
-async def _list_all(*, endpoint: str, key: str, repo: str) -> Result[tuple[list[dict], bool]]:
-    """Every item of a paged listing, and whether the page ceiling cut it."""
-    items: list[dict[str, Any]] = []
-    for page in range(1, MAX_LISTING_PAGES + 1):
-        paged = endpoint if page == 1 else f"{endpoint}&page={page}"
-        result = await _gateway._gh_api_raw(paged, repo=repo)
-        if result.returncode != 0:
-            return err(result.stderr.strip())
-        page_items = _items(raw=result.stdout, key=key)
-        if isinstance(page_items, ErrorResult):
-            return page_items
-        items.extend(page_items.value)
-        if len(page_items.value) < PAGE_SIZE:
-            return ok((items, False))
-    return ok((items, True))
 
 
 def attempts_path() -> Path:
@@ -187,22 +158,24 @@ async def ci_rerun(
     if not _SHA_PATTERN.fullmatch(sha):
         return err(f"head_sha must be 7-40 hex characters, got {sha!r}")
 
-    suites = await _list_all(
-        endpoint=f"repos/{resolved_repo}/commits/{sha}/check-suites?per_page={PAGE_SIZE}",
+    suites = await _gateway._gh_api_paginated(
+        f"repos/{resolved_repo}/commits/{sha}/check-suites",
         key="check_suites",
+        label="'check_suites' listing",
         repo=resolved_repo,
     )
     if isinstance(suites, ErrorResult):
         return suites
-    runs = await _list_all(
-        endpoint=f"repos/{resolved_repo}/actions/runs?head_sha={sha}&per_page={PAGE_SIZE}",
+    runs = await _gateway._gh_api_paginated(
+        f"repos/{resolved_repo}/actions/runs?head_sha={sha}",
         key="workflow_runs",
+        label="'workflow_runs' listing",
         repo=resolved_repo,
     )
     if isinstance(runs, ErrorResult):
         return runs
-    suite_list, suites_truncated = suites.value
-    run_list, runs_truncated = runs.value
+    suite_list, suites_truncated = list(suites.value.items), suites.value.truncated
+    run_list, runs_truncated = list(runs.value.items), runs.value.truncated
 
     runs_by_suite = {run.get("check_suite_id"): run for run in run_list}
     attempt_key = _attempt_key(repo=resolved_repo, pr_number=pr_number, sha=sha)
