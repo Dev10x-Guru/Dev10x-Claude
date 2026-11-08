@@ -8,6 +8,7 @@ entry points (`write_safety_keys_to_file`, `ensure_safety_keys`).
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -15,6 +16,9 @@ from dev10x.domain.common.result import ErrorResult, SuccessResult
 
 from dev10x.skills.permission import catalog_write
 from dev10x.skills.permission import safety_keys as mod
+
+OPT_OUT_YAML = "safety_keys:\n  - disableBypassPermissionsMode\n"
+WritePolicy = Callable[[str | bytes], Path]
 
 
 @pytest.fixture(autouse=True)
@@ -212,7 +216,7 @@ class TestEnsureSafetyKeys:
         result = mod.ensure_safety_keys(settings_files=[path], dry_run=False, quiet=False)
 
         assert result["total_added"] == 0
-        assert any("already carry both safety keys" in m for m in result["messages"])
+        assert any("already carry every enforced safety key" in m for m in result["messages"])
 
     def test_surfaces_invalid_json_as_an_error_not_silent_skip(self, tmp_path: Path) -> None:
         path = tmp_path / "settings.local.json"
@@ -313,3 +317,140 @@ class TestSafetyKeysGap:
         result = mod.safety_keys_gap(settings_files=[path], quiet=True)
 
         assert not any(str(path) in m for m in result["messages"])
+
+
+class TestLoadSafetyKeyPolicy:
+    """GH-1856: `safety-keys.yaml` decides whether disableAutoMode is a floor."""
+
+    def test_no_file_enforces_both_keys(self) -> None:
+        policy = mod.load_safety_key_policy()
+
+        assert policy.keys == mod.SAFETY_KEYS
+        assert policy.opted_out == ()
+        assert policy.messages() == []
+
+    def test_opt_out_drops_disable_auto_mode(self, write_safety_key_policy: WritePolicy) -> None:
+        path = write_safety_key_policy(OPT_OUT_YAML)
+
+        policy = mod.load_safety_key_policy()
+
+        assert policy.keys == ("disableBypassPermissionsMode",)
+        assert policy.opted_out == ("disableAutoMode",)
+        assert policy.messages() == [f"Not enforced (opted out in {path}): disableAutoMode"]
+
+    def test_listing_both_keys_enforces_both(self, write_safety_key_policy: WritePolicy) -> None:
+        write_safety_key_policy("safety_keys: [disableAutoMode, disableBypassPermissionsMode]\n")
+
+        assert mod.load_safety_key_policy().keys == mod.SAFETY_KEYS
+
+    @pytest.mark.parametrize("content", ["", "other_setting: 1\n"])
+    def test_file_without_the_key_keeps_the_default(
+        self, content: str, write_safety_key_policy: WritePolicy
+    ) -> None:
+        write_safety_key_policy(content)
+
+        policy = mod.load_safety_key_policy()
+
+        assert policy.keys == mod.SAFETY_KEYS
+        assert policy.warnings == ()
+
+    def test_bypass_mode_stays_enforced_when_left_out(
+        self, write_safety_key_policy: WritePolicy
+    ) -> None:
+        write_safety_key_policy("safety_keys: []\n")
+
+        policy = mod.load_safety_key_policy()
+
+        assert policy.keys == ("disableBypassPermissionsMode",)
+        assert "fixed floor" in policy.warnings[0]
+        assert policy.messages()[0].startswith("WARNING: ")
+
+    @pytest.mark.parametrize(
+        ("content", "problem"),
+        [
+            ("- disableBypassPermissionsMode\n", "expected a mapping"),
+            ("safety_keys: disableBypassPermissionsMode\n", "must be a list"),
+            ("safety_keys: [1]\n", "must be a list"),
+            ("safety_keys: [disableAutoMod]\n", "unknown safety key"),
+            ("safety_keys: [unclosed\n", "unreadable"),
+            (b"safety_keys: [\xff\xfe]\n", "unreadable"),
+        ],
+    )
+    def test_malformed_config_enforces_every_key(
+        self,
+        content: str | bytes,
+        problem: str,
+        write_safety_key_policy: WritePolicy,
+    ) -> None:
+        write_safety_key_policy(content)
+
+        policy = mod.load_safety_key_policy()
+
+        assert policy.keys == mod.SAFETY_KEYS
+        assert problem in policy.warnings[0]
+
+    def test_explicit_path_wins_over_the_config_home(self, tmp_path: Path) -> None:
+        path = tmp_path / "custom.yaml"
+        path.write_text(OPT_OUT_YAML)
+
+        assert mod.load_safety_key_policy(path=path).source == path
+
+
+class TestDisableAutoModeOptOut:
+    """GH-1856 acceptance: with the opt-out set, nothing seeds or demands
+    disableAutoMode, while disableBypassPermissionsMode stays a floor."""
+
+    @pytest.fixture(autouse=True)
+    def _opt_out(self, write_safety_key_policy: WritePolicy) -> None:
+        write_safety_key_policy(OPT_OUT_YAML)
+
+    @pytest.fixture()
+    def settings_file(self, tmp_path: Path) -> Path:
+        path = tmp_path / "settings.local.json"
+        path.write_text("{}\n")
+        return path
+
+    def test_ensure_seeds_only_the_bypass_key(self, settings_file: Path) -> None:
+        result = mod.ensure_safety_keys(settings_files=[settings_file], dry_run=False)
+
+        data = json.loads(settings_file.read_text())
+        assert data == {"disableBypassPermissionsMode": "disable"}
+        assert result["total_added"] == 1
+        assert any("opted out" in m for m in result["messages"])
+
+    def test_gap_passes_without_disable_auto_mode(self, settings_file: Path) -> None:
+        settings_file.write_text(json.dumps({"disableBypassPermissionsMode": "disable"}))
+
+        result = mod.safety_keys_gap(settings_files=[settings_file])
+
+        assert result["exit_code"] == 0
+
+    def test_gap_still_requires_the_bypass_key(self, settings_file: Path) -> None:
+        result = mod.safety_keys_gap(settings_files=[settings_file])
+
+        assert result["exit_code"] == 1
+        assert not any("- disableAutoMode:" in m for m in result["messages"])
+        assert any("- disableBypassPermissionsMode: missing" in m for m in result["messages"])
+
+    def test_existing_disable_auto_mode_is_neither_touched_nor_checked(
+        self, settings_file: Path
+    ) -> None:
+        settings_file.write_text(
+            json.dumps({"disableAutoMode": True, "disableBypassPermissionsMode": "disable"})
+        )
+
+        ensured = mod.ensure_safety_keys(settings_files=[settings_file], dry_run=False)
+        gap = mod.safety_keys_gap(settings_files=[settings_file])
+
+        assert json.loads(settings_file.read_text())["disableAutoMode"] is True
+        assert ensured["total_added"] == 0
+        assert gap["exit_code"] == 0
+
+    def test_explicit_policy_overrides_the_file(self, settings_file: Path) -> None:
+        result = mod.ensure_safety_keys(
+            settings_files=[settings_file],
+            dry_run=False,
+            policy=mod.SafetyKeyPolicy(),
+        )
+
+        assert result["total_added"] == 2

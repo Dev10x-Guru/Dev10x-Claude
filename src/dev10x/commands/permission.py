@@ -534,6 +534,8 @@ def ensure_safety_keys(*, dry_run: bool, quiet: bool, allow_tracked: bool) -> No
     Additive only — an existing value (even an invalid one) is left
     untouched; run ``dev10x permission doctor safety-keys`` to find an
     invalid value that needs a human decision to overwrite.
+    ``safety_keys:`` in ``~/.config/Dev10x/safety-keys.yaml`` can opt out
+    of disableAutoMode (GH-1856).
     """
     from dev10x.core.skills.permission import safety_keys as mod
 
@@ -1555,7 +1557,8 @@ def doctor_safety_keys(*, quiet: bool) -> None:
     disableAutoMode / disableBypassPermissionsMode take ONLY the literal
     string "disable" — a JSON boolean is silently ignored by Claude Code,
     so a settings file can look protected while enforcing nothing.
-    Read-only; exits non-zero when any file has a finding.
+    Read-only; exits non-zero when any file has a finding. A key opted
+    out in ``~/.config/Dev10x/safety-keys.yaml`` is not checked (GH-1856).
     """
     from dev10x.core.skills.permission import safety_keys as mod
 

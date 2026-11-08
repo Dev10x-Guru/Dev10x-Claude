@@ -622,6 +622,13 @@ look protected while enforcing nothing. Additive only: an existing
 value (even an invalid one) is left untouched, since overwriting it
 is a human decision, not a maintenance-pass default.
 
+A user who runs every session in auto mode opts out of
+`disableAutoMode` with `safety_keys: [disableBypassPermissionsMode]`
+in `~/.config/Dev10x/safety-keys.yaml` (GH-1856). This step,
+`ensure-base` and worktree seeding then skip that key, and the first
+two print a `Not enforced (opted out ...)` line; the catalog rules are
+still seeded.
+
 1. Dry run:
 
 ```bash
@@ -635,7 +642,7 @@ uvx dev10x permission ensure-safety-keys
 ```
 
 Verify with `uvx dev10x permission doctor safety-keys` — it exits
-non-zero on any settings file where either key is absent or holds
+non-zero on any settings file where an enforced key is absent or holds
 anything other than `"disable"`. This is a restriction, not a grant,
 so it is a different judgement from the allow-rule catalog's
 shrink-only backlog (see

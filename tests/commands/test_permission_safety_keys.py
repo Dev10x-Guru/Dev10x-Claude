@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -108,3 +109,18 @@ class TestDoctorSafetyKeysCommand:
         result = CliRunner().invoke(doctor_group, ["safety-keys"])
 
         assert result.exit_code == 0
+
+    def test_opted_out_disable_auto_mode_is_not_required(
+        self,
+        settings_file: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        write_safety_key_policy: Callable[[str], Path],
+    ) -> None:
+        write_safety_key_policy("safety_keys: [disableBypassPermissionsMode]\n")
+        settings_file.write_text(json.dumps({"disableBypassPermissionsMode": "disable"}))
+        _with_settings_files(monkeypatch, [settings_file])
+
+        result = CliRunner().invoke(doctor_group, ["safety-keys"])
+
+        assert result.exit_code == 0
+        assert "opted out" in result.output

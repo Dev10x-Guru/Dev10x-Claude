@@ -234,6 +234,16 @@ class Dev10xConfigDir:
         return cls._resolve("accepted-findings.yaml")
 
     @classmethod
+    def safety_keys_yaml(cls) -> Path:
+        """Which settings safety keys the permission writers enforce (GH-1856).
+
+        ``safety_keys:`` lists the enforced keys; leaving
+        ``disableAutoMode`` out opts out of that floor. Introduced after
+        the ``~/.config/Dev10x`` move, so there is no legacy path.
+        """
+        return cls._resolve("safety-keys.yaml")
+
+    @classmethod
     def skill_prune_yaml(cls) -> Path:
         """User-owned skill-prune allowlist (GH-1627).
 

@@ -209,8 +209,8 @@ and a wrong outcome. Verify against the files, not the log.
 Run the four checks in
 [`references/post-upgrade-verification.md`](references/post-upgrade-verification.md):
 catalog reach across every worktree, no git-tracked settings file
-written, the `disableAutoMode` / `disableBypassPermissionsMode`
-string values intact, and a spot-check that a sanctioned command
+written, the safety-key string values intact (`disableAutoMode` is
+opt-out, GH-1856), and a spot-check that a sanctioned command
 does not prompt.
 
 ## Configuration
