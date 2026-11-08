@@ -38,8 +38,6 @@ _NEEDS_REVIEWS = frozenset({"approved", "bot_at_head"})
 _NEEDS_OPEN_PR = _NEEDS_REVIEWS | {"head_changed"}
 _OVERHEAD_SECONDS = 60
 _MIN_POLL_INTERVAL = 5
-_REVIEW_PAGE_SIZE = 100
-_MAX_REVIEW_PAGES = 10
 _BOT_SUFFIX = "[bot]"
 
 
@@ -135,27 +133,17 @@ async def _fetch_reviews(*, repo: str, pr_number: int) -> Result[tuple[dict[str,
     The newest review is last, so a cut-off listing would hide exactly
     the verdict ``approved`` and ``bot_at_head`` depend on.
     """
-    reviews: list[dict[str, Any]] = []
-    for page in range(1, _MAX_REVIEW_PAGES + 1):
-        listed = await _gateway._gh_api_raw(
-            f"repos/{repo}/pulls/{pr_number}/reviews?per_page={_REVIEW_PAGE_SIZE}&page={page}",
-            repo=repo,
-        )
-        if listed.returncode != 0:
-            return err(listed.stderr.strip() or f"could not list reviews for PR {pr_number}")
-        try:
-            items = json.loads(listed.stdout)
-        except json.JSONDecodeError:
-            return err(f"could not parse reviews for PR {pr_number} as JSON")
-        if not isinstance(items, list):
-            return ok(tuple(reviews))
-        reviews.extend(item for item in items if isinstance(item, dict))
-        if len(items) < _REVIEW_PAGE_SIZE:
-            return ok(tuple(reviews))
-    return err(
-        f"PR {pr_number} has more than {_MAX_REVIEW_PAGES * _REVIEW_PAGE_SIZE} reviews; "
-        "the newest could not be read"
+    listed = await _gateway._gh_api_paginated(
+        f"repos/{repo}/pulls/{pr_number}/reviews",
+        label=f"reviews for PR {pr_number}",
+        repo=repo,
     )
+    if isinstance(listed, ErrorResult):
+        return listed
+    if listed.value.truncated:
+        ceiling = _gateway.MAX_LISTING_PAGES * _gateway.PAGE_SIZE
+        return err(f"PR {pr_number} has more than {ceiling} reviews; the newest could not be read")
+    return ok(listed.value.items)
 
 
 async def _fetch_snapshot(*, repo: str, pr_number: int, until: str) -> Result[PrSnapshot]:

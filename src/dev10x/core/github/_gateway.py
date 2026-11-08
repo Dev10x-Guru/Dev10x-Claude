@@ -22,12 +22,13 @@ import logging
 import os
 import subprocess
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from dev10x.core.github.app_auth import AppConfig, get_bot_token
 from dev10x.domain.common.repository_ref import RepositoryRef
-from dev10x.domain.common.result import Result, err, ok
+from dev10x.domain.common.result import Result, SuccessResult, err, ok
 from dev10x.domain.git_context import GitContext
 from dev10x.domain.milestone_prefixes import REGISTRY_RELPATH, parse_registered_prefixes
 from dev10x.domain.retry import RetryPolicy, is_retryable, retry_after_seconds
@@ -149,6 +150,70 @@ async def _gh_api(
             as_bot=as_bot,
         )
     )
+
+
+#: GitHub's REST page-size cap, and how many pages a listing follows
+#: before it is reported as truncated rather than silently cut short.
+PAGE_SIZE = 100
+MAX_LISTING_PAGES = 10
+
+
+@dataclass(frozen=True)
+class Listing:
+    """Every item a paged REST listing returned, and whether pages ran out."""
+
+    items: tuple[dict[str, Any], ...]
+    truncated: bool
+
+
+def _page_items(*, raw: str, key: str | None, label: str) -> Result[list[dict[str, Any]]]:
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        return err(f"could not parse {label} as JSON")
+    if key is None:
+        items = payload
+    else:
+        items = payload.get(key) if isinstance(payload, dict) else None
+    if not isinstance(items, list):
+        return err(f"unexpected {label} shape from GitHub")
+    return ok([item for item in items if isinstance(item, dict)])
+
+
+async def _gh_api_paginated(
+    endpoint: str,
+    *,
+    label: str,
+    key: str | None = None,
+    repo: str | None = None,
+    max_pages: int = MAX_LISTING_PAGES,
+) -> Result[Listing]:
+    """Follow a REST listing page by page (GH-1852).
+
+    ``ci_rerun`` and ``pr_wait`` each paged by hand, with their own
+    ceiling and their own truncation policy. The ceiling is reported, not
+    enforced as an error: a caller for whom a cut listing hides the very
+    item it needs (the newest review) decides that for itself.
+
+    ``key`` names the array inside an object payload (``check_suites``);
+    without it the payload itself must be the array. ``label`` names the
+    listing in error messages.
+    """
+    separator = "&" if "?" in endpoint else "?"
+    first = f"{endpoint}{separator}per_page={PAGE_SIZE}"
+    items: list[dict[str, Any]] = []
+    for page in range(1, max_pages + 1):
+        paged = first if page == 1 else f"{first}&page={page}"
+        result = await _gh_api_raw(paged, repo=repo)
+        if result.returncode != 0:
+            return err(result.stderr.strip() or f"could not list {label}")
+        page_items = _page_items(raw=result.stdout, key=key, label=label)
+        if not isinstance(page_items, SuccessResult):
+            return page_items
+        items.extend(page_items.value)
+        if len(page_items.value) < PAGE_SIZE:
+            return ok(Listing(items=tuple(items), truncated=False))
+    return ok(Listing(items=tuple(items), truncated=True))
 
 
 async def _bot_env(*, repo: str) -> dict[str, str] | None:
