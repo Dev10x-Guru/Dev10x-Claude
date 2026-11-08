@@ -24,10 +24,9 @@ paths:
 > the rule two sections over (e.g. a new Stop feature needs both the
 > orchestrator-consolidation rule and the verdict-merge rule).
 >
-> **Conditional split plan — triggered, tracked in GH-1867.** The
-> file has passed ~600 lines. If this file passes ~600 lines, or a
-> reviewer has to hold two unrelated sections in mind at once, split
-> along the seam that already exists: `hook-dispatch-patterns.md`
+> **Split plan — due, tracked in GH-1867.** The file has passed its
+> ~600-line trigger. Split along the seam that already exists:
+> `hook-dispatch-patterns.md`
 > (direct-shebang/orchestrator pattern, SessionStart/Stop
 > consolidation, the Stop-verdict rules, the PostToolUse formatter
 > scope) and `hook-validator-profiles.md` (Profile Tiers, rule-ID

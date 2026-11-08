@@ -337,38 +337,45 @@ _SAME_SENTENCE_EXEMPTIONS = [
 ]
 
 
+#: Closings where an unconditional promise stands beside a conditional
+#: one, so the paragraph as a whole would read as exempt.
+_UNCONDITIONAL_BESIDE_CONDITIONAL = [
+    pytest.param(
+        "Now I'll run the tests. If you see failures, I'll fix them.",
+        id="promise-then-condition",
+    ),
+    pytest.param(
+        "If you want a summary, say so. Next, I'll push the branch.",
+        id="condition-then-promise",
+    ),
+    pytest.param("I'll open the PR! Once you approve, I'll merge it.", id="exclamation"),
+    pytest.param(
+        "Want a summary? Next, I'll push the branch. If you want, I'll add one.",
+        id="question-mark",
+    ),
+    pytest.param("I'll run the tests.\nIf you see failures, I'll fix them.", id="line-break"),
+    pytest.param("**I'll push it now.** Once you approve, I'll merge it.", id="markdown-bold"),
+    pytest.param("- I'll run the tests\n- Once you approve, I'll merge it", id="bullet-list"),
+    pytest.param("1. I'll run the tests\n2. Once you approve, I'll merge it", id="numbered-list"),
+    pytest.param(
+        "1) I'll run the tests\n2) Once you approve, I'll merge it",
+        id="numbered-paren-list",
+    ),
+    pytest.param(
+        "Once you approve:\n- I'll merge it. Now I'll run the tests.",
+        id="item-splits-at-sentence-end",
+    ),
+    pytest.param(
+        "Once you approve:\n- I'll merge it. Next steps below.\n- I'll run the tests",
+        id="lead-in-stops-at-next-sentence",
+    ),
+]
+
+
 class TestAnExemptionCoversOnlyItsOwnSentence:
     """GH-1854: a conditional sentence must not excuse its neighbor."""
 
-    @pytest.mark.parametrize(
-        "closing",
-        [
-            "Now I'll run the tests. If you see failures, I'll fix them.",
-            "If you want a summary, say so. Next, I'll push the branch.",
-            "I'll open the PR! Once you approve, I'll merge it.",
-            "Want a summary? Next, I'll push the branch. If you want, I'll add one.",
-            "I'll run the tests.\nIf you see failures, I'll fix them.",
-            "**I'll push it now.** Once you approve, I'll merge it.",
-            "- I'll run the tests\n- Once you approve, I'll merge it",
-            "1. I'll run the tests\n2. Once you approve, I'll merge it",
-            "1) I'll run the tests\n2) Once you approve, I'll merge it",
-            "Once you approve:\n- I'll merge it. Now I'll run the tests.",
-            "Once you approve:\n- I'll merge it. Next steps below.\n- I'll run the tests",
-        ],
-        ids=[
-            "promise-then-condition",
-            "condition-then-promise",
-            "exclamation",
-            "question-mark",
-            "line-break",
-            "markdown-bold",
-            "bullet-list",
-            "numbered-list",
-            "numbered-paren-list",
-            "item-splits-at-sentence-end",
-            "lead-in-stops-at-next-sentence",
-        ],
-    )
+    @pytest.mark.parametrize("closing", _UNCONDITIONAL_BESIDE_CONDITIONAL)
     def test_an_unconditional_promise_beside_a_conditional_one_blocks(
         self, tmp_path: Path, isolated_markers: Path, closing: str
     ) -> None:
