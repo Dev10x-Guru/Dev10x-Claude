@@ -698,6 +698,50 @@ class TestPrCommentListFilters:
         assert isinstance(result, SuccessResult)
         assert result.value["unresolved_threads"][0]["author_type"] == "bot"
 
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "repository",
+        [{"pullRequest": None}, {}, None],
+        ids=["null-pull-request", "missing-pull-request", "null-repository"],
+    )
+    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    async def test_unknown_pr_is_an_error_not_zero_threads(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+        repository: dict | None,
+    ) -> None:
+        # GH-1857: an unknown PR must not read as "no unresolved threads".
+        mock_api.return_value = _completed(stdout=json.dumps({"data": {"repository": repository}}))
+
+        result = await gh.pr_comments(
+            action="list",
+            pr_number=42,
+            unresolved_only=True,
+        )
+
+        assert isinstance(result, ErrorResult)
+        assert "PR #42 not found" in result.error
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    async def test_null_thread_list_reads_as_zero_threads(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.return_value = _completed(
+            stdout=json.dumps({"data": {"repository": {"pullRequest": {"reviewThreads": None}}}})
+        )
+
+        result = await gh.pr_comments(
+            action="list",
+            pr_number=42,
+            unresolved_only=True,
+        )
+
+        assert result.value == {"unresolved_threads": [], "count": 0}
+
 
 class TestIsBotLogin:
     """GH-858 F1: the shared review-bot login classifier, kept in sync

@@ -106,20 +106,10 @@ async def _list_unresolved_threads(
         "} } "
         "} } } } }"
     )
-    result = await _gateway._gh_api_raw("graphql", fields={"query": query})
-    if result.returncode != 0:
-        return err(result.stderr.strip())
-    try:
-        data = json.loads(result.stdout)
-    except json.JSONDecodeError:
-        return err(f"Invalid JSON from GitHub API: {result.stdout[:200]}")
-    threads = (
-        data.get("data", {})
-        .get("repository", {})
-        .get("pullRequest", {})
-        .get("reviewThreads", {})
-        .get("nodes", [])
-    )
+    fetched = await _gateway._graphql_pull_request(query, ref=repo_ref, pr_number=pr_number)
+    if isinstance(fetched, ErrorResult):
+        return fetched
+    threads = (fetched.value.get("reviewThreads") or {}).get("nodes") or []
     unresolved: list[dict[str, Any]] = []
     for thread in threads:
         if thread.get("isResolved"):
