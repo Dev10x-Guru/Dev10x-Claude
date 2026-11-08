@@ -13,7 +13,7 @@ Mark completed when done: `TaskUpdate(taskId, status="completed")`
 
 ## Overview
 
-Pre-merge validation gate that checks 9 conditions before
+Pre-merge validation gate that checks 12 conditions before
 executing `gh pr merge`. Prevents premature merges like PR #633
 (merged with 7 unaddressed review comments) and PRs #690-692
 (merged with unaddressed top-level automated review comments).
@@ -74,15 +74,15 @@ All fields are optional. Defaults:
 based on a single `gh pr view` JSON read — that is the regression this
 check exists to catch (GH-112).
 
-**The nine subtask RECORDS are not load-bearing; running and
-reporting the nine checks is** (GH-971 F2). What the gate is
+**The twelve subtask RECORDS are not load-bearing; running and
+reporting the twelve checks is** (GH-971 F2). What the gate is
 defending is that each check was actually *performed against live
-state* before the merge — nine `TaskCreate` round-trips are ceremony
+state* before the merge — twelve `TaskCreate` round-trips are ceremony
 that costs a call each and proves nothing the report does not. So
 this step is satisfied by BOTH of:
 
 1. The `TaskList` call above, made in THIS invocation.
-2. A reported nine-item checklist in which every check names the
+2. A reported twelve-item checklist in which every check names the
    **observed value** it was decided on — `isDraft: false`,
    `mergeable: MERGEABLE`, `verdict: green`, `unresolved threads: 0`,
    and so on. A bare "✓ passed" per line does not satisfy it: an
@@ -105,20 +105,20 @@ on the agent's recollection that "the checks just passed" — those
 checks belong to a sibling skill's context, not this one.
 
 **Re-invocation contract:** Every invocation of `dev10x:gh-pr-merge`
-re-runs the full skill body from Step 1, including all 9 pre-merge
+re-runs the full skill body from Step 1, including all 12 pre-merge
 checks. Check results from a prior `dev10x:gh-pr-monitor` phase,
 prior `dev10x:verify-acc-dod` run, or earlier invocation of this
 same skill are NOT reusable. CI state, review comments, draft
 toggles, and force-push state can drift between invocations — the
-9 checks exist precisely to detect that drift.
+12 checks exist precisely to detect that drift.
 
 ### Subagent handoff exception (GH-1093)
 
 The re-invocation contract has ONE bounded exception. A worker
-subagent that ran the 9 checks and could not fire an `ALWAYS_ASK`
+subagent that ran the 12 checks and could not fire an `ALWAYS_ASK`
 gate — `AskUserQuestion` is not exposed to background subagents —
 hands its report to the orchestrator holding the standing
-authorization. Re-running all 9 there validated every merge twice
+authorization. Re-running all 12 there validated every merge twice
 for ~3–4× duplicated tool traffic per PR.
 
 The exception applies ONLY when ALL of these hold:
@@ -129,8 +129,9 @@ The exception applies ONLY when ALL of these hold:
 2. A fresh `pr_get` shows the PR still open with a head SHA
    identical to the reported one.
 3. The orchestrator re-runs the time-sensitive checks itself:
-   Check 2 (CI) and Checks 1 / 1b / 1c (comments — the GH-462 F3
-   late-comment race). Checks 2b / 3 / 4 / 7 ride along on the
+   Check 2 (CI), Checks 1 / 1b / 1c (comments — the GH-462 F3
+   late-comment race) and Check 1e (bot review state, which moves
+   whenever a bot reviews or the head is pushed). Checks 2b / 3 / 4 / 7 ride along on the
    same fresh `pr_get` from step 2, so they are never inherited.
 
 Only Checks 1d, 5 and 6 may then be accepted from the report:
@@ -165,7 +166,7 @@ ${CLAUDE_PLUGIN_ROOT}/skills/gh-pr-merge/scripts/audit-handoff-report.py \
 
 Both return the same JSON verdict; the script also exits non-zero
 unless the verdict is `accept`.
-**Anything but `accepted: true` forbids the exception** — run all 9
+**Anything but `accepted: true` forbids the exception** — run all 12
 checks yourself. The `already_merged` verdict is the GH-1380
 case: the PR merged before the report could gate it, so the report
 describes someone else's work. Attribute the merge per Check 2b
@@ -177,19 +178,21 @@ report that can authorize a merge that already happened.
 more", or any equivalent phrasing, treat that as a fresh invocation
 starting from Step 1 of this body — NOT as "resume from the last
 unfinished step" or "skip to the merge command". The full skill
-body, including all 9 checks, runs every time.
+body, including all 12 checks, runs every time.
 
 Session policy does NOT waive this skill body. Whatever
 `resolve_gate(gate="merge")` returns at Step 5 governs only the
 final ask/auto-advance/skip decision immediately before
-executing the merge; the 9 checks below still run
+executing the merge; the 12 checks below still run
 unconditionally on every invocation. See
 `references/friction-levels.md` § "The baseline does not waive
 skill bodies".
 
 ## Pre-Merge Validation Checks
 
-Run ALL 9 checks before merging. Report results as a checklist.
+Run ALL 12 checks before merging. Report results as a checklist.
+The twelve are Checks 1, 1b, 1c, 1d, 1e, 2, 2b, 3, 4, 5, 6 and 7 —
+a sub-check is a check, so it counts (GH-1857).
 If ANY check fails, refuse to merge and report which failed.
 
 ### Check 1: No unresolved review threads
@@ -425,7 +428,10 @@ mcp__plugin_dev10x_cli__bot_review_status(pr_number=NUMBER, repo="OWNER/REPO")
 Which bots count is per-repo: `blocking_bots` login globs in
 `<Dev10x config>/settings-pr-merge.yaml` (top-level default, a
 matching `projects[].match_repo` entry overrides it). With none
-configured, nothing blocks and `ready` is `true`.
+configured, nothing blocks and `ready` is `true`; when that was not
+a stated choice (`config_found: false`, or no `projects:` entry
+matched), `notes` says so — report it in the checklist line rather
+than reading the pass as "a bot reviewed the head" (GH-1857).
 
 - `ready: false` → block merge and report each line of `reasons`:
   a blocking bot with no activity (on a draft the reason says so —
@@ -435,7 +441,8 @@ configured, nothing blocks and `ready` is `true`.
   override: return to `dev10x:gh-pr-monitor` and wait for the bot
   to review the new head.
 - For a bot with `kind: comment`, `at_head` rests on time, not a
-  SHA (`at_head_basis: timestamp`): it spoke after the head commit.
+  SHA (`at_head_basis: timestamp`): it spoke no earlier than
+  `head_pushed_at`, the head's push time where GitHub reveals it.
   `at_head: null` means it cannot be told — treat it as not at head.
 - `empty_body_with_inline: true` on any bot means its findings live
   in inline comments; Check 1 covers them, so never read that
@@ -589,7 +596,7 @@ from the same response before evaluating Checks 3/4/7:
    that the merge already happened; the remaining checks are moot.
 
    **Report `ALREADY MERGED`, never the checklist (GH-1380).** The
-   Step 4 nine-item checklist is a claim that those nine checks ran in
+   Step 4 twelve-item checklist is a claim that those twelve checks ran in
    THIS invocation. They did not — the merge preceded them. Emitting it
    here is how two workers came to report a gate the orchestrator had
    run by hand for them. Report instead:
@@ -630,7 +637,7 @@ outside the plugin — a repo-level setting or a manual `gh pr merge
 required status checks.** With no required checks, GitHub merges the
 instant CI settles, which can land between "mark ready" and this
 gate — in the run behind this finding, a PR merged before the child
-invoked the skill at all, so none of the 9 validations ran for it.
+invoked the skill at all, so none of the 12 validations ran for it.
 Check 2b then correctly short-circuits to post-merge verification,
 but the merge is already done.
 
@@ -740,7 +747,7 @@ Read the per-project config file. If it does not exist, use
 defaults (`strategy: rebase`, `delete_branch: true`,
 `solo_maintainer: false`).
 
-### Step 3: Run all 9 validation checks
+### Step 3: Run all 12 validation checks
 
 **Comment-check ordering (GH-462 F3):** Checks 1, 1b, 1c,
 1d and 1e fetch comment/PR-body state that is time-sensitive —
@@ -771,9 +778,11 @@ Present results as a checklist:
 
 - [x] No unresolved review threads (0 unresolved)
 - [x] No unaddressed automated review comments (0 found)
+- [x] No unaddressed inline review comments (0 found)
 - [x] Fixes-linked issue scope delivered (2/2 links)
 - [x] Blocking review bots at head (claude @ 1a2b3c4, 0 open inline)
 - [x] CI checks passing (12/12 green)
+- [x] Not already merged; auto-merge handled per Check 2b (state: OPEN, autoMergeRequest: null)
 - [x] PR is not in draft
 - [x] No merge conflicts (MERGEABLE)
 - [x] Working copy is clean
@@ -791,7 +800,7 @@ If any check fails, show `[ ]` with failure details:
 
 **Any check fails:** Do NOT merge — skip straight to the "Any
 check fails" table below. The merge gate below only applies once
-all 9 checks pass.
+all 12 checks pass.
 
 **All checks pass — resolve the merge gate (ADR-0016, GH-757):**
 Call `mcp__plugin_dev10x_cli__resolve_gate(gate="merge",
@@ -801,7 +810,7 @@ here — the resolver reads session policy (preset + overlays,
 including the solo-maintainer overlay) itself.
 
 1. `effect == "ask"` → Fire `AskUserQuestion`:
-   - Question: "All 9 pre-merge checks passed for PR #NUMBER.
+   - Question: "All 12 pre-merge checks passed for PR #NUMBER.
      Merge now via STRATEGY?"
    - Options: **Merge now (Recommended)** — proceed to the
      `merge_pr` call below / **Abort** — leave the PR open.
@@ -904,7 +913,7 @@ Never set `admin=true` or `auto=true` autonomously — only the
 user may authorize either path through this gate. The flags
 exist so the sanctioned MCP path can complete the merge
 instead of forcing a raw `gh api .../merge` admin bypass that
-skips the entire 9-check gate.
+skips the entire 12-check gate.
 
 **Any check fails:** Do NOT merge. Report which checks failed
 and what action is needed to resolve each one. Suggest the
@@ -956,7 +965,7 @@ auto-fix loop is exhausted. See `references/friction-levels.md`
 
 ## Important Notes
 
-- Never merge without running ALL 9 checks first
+- Never merge without running ALL 12 checks first
 - Never bypass checks even if "it looks fine" — any `PENDING`,
   `IN_PROGRESS`, or `FAILURE` (required or not) blocks the
   merge. Check 2 handles these by delegating to
@@ -966,8 +975,8 @@ auto-fix loop is exhausted. See `references/friction-levels.md`
   failure is clearly infrastructure-related. All
   "Merge anyway" overrides require explicit user
   confirmation via `AskUserQuestion` with a recorded reason.
-- The solo-maintainer override only skips check 8 (approval),
-  not the other 7 checks
+- The solo-maintainer override only skips Check 7 (approval),
+  not the other 11 checks
 - This skill must NOT be called from background agents
   (`dev10x:gh-pr-monitor` explicitly forbids merge operations)
 - Always use `gh pr merge` (not `git merge`) to ensure GitHub
