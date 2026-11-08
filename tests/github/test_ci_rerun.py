@@ -16,6 +16,7 @@ from dev10x.domain.common.result import ErrorResult, SuccessResult, err, ok
 import dev10x.github as gh
 from dev10x.core.github import _gateway
 from dev10x.mcp import server_cli as cli_server
+from tests.fakers.process import completed as _completed
 
 ci_rerun_module = importlib.import_module("dev10x.coding.github.ci_rerun")
 
@@ -25,14 +26,6 @@ RUNS = f"repos/owner/repo/actions/runs?head_sha={SHA}&per_page=100"
 PULL = "repos/owner/repo/pulls/7"
 ACTIONS_APP = {"slug": "github-actions", "name": "GitHub Actions"}
 CODECOV_APP = {"slug": "codecov", "name": "Codecov"}
-
-
-def _completed(
-    *, returncode: int = 0, stdout: str = "", stderr: str = ""
-) -> subprocess.CompletedProcess[str]:
-    return subprocess.CompletedProcess(
-        args=[], returncode=returncode, stdout=stdout, stderr=stderr
-    )
 
 
 def _suite(*, id: int, app: dict[str, str], conclusion: str, status: str = "completed") -> dict:

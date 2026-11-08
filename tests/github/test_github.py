@@ -24,6 +24,8 @@ import pytest
 from dev10x.domain.common.repository_ref import RepositoryRef
 from dev10x.domain.common.result import ErrorResult, SuccessResult, ok
 
+from tests.fakers.process import completed as _completed
+
 gh = pytest.importorskip("dev10x.github", reason="dev10x not installed")
 
 # create_pr rejects a Job Story missing any JTBD marker (GH-945), so
@@ -48,20 +50,6 @@ def mock_resolve_repo():
 def no_prefix_registry():
     with patch.object(gh._gateway, "_milestone_prefix_registry", return_value=None) as mock:
         yield mock
-
-
-def _completed(
-    *,
-    returncode: int = 0,
-    stdout: str = "",
-    stderr: str = "",
-) -> subprocess.CompletedProcess[str]:
-    return subprocess.CompletedProcess(
-        args=[],
-        returncode=returncode,
-        stdout=stdout,
-        stderr=stderr,
-    )
 
 
 def _thread_lookup_response(

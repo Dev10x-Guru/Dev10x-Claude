@@ -17,16 +17,9 @@ from dev10x.coding.github import bot_reviews
 from dev10x.coding.github.bot_review_config import normalize_login, resolve_blocking_bots
 from dev10x.core.github import _gateway
 from dev10x.mcp import server_cli as cli_server
+from tests.fakers.process import completed as _completed
 
 FIXTURES = Path(__file__).parents[1] / "fixtures" / "bot_review_status"
-
-
-def _completed(
-    *, returncode: int = 0, stdout: str = "", stderr: str = ""
-) -> subprocess.CompletedProcess[str]:
-    return subprocess.CompletedProcess(
-        args=[], returncode=returncode, stdout=stdout, stderr=stderr
-    )
 
 
 def _payload(*, name: str) -> dict[str, Any]:

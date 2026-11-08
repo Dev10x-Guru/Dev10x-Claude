@@ -17,21 +17,7 @@ from dev10x.git import (
     push_safe,
     rebase_groom,
 )
-
-
-def _completed(
-    *,
-    returncode: int = 0,
-    stdout: str = "",
-    stderr: str = "",
-) -> subprocess.CompletedProcess[str]:
-    return subprocess.CompletedProcess(
-        args=[],
-        returncode=returncode,
-        stdout=stdout,
-        stderr=stderr,
-    )
-
+from tests.fakers.process import completed as _completed
 
 CONFLICT_STDOUT = (
     "CONFLICT_DETECTED\n"

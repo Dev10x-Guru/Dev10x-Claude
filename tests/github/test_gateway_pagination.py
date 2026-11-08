@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import subprocess
 from typing import Any
 from unittest.mock import patch
 
@@ -11,14 +10,9 @@ import pytest
 from dev10x.domain.common.result import ErrorResult, SuccessResult
 
 from dev10x.core.github import _gateway
+from tests.fakers.process import completed as _completed
 
 BASE = "repos/o/r/things"
-
-
-def _completed(*, stdout: str = "", returncode: int = 0, stderr: str = "") -> Any:
-    return subprocess.CompletedProcess(
-        args=[], returncode=returncode, stdout=stdout, stderr=stderr
-    )
 
 
 def _page(*, count: int, key: str | None = None) -> Any:

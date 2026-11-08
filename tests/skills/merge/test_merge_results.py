@@ -1,24 +1,15 @@
 from __future__ import annotations
 
-import subprocess
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, patch
 
 import pytest
 from dev10x.domain.common.result import ErrorResult, SuccessResult
+from tests.fakers.process import completed as _completed
 
 from dev10x.coding.merge import audit_handoff_report, reconcile_fixes_links
 
 HEAD = "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0"
-
-
-def _completed(*, returncode: int = 0, stdout: str = "", stderr: str = ""):
-    return subprocess.CompletedProcess(
-        args=[],
-        returncode=returncode,
-        stdout=stdout,
-        stderr=stderr,
-    )
 
 
 def _report(**overrides: object) -> dict[str, object]:

@@ -11,13 +11,14 @@ because a repo whose ruleset restricts who may merge depends on that.
 
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
 from dev10x.domain.common.repository_ref import RepositoryRef
 from dev10x.domain.common.result import SuccessResult, err, ok
+
+from tests.fakers.process import completed as _completed
 
 gh = pytest.importorskip("dev10x.github", reason="dev10x not installed")
 
@@ -46,17 +47,6 @@ def bot_env():
 def no_bot_env():
     with patch.object(gh._gateway, "_bot_env", new_callable=AsyncMock, return_value=None) as mock:
         yield mock
-
-
-def _completed(
-    *,
-    returncode: int = 0,
-    stdout: str = "",
-    stderr: str = "",
-) -> subprocess.CompletedProcess[str]:
-    return subprocess.CompletedProcess(
-        args=[], returncode=returncode, stdout=stdout, stderr=stderr
-    )
 
 
 class TestBotTransportSelected:

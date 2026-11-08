@@ -13,17 +13,7 @@ import subprocess
 import pytest
 
 import dev10x.github as gh
-
-
-def _completed(
-    *, returncode: int, stderr: str = "", stdout: str = ""
-) -> subprocess.CompletedProcess[str]:
-    return subprocess.CompletedProcess(
-        args=["gh", "api"],
-        returncode=returncode,
-        stdout=stdout,
-        stderr=stderr,
-    )
+from tests.fakers.process import completed as _completed
 
 
 @pytest.fixture(autouse=True)

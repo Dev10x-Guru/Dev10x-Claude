@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import subprocess
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
@@ -12,12 +11,7 @@ from dev10x.domain.common.repository_ref import RepositoryRef
 from dev10x.domain.common.result import ErrorResult, SuccessResult
 
 from dev10x.core.github import _gateway
-
-
-def _completed(*, stdout: str = "", returncode: int = 0, stderr: str = "") -> Any:
-    return subprocess.CompletedProcess(
-        args=[], returncode=returncode, stdout=stdout, stderr=stderr
-    )
+from tests.fakers.process import completed as _completed
 
 
 async def _run(*, response: Any) -> Any:

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import importlib
 import json
-import subprocess
 from collections.abc import Iterator
 from typing import Any
 from unittest.mock import AsyncMock, patch
@@ -16,6 +15,7 @@ from dev10x.domain.transport_budget import MAX_TOOL_CALL_SECONDS
 
 from dev10x.core.github import _gateway
 from dev10x.mcp import server_cli as cli_server
+from tests.fakers.process import completed as _completed
 
 pr_wait_module = importlib.import_module("dev10x.coding.monitor.pr_wait")
 polling_module = importlib.import_module("dev10x.core.domain.polling")
@@ -24,12 +24,6 @@ PULL = "repos/owner/repo/pulls/7"
 REVIEWS = f"{PULL}/reviews?per_page=100"
 HEAD = "a" * 40
 NEW_HEAD = "b" * 40
-
-
-def _completed(*, stdout: str = "", returncode: int = 0, stderr: str = "") -> Any:
-    return subprocess.CompletedProcess(
-        args=[], returncode=returncode, stdout=stdout, stderr=stderr
-    )
 
 
 def _pull(*, state: str = "open", merged: bool = False, sha: str = HEAD) -> Any:

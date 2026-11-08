@@ -5,7 +5,6 @@ from __future__ import annotations
 import http.client
 import importlib
 import os
-import subprocess
 import urllib.error
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
@@ -19,6 +18,7 @@ from dev10x.domain.transport_budget import MAX_TOOL_CALL_SECONDS
 
 from dev10x.mcp import server_cli as cli_server
 from dev10x.subprocess_utils import use_cwd
+from tests.fakers.process import completed as _completed
 
 wait_for_module = importlib.import_module("dev10x.coding.monitor.wait_for")
 polling_module = importlib.import_module("dev10x.core.domain.polling")
@@ -47,12 +47,6 @@ def clock() -> Iterator[FakeClock]:
         patch.object(polling_module, "_sleep", new=fake.sleep),
     ):
         yield fake
-
-
-def _completed(*, stdout: str = "", returncode: int = 0, stderr: str = "") -> Any:
-    return subprocess.CompletedProcess(
-        args=[], returncode=returncode, stdout=stdout, stderr=stderr
-    )
 
 
 class TestFile:
