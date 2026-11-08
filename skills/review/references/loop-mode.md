@@ -48,7 +48,13 @@ rules below exist to make the loop converge rather than churn.
 6. **Only defects keep the loop going.** Round 1's fix set is its
    defects and polish, as in a single pass. From round 2 on, the fix
    set is defects only; polish joins the polish list the summary
-   reports.
+   reports — it is listed, never offered to the user. So a stamp may
+   cover polish nobody chose to skip. This is intended (GH-1863): the
+   stamp certifies that an adversarial review found no **defect** at
+   that head (GH-1830), and polish is by definition not one. Offering
+   it would make every round a potential fix round and defeat the
+   convergence rule above; the summary's polish list is where the
+   supervisor picks it up, before or after the merge.
 7. **A clean round ends the loop.** A round is clean when its fix set
    is empty, so round-1 polish fixes are reviewed in round 2 like any
    other fix. A clean round is the signal the review stamp records:
@@ -84,7 +90,18 @@ A fix-set finding lands in `declined` when the user leaves it unpicked,
 or when `dev10x:review-fix` reports it as deferred, which also happens
 in unattended mode. No later delta has to touch such a finding, so a
 clean round says nothing about it: the loop may still end clean, but
-unstamped.
+unstamped. Attended, the clean-round gate says so before the user
+answers **Continue**, naming each declined `file:line` (GH-1863).
+
+An attended **Re-review** of a clean round (SKILL.md Step 6b item 4)
+appends nothing: it replaces the current entry's `findings_file`,
+`defects` and `polish` with the repeat's results, keeping `round`,
+`round_start_sha`, `scope` and `declined`, because the HEAD it
+reviewed has not moved and a `declined` entry is never removed for
+the rest of the loop. When the repeat finds a defect, the entry now
+records a non-empty fix set and the round proceeds to the fixer like
+any unclean round; its `fixed_head_sha` opens the next round as usual
+(GH-1863).
 
 A round's scope is the diff from the previous entry's
 `round_start_sha` to the current HEAD; its own `round_start_sha` is
