@@ -70,8 +70,17 @@ have silently destroyed them and reintroduced prompts everywhere.
 
 ## 3. Safety keys intact
 
-`disableAutoMode` and `disableBypassPermissionsMode` must still be
-the **string** `"disable"` in every settings layer.
+Every enforced key — `disableBypassPermissionsMode`, plus
+`disableAutoMode` unless opted out below — must still be the
+**string** `"disable"` in every settings layer.
+
+The floor is configurable (GH-1856).
+`safety_keys: [disableBypassPermissionsMode]` in
+`~/.config/Dev10x/safety-keys.yaml` opts out of `disableAutoMode`, so
+no writer seeds it and the check below does not require it.
+`disableBypassPermissionsMode` cannot be opted out.
+See [`references/config-files.md`](../../../references/config-files.md)
+§ Settings Safety Keys.
 
 `true` is silently ignored, so a boolean here reads as protection
 that is not actually in force.
@@ -79,8 +88,9 @@ that is not actually in force.
 Run `dev10x permission doctor safety-keys` rather than reading the
 values by hand — it is read-only, checks every discovered settings
 file (not only the global one, which GH-47 makes non-authoritative
-on its own), and exits non-zero on any missing or invalid key. Seed
-a missing key with `dev10x permission ensure-safety-keys` (GH-1320);
+on its own), and exits non-zero on any missing or invalid enforced
+key.
+Seed a missing key with `dev10x permission ensure-safety-keys` (GH-1320);
 it only ever adds an absent key as the literal string `"disable"`
 and never overwrites an existing value, so an invalid existing value
 still needs a human decision.

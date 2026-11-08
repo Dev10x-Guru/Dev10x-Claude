@@ -116,29 +116,14 @@ not read; `dev10x config migrate` copies it to tier 2.
 | 2 | `~/.config/Dev10x/gitmoji.yaml` |
 | 3 | `${CLAUDE_PLUGIN_ROOT}/skills/git-commit/references/gitmoji-defaults.yaml` |
 
-## Database Schema
+## Tier-2-Only Files
 
-| Tier | Path |
-|------|------|
-| 2 | `~/.config/Dev10x/db-<name>-schema.md` |
-
-## GitHub Reviewers
-
-| Tier | Path |
-|------|------|
-| 2 | `~/.config/Dev10x/github-reviewers-config.yaml` |
-
-## Slack Config
-
-| Tier | Path |
-|------|------|
-| 2 | `~/.config/Dev10x/slack-config.yaml` |
-
-## Slack Code Review Requests
-
-| Tier | Path |
-|------|------|
-| 2 | `~/.config/Dev10x/slack-config-code-review-requests.yaml` |
+| Purpose | Path |
+|---------|------|
+| Database schema | `~/.config/Dev10x/db-<name>-schema.md` |
+| GitHub reviewers | `~/.config/Dev10x/github-reviewers-config.yaml` |
+| Slack config | `~/.config/Dev10x/slack-config.yaml` |
+| Slack code review requests | `~/.config/Dev10x/slack-config-code-review-requests.yaml` |
 
 ## Knowledge Vault
 
@@ -162,6 +147,21 @@ projects:
 
 Index and log notes are written only through `dev10x skill reflect
 index-add` / `log-add`, which lock each note and stay inside the vault.
+
+## Settings Safety Keys
+
+| Tier | Path |
+|------|------|
+| 2 | `~/.config/Dev10x/safety-keys.yaml` |
+
+Which settings safety keys the permission writers seed and check
+(GH-1856). No file enforces both keys (GH-1320). To keep auto mode on,
+list only the bypass key: `safety_keys: [disableBypassPermissionsMode]`.
+`ensure-base`, `ensure-safety-keys`, worktree seeding and
+`doctor safety-keys` then leave `disableAutoMode` alone, never removing
+an existing value; catalog rules and missing worktree settings files
+are still written. `disableBypassPermissionsMode` is always enforced,
+and a malformed file enforces both keys with a warning.
 
 ## Plugin Maintenance Preferences
 

@@ -1,6 +1,6 @@
 import logging
 import subprocess
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -119,6 +119,22 @@ def _isolate_dev10x_config_home(
     Dev10xConfigDir.reset_cache()
     yield
     Dev10xConfigDir.reset_cache()
+
+
+@pytest.fixture
+def write_safety_key_policy() -> Callable[[str | bytes], Path]:
+    """Write ``safety-keys.yaml`` into the isolated config home (GH-1856)."""
+
+    def write(content: str | bytes) -> Path:
+        path = Dev10xConfigDir.safety_keys_yaml()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if isinstance(content, bytes):
+            path.write_bytes(content)
+        else:
+            path.write_text(content)
+        return path
+
+    return write
 
 
 @pytest.fixture(autouse=True)

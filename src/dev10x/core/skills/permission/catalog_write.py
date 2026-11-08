@@ -866,10 +866,21 @@ def ensure_base(
     # whether the catalog itself has anything left to add, per the
     # issue's acceptance criterion. Additive only; an invalid existing
     # value is left for `dev10x permission doctor safety-keys` to flag.
-    from dev10x.skills.permission.safety_keys import write_safety_keys_to_file
+    # GH-1856: only the keys safety-keys.yaml still enforces are seeded;
+    # the catalog rules and created files below are unaffected.
+    from dev10x.skills.permission.safety_keys import (
+        load_safety_key_policy,
+        write_safety_keys_to_file,
+    )
 
+    safety_policy = load_safety_key_policy()
+    messages.extend(safety_policy.messages())
     for path in writable_files:
-        count, file_messages = write_safety_keys_to_file(path, dry_run=dry_run)
+        count, file_messages = write_safety_keys_to_file(
+            path,
+            keys=safety_policy.keys,
+            dry_run=dry_run,
+        )
         if count == 0:
             continue
         if not quiet:

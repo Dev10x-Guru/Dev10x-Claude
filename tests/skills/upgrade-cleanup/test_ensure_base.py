@@ -1,6 +1,7 @@
 """Tests for the ensure-base feature of update_paths module."""
 
 import json
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -1088,3 +1089,56 @@ class TestEnsureBaseSeedsSafetyKeys:
         )
 
         assert settings.read_text() == original
+
+
+class TestEnsureBaseHonoursDisableAutoModeOptOut:
+    """GH-1856: opting out of disableAutoMode must not cost the catalog
+    rules or the missing worktree settings files ensure_base creates."""
+
+    @pytest.fixture()
+    def settings(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        write_safety_key_policy: Callable[[str], Path],
+    ) -> Path:
+        monkeypatch.setattr(
+            "dev10x.skills.permission.catalog_write.Path.home",
+            lambda: tmp_path / "home",
+        )
+        (tmp_path / "home" / ".claude").mkdir(parents=True)
+        write_safety_key_policy("safety_keys: [disableBypassPermissionsMode]\n")
+        path = tmp_path / "settings.local.json"
+        path.write_text(json.dumps({"permissions": {"allow": [], "deny": []}}))
+        return path
+
+    @pytest.fixture()
+    def result(self, settings: Path, tmp_path: Path) -> dict:
+        return update_paths.ensure_base(
+            config={"base_permissions": ["Bash(git status:*)"], "base_denies": []},
+            settings_files=[settings],
+            dry_run=False,
+            create_missing=[tmp_path / "worktree" / ".claude" / "settings.local.json"],
+        )
+
+    def test_seeds_the_catalog_without_disable_auto_mode(
+        self, result: dict, settings: Path
+    ) -> None:
+        data = json.loads(settings.read_text())
+
+        assert data["permissions"]["allow"] == ["Bash(git status:*)"]
+        assert data["disableBypassPermissionsMode"] == "disable"
+        assert "disableAutoMode" not in data
+
+    def test_creates_missing_worktree_settings_without_disable_auto_mode(
+        self, result: dict, tmp_path: Path
+    ) -> None:
+        created = tmp_path / "worktree" / ".claude" / "settings.local.json"
+        data = json.loads(created.read_text())
+
+        assert data["permissions"]["allow"] == ["Bash(git status:*)"]
+        assert data["disableBypassPermissionsMode"] == "disable"
+        assert "disableAutoMode" not in data
+
+    def test_reports_the_opt_out(self, result: dict) -> None:
+        assert any("opted out" in m for m in result["messages"])
