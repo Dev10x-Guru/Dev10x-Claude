@@ -20,8 +20,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-import yaml
-
+from dev10x.domain.common.config_io import ConfigIOError, load_yaml
 from dev10x.domain.common.result import Result, SuccessResult, err, ok
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.domain.project_match import MatchScheme, ProjectsStatus, evaluate_projects
@@ -115,21 +114,6 @@ def _select_entry(
     return document["projects"][index], report.status.value
 
 
-def _load_document(*, path: Path) -> Result[dict[str, Any]]:
-    """Read once; an empty or comment-only file is an empty mapping."""
-    try:
-        document = yaml.safe_load(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError) as exc:
-        return err(f"cannot read {path}: {exc}")
-    except yaml.YAMLError as exc:
-        return err(f"cannot parse {path}: {exc}")
-    if document is None:
-        return ok({})
-    if not isinstance(document, dict):
-        return err(f"{path}: the top level must be a mapping")
-    return ok(document)
-
-
 def _expand(raw: str) -> Path:
     return Path(os.path.expandvars(os.path.expanduser(raw)))
 
@@ -203,10 +187,10 @@ def resolve_vault_config(
                 repo=repo,
             )
         )
-    loaded = _load_document(path=config_path)
-    if not isinstance(loaded, SuccessResult):
-        return err(loaded.error, source=source)
-    document = loaded.value
+    try:
+        document = load_yaml(config_path, strict=True)
+    except ConfigIOError as exc:
+        return err(str(exc), source=source)
     entry, status = _select_entry(
         document=document, source=source, repo=repo, repo_reason=repo_reason
     )

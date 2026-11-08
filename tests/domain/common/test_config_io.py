@@ -52,6 +52,34 @@ class TestLoadYaml:
             load_yaml(path, strict=True)
         assert isinstance(exc_info.value.__cause__, yaml.YAMLError)
 
+    @pytest.mark.parametrize("strict", [False, True])
+    @pytest.mark.parametrize(
+        "text",
+        ["", "# only a comment\n", "\n\n", "---\n"],
+        ids=["empty", "comment-only", "blank-lines", "bare-document-marker"],
+    )
+    def test_empty_document_is_an_empty_mapping(
+        self,
+        tmp_path: Path,
+        text: str,
+        strict: bool,
+    ) -> None:
+        path = tmp_path / "config.yaml"
+        path.write_text(text, encoding="utf-8")
+        assert load_yaml(path, strict=strict) == {}
+
+    def test_undecodable_non_strict_returns_empty(self, tmp_path: Path) -> None:
+        path = tmp_path / "config.yaml"
+        path.write_bytes(b"key: \xff\xfe\n")
+        assert load_yaml(path) == {}
+
+    def test_undecodable_strict_raises_read_error(self, tmp_path: Path) -> None:
+        path = tmp_path / "config.yaml"
+        path.write_bytes(b"key: \xff\xfe\n")
+        with pytest.raises(ConfigIOError, match="Failed to read") as exc_info:
+            load_yaml(path, strict=True)
+        assert isinstance(exc_info.value.__cause__, UnicodeDecodeError)
+
 
 class TestLoadJson:
     def test_valid_mapping_is_returned(self, tmp_path: Path) -> None:
@@ -87,3 +115,16 @@ class TestLoadJson:
         path.write_text(json.dumps(["a", "list"]), encoding="utf-8")
         with pytest.raises(ConfigIOError, match="not a mapping"):
             load_json(path, strict=True)
+
+    @pytest.mark.parametrize("strict", [False, True], ids=["tolerant", "strict"])
+    def test_null_document_is_an_empty_mapping(self, tmp_path: Path, strict: bool) -> None:
+        path = tmp_path / "config.json"
+        path.write_text("null", encoding="utf-8")
+        assert load_json(path, strict=strict) == {}
+
+    def test_undecodable_strict_raises_read_error(self, tmp_path: Path) -> None:
+        path = tmp_path / "config.json"
+        path.write_bytes(b'{"key": "\xff\xfe"}')
+        with pytest.raises(ConfigIOError, match="Failed to read") as exc_info:
+            load_json(path, strict=True)
+        assert isinstance(exc_info.value.__cause__, UnicodeDecodeError)

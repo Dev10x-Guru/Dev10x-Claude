@@ -107,6 +107,19 @@ class TestRuleEngineFromYaml:
         with pytest.raises(ConfigIOError):
             RuleEngine.from_yaml(path=path)
 
+    @pytest.mark.parametrize(
+        "text",
+        ["", "# no rules yet\n"],
+        ids=["empty", "comment-only"],
+    )
+    def test_empty_rules_file_loads_no_rules(self, tmp_path: Path, text: str) -> None:
+        path = tmp_path / "rules.yaml"
+        path.write_text(text, encoding="utf-8")
+
+        engine = RuleEngine.from_yaml(path=path)
+
+        assert (engine.edit_rules, engine.command_rules, engine.hint_rules) == ([], [], [])
+
 
 class TestRuleEngineFromConfig:
     def test_filters_by_hook_block(self) -> None:

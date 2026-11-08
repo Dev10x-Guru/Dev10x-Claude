@@ -19,8 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-import yaml
-
+from dev10x.domain.common.config_io import ConfigIOError, load_yaml
 from dev10x.domain.common.result import Result, SuccessResult, err, ok
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.domain.project_match import MatchScheme, ProjectsStatus, evaluate_projects
@@ -45,20 +44,6 @@ class BlockingBotsConfig:
     source: str
     globs: tuple[str, ...] = ()
     project_status: str = ProjectsStatus.ABSENT.value
-
-
-def _load_document(*, path: Path) -> Result[dict[str, Any]]:
-    try:
-        document = yaml.safe_load(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError) as exc:
-        return err(f"cannot read {path}: {exc}")
-    except yaml.YAMLError as exc:
-        return err(f"cannot parse {path}: {exc}")
-    if document is None:
-        return ok({})
-    if not isinstance(document, dict):
-        return err(f"{path}: the top level must be a mapping")
-    return ok(document)
 
 
 def _globs(*, raw: Any, source: str) -> Result[tuple[str, ...]]:
@@ -89,10 +74,10 @@ def resolve_blocking_bots(
     source = str(config_path)
     if not config_path.is_file():
         return ok(BlockingBotsConfig(source=source))
-    loaded = _load_document(path=config_path)
-    if not isinstance(loaded, SuccessResult):
-        return loaded
-    document = loaded.value
+    try:
+        document = load_yaml(config_path, strict=True)
+    except ConfigIOError as exc:
+        return err(str(exc))
     report = evaluate_projects(
         document,
         scheme=MatchScheme.REPO,

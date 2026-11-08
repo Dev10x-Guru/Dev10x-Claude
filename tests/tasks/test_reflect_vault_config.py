@@ -248,8 +248,8 @@ class TestInvalid:
     @pytest.mark.parametrize(
         ("text", "message"),
         [
-            ("vault: [unclosed\n", "cannot parse"),
-            ("- just\n- a list\n", "must be a mapping"),
+            ("vault: [unclosed\n", "Failed to parse"),
+            ("- just\n- a list\n", "not a mapping"),
         ],
     )
     def test_unparseable_file_is_an_error_not_a_skip(
@@ -263,7 +263,7 @@ class TestInvalid:
         result = resolve_vault_config(repo="acme/shop")
 
         assert isinstance(result, ErrorResult)
-        assert "cannot read" in result.error
+        assert "Failed to read" in result.error
 
 
 class TestConfine:
