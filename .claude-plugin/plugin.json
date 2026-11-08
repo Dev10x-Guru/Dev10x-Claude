@@ -1,7 +1,7 @@
 {
   "name": "dev10x",
-  "description": "v0.115.0 — 97 skills for structured commits, PR lifecycle, branch hygiene, ticket management, task tracking, code review, and scoping in Claude Code.",
-  "version": "0.115.0",
+  "description": "v0.116.0.dev0 — 97 skills for structured commits, PR lifecycle, branch hygiene, ticket management, task tracking, code review, and scoping in Claude Code.",
+  "version": "0.116.0.dev0",
   "author": {
     "name": "Janusz Skonieczny",
     "email": "Dev10xAI@WooYek.com"
