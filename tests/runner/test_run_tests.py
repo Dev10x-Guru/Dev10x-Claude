@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import subprocess
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -9,21 +8,7 @@ from dev10x.domain.transport_budget import MAX_TOOL_CALL_SECONDS
 
 from dev10x import runner
 from dev10x.subprocess_utils import TimedOutProcess, use_cwd
-
-
-def _completed(
-    *,
-    returncode: int = 0,
-    stdout: str = "",
-    stderr: str = "",
-) -> subprocess.CompletedProcess[str]:
-    return subprocess.CompletedProcess(
-        args=[],
-        returncode=returncode,
-        stdout=stdout,
-        stderr=stderr,
-    )
-
+from tests.fakers.process import completed as _completed
 
 PASS_STDOUT = (
     "============================= test session starts =============================\n"

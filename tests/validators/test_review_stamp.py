@@ -15,6 +15,7 @@ from dev10x.validators.review_stamp import ReviewStampValidator
 
 from dev10x.domain import HookInput, HookResult
 from dev10x.validators import get_registry, reset_registry
+from tests.fakers.process import completed as _completed
 
 _RUN = "dev10x.validators.review_stamp.subprocess_utils.run"
 MERGE = "mcp__plugin_dev10x_cli__merge_pr"
@@ -24,10 +25,6 @@ SLUG = "Dev10x-Guru/Dev10x-Claude"
 HEAD = "a" * 40
 TREE = "t" * 40
 PR_URL = f"https://github.com/{SLUG}/pull/42"
-
-
-def _completed(*, stdout: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.CompletedProcess(args=[], returncode=0, stdout=stdout, stderr="")
 
 
 def _gh_payload(*, sha: str = HEAD, branch: str = "feature", url: str = PR_URL) -> str:

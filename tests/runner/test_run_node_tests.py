@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-import subprocess
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -9,21 +8,7 @@ from dev10x.domain.common.result import ErrorResult, SuccessResult
 
 from dev10x import runner
 from dev10x.subprocess_utils import TimedOutProcess
-
-
-def _completed(
-    *,
-    returncode: int = 0,
-    stdout: str = "",
-    stderr: str = "",
-) -> subprocess.CompletedProcess[str]:
-    return subprocess.CompletedProcess(
-        args=[],
-        returncode=returncode,
-        stdout=stdout,
-        stderr=stderr,
-    )
-
+from tests.fakers.process import completed as _completed
 
 # jest writes its summary to stderr.
 JEST_PASS_STDERR = (

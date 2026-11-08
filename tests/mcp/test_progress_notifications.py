@@ -12,10 +12,11 @@ behaves exactly as before — no notifications, same return payload.
 
 from __future__ import annotations
 
-import subprocess
 from unittest.mock import AsyncMock, patch
 
 import pytest
+
+from tests.fakers.process import completed as _completed
 
 cli_server = pytest.importorskip("dev10x.mcp.server_cli", reason="mcp not installed")
 
@@ -23,20 +24,6 @@ cli_server = pytest.importorskip("dev10x.mcp.server_cli", reason="mcp not instal
 _JOB_STORY = (
     "**When** a PR is opened, **the maintainer wants to** ship it, **so the crew can** move on."
 )
-
-
-def _completed(
-    *,
-    returncode: int = 0,
-    stdout: str = "",
-    stderr: str = "",
-) -> subprocess.CompletedProcess[str]:
-    return subprocess.CompletedProcess(
-        args=[],
-        returncode=returncode,
-        stdout=stdout,
-        stderr=stderr,
-    )
 
 
 @pytest.fixture
