@@ -168,6 +168,51 @@ class TestCommentOnlyBots:
     def test_has_no_reviewed_sha(self, report: dict[str, Any]) -> None:
         assert _bot(report=report, login="hygiene-review")["reviewed_sha"] is None
 
+    def test_push_time_defaults_to_the_commit_date(self, report: dict[str, Any]) -> None:
+        assert report["head_pushed_at"] == report["head_committed_at"]
+
+
+LATER = "2999-01-01T00:00:00Z"
+
+
+class TestHeadPushTime:
+    """A comment-only bot is judged against the push, not the commit (GH-1857)."""
+
+    def _hygiene(self, *, pr: dict[str, Any]) -> dict[str, Any]:
+        report = bot_reviews.summarize(pr=pr, blocking_globs=("hygiene-review",))
+        return _bot(report=report, login="hygiene-review") | {
+            "head_pushed_at": report["head_pushed_at"]
+        }
+
+    @pytest.mark.parametrize(("onto_head", "at_head"), [(True, False), (False, True)])
+    def test_a_force_push_onto_the_head_moves_the_basis(
+        self, onto_head: bool, at_head: bool
+    ) -> None:
+        pr = _pr(name="comment_only")
+        oid = pr["headRefOid"] if onto_head else "0" * 40
+        pr["timelineItems"] = {"nodes": [{"createdAt": LATER, "afterCommit": {"oid": oid}}]}
+
+        assert self._hygiene(pr=pr)["at_head"] is at_head
+
+    def test_a_check_suite_created_after_the_comment_moves_the_basis(self) -> None:
+        pr = _pr(name="comment_only")
+        pr["commits"]["nodes"][0]["commit"]["checkSuites"] = {
+            "nodes": [{"createdAt": LATER}, {"createdAt": None}]
+        }
+
+        bot = self._hygiene(pr=pr)
+
+        assert (bot["at_head"], bot["head_pushed_at"]) == (False, LATER)
+
+    def test_a_check_suite_older_than_the_commit_does_not_move_it_back(self) -> None:
+        pr = _pr(name="comment_only")
+        committed = pr["commits"]["nodes"][0]["commit"]["committedDate"]
+        pr["commits"]["nodes"][0]["commit"]["checkSuites"] = {
+            "nodes": [{"createdAt": "1999-01-01T00:00:00Z"}]
+        }
+
+        assert self._hygiene(pr=pr)["head_pushed_at"] == committed
+
 
 class TestSummarizeEdges:
     def test_no_blocking_bots_is_ready(self) -> None:
