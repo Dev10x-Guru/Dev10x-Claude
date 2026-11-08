@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import re
 import shlex
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum, auto
 from functools import lru_cache
 
@@ -521,6 +521,9 @@ class _Token:
     text: str
     is_operator: bool = False
     redirect: str = ""
+    # Any quote or backslash escape in the word. A quoted word is never a
+    # reserved word to the shell: `'}'` is a command, not a group close.
+    quoted: bool = False
 
 
 class _WordState(Enum):
@@ -568,8 +571,8 @@ class _Scanner:
             else:
                 redirect = _REDIRECT_OPERATOR_RE.match(self.source, self.index)
                 operator = redirect.group() if redirect else ""
-                word = self._word()
-                tokens.append(_Token(text=word, redirect=operator))
+                word, quoted = self._word()
+                tokens.append(_Token(text=word, redirect=operator, quoted=quoted))
                 heredoc_operator = operator.lstrip("0123456789")
                 if awaiting_delimiter is not None:
                     heredocs.append((word, awaiting_delimiter))
@@ -616,9 +619,11 @@ class _Scanner:
         self.index += 1
         return self.source[self.index - 1]
 
-    def _word(self) -> str:
+    def _word(self) -> tuple[str, bool]:
+        """The next word with its quoting removed, and whether any was removed."""
         chars: list[str] = []
         last_unquoted = ""
+        quoted = False
         # Where the word stands against the redirect grammar: still at its
         # start, inside a leading fd number, inside the operator, or past
         # it. An unquoted `<`/`>` after anything else ends the word, the
@@ -645,20 +650,24 @@ class _Scanner:
                 chars.append(self.source[self.index + 1 : self.index + 2])
                 self.index += 2
                 last_unquoted = ""
+                quoted = True
             elif char == "$" and self.source.startswith("$'", self.index):
                 chars.append(self._ansi_c_quoted())
                 last_unquoted = ""
+                quoted = True
             elif char == "'":
                 chars.append(self._single_quoted())
                 last_unquoted = ""
+                quoted = True
             elif char == '"':
                 chars.append(self._double_quoted())
                 last_unquoted = ""
+                quoted = True
             else:
                 chars.append(char)
                 self.index += 1
                 last_unquoted = char
-        return "".join(chars)
+        return "".join(chars), quoted
 
     def _single_quoted(self) -> str:
         end = self.source.find("'", self.index + 1)
@@ -730,6 +739,17 @@ def command_segments(*, command: str) -> tuple[CommandSegment, ...]:
     ``|&``, ``(``, ``)`` and newlines, drops comments and heredoc bodies,
     and drops a leading reserved word (:data:`SHELL_KEYWORDS`).
     Redirects go to :attr:`CommandSegment.redirects`, never to ``argv``.
+    A redirect on a command group or subshell — ``{ echo hi; } > f``,
+    ``(cat a b) > f`` — is also attributed to every segment inside the
+    group (GH-1816): the shell applies it to the group as a whole, and a
+    guard judging the verb would otherwise see a program-less trailing
+    segment and nothing on ``echo``. The trailing segment stays, so a
+    caller counting segments sees the same shape as before. A redirect
+    on a command that holds a substitution — ``echo $(date) > f``,
+    ``echo $(date) more > f``, ``cat <(a) > f`` — goes to that command,
+    never to the substitution's body. A closer with no matching opener,
+    a quoted brace or keyword, and a ``)`` that ends a ``case`` pattern
+    attribute nothing.
     Substitution bodies are not unwrapped here; :func:`command_units`
     hands each one over as its own command.
 
@@ -742,22 +762,63 @@ def command_segments(*, command: str) -> tuple[CommandSegment, ...]:
     redirects: list[Redirect] = []
     bare_operator: str | None = None
     opener = ""
+    # Open groups, innermost last: the opener and the index of the first
+    # segment inside it. A `$` entry is a substitution (`$(…)`, `<(…)`)
+    # and carries the index of the command that holds it instead. A
+    # `case` entry only tells a `)` apart from a subshell close.
+    open_groups: list[tuple[str, int]] = []
+    closed_group: tuple[int, int] | None = None
+    # After `$(…)` closes, the words that follow continue the same
+    # simple command, so a redirect among them still belongs to its
+    # holder: `echo $(date) more > f` writes `f` through `echo`.
+    substitution_holder: int | None = None
+
+    def flush(*, next_opener: str) -> None:
+        nonlocal argv, redirects, opener, closed_group
+        if (
+            redirects
+            and closed_group is not None
+            and (not argv or substitution_holder is not None)
+        ):
+            _attribute_group_redirects(segments=segments, group=closed_group, redirects=redirects)
+        closed_group = None
+        if argv or redirects:
+            segments.append(
+                CommandSegment(argv=tuple(argv), opener=opener, redirects=tuple(redirects))
+            )
+            argv = []
+            redirects = []
+            opener = next_opener
+        elif opener not in _PIPE_OPERATORS:
+            opener = next_opener
+
     for token in _Scanner(source=command).tokens():
         if token.is_operator:
+            # A bare redirect right before the `(` is `<(…)` / `>(…)`.
+            substitution = bare_operator is not None or _opens_substitution(
+                argv=argv, redirects=redirects
+            )
             if bare_operator is not None:
                 redirects.append(Redirect(operator=bare_operator))
                 bare_operator = None
             # A newline ends a command the way `;` does.
             operator = ";" if token.text == "\n" else token.text
-            if argv or redirects:
-                segments.append(
-                    CommandSegment(argv=tuple(argv), opener=opener, redirects=tuple(redirects))
+            flush(next_opener=operator)
+            holder = substitution_holder
+            substitution_holder = None
+            if operator == "(":
+                if substitution:
+                    open_groups.append(("$", len(segments) - 1 if holder is None else holder))
+                else:
+                    open_groups.append(("(", len(segments)))
+            elif operator == ")":
+                closed = _close_group(
+                    open_groups=open_groups, closers=("(", "$"), end=len(segments)
                 )
-                argv = []
-                redirects = []
-                opener = operator
-            elif opener not in _PIPE_OPERATORS:
-                opener = operator
+                if closed is not None:
+                    kind, closed_group = closed
+                    if kind == "$":
+                        substitution_holder = closed_group[0]
             continue
         if bare_operator is not None:
             redirects.append(Redirect(operator=bare_operator, target=token.text))
@@ -770,16 +831,81 @@ def command_segments(*, command: str) -> tuple[CommandSegment, ...]:
             else:
                 bare_operator = token.redirect
             continue
-        if not argv and token.text in SHELL_KEYWORDS:
+        # A reserved word counts only where a command starts: unquoted,
+        # first in its segment, and not continuing a command after a
+        # substitution (`echo $(date) case` passes `case` to echo).
+        starts_command = not argv and not token.quoted and substitution_holder is None
+        if starts_command and token.text in SHELL_KEYWORDS:
+            if token.text == "{":
+                open_groups.append(("{", len(segments)))
+            elif token.text == "}":
+                closed = _close_group(open_groups=open_groups, closers=("{",), end=len(segments))
+                closed_group = None if closed is None else closed[1]
             continue
+        if starts_command and token.text == "case":
+            open_groups.append(("case", len(segments)))
+        elif starts_command and token.text == "esac":
+            _close_group(open_groups=open_groups, closers=("case",), end=len(segments))
+        if substitution_holder is None:
+            closed_group = None
         argv.append(token.text)
     if bare_operator is not None:
         redirects.append(Redirect(operator=bare_operator))
-    if argv or redirects:
-        segments.append(
-            CommandSegment(argv=tuple(argv), opener=opener, redirects=tuple(redirects))
-        )
+    flush(next_opener="")
     return tuple(segments)
+
+
+def _opens_substitution(*, argv: list[str], redirects: list[Redirect]) -> bool:
+    """True when the word before a ``(`` opens a substitution.
+
+    The scanner keeps ``$`` as its own word, as an argument (``echo
+    $(date)``) or as a redirect target (``cat < $(realpath a)``). A
+    redirect whose target is itself ``<`` or ``>`` is a process
+    substitution (``cat < <(a)``), the second operator having been read
+    as the first one's target. A bare ``<`` or ``>`` right before the
+    ``(`` is the same shape and is checked by the caller.
+    """
+    if argv and argv[-1].endswith("$"):
+        return True
+    if not redirects:
+        return False
+    target = redirects[-1].target
+    return target.endswith("$") or target in ("<", ">")
+
+
+def _close_group(
+    *, open_groups: list[tuple[str, int]], closers: tuple[str, ...], end: int
+) -> tuple[str, tuple[int, int]] | None:
+    """Pop the innermost group when ``closers`` names its opener.
+
+    Returns the opener's kind and the segment range a redirect after the
+    closer applies to: the segments inside a group, or the one segment
+    that holds a substitution. A closer with no matching opener — a
+    stray ``}``, a ``)`` closing a ``{``, or the ``)`` that ends a
+    ``case`` pattern — pops nothing and returns None.
+    """
+    if not open_groups or open_groups[-1][0] not in closers:
+        return None
+    kind, start = open_groups.pop()
+    if kind == "$":
+        return kind, (start, start + 1)
+    return kind, (start, end)
+
+
+def _attribute_group_redirects(
+    *, segments: list[CommandSegment], group: tuple[int, int], redirects: list[Redirect]
+) -> None:
+    """Add a group's redirects to every segment the group encloses.
+
+    Over-approximates on purpose: ``{ a | b; } > f`` redirects only
+    ``b``'s stdout, but a guard that sees the redirect on ``a`` too can
+    only block more, never less (GH-1816).
+    """
+    start, end = group
+    added = tuple(redirects)
+    for index in range(start, end):
+        segment = segments[index]
+        segments[index] = replace(segment, redirects=segment.redirects + added)
 
 
 def is_simple_command(*, command: str) -> bool:

@@ -190,6 +190,191 @@ class TestRedirects:
 
         assert (redirect.writes, redirect.feeds_inline_text) == (writes, inline_text)
 
+    @pytest.mark.parametrize(
+        ("command", "expected"),
+        [
+            ("{ echo hi; } > f", [(["echo", "hi"], [(">", "f")]), ([], [(">", "f")])]),
+            ("(cat a b) > f", [(["cat", "a", "b"], [(">", "f")]), ([], [(">", "f")])]),
+            ("(echo hi)>f", [(["echo", "hi"], [(">", "f")]), ([], [(">", "f")])]),
+            (
+                "{ a; b; } 2>/dev/null >> f",
+                [
+                    (["a"], [("2>", "/dev/null"), (">>", "f")]),
+                    (["b"], [("2>", "/dev/null"), (">>", "f")]),
+                    ([], [("2>", "/dev/null"), (">>", "f")]),
+                ],
+            ),
+            (
+                "{ { a; } > f; } > g",
+                [
+                    (["a"], [(">", "f"), (">", "g")]),
+                    ([], [(">", "f"), (">", "g")]),
+                    ([], [(">", "g")]),
+                ],
+            ),
+            ("(a | b) > f", [(["a"], [(">", "f")]), (["b"], [(">", "f")]), ([], [(">", "f")])]),
+            # Only a redirect that directly follows the closing brace or
+            # paren belongs to the group.
+            ("{ a; } ; > f", [(["a"], []), ([], [(">", "f")])]),
+            ("(a); > f", [(["a"], []), ([], [(">", "f")])]),
+            ("(a) b > f", [(["a"], []), (["b"], [(">", "f")])]),
+            ("(a) | b > f", [(["a"], []), (["b"], [(">", "f")])]),
+            ("{ a; } && b > f", [(["a"], []), (["b"], [(">", "f")])]),
+            ("a; } > f", [(["a"], []), ([], [(">", "f")])]),
+            # A quoted brace is a word, never a group boundary.
+            (
+                "{ echo hi; '}'; } > f",
+                [(["echo", "hi"], [(">", "f")]), (["}"], [(">", "f")]), ([], [(">", "f")])],
+            ),
+            (
+                '{ echo hi; "{"; } > f',
+                [(["echo", "hi"], [(">", "f")]), (["{"], [(">", "f")]), ([], [(">", "f")])],
+            ),
+            ("\\{ a; } > f", [(["{", "a"], []), ([], [(">", "f")])]),
+            # A `)` ending a `case` pattern closes no group.
+            (
+                "{ echo hi; case x in x) :;; esac; } > f",
+                [
+                    (["echo", "hi"], [(">", "f")]),
+                    (["case", "x", "in", "x"], [(">", "f")]),
+                    ([":"], [(">", "f")]),
+                    (["esac"], [(">", "f")]),
+                    ([], [(">", "f")]),
+                ],
+            ),
+            (
+                "( echo hi; case x in (x) :;; esac ) > f",
+                [
+                    (["echo", "hi"], [(">", "f")]),
+                    (["case", "x", "in"], [(">", "f")]),
+                    (["x"], [(">", "f")]),
+                    ([":"], [(">", "f")]),
+                    (["esac"], [(">", "f")]),
+                    ([], [(">", "f")]),
+                ],
+            ),
+            (
+                "( echo hi; case x in x) :;; esac ) > f",
+                [
+                    (["echo", "hi"], [(">", "f")]),
+                    (["case", "x", "in", "x"], [(">", "f")]),
+                    ([":"], [(">", "f")]),
+                    (["esac"], [(">", "f")]),
+                    ([], [(">", "f")]),
+                ],
+            ),
+            (
+                "( case x in a) :;; b) :;; esac ) > f",
+                [
+                    (["case", "x", "in", "a"], [(">", "f")]),
+                    ([":"], [(">", "f")]),
+                    (["b"], [(">", "f")]),
+                    ([":"], [(">", "f")]),
+                    (["esac"], [(">", "f")]),
+                    ([], [(">", "f")]),
+                ],
+            ),
+            (
+                "( case x in a|b) :;; esac ) > f",
+                [
+                    (["case", "x", "in", "a"], [(">", "f")]),
+                    (["b"], [(">", "f")]),
+                    ([":"], [(">", "f")]),
+                    (["esac"], [(">", "f")]),
+                    ([], [(">", "f")]),
+                ],
+            ),
+            (
+                "( case x in\n x) :;; esac ) > f",
+                [
+                    (["case", "x", "in"], [(">", "f")]),
+                    (["x"], [(">", "f")]),
+                    ([":"], [(">", "f")]),
+                    (["esac"], [(">", "f")]),
+                    ([], [(">", "f")]),
+                ],
+            ),
+            (
+                "(echo hi; 'case') > f",
+                [(["echo", "hi"], [(">", "f")]), (["case"], [(">", "f")]), ([], [(">", "f")])],
+            ),
+            # A substitution's redirect belongs to the command holding it.
+            (
+                "echo $(date) > f",
+                [(["echo", "$"], [(">", "f")]), (["date"], []), ([], [(">", "f")])],
+            ),
+            (
+                "ls $(cat a) > f",
+                [(["ls", "$"], [(">", "f")]), (["cat", "a"], []), ([], [(">", "f")])],
+            ),
+            (
+                "echo $(date) more > f",
+                [(["echo", "$"], [(">", "f")]), (["date"], []), (["more"], [(">", "f")])],
+            ),
+            (
+                "echo $(a) $(b) > f",
+                [
+                    (["echo", "$"], [(">", "f")]),
+                    (["a"], []),
+                    (["$"], []),
+                    (["b"], []),
+                    ([], [(">", "f")]),
+                ],
+            ),
+            (
+                "cat <(true) > f",
+                [(["cat"], [("<", ""), (">", "f")]), (["true"], []), ([], [(">", "f")])],
+            ),
+            (
+                "cat < $(true) > f",
+                [(["cat"], [("<", "$"), (">", "f")]), (["true"], []), ([], [(">", "f")])],
+            ),
+            (
+                "cat < <(a) > f",
+                [(["cat"], [("<", "<"), (">", "f")]), (["a"], []), ([], [(">", "f")])],
+            ),
+            # The holder stops at the next operator.
+            (
+                "echo $(a); { b; } c > f",
+                [(["echo", "$"], []), (["a"], []), (["b"], []), (["c"], [(">", "f")])],
+            ),
+            # A reserved word after a substitution is an argument.
+            (
+                "(echo $(date) case) > f",
+                [
+                    (["echo", "$"], [(">", "f")]),
+                    (["date"], [(">", "f")]),
+                    (["case"], [(">", "f")]),
+                    ([], [(">", "f")]),
+                ],
+            ),
+            ("(echo case) > f", [(["echo", "case"], [(">", "f")]), ([], [(">", "f")])]),
+            (
+                "( case x in x) 'esac';; esac ) > f",
+                [
+                    (["case", "x", "in", "x"], [(">", "f")]),
+                    (["esac"], [(">", "f")]),
+                    (["esac"], [(">", "f")]),
+                    ([], [(">", "f")]),
+                ],
+            ),
+            # A closer with no matching opener attributes nothing.
+            ("a) > f", [(["a"], []), ([], [(">", "f")])]),
+            ("{ a; ) > f", [(["a"], []), ([], [(">", "f")])]),
+            ("(a; } > f", [(["a"], []), ([], [(">", "f")])]),
+        ],
+    )
+    def test_attributes_a_group_redirect_to_the_commands_inside(
+        self, command: str, expected: list[tuple[list[str], list[tuple[str, str]]]]
+    ) -> None:
+        # GH-1816: `{ echo hi; } > f` writes `f` through the group's
+        # redirect, which the scanner put on a segment with no program.
+        segments = command_segments(command=command)
+
+        assert [
+            (list(s.argv), [(r.operator, r.target) for r in s.redirects]) for s in segments
+        ] == expected
+
 
 class TestSegmentPrograms:
     def test_strips_wrappers_and_skips_empty_segments(self) -> None:
