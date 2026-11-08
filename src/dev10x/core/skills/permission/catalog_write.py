@@ -15,6 +15,7 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
+from dev10x.core.plugin_map import PluginMap, load_plugin_map
 from dev10x.domain.claude_paths import ClaudeDir
 from dev10x.domain.common.result import Result, err, ok
 from dev10x.domain.file_locks import atomic_write_text, file_lock
@@ -23,6 +24,7 @@ from dev10x.skills.permission.catalog_load import detect_latest_version
 from dev10x.skills.permission.catalog_merge import CatalogDrift
 from dev10x.skills.permission.catalog_result import _result
 from dev10x.skills.permission.catalog_rules import (
+    ScriptRoot,
     _expand_stale_wildcards,
     _generalizations,
     _is_nonfunctional_mcp_wildcard,
@@ -34,6 +36,7 @@ from dev10x.skills.permission.catalog_rules import (
     collapse_legacy_upgrade_cleanup_rule,
     is_dead_glob_script_rule,
     partition_unmatchable_rules,
+    satellite_script_roots,
     scan_plugin_scripts,
     scan_user_skill_scripts,
     verify_read_coverage,
@@ -1330,6 +1333,7 @@ def ensure_scripts(
     dry_run: bool,
     quiet: bool = False,
     allow_tracked: bool = False,
+    plugin_map: PluginMap | None = None,
 ) -> dict[str, object]:
     """Add missing per-script allow rules for plugin scripts. Returns result dict."""
     messages: list[str] = []
@@ -1342,28 +1346,41 @@ def ensure_scripts(
         return _result(exit_code=1, messages=messages, errors=errors)
 
     plugin_root = cache_dir / target_version
-    scripts = scan_plugin_scripts(plugin_root)
-    if not scripts:
+    # GH-1807: a skill that moved to a satellite plugin (ADR-0034 Stage B)
+    # dispatches from the satellite's own cache and marketplace trees, so
+    # every installed satellite is scanned beside core.
+    roots = [ScriptRoot(plugin_root=plugin_root)]
+    roots += satellite_script_roots(
+        cache_dir=cache_dir,
+        plugin_map=plugin_map or load_plugin_map(),
+    )
+    scripts_found = 0
+    expected_rules: list[str] = []
+    for root in roots:
+        scripts = scan_plugin_scripts(root.plugin_root)
+        scripts_found += len(scripts)
+        expected_rules += build_script_allow_rules(
+            scripts,
+            plugin_root=root.plugin_root,
+        )
+        # GH-704: also seed the unversioned marketplace-root twins so a
+        # grant matches whichever root family (cache vs marketplaces)
+        # dispatches the script.
+        expected_rules += build_marketplaces_script_rules(
+            scripts,
+            plugin_root=root.plugin_root,
+            plugin_cache=config["plugin_cache"],
+            user_home=Path.home(),
+            marketplace_subdir=root.marketplace_subdir,
+        )
+    if not scripts_found:
         messages.append(f"No callable scripts found in {plugin_root}")
         return _result(exit_code=0, messages=messages, errors=errors)
 
-    expected_rules = build_script_allow_rules(
-        scripts,
-        plugin_root=plugin_root,
-    )
-    # GH-704: also seed the unversioned marketplace-root twins so a grant
-    # matches whichever root family (cache vs marketplaces) dispatches the
-    # script.
-    expected_rules += build_marketplaces_script_rules(
-        scripts,
-        plugin_root=plugin_root,
-        plugin_cache=config["plugin_cache"],
-        user_home=Path.home(),
-    )
-
     if not quiet:
-        messages.append(f"Plugin root: {plugin_root}")
-        messages.append(f"Scripts found: {len(scripts)}")
+        for root in roots:
+            messages.append(f"Plugin root: {root.plugin_root}")
+        messages.append(f"Scripts found: {scripts_found}")
         if dry_run:
             messages.append("(dry run — no files will be modified)\n")
 
@@ -1526,6 +1543,7 @@ def ensure_reads(
     dry_run: bool,
     quiet: bool = False,
     allow_tracked: bool = False,
+    plugin_map: PluginMap | None = None,
 ) -> dict[str, object]:
     """Emit per-skill folder Read rules with ~/ + /home/<user>/ twins. Returns result dict."""
     messages: list[str] = []
@@ -1542,6 +1560,16 @@ def ensure_reads(
         plugin_root=plugin_root,
         user_home=Path.home(),
     )
+    # GH-1807: a satellite's skills are read from its own versioned cache
+    # tree; the unversioned marketplace rule below already spans the
+    # publisher tree, satellites included.
+    for root in satellite_script_roots(
+        cache_dir=cache_dir,
+        plugin_map=plugin_map or load_plugin_map(),
+    ):
+        expected_rules.extend(
+            build_read_allow_rules(plugin_root=root.plugin_root, user_home=Path.home())
+        )
     # GH-254: emit unversioned marketplaces Read rules alongside the
     # versioned cache rules. The runtime reads skills from the
     # marketplaces tree, which is unversioned — pinning to cache

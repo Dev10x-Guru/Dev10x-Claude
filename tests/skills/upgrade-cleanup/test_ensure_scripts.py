@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from dev10x.core.plugin_map import PluginMap
 from dev10x.skills.permission import update_paths
 
 
@@ -417,6 +418,167 @@ class TestEnsureScriptsFunction:
 
         assert result["exit_code"] == 0
         assert any("No callable scripts" in m for m in result["messages"])
+
+
+# ── GH-1807: satellite plugins seed their own script and Read grants ────
+
+_SATELLITE_PLUGIN_MAP = PluginMap(
+    plugins={"qa": ("tts",), "infra": ("k8s",)},
+    plugin_names={"qa": "dev10x-qa", "infra": "dev10x-infra"},
+    marketplace="Dev10x-Guru",
+    extracted=("qa", "infra"),
+)
+
+
+@pytest.fixture()
+def satellite_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
+    return home
+
+
+@pytest.fixture()
+def empty_core_cache(satellite_home: Path) -> Path:
+    core = satellite_home / ".claude" / "plugins" / "cache" / "Dev10x-Guru" / "dev10x"
+    (core / "0.115.0" / "skills" / "ask").mkdir(parents=True)
+    return core
+
+
+@pytest.fixture()
+def core_cache(empty_core_cache: Path) -> Path:
+    (empty_core_cache / "0.115.0" / "bin").mkdir()
+    (empty_core_cache / "0.115.0" / "bin" / "mktmp.sh").touch()
+    return empty_core_cache
+
+
+@pytest.fixture()
+def qa_root(empty_core_cache: Path) -> Path:
+    root = empty_core_cache.parent / "dev10x-qa" / "0.115.0"
+    (root / "skills" / "tts").mkdir(parents=True)
+    return root
+
+
+@pytest.fixture()
+def qa_script(qa_root: Path) -> Path:
+    scripts = qa_root / "skills" / "tts" / "scripts"
+    scripts.mkdir()
+    script = scripts / "say.py"
+    script.touch()
+    return script
+
+
+@pytest.fixture()
+def satellite_settings(tmp_path: Path) -> Path:
+    settings = tmp_path / "settings.local.json"
+    settings.write_text(json.dumps({"permissions": {"allow": []}}))
+    return settings
+
+
+def _allow_rules(settings: Path) -> list[str]:
+    return json.loads(settings.read_text())["permissions"]["allow"]
+
+
+class TestEnsureScriptsSeedsSatellites:
+    """GH-1807: a skill that moved to a satellite plugin gets its grants too."""
+
+    @pytest.fixture()
+    def result(
+        self, core_cache: Path, qa_script: Path, satellite_settings: Path
+    ) -> dict[str, object]:
+        return update_paths.ensure_scripts(
+            config={"plugin_cache": str(core_cache)},
+            settings_files=[satellite_settings],
+            dry_run=False,
+            quiet=False,
+            plugin_map=_SATELLITE_PLUGIN_MAP,
+        )
+
+    @pytest.fixture()
+    def allow(self, result: dict[str, object], satellite_settings: Path) -> list[str]:
+        return _allow_rules(settings=satellite_settings)
+
+    def test_seeds_satellite_cache_rule(self, allow: list[str], qa_script: Path) -> None:
+        assert f"Bash({qa_script}:*)" in allow
+
+    def test_keeps_core_cache_rule(self, allow: list[str], core_cache: Path) -> None:
+        assert f"Bash({core_cache}/0.115.0/bin/mktmp.sh:*)" in allow
+
+    def test_seeds_satellite_marketplace_twins_with_plugins_infix(
+        self, allow: list[str], satellite_home: Path
+    ) -> None:
+        rel = ".claude/plugins/marketplaces/Dev10x-Guru/plugins/qa/skills/tts/scripts/say.py"
+        assert f"Bash(~/{rel}:*)" in allow
+        assert f"Bash({satellite_home}/{rel}:*)" in allow
+        assert not any("marketplaces/Dev10x-Guru/skills/tts/" in rule for rule in allow)
+
+    def test_only_installed_satellite_is_seeded(self, allow: list[str], qa_script: Path) -> None:
+        assert f"Bash({qa_script}:*)" in allow
+        assert not any("dev10x-infra" in rule or "plugins/infra" in rule for rule in allow)
+
+    def test_reports_every_scanned_root(self, result: dict[str, object], core_cache: Path) -> None:
+        joined = "\n".join(result["messages"])
+        assert f"Plugin root: {core_cache / '0.115.0'}" in joined
+        assert f"Plugin root: {core_cache.parent / 'dev10x-qa' / '0.115.0'}" in joined
+        assert "Scripts found: 2" in joined
+
+
+class TestEnsureScriptsSeedsSatelliteOnly:
+    """GH-1807: a satellite's scripts seed even when core itself has none."""
+
+    @pytest.fixture()
+    def result(
+        self, empty_core_cache: Path, qa_script: Path, satellite_settings: Path
+    ) -> dict[str, object]:
+        return update_paths.ensure_scripts(
+            config={"plugin_cache": str(empty_core_cache)},
+            settings_files=[satellite_settings],
+            dry_run=False,
+            quiet=True,
+            plugin_map=_SATELLITE_PLUGIN_MAP,
+        )
+
+    def test_writes_the_settings_file(self, result: dict[str, object]) -> None:
+        assert result["files_changed"] == 1
+
+    def test_seeds_the_satellite_rule(
+        self, result: dict[str, object], satellite_settings: Path, qa_script: Path
+    ) -> None:
+        assert f"Bash({qa_script}:*)" in _allow_rules(settings=satellite_settings)
+
+    def test_does_not_report_no_scripts(self, result: dict[str, object]) -> None:
+        assert not any("No callable scripts" in m for m in result["messages"])
+
+
+class TestEnsureReadsSeedsSatellites:
+    """GH-1807: a satellite's skill folders get versioned Read rules too."""
+
+    @pytest.fixture()
+    def allow(self, empty_core_cache: Path, qa_root: Path, satellite_settings: Path) -> list[str]:
+        update_paths.ensure_reads(
+            config={"plugin_cache": str(empty_core_cache)},
+            settings_files=[satellite_settings],
+            dry_run=False,
+            quiet=True,
+            plugin_map=_SATELLITE_PLUGIN_MAP,
+        )
+        return _allow_rules(settings=satellite_settings)
+
+    def test_seeds_satellite_skill_read_rules(
+        self, allow: list[str], satellite_home: Path
+    ) -> None:
+        rel = ".claude/plugins/cache/Dev10x-Guru/dev10x-qa/0.115.0/skills/tts"
+        assert f"Read(~/{rel}/*)" in allow
+        assert f"Read({satellite_home}/{rel}/*)" in allow
+
+    def test_keeps_core_skill_read_rules(self, allow: list[str], satellite_home: Path) -> None:
+        rel = ".claude/plugins/cache/Dev10x-Guru/dev10x/0.115.0/skills/ask"
+        assert f"Read(~/{rel}/*)" in allow
+        assert f"Read({satellite_home}/{rel}/*)" in allow
+
+    def test_only_installed_satellite_gets_read_rules(self, allow: list[str]) -> None:
+        assert any("dev10x-qa" in rule for rule in allow)
+        assert not any("dev10x-infra" in rule for rule in allow)
 
 
 # ── GH-606 AC2: user-skill script enumeration ───────────────────────────

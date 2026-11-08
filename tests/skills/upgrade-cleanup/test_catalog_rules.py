@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 import pytest
 from dev10x.skills.permission.catalog_rules import (
+    ScriptRoot,
     _expand_stale_wildcards,
     _generalizations,
     _unescaped_parens_balance,
@@ -16,9 +17,12 @@ from dev10x.skills.permission.catalog_rules import (
     generalize_permission,
     is_dead_glob_script_rule,
     is_well_formed_rule,
+    satellite_script_roots,
     scan_plugin_scripts,
     verify_script_coverage,
 )
+
+from dev10x.core.plugin_map import PluginMap
 
 
 def _write_settings(path: Path, *, allow: list[str] | None = None, **sections: object) -> Path:
@@ -148,6 +152,108 @@ class TestBuildMarketplacesScriptRules:
             )
             == []
         )
+
+    def test_satellite_twins_carry_plugins_key_infix(self, tmp_path: Path) -> None:
+        # GH-1807: a satellite lives under marketplaces/<pub>/plugins/<key>/,
+        # not at the marketplace root core occupies.
+        plugin_root = tmp_path / "Dev10x-Guru" / "dev10x-qa" / "0.115.0"
+        (plugin_root / "skills" / "tts" / "scripts").mkdir(parents=True)
+        script = plugin_root / "skills" / "tts" / "scripts" / "say.py"
+        script.write_text("")
+        home = tmp_path / "home"
+        home.mkdir()
+        rules = build_marketplaces_script_rules(
+            [script],
+            plugin_root=plugin_root,
+            plugin_cache="~/.claude/plugins/cache/Dev10x-Guru/dev10x",
+            user_home=home,
+            marketplace_subdir="plugins/qa",
+        )
+        rel = ".claude/plugins/marketplaces/Dev10x-Guru/plugins/qa/skills/tts/scripts/say.py"
+        assert rules == [f"Bash(~/{rel}:*)", f"Bash({home}/{rel}:*)"]
+
+
+def _plugin_map(*, extracted: tuple[str, ...], plugin_names: dict[str, str]) -> PluginMap:
+    return PluginMap(
+        plugins={key: ("skill",) for key in extracted},
+        plugin_names=plugin_names,
+        marketplace="Dev10x-Guru",
+        extracted=extracted,
+    )
+
+
+_QA_PLUGIN_MAP = _plugin_map(extracted=("qa",), plugin_names={"qa": "dev10x-qa"})
+
+
+def _satellite_root(*, cache_dir: Path, key: str) -> ScriptRoot:
+    return ScriptRoot(
+        plugin_root=cache_dir.parent / f"dev10x-{key}" / "0.115.0",
+        marketplace_subdir=f"plugins/{key}",
+    )
+
+
+class TestSatelliteScriptRoots:
+    @pytest.fixture()
+    def cache_dir(self, tmp_path: Path) -> Path:
+        publisher = tmp_path / "cache" / "Dev10x-Guru"
+        (publisher / "dev10x" / "0.115.0").mkdir(parents=True)
+        return publisher / "dev10x"
+
+    def test_installed_satellite_resolves_beside_core(self, cache_dir: Path) -> None:
+        (cache_dir.parent / "dev10x-qa" / "0.115.0").mkdir(parents=True)
+
+        roots = satellite_script_roots(cache_dir=cache_dir, plugin_map=_QA_PLUGIN_MAP)
+
+        assert roots == [_satellite_root(cache_dir=cache_dir, key="qa")]
+
+    def test_only_installed_satellite_resolves(self, cache_dir: Path) -> None:
+        plugin_map = _plugin_map(
+            extracted=("qa", "infra"),
+            plugin_names={"qa": "dev10x-qa", "infra": "dev10x-infra"},
+        )
+        (cache_dir.parent / "dev10x-infra" / "0.115.0").mkdir(parents=True)
+
+        roots = satellite_script_roots(cache_dir=cache_dir, plugin_map=plugin_map)
+
+        assert roots == [_satellite_root(cache_dir=cache_dir, key="infra")]
+
+    def test_empty_satellite_cache_dir_is_skipped(self, cache_dir: Path) -> None:
+        (cache_dir.parent / "dev10x-qa").mkdir()
+
+        assert satellite_script_roots(cache_dir=cache_dir, plugin_map=_QA_PLUGIN_MAP) == []
+
+    def test_latest_satellite_version_wins(self, cache_dir: Path) -> None:
+        for version in ("0.114.0", "0.115.0", "0.99.0"):
+            (cache_dir.parent / "dev10x-qa" / version).mkdir(parents=True)
+
+        roots = satellite_script_roots(cache_dir=cache_dir, plugin_map=_QA_PLUGIN_MAP)
+
+        assert roots == [_satellite_root(cache_dir=cache_dir, key="qa")]
+
+    def test_lagging_satellite_uses_its_own_version(self, cache_dir: Path) -> None:
+        (cache_dir.parent / "dev10x-qa" / "0.114.0").mkdir(parents=True)
+
+        roots = satellite_script_roots(cache_dir=cache_dir, plugin_map=_QA_PLUGIN_MAP)
+
+        assert roots == [
+            ScriptRoot(
+                plugin_root=cache_dir.parent / "dev10x-qa" / "0.114.0",
+                marketplace_subdir="plugins/qa",
+            )
+        ]
+
+    def test_unnamed_key_falls_back_to_scheme_name(self, cache_dir: Path) -> None:
+        (cache_dir.parent / "dev10x-db" / "0.115.0").mkdir(parents=True)
+        plugin_map = _plugin_map(extracted=("db",), plugin_names={})
+
+        roots = satellite_script_roots(cache_dir=cache_dir, plugin_map=plugin_map)
+
+        assert roots == [_satellite_root(cache_dir=cache_dir, key="db")]
+
+    def test_no_extracted_keys_yields_no_roots(self, cache_dir: Path) -> None:
+        plugin_map = _plugin_map(extracted=(), plugin_names={})
+
+        assert satellite_script_roots(cache_dir=cache_dir, plugin_map=plugin_map) == []
 
 
 class TestIsDeadGlobScriptRule:

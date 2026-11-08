@@ -10,11 +10,14 @@ act on these answers. Split out of ``update_paths.py`` by GH-1432.
 
 import json
 import re
+from dataclasses import dataclass
 from pathlib import Path
 
+from dev10x.core.paths import SATELLITES_DIR
+from dev10x.core.plugin_map import PluginMap, expected_plugin_name
 from dev10x.domain.common.allow_rule import AllowRule
 from dev10x.domain.common.mktmp_path import MKTMP_GENERALIZE_PATTERN
-from dev10x.skills.permission.catalog_load import extract_cache_publisher
+from dev10x.skills.permission.catalog_load import detect_latest_version, extract_cache_publisher
 
 MCP_WILDCARD_PATTERN = re.compile(r"^mcp__plugin_[A-Za-z0-9]+_\*$")
 
@@ -81,6 +84,44 @@ READ_TOP_LEVEL_DIRS: tuple[str, ...] = (
 )
 
 
+@dataclass(frozen=True)
+class ScriptRoot:
+    """One installed plugin tree to scan for scripts (GH-1807).
+
+    ``marketplace_subdir`` is the path between the publisher's
+    marketplace root and the plugin's own tree: empty for core, which
+    sits at the marketplace root, and ``plugins/<key>`` for a satellite
+    (ADR-0034 Stage B).
+    """
+
+    plugin_root: Path
+    marketplace_subdir: str = ""
+
+
+def satellite_script_roots(*, cache_dir: Path, plugin_map: PluginMap) -> list[ScriptRoot]:
+    """Installed satellite trees beside core's ``cache_dir`` (GH-1807).
+
+    A satellite caches at ``<cache>/<publisher>/<plugin name>/<ver>``
+    next to core's ``<cache>/<publisher>/dev10x/<ver>``. A key listed
+    under ``extracted:`` whose cache directory holds no version is not
+    installed, so it is skipped: there is nothing to scan.
+    """
+    roots: list[ScriptRoot] = []
+    for key in plugin_map.extracted:
+        plugin_name = plugin_map.plugin_name(key=key) or expected_plugin_name(key=key)
+        satellite_cache = cache_dir.parent / plugin_name
+        version = detect_latest_version(satellite_cache)
+        if not version:
+            continue
+        roots.append(
+            ScriptRoot(
+                plugin_root=satellite_cache / version,
+                marketplace_subdir=f"{SATELLITES_DIR}/{key}",
+            )
+        )
+    return roots
+
+
 def scan_plugin_scripts(plugin_root: Path) -> list[Path]:
     scripts: list[Path] = []
     for glob_pattern in SCRIPT_SCAN_GLOBS:
@@ -123,6 +164,7 @@ def build_marketplaces_script_rules(
     plugin_root: Path,
     plugin_cache: str,
     user_home: Path,
+    marketplace_subdir: str = "",
 ) -> list[str]:
     """Emit unversioned marketplace-root Bash rules for plugin scripts (GH-704).
 
@@ -137,6 +179,11 @@ def build_marketplaces_script_rules(
     twins anchored at ``marketplaces/<publisher>/<relative>`` so a grant
     matches whichever root family dispatches the script. ``relative`` is the
     same sub-path in both layouts (``skills/<name>/scripts/<file>`` etc.).
+
+    A satellite plugin lives under ``marketplaces/<publisher>/plugins/<key>/``
+    rather than at the marketplace root (GH-1807); ``marketplace_subdir``
+    carries that infix so its twins spell the directory the runtime
+    dispatches from.
     """
     publisher = extract_cache_publisher(plugin_cache)
     if not publisher:
@@ -144,6 +191,8 @@ def build_marketplaces_script_rules(
 
     home = user_home.expanduser().resolve()
     rel_root = f".claude/plugins/marketplaces/{publisher}"
+    if marketplace_subdir:
+        rel_root = f"{rel_root}/{marketplace_subdir}"
     rules: list[str] = []
     for script in scripts:
         relative = script.relative_to(plugin_root)
