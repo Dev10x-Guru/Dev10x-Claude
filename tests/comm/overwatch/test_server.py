@@ -1065,7 +1065,7 @@ class TestSessionCommand:
 
     @pytest.mark.parametrize(
         ("command", "sent"),
-        [("reflect", "/my:reflect"), ("wrap-up", "/dev10x:session-wrap-up")],
+        [("reflect", "/dev10x:reflect"), ("wrap-up", "/dev10x:session-wrap-up")],
     )
     def test_runs_a_known_command_in_an_idle_session(
         self, port: int, commander: Launcher, command: str, sent: str
