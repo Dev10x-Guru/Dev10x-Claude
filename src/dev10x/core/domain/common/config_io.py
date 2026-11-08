@@ -6,11 +6,15 @@ is no write counterpart; write-back stays in ``file_locks`` and the
 Document layer (ADR-0007 D3, clarified by ADR-0015).
 
 Tolerant mode (``strict=False``, the default) mirrors the shipped
-``baseline_catalog.load_baseline_dict`` precedent: a missing file, a
-parse error, or a non-mapping top-level value all return ``{}``. Strict
-mode raises a single project error type, :class:`ConfigIOError`, so
-callers that require the file fail uniformly regardless of the
-underlying parser.
+``baseline_catalog.load_baseline_dict`` precedent: a missing or
+unreadable file, a parse error, or a non-mapping top-level value all
+return ``{}``. Strict mode raises a single project error type,
+:class:`ConfigIOError`, so callers that require the file fail uniformly
+regardless of the underlying parser.
+
+In both modes a document that parses to nothing — an empty or
+comment-only YAML file, or a JSON ``null`` — is an empty mapping, not a
+malformed one (GH-1825). An empty JSON file is still a parse error.
 
 Scope: config/catalog *files* only — not subprocess stdout
 (``json.loads(result.stdout)`` is a different category) and not inline
@@ -29,8 +33,9 @@ import yaml
 class ConfigIOError(Exception):
     """Raised by the strict-mode loaders on any read or parse failure.
 
-    Covers a missing file, malformed content, and a non-mapping
-    top-level value — the underlying cause is chained via ``from``.
+    Covers a missing or undecodable file, malformed content, and a
+    non-mapping top-level value — the underlying cause is chained via
+    ``from``.
     """
 
 
@@ -56,10 +61,18 @@ def _load(
             raise ConfigIOError(f"Config file not found: {path}")
         return {}
     try:
-        data = parse(path.read_text(encoding="utf-8"))
-    except (parse_error, OSError) as exc:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
         if strict:
-            raise ConfigIOError(f"Failed to parse config file: {path}") from exc
+            raise ConfigIOError(f"Failed to read config file: {path}: {exc}") from exc
+        return {}
+    try:
+        data = parse(text)
+    except parse_error as exc:
+        if strict:
+            raise ConfigIOError(f"Failed to parse config file: {path}: {exc}") from exc
+        return {}
+    if data is None:
         return {}
     if not isinstance(data, dict):
         if strict:
