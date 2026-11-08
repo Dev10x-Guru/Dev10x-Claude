@@ -469,6 +469,18 @@ The supervisor decided the Stage B open decisions on 2026-10-19
      rule is replaced; a `deny` or `ask` rule is kept and a relocated
      copy added. A git-tracked settings file is skipped, as for every
      `update-paths` rewrite.
+   - A user who never held the core rules gets nothing from that move,
+     so GH-1807 makes `ensure-scripts` scan each installed satellite's
+     cache (`…/<plugin name>/<ver>/`, found beside core's) and spell
+     its script twins with the `plugins/<key>/` infix. `ensure-reads`
+     emits the versioned skill-folder Read rules for the same roots;
+     the unversioned `marketplaces/<pub>/**` Read rule already spans
+     every satellite. Seeding uses each satellite's newest installed
+     version, not core's, so its grants are written even when it lags
+     core by a release; runtime resolution through
+     `dev10x.core.paths.satellite_script` still assumes the lockstep
+     version. A key under `extracted:` with no installed version is
+     skipped.
    - B3 (GH-1566) keeps `command-skill-map.d/db.yaml`,
      `families.d/db.yaml` and `projects.d/db.yaml` in core's tree too.
      `projects.d/db.yaml` gains `Skill(dev10x-db:*)` next to the

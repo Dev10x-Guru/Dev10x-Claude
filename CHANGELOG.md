@@ -5,6 +5,17 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+### Features
+
+- **Satellite plugin scripts get their allow rules seeded** —
+  `dev10x permission ensure-scripts` and `ensure-reads` now scan every
+  installed satellite plugin (`dev10x-qa`, `dev10x-infra`, `dev10x-db`)
+  beside core, emitting the versioned cache rules and the marketplace
+  twins under `plugins/<key>/`. Before, only a user who already held
+  the old core rules kept running a moved skill's scripts without a
+  prompt (GH-1793 relocated those); a fresh install got no rule at
+  all. A satellite that is not installed is skipped. (GH-1807)
+
 ## 0.115.0 — Keep Auto Mode On
 
 Released 2026-11-08
