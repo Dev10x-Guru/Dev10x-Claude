@@ -309,6 +309,105 @@ class TestATurnThatKeptItsWordEndsQuietly:
         assert promised_action(entries=[thinking_only]) == ""
 
 
+#: Closings whose promise shares a sentence with its condition, or sits
+#: in a list under a colon lead-in that carries the condition. Like
+#: ``_EXEMPT_PROMISES``, each must also match an intent pattern on its
+#: own, which ``test_only_the_exemption_lets_the_promise_through`` pins.
+_SAME_SENTENCE_EXEMPTIONS = [
+    pytest.param(
+        "Once you approve, I'll merge it. If you want, I will rebase it first.",
+        id="two-exempt-sentences",
+    ),
+    pytest.param("Everything is green. Once you approve, I'll merge it.", id="status-then-exempt"),
+    pytest.param("Once you approve,\nI'll merge it.", id="wrapped-sentence"),
+    pytest.param("If you want, e.g. the slow ones, I'll rerun the tests.", id="abbreviation-eg"),
+    pytest.param("If you prefer squash vs. rebase, I'll merge it that way.", id="abbreviation-vs"),
+    pytest.param(
+        "Once you approve:\n- I'll push the branch\n- I'll merge it",
+        id="conditional-lead-in-list",
+    ),
+    pytest.param(
+        "Once you approve:\n  1. I'll push the branch\n  10. I'll merge it",
+        id="conditional-lead-in-indented-numbers",
+    ),
+    pytest.param(
+        "Once you approve:\n1) I'll push the branch\n2) I'll merge it",
+        id="conditional-lead-in-paren-numbers",
+    ),
+]
+
+
+class TestAnExemptionCoversOnlyItsOwnSentence:
+    """GH-1854: a conditional sentence must not excuse its neighbor."""
+
+    @pytest.mark.parametrize(
+        "closing",
+        [
+            "Now I'll run the tests. If you see failures, I'll fix them.",
+            "If you want a summary, say so. Next, I'll push the branch.",
+            "I'll open the PR! Once you approve, I'll merge it.",
+            "Want a summary? Next, I'll push the branch. If you want, I'll add one.",
+            "I'll run the tests.\nIf you see failures, I'll fix them.",
+            "**I'll push it now.** Once you approve, I'll merge it.",
+            "- I'll run the tests\n- Once you approve, I'll merge it",
+            "1. I'll run the tests\n2. Once you approve, I'll merge it",
+            "1) I'll run the tests\n2) Once you approve, I'll merge it",
+            "Once you approve:\n- I'll merge it. Now I'll run the tests.",
+            "Once you approve:\n- I'll merge it. Next steps below.\n- I'll run the tests",
+        ],
+        ids=[
+            "promise-then-condition",
+            "condition-then-promise",
+            "exclamation",
+            "question-mark",
+            "line-break",
+            "markdown-bold",
+            "bullet-list",
+            "numbered-list",
+            "numbered-paren-list",
+            "item-splits-at-sentence-end",
+            "lead-in-stops-at-next-sentence",
+        ],
+    )
+    def test_an_unconditional_promise_beside_a_conditional_one_blocks(
+        self, tmp_path: Path, isolated_markers: Path, closing: str
+    ) -> None:
+        verdict = decide(
+            data={
+                "session_id": "s1",
+                "transcript_path": _closing_turn(tmp_path=tmp_path, closing=closing),
+            },
+            plan=PENDING_PLAN,
+        )
+
+        assert verdict.signal == StopSignal.PROMISED_ACTION
+
+    def test_the_whole_paragraph_is_returned_not_just_the_promise(self) -> None:
+        closing = "Now I'll run the tests. If you see failures, I'll fix them."
+
+        assert promised_action(entries=_entries(closing=closing)) == closing
+
+    @pytest.mark.parametrize("closing", _SAME_SENTENCE_EXEMPTIONS)
+    def test_only_the_exemption_lets_the_promise_through(self, closing: str) -> None:
+        intent_only = IntentPatterns(intent=load_intent_patterns().intent)
+
+        assert promised_action(entries=_entries(closing=closing), patterns=intent_only)
+
+    @pytest.mark.parametrize("closing", _SAME_SENTENCE_EXEMPTIONS)
+    def test_a_condition_sharing_the_promises_sentence_still_exempts_it(
+        self, tmp_path: Path, isolated_markers: Path, closing: str
+    ) -> None:
+        verdict = decide(
+            data={
+                "session_id": "s2",
+                "transcript_path": _closing_turn(tmp_path=tmp_path, closing=closing),
+            },
+            plan=PENDING_PLAN,
+        )
+
+        assert verdict.signal == StopSignal.OPEN_WORK
+
+
 class TestTheLoopGuardsStillWin:
     def test_stop_hook_active_lets_the_turn_end(
         self, tmp_path: Path, isolated_markers: Path

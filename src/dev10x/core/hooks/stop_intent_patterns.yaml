@@ -1,15 +1,18 @@
 # Phrases that declare an imminent action at the end of a turn (GH-1829).
 #
 # Read by dev10x.core.hooks.stop_verdict. A turn whose closing paragraph
-# matches an `intent` pattern, matches no `exempt` pattern, ran no tool
-# after that text and left no AskUserQuestion open is blocked: the
-# supervisor would otherwise read "Now I'll run the tests" as work in
-# progress and come back to an idle session.
+# holds a sentence that matches an `intent` pattern and no `exempt`
+# pattern, ran no tool after that text and left no AskUserQuestion open
+# is blocked: the supervisor would otherwise read "Now I'll run the
+# tests" as work in progress and come back to an idle session.
 #
 # Patterns are Python regular expressions, matched case-insensitively
-# against the closing paragraph after curly apostrophes are normalised
-# to "'". Every language's lists are merged, so a new language is a new
-# key under `languages:` and nothing else.
+# against each sentence of the closing paragraph after curly apostrophes
+# are normalized to "'". An `exempt` match covers only its own sentence
+# (GH-1854), so "If you see failures, I'll fix them." cannot excuse an
+# unconditional "Now I'll run the tests." beside it. Every language's
+# lists are merged, so a new language is a new key under `languages:`
+# and nothing else.
 #
 # Keep `exempt` honest: over-firing is what turns a Stop gate into
 # noise. A promise conditioned on the supervisor ("once you approve,

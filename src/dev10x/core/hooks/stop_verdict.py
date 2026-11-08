@@ -933,6 +933,78 @@ def _closing_paragraph(*, text: str) -> str:
     return closing.replace("’", "'").replace("‘", "'")
 
 
+_SENTENCE_BREAK = re.compile(
+    r"(?<=[.!?])(?<!\be\.g\.)(?<!\bi\.e\.)(?<!\bvs\.)[*_`\"')\]]*\s+"
+    r"|\n(?=[ \t]*(?:[-*+]|\d+[.)])[ \t])",
+    re.IGNORECASE,
+)
+
+_LIST_ITEM = re.compile(r"(?:[-*+]|\d+[.)])\s")
+
+_ITEM_NUMBER = re.compile(r"\d+\.")
+
+
+def _fragments(*, text: str) -> list[str]:
+    """The text cut at every break, with item numbers kept on their item.
+
+    "1. I'll push" breaks after "1." like any full stop, at any indent
+    and any number of digits, so a fragment that is only an item number
+    is glued back onto the fragment that follows it.
+    """
+    fragments: list[str] = []
+    number = ""
+    for raw in _SENTENCE_BREAK.split(text):
+        fragment = raw.strip()
+        if not fragment:
+            continue
+        if _ITEM_NUMBER.fullmatch(fragment):
+            number = f"{fragment} "
+            continue
+        fragments.append(f"{number}{fragment}")
+        number = ""
+    return fragments
+
+
+def _sentences(*, text: str) -> list[str]:
+    """The closing paragraph cut at sentence ends (GH-1854).
+
+    An exemption speaks for the sentence it sits in. Judged across the
+    whole paragraph, "Now I'll run the tests. If you see failures, I'll
+    fix them." was exempted by its second sentence, though the first is
+    a promise nothing conditions.
+
+    Two things end a sentence: terminal punctuation followed by
+    whitespace, and a line that opens a list item (``-``, ``*``, ``+``,
+    ``1.``, ``1)``) even when the item before it has no full stop. A
+    line wrap inside a sentence does not, so a wrapped promise keeps its
+    condition, and a version number or path is never split. Markdown bold, a
+    closing quote, paren or backtick may sit between the punctuation and
+    the whitespace: "**I'll push it now.** Once you approve…" is two
+    sentences. "e.g.", "i.e.", "vs." and an item number do not end one,
+    since splitting there would cut a condition off from the promise it
+    governs.
+
+    A list item is judged together with the lead-in that introduces it
+    when that lead-in ends in a colon: in "Once you approve:\\n- I'll
+    merge it" the condition governs every item below it.
+    """
+    lead_in = ""
+    judged: list[str] = []
+    for sentence in _fragments(text=text):
+        if _LIST_ITEM.match(sentence):
+            judged.append(f"{lead_in} {sentence}" if lead_in else sentence)
+            continue
+        lead_in = sentence if sentence.endswith(":") else ""
+        judged.append(sentence)
+    return judged
+
+
+def _breaks_its_word(*, sentence: str, patterns: IntentPatterns) -> bool:
+    return any(pattern.search(sentence) for pattern in patterns.intent) and not any(
+        pattern.search(sentence) for pattern in patterns.exempt
+    )
+
+
 def _tool_ran_after_text(*, entries: list[dict]) -> bool:
     """Whether any tool call follows the turn's last prose block.
 
@@ -958,9 +1030,11 @@ def promised_action(
     """The closing paragraph when it promises an action nothing performed.
 
     Returns ``""`` when the turn is fine: no prose, a tool ran after the
-    prose, no intent phrase in the close, or an exempt phrase there —
-    a wait, a promise conditioned on the supervisor, or work deferred
-    past this session on purpose.
+    prose, or every sentence of the close that holds an intent phrase
+    also holds an exempt one — a wait, a promise conditioned on the
+    supervisor, or work deferred past this session on purpose. The
+    exemption is matched per sentence (GH-1854), so a conditional
+    promise cannot cover an unconditional one beside it.
     """
     if _tool_ran_after_text(entries=entries):
         return ""
@@ -968,9 +1042,10 @@ def promised_action(
     if not closing:
         return ""
     active = load_intent_patterns() if patterns is None else patterns
-    if not any(pattern.search(closing) for pattern in active.intent):
-        return ""
-    if any(pattern.search(closing) for pattern in active.exempt):
+    if not any(
+        _breaks_its_word(sentence=sentence, patterns=active)
+        for sentence in _sentences(text=closing)
+    ):
         return ""
     return closing
 
