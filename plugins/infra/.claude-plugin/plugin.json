@@ -1,7 +1,7 @@
 {
   "name": "dev10x-infra",
-  "description": "v0.115.0.dev0 — 2 skills for read-only infrastructure access: AWS secrets and Kubernetes inspection through aws-vault.",
-  "version": "0.115.0.dev0",
+  "description": "v0.115.0 — 2 skills for read-only infrastructure access: AWS secrets and Kubernetes inspection through aws-vault.",
+  "version": "0.115.0",
   "author": {
     "name": "Janusz Skonieczny",
     "email": "Dev10xAI@WooYek.com"

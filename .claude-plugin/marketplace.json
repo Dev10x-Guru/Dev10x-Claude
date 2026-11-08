@@ -11,8 +11,8 @@
     {
       "name": "dev10x",
       "source": "./",
-      "description": "v0.115.0.dev0 — 97 skills for structured commits, PR lifecycle, branch hygiene, ticket management, task tracking, code review, and scoping in Claude Code.",
-      "version": "0.115.0.dev0",
+      "description": "v0.115.0 — 97 skills for structured commits, PR lifecycle, branch hygiene, ticket management, task tracking, code review, and scoping in Claude Code.",
+      "version": "0.115.0",
       "keywords": [
         "git", "commits", "pull-requests", "code-review",
         "workflow", "tasks", "JTBD", "gitmoji", "hooks",
@@ -24,22 +24,22 @@
     {
       "name": "dev10x-qa",
       "source": "./plugins/qa",
-      "description": "v0.115.0.dev0 — 6 skills for self-QA walkthroughs: Playwright capture, narration, evidence publishing, YouTube upload, and review packs.",
-      "version": "0.115.0.dev0",
+      "description": "v0.115.0 — 6 skills for self-QA walkthroughs: Playwright capture, narration, evidence publishing, YouTube upload, and review packs.",
+      "version": "0.115.0",
       "keywords": ["qa", "playwright", "tts", "youtube", "review"]
     },
     {
       "name": "dev10x-infra",
       "source": "./plugins/infra",
-      "description": "v0.115.0.dev0 — 2 skills for read-only infrastructure access: AWS secrets and Kubernetes inspection through aws-vault.",
-      "version": "0.115.0.dev0",
+      "description": "v0.115.0 — 2 skills for read-only infrastructure access: AWS secrets and Kubernetes inspection through aws-vault.",
+      "version": "0.115.0",
       "keywords": ["aws", "aws-vault", "kubernetes", "kubectl", "secrets"]
     },
     {
       "name": "dev10x-db",
       "source": "./plugins/db",
-      "description": "v0.115.0.dev0 — 3 skills for read-only database work: query planning, a validated psql wrapper, and SQL handoff for changes a person runs.",
-      "version": "0.115.0.dev0",
+      "description": "v0.115.0 — 3 skills for read-only database work: query planning, a validated psql wrapper, and SQL handoff for changes a person runs.",
+      "version": "0.115.0",
       "keywords": ["database", "postgres", "psql", "sql", "read-only"]
     }
   ]
