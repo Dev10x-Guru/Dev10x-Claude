@@ -99,6 +99,7 @@ supporting each tool:
 | `pr_wait` | `cli` | GH-1833 | v0.114.0+ |
 | `wait_for` | `cli` | GH-1833 | v0.114.0+ (`process_gone` patterns need `pgrep`) |
 | `bot_review_status` | `cli` | GH-1832 | v0.114.0+ |
+| `review_readiness_audit` | `cli` | GH-1834 | v0.116.0+ |
 | `review_stamp_write` | `cli` | GH-1830 | v0.114.0+ |
 | `query` | `db` | PR #126 | v0.25.0+ |
 

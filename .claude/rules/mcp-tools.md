@@ -196,6 +196,7 @@ one session). Use these shapes verbatim:
 | `unresolved_threads` | none; optional `repo` (defaults from `cwd`, GH-1683); pass `pr_number` for a single PR | omitting `pr_number` for a per-PR check |
 | `check_top_level_comments` | `pr_number`; optional `repo` (defaults from `cwd`, GH-1683) | expecting `unresolved_threads`'s sweep-all-PRs mode — this tool has none (GH-1285) |
 | `bot_review_status` | `pr_number`; optional `repo` (defaults from `cwd`) | reading `ready: true` as "a bot reviewed the head" — see `caveats-issues-and-push.md` (GH-1832) |
+| `review_readiness_audit` | none; optional `repo` (defaults from `cwd`), `pr_number`, `limit` (1-50) | reading the list as every review-requested PR — it scans only the `limit` most recently updated open PRs (`more_open_prs` says more exist) and keeps those with a review request, unless `pr_number` names one (GH-1834) |
 | `push_safe` | `args` list, e.g. `["-u", "origin", "<branch>"]` | bare call; passing `protected_branches=[]` expecting protection off — an empty list reads as "no override" (GH-1031) |
 | `resolve_review_thread` | `thread_ids` (list) | singular `thread_id` |
 | `resolve_gate` | `gate` (toggle name); optional `context` dict of gate facts | passing preset/friction values — the tool reads session policy itself (ADR-0016 D-2); passing `human_review` on `gate="merge"` — durable policy, read unconditionally and echoed back in `ignored_context_fields` (GH-1000) |

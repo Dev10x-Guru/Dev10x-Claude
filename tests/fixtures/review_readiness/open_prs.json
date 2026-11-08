@@ -1,0 +1,223 @@
+{
+  "data": {
+    "repository": {
+      "pullRequests": {
+        "pageInfo": {"hasNextPage": true},
+        "nodes": [
+          {
+            "number": 10,
+            "title": "Sent while CI was red",
+            "url": "https://github.com/owner/repo/pull/10",
+            "createdAt": "2026-11-01T08:00:00Z",
+            "isDraft": false,
+            "headRefOid": "1010101010101010101010101010101010101010",
+            "commits": {"nodes": [{"commit": {"oid": "1010101010101010101010101010101010101010", "committedDate": "2026-11-01T08:30:00Z"}}]},
+            "reviews": {"nodes": []},
+            "reviewThreads": {
+              "nodes": [
+                {
+                  "isResolved": false,
+                  "first": {"nodes": [{"author": {"__typename": "Bot", "login": "claude"}, "createdAt": "2026-11-01T09:10:00Z"}]},
+                  "last": {"nodes": [{"createdAt": "2026-11-01T09:10:00Z"}]}
+                },
+                {
+                  "isResolved": true,
+                  "first": {"nodes": [{"author": {"__typename": "User", "login": "octo-dev"}, "createdAt": "2026-11-01T08:50:00Z"}]},
+                  "last": {"nodes": [{"createdAt": "2026-11-01T08:55:00Z"}]}
+                }
+              ]
+            },
+            "comments": {"nodes": []},
+            "readinessEvents": {
+              "pageInfo": {"hasPreviousPage": false},
+              "nodes": [
+                {"__typename": "ReviewRequestedEvent", "createdAt": "2026-11-01T09:00:00Z"}
+              ]
+            },
+            "headCommit": {
+              "nodes": [
+                {
+                  "commit": {
+                    "oid": "1010101010101010101010101010101010101010",
+                    "statusCheckRollup": {
+                      "state": "FAILURE",
+                      "contexts": {
+                        "nodes": [
+                          {"__typename": "CheckRun", "name": "pytest", "status": "COMPLETED", "conclusion": "FAILURE", "startedAt": "2026-11-01T08:40:00Z"},
+                          {"__typename": "CheckRun", "name": "lint", "status": "COMPLETED", "conclusion": "SUCCESS", "startedAt": "2026-11-01T08:41:00Z"}
+                        ]
+                      }
+                    },
+                    "checkSuites": {
+                      "pageInfo": {"hasNextPage": false},
+                      "nodes": [
+                        {
+                          "checkRuns": {
+                            "pageInfo": {"hasNextPage": false},
+                            "nodes": [
+                              {"name": "pytest", "status": "COMPLETED", "conclusion": "FAILURE", "startedAt": "2026-11-01T08:40:00Z"},
+                              {"name": "lint", "status": "COMPLETED", "conclusion": "SUCCESS", "startedAt": "2026-11-01T08:41:00Z"}
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "number": 11,
+            "title": "Went red after a force-push",
+            "url": "https://github.com/owner/repo/pull/11",
+            "createdAt": "2026-11-02T08:00:00Z",
+            "isDraft": false,
+            "headRefOid": "1111111111111111111111111111111111111111",
+            "commits": {"nodes": [{"commit": {"oid": "1111111111111111111111111111111111111111", "committedDate": "2026-11-02T07:00:00Z"}}]},
+            "reviews": {
+              "nodes": [
+                {
+                  "author": {"__typename": "Bot", "login": "claude"},
+                  "state": "COMMENTED",
+                  "body": "Fine.",
+                  "submittedAt": "2026-11-02T08:20:00Z",
+                  "commit": {"oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+                }
+              ]
+            },
+            "reviewThreads": {"nodes": []},
+            "comments": {"nodes": []},
+            "readinessEvents": {
+              "pageInfo": {"hasPreviousPage": false},
+              "nodes": [
+                {"__typename": "ReviewRequestedEvent", "createdAt": "2026-11-02T09:00:00Z"},
+                {"__typename": "HeadRefForcePushedEvent", "createdAt": "2026-11-02T10:00:00Z", "afterCommit": {"oid": "1111111111111111111111111111111111111111"}}
+              ]
+            },
+            "headCommit": {
+              "nodes": [
+                {
+                  "commit": {
+                    "oid": "1111111111111111111111111111111111111111",
+                    "statusCheckRollup": {
+                      "state": "PENDING",
+                      "contexts": {
+                        "nodes": [
+                          {"__typename": "CheckRun", "name": "pytest", "status": "IN_PROGRESS", "conclusion": null, "startedAt": "2026-11-02T10:01:00Z"},
+                          {"__typename": "StatusContext", "context": "ci/legacy", "state": "ERROR", "createdAt": "2026-11-02T10:02:00Z"}
+                        ]
+                      }
+                    },
+                    "checkSuites": {
+                      "pageInfo": {"hasNextPage": false},
+                      "nodes": [
+                        {
+                          "checkRuns": {
+                            "pageInfo": {"hasNextPage": false},
+                            "nodes": [
+                              {"name": "pytest", "status": "IN_PROGRESS", "conclusion": null, "startedAt": "2026-11-02T10:01:00Z"}
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "number": 12,
+            "title": "Ready",
+            "url": "https://github.com/owner/repo/pull/12",
+            "createdAt": "2026-11-03T08:00:00Z",
+            "isDraft": false,
+            "headRefOid": "1212121212121212121212121212121212121212",
+            "commits": {"nodes": [{"commit": {"oid": "1212121212121212121212121212121212121212", "committedDate": "2026-11-03T08:00:00Z"}}]},
+            "reviews": {
+              "nodes": [
+                {
+                  "author": {"__typename": "Bot", "login": "claude"},
+                  "state": "APPROVED",
+                  "body": "LGTM",
+                  "submittedAt": "2026-11-03T08:30:00Z",
+                  "commit": {"oid": "1212121212121212121212121212121212121212"}
+                }
+              ]
+            },
+            "reviewThreads": {"nodes": []},
+            "comments": {"nodes": []},
+            "readinessEvents": {
+              "pageInfo": {"hasPreviousPage": false},
+              "nodes": [
+                {"__typename": "ReviewRequestedEvent", "createdAt": "2026-11-03T09:00:00Z"}
+              ]
+            },
+            "headCommit": {
+              "nodes": [
+                {
+                  "commit": {
+                    "oid": "1212121212121212121212121212121212121212",
+                    "statusCheckRollup": {
+                      "state": "SUCCESS",
+                      "contexts": {
+                        "nodes": [
+                          {"__typename": "CheckRun", "name": "pytest", "status": "COMPLETED", "conclusion": "SUCCESS", "startedAt": "2026-11-03T08:05:00Z"}
+                        ]
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "number": 13,
+            "title": "Never sent for review",
+            "url": "https://github.com/owner/repo/pull/13",
+            "createdAt": "2026-11-04T08:00:00Z",
+            "isDraft": true,
+            "headRefOid": "1313131313131313131313131313131313131313",
+            "commits": {"nodes": [{"commit": {"oid": "1313131313131313131313131313131313131313", "committedDate": "2026-11-04T08:00:00Z"}}]},
+            "reviews": {"nodes": []},
+            "reviewThreads": {"nodes": []},
+            "comments": {"nodes": []},
+            "readinessEvents": {"pageInfo": {"hasPreviousPage": false}, "nodes": []},
+            "headCommit": {"nodes": [{"commit": {"oid": "1313131313131313131313131313131313131313", "statusCheckRollup": null}}]}
+          },
+          {
+            "number": 14,
+            "title": "Turned back into a draft after the request",
+            "url": "https://github.com/owner/repo/pull/14",
+            "createdAt": "2026-11-05T08:00:00Z",
+            "isDraft": true,
+            "headRefOid": "1414141414141414141414141414141414141414",
+            "commits": {"nodes": [{"commit": {"oid": "1414141414141414141414141414141414141414", "committedDate": "2026-11-05T08:00:00Z"}}]},
+            "reviews": {
+              "nodes": [
+                {
+                  "author": {"__typename": "Bot", "login": "claude"},
+                  "state": "APPROVED",
+                  "body": "LGTM",
+                  "submittedAt": "2026-11-05T08:30:00Z",
+                  "commit": {"oid": "1414141414141414141414141414141414141414"}
+                }
+              ]
+            },
+            "reviewThreads": {"nodes": []},
+            "comments": {"nodes": []},
+            "readinessEvents": {
+              "pageInfo": {"hasPreviousPage": true},
+              "nodes": [
+                {"__typename": "ReviewRequestedEvent", "createdAt": "2026-11-05T09:00:00Z"},
+                {"__typename": "ConvertToDraftEvent", "createdAt": "2026-11-05T11:00:00Z"}
+              ]
+            },
+            "headCommit": {"nodes": [{"commit": {"oid": "1414141414141414141414141414141414141414", "statusCheckRollup": {"state": "SUCCESS", "contexts": {"nodes": []}}}}]}
+          }
+        ]
+      }
+    }
+  }
+}

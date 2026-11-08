@@ -13,6 +13,11 @@ allowed-tools:
   - mcp__plugin_dev10x_cli__supervisor_review_status
   - mcp__plugin_dev10x_cli__pr_detect
   - mcp__plugin_dev10x_cli__pr_labels
+  - mcp__plugin_dev10x_cli__pr_get
+  - mcp__plugin_dev10x_cli__pr_ready
+  - mcp__plugin_dev10x_cli__ci_check_status
+  - mcp__plugin_dev10x_cli__unresolved_threads
+  - mcp__plugin_dev10x_cli__bot_review_status
   - Bash(gh pr view:*)
   - Bash(gh pr ready:*)
   - Bash(gh api orgs/:*)
@@ -112,7 +117,7 @@ re-derive preset behavior in prose. The tool reads session policy
    review posture), but STILL run the **Pre-flight: Draft State Check**
    below first (GH-854 F4): a draft PR whose CI is suppressed until it
    is marked ready would otherwise never run CI and never become
-   mergeable. Flip draft→ready via `gh pr ready`, then print "Skipping
+   mergeable. Flip draft→ready via `pr_ready`, then print "Skipping
    review request (solo-maintainer)" and stop — skip only reviewer
    resolution, not the draft flip.
 5. `error` key present → fail safe: treat exactly like `effect ==
@@ -189,12 +194,12 @@ NOT notify the requested reviewers — the request is lost.
 
 1. Confirm PR identity via
    `mcp__plugin_dev10x_cli__pr_detect(arg="<pr_number_or_url>")`
-   to resolve `pr_number` and `repo`, then fetch the draft flag
-   (no MCP wrapper exists for `isDraft`):
-   ```bash
-   gh pr view {pr_number} --repo {repo} --json isDraft -q .isDraft
-   ```
-2. If draft: run `gh pr ready` first, then proceed
+   to resolve `pr_number` and `repo`, then read `isDraft` from
+   `mcp__plugin_dev10x_cli__pr_get(number={pr_number}, repo="{repo}")`.
+2. If draft: flip it with
+   `mcp__plugin_dev10x_cli__pr_ready(pr_number={pr_number})` (the
+   `gh-pr-ready` hook blocks raw `gh pr ready`), note that this run
+   flipped it, then proceed
 3. If not draft: proceed to reviewer resolution
 
 ### Resolution workflow
@@ -227,7 +232,33 @@ NOT notify the requested reviewers — the request is lost.
      Defer path below (same clearance gate as the configured case)
    - **Not found, `default_action: skip`** → print "No reviewers
      configured for {repo}, skipping" and stop
-4. Call the `request_review` MCP tool with the resolved reviewers
+4. **Readiness check (GH-1834).** Reviewers are now known, so run the
+   CI, review-thread and bots-at-head conditions in
+   [`references/review-readiness.md`](../../references/review-readiness.md)
+   — the Draft State Check above already handled the draft. When this
+   run flipped a draft, first wait once with
+   `mcp__plugin_dev10x_cli__ci_check_status(pr_number={pr_number},
+   repo="{repo}", wait=true)` so CI has run on the ready PR — a wait
+   ending in `infra_unavailable` is re-read once without `wait` and
+   judged by the normal rule, so a PR with no CI still passes — and run
+   this step even if `--readiness-checked` was passed: the caller
+   checked the PR before it was ready. Otherwise skip this step when
+   the caller passed `--readiness-checked` (`dev10x:request-review`
+   already ran it). When a condition fails: unattended (as that file
+   defines it — `--unattended`, or a `Skill()` call from an
+   orchestrator with an active task list, e.g. the work-on "Request
+   review" step; a call from `dev10x:request-review` is attended unless
+   it passes `--unattended`), refuse and stop; attended, **REQUIRED: Call
+   `AskUserQuestion`** (do NOT use plain text) with **Stop — fix it
+   first (Recommended)** and **Request review anyway**, header
+   `Readiness`. When the run stops here after this run flipped a
+   draft — an unattended refusal or "Stop — fix it first" — return
+   the PR to draft with
+   `mcp__plugin_dev10x_cli__pr_ready(pr_number={pr_number}, undo=true)`
+   before stopping, so it is not left published with a known problem.
+   Whenever the run stops at this step, end the output with the line
+   `Readiness: stopped — {reasons}`; `dev10x:request-review` keys on it.
+5. Call the `request_review` MCP tool with the resolved reviewers
 
 ### Stand-by / Defer path (GH-396, ADR-0019, GH-998)
 
@@ -273,7 +304,7 @@ teammate is pinged. Where is PR #{pr_number}?"` Options:
   satisfied rather than missing.
 - **I reviewed it — request team review now** — clearance plus
   escalation. Record the clearance (below), then fall through to
-  normal reviewer resolution (step 4 of the resolution workflow) and
+  normal reviewer resolution (steps 4–5 of the resolution workflow) and
   request review from the configured reviewers, ignoring `standby`
   for this PR.
 

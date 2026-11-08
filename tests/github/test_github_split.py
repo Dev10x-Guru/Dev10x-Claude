@@ -82,6 +82,7 @@ PRE_SPLIT_NAMES = (
     "issue_labels",
     "ci_rerun",
     "bot_review_status",
+    "review_readiness_audit",
     "pr_review_edit",
     "pr_issue_comment",
     "request_review",

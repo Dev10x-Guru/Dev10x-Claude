@@ -95,6 +95,7 @@ Always apply `references/review-checks-common.md`.
 | `config-resolution.md` | 3-tier config paths, project mapping format | All playbook/settings skills | Referenced, not auto-loaded |
 | `config-files.md` | Per-file tiers, paths and formats of every Dev10x config file (GH-1785) | All playbook/settings skills | Referenced, not auto-loaded |
 | `testing-patterns.md` | Pytest fixture composition, async handlers, parametrized tests | Code reviews, test authoring | Referenced, not auto-loaded |
+| `review-readiness.md` | Readiness check before a review request; SENT-NOT-READY / WENT-RED-AFTER audit (GH-1834) | `dev10x:request-review`, `dev10x:gh-pr-request-review`, `dev10x:foreman` | Referenced, not auto-loaded |
 | `pr-backlog-deferral.md` | Deferring non-blocking review findings to a backlog | `dev10x:gh-pr-review` skill, code review CI | Referenced, not auto-loaded |
 | `milestone-naming.md` | Milestone naming convention, initiative prefixes, `Depends on:` ordering (no sequence numbers) | `dev10x:project-scope`, `dev10x:work-on` milestone steps | Referenced, not auto-loaded |
 | `backpressure.md` | Two-direction backpressure architecture (action gating + friction tuning + output gates) | Review & architecture docs, code review CI | Referenced, not auto-loaded |

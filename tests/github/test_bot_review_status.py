@@ -9,15 +9,13 @@ from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from dev10x.domain.common.repository_ref import RepositoryRef
-from dev10x.domain.common.result import ErrorResult, SuccessResult, err, ok
-from dev10x.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.domain.common.result import ErrorResult, SuccessResult, err
 
 from dev10x.coding.github import bot_reviews
 from dev10x.coding.github.bot_review_config import normalize_login, resolve_blocking_bots
 from dev10x.core.github import _gateway
 from dev10x.mcp import server_cli as cli_server
-from tests.fakers.process import completed as _completed
+from tests.github.graphql_doubles import completed, write_merge_settings
 
 FIXTURES = Path(__file__).parents[1] / "fixtures" / "bot_review_status"
 
@@ -36,30 +34,6 @@ def _author(*, login: str, typename: str = "Bot") -> dict[str, str]:
 
 def _bot(*, report: dict[str, Any], login: str) -> dict[str, Any]:
     return next(b for b in report["bots"] if b["login"] == login)
-
-
-def _write_merge_settings(*, text: str) -> Path:
-    path = Dev10xConfigDir.settings_pr_merge_yaml()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8")
-    return path
-
-
-@pytest.fixture
-def mock_resolve_repo():
-    with patch.object(
-        _gateway,
-        "_resolve_repo",
-        new_callable=AsyncMock,
-        return_value=ok(RepositoryRef(owner="owner", name="repo")),
-    ) as mock:
-        yield mock
-
-
-@pytest.fixture
-def mock_graphql():
-    with patch.object(_gateway, "_gh_api_raw", new_callable=AsyncMock) as mock:
-        yield mock
 
 
 class TestDraftSkip:
@@ -377,7 +351,7 @@ class TestResolveBlockingBots:
         ],
     )
     def test_resolves_globs(self, text: str, expected: tuple[str, ...]) -> None:
-        _write_merge_settings(text=text)
+        write_merge_settings(text=text)
 
         assert resolve_blocking_bots(repo="owner/repo").value.globs == expected
 
@@ -394,7 +368,7 @@ class TestResolveBlockingBots:
         assert normalize_login(login) == expected
 
     def test_suffixed_glob_matches_the_graphql_login(self) -> None:
-        _write_merge_settings(text="blocking_bots: ['claude[bot]']\n")
+        write_merge_settings(text="blocking_bots: ['claude[bot]']\n")
         globs = resolve_blocking_bots(repo="owner/repo").value.globs
 
         report = bot_reviews.summarize(pr=_pr(name="empty_body_inline"), blocking_globs=globs)
@@ -402,7 +376,7 @@ class TestResolveBlockingBots:
         assert report["missing_blocking_bots"] == []
 
     def test_unmatched_repo_uses_default(self) -> None:
-        _write_merge_settings(
+        write_merge_settings(
             text=(
                 "blocking_bots: claude\n"
                 "projects:\n"
@@ -435,7 +409,7 @@ class TestResolveBlockingBots:
         ],
     )
     def test_malformed_config_fails_loud(self, text: str) -> None:
-        _write_merge_settings(text=text)
+        write_merge_settings(text=text)
 
         assert isinstance(resolve_blocking_bots(repo="owner/repo"), ErrorResult)
 
@@ -468,7 +442,7 @@ class TestConfigFoundSignal:
         ids=["unmatched-no-default", "file-without-key", "empty-file"],
     )
     def test_an_unstated_list_is_noted(self, text: str, note: str) -> None:
-        _write_merge_settings(text=text)
+        write_merge_settings(text=text)
 
         config = resolve_blocking_bots(repo="owner/repo").value
 
@@ -491,7 +465,7 @@ class TestConfigFoundSignal:
         ],
     )
     def test_a_stated_list_is_not_noted(self, text: str) -> None:
-        _write_merge_settings(text=text)
+        write_merge_settings(text=text)
 
         config = resolve_blocking_bots(repo="owner/repo").value
 
@@ -502,8 +476,8 @@ class TestConfigFoundSignal:
 class TestBotReviewStatusTool:
     @pytest.mark.asyncio
     async def test_reports_blocking_status_from_config(self, mock_graphql: AsyncMock) -> None:
-        _write_merge_settings(text="blocking_bots: [claude]\n")
-        mock_graphql.return_value = _completed(
+        write_merge_settings(text="blocking_bots: [claude]\n")
+        mock_graphql.return_value = completed(
             stdout=json.dumps(_payload(name="empty_body_inline"))
         )
 
@@ -521,7 +495,7 @@ class TestBotReviewStatusTool:
     async def test_reports_a_missing_config_without_blocking(
         self, mock_graphql: AsyncMock
     ) -> None:
-        mock_graphql.return_value = _completed(
+        mock_graphql.return_value = completed(
             stdout=json.dumps(_payload(name="empty_body_inline"))
         )
 
@@ -532,7 +506,7 @@ class TestBotReviewStatusTool:
 
     @pytest.mark.asyncio
     async def test_queries_the_requested_pr(self, mock_graphql: AsyncMock) -> None:
-        mock_graphql.return_value = _completed(stdout=json.dumps(_payload(name="draft_skip")))
+        mock_graphql.return_value = completed(stdout=json.dumps(_payload(name="draft_skip")))
 
         await bot_reviews.bot_review_status(pr_number=7)
 
@@ -541,20 +515,24 @@ class TestBotReviewStatusTool:
         assert "pullRequest(number: 7)" in query
 
     @pytest.mark.parametrize(
-        ("completed", "message"),
+        ("response", "message"),
         [
-            (_completed(returncode=1, stderr="HTTP 502"), "HTTP 502"),
-            (_completed(returncode=1), "GitHub GraphQL call failed"),
-            (_completed(stdout="not json"), "Invalid JSON"),
+            (completed(returncode=1, stderr="HTTP 502"), "HTTP 502"),
+            (completed(returncode=1), "GitHub GraphQL call failed"),
+            (completed(stdout="not json"), "Invalid JSON"),
             (
-                _completed(stdout=json.dumps({"errors": [{"message": "bad field"}]})),
+                completed(stdout=json.dumps({"errors": [{"message": "bad field"}]})),
                 "bad field",
             ),
-            (_completed(stdout=json.dumps({"errors": ["plain text"]})), "plain text"),
-            (_completed(stdout=json.dumps({"errors": {"message": "lone"}})), "lone"),
-            (_completed(stdout=json.dumps([1, 2])), "not an object"),
+            (completed(stdout=json.dumps({"errors": ["plain text"]})), "plain text"),
+            (completed(stdout=json.dumps({"errors": {"message": "lone"}})), "lone"),
+            (completed(stdout=json.dumps([1, 2])), "not an object"),
             (
-                _completed(stdout=json.dumps({"data": {"repository": {"pullRequest": None}}})),
+                completed(stdout=json.dumps({"data": {"repository": {"pullRequest": None}}})),
+                "PR #7 not found",
+            ),
+            (
+                completed(stdout=json.dumps({"data": {"repository": None}})),
                 "PR #7 not found",
             ),
         ],
@@ -567,16 +545,17 @@ class TestBotReviewStatusTool:
             "graphql-error-object",
             "non-object-payload",
             "no-pr",
+            "no-repository",
         ],
     )
     @pytest.mark.asyncio
     async def test_failures_are_errors(
         self,
         mock_graphql: AsyncMock,
-        completed: subprocess.CompletedProcess[str],
+        response: subprocess.CompletedProcess[str],
         message: str,
     ) -> None:
-        mock_graphql.return_value = completed
+        mock_graphql.return_value = response
 
         result = await bot_reviews.bot_review_status(pr_number=7)
 
@@ -585,7 +564,7 @@ class TestBotReviewStatusTool:
 
     @pytest.mark.asyncio
     async def test_malformed_config_stops_before_the_api(self, mock_graphql: AsyncMock) -> None:
-        _write_merge_settings(text="blocking_bots: {claude: true}\n")
+        write_merge_settings(text="blocking_bots: {claude: true}\n")
 
         result = await bot_reviews.bot_review_status(pr_number=7)
 

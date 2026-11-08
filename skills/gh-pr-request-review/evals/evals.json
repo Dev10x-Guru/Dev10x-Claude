@@ -14,7 +14,12 @@
     {
       "id": "draft-guard",
       "name": "Draft-State Guard",
-      "description": "GitHub silently drops review requests on draft PRs. The skill checks isDraft and runs gh pr ready before requesting when the PR is draft (GH-851 F7)."
+      "description": "GitHub silently drops review requests on draft PRs. The skill reads isDraft via pr_get and flips a draft with pr_ready before requesting (GH-851 F7)."
+    },
+    {
+      "id": "readiness-gate",
+      "name": "Readiness Gate Before request_review",
+      "description": "Once reviewers are resolved and before request_review is called, the skill runs the readiness check (CI, unresolved threads, bots at head — the Draft State Check already handled the draft, and a just-flipped draft has CI pending). Unattended it refuses; attended it fires AskUserQuestion with 'Stop — fix it first (Recommended)' first. --readiness-checked skips it (GH-1834)."
     },
     {
       "id": "reviewer-resolution",
@@ -104,13 +109,123 @@
     {
       "id": "draft-pr-marked-ready-first",
       "name": "Draft PR is marked ready before requesting",
-      "description": "When isDraft is true, the skill runs gh pr ready before requesting review so the request is not silently lost.",
+      "description": "When isDraft is true, the skill flips it with the pr_ready MCP wrapper before requesting review so the request is not silently lost. Because this run flipped it, the readiness step waits once for CI before checking, so the request never goes out in the same breath as the flip (GH-1834).",
       "input": "/dev10x:gh-pr-request-review",
       "assertions": [
         {
           "dimension": "draft-guard",
+          "check": "tool_called",
+          "tool": "mcp__plugin_dev10x_cli__pr_ready",
+          "signal": "isDraft=true → pr_ready is called before reviewer resolution (never raw gh pr ready, which the gh-pr-ready hook blocks)"
+        },
+        {
+          "dimension": "readiness-gate",
+          "check": "tool_parameters",
+          "tool": "mcp__plugin_dev10x_cli__ci_check_status",
+          "signal": "after the flip, ci_check_status is called with wait=true"
+        },
+        {
+          "dimension": "draft-guard",
+          "check": "tool_called_before",
+          "signals": [
+            "mcp__plugin_dev10x_cli__pr_ready",
+            "mcp__plugin_dev10x_cli__request_review"
+          ]
+        },
+        {
+          "dimension": "readiness-gate",
+          "check": "tool_called_before",
+          "signals": [
+            "mcp__plugin_dev10x_cli__ci_check_status",
+            "mcp__plugin_dev10x_cli__request_review"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "refusal-after-flip-returns-to-draft",
+      "name": "A refusal after this run's flip returns the PR to draft",
+      "description": "GH-1834: the PR was a draft, this run flipped it, waited for CI, and CI is red. The unattended run refuses; it must not leave the PR published with a known problem.",
+      "input": "/dev10x:gh-pr-request-review --unattended",
+      "assertions": [
+        {
+          "dimension": "readiness-gate",
+          "check": "tool_parameters",
+          "tool": "mcp__plugin_dev10x_cli__pr_ready",
+          "signal": "after the refusal, pr_ready is called with undo=true before the run stops"
+        },
+        {
+          "dimension": "readiness-gate",
+          "check": "command_absent",
+          "signals": [
+            "mcp__plugin_dev10x_cli__request_review"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "flip-reruns-readiness-despite-readiness-checked",
+      "name": "A flip in this run re-runs readiness even with --readiness-checked",
+      "description": "GH-1834: dev10x:request-review passed --readiness-checked after 'Request review anyway' on a draft. This run flips the draft, so the caller's check predates readiness: the skill waits for CI and checks again instead of requesting in the same breath as the flip.",
+      "input": "/dev10x:gh-pr-request-review --readiness-checked",
+      "assertions": [
+        {
+          "dimension": "readiness-gate",
           "check": "behavioral",
-          "signal": "isDraft=true → gh pr ready is run before request_review is called"
+          "signal": "isDraft=true with --readiness-checked → pr_ready, then ci_check_status(wait=true) and the readiness conditions run before request_review"
+        }
+      ]
+    },
+    {
+      "id": "readiness-gate-asks-before-request",
+      "name": "Red CI fires the readiness gate before request_review",
+      "description": "GH-1834: reviewers are configured and CI is failing on the head. An attended run asks before pinging anyone, with stopping recommended and listed first.",
+      "input": "/dev10x:gh-pr-request-review",
+      "assertions": [
+        {
+          "dimension": "readiness-gate",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "AskUserQuestion fires with 'Stop — fix it first (Recommended)' listed first and 'Request review anyway' second"
+        },
+        {
+          "dimension": "readiness-gate",
+          "check": "plain_text",
+          "signal": "No inline plain-text 'request review anyway?' substitutes for the widget"
+        },
+        {
+          "dimension": "readiness-gate",
+          "check": "tool_called_before",
+          "signals": [
+            "AskUserQuestion",
+            "mcp__plugin_dev10x_cli__request_review"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "readiness-gate-unattended-refuses",
+      "name": "Unattended run refuses a PR that is not ready",
+      "description": "GH-1834: the work-on 'Request review' step calls this skill through Skill() with an active task list while two review threads are open. Nobody can answer a widget, so the skill refuses and reports the threads.",
+      "input": "/dev10x:gh-pr-request-review --unattended",
+      "assertions": [
+        {
+          "dimension": "readiness-gate",
+          "check": "behavioral",
+          "signal": "the PR is not a draft; request_review is NOT called and the open threads are reported as the reason"
+        }
+      ]
+    },
+    {
+      "id": "readiness-checked-skips-the-gate",
+      "name": "--readiness-checked does not run the check twice",
+      "description": "dev10x:request-review already ran the readiness check on a PR that is not a draft and passes --readiness-checked; the sibling must not ask again.",
+      "input": "/dev10x:gh-pr-request-review --readiness-checked",
+      "assertions": [
+        {
+          "dimension": "readiness-gate",
+          "check": "behavioral",
+          "signal": "No readiness AskUserQuestion fires and ci_check_status / unresolved_threads / bot_review_status are not called for readiness"
         }
       ]
     },

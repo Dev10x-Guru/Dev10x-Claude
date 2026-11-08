@@ -1521,6 +1521,37 @@ async def bot_review_status(
 
 
 @github_tool
+async def review_readiness_audit(
+    repo: str | None = None,
+    pr_number: int | None = None,
+    limit: int = 20,
+    cwd: str | None = None,
+) -> Result[dict]:
+    """Classify review-requested PRs by when their problems appeared (GH-1834).
+
+    For each open PR with a review request, lists what stops it being
+    ready now — draft, CI not green, unresolved review threads, a
+    blocking bot not at head — with the time each began, and compares
+    those times with the latest review request.
+
+    Args:
+        repo: Repository in owner/repo format. Auto-detected from cwd if omitted.
+        pr_number: Audit only this PR (reported even with no review request).
+        limit: Open PRs to scan, most recently updated first (1-50, default 20).
+        cwd: Effective working directory (GH-979).
+
+    Returns:
+        Dictionary with keys: repo, scanned, more_open_prs, prs (per PR:
+        number, title, url, is_draft, requested_at, head_arrived_at,
+        head_arrived_basis force_push|ci_start|committed, verdict
+        READY|SENT-NOT-READY|WENT-RED-AFTER|UNKNOWN, problems (kind
+        draft|ci|thread|bot, detail, since), truncated), counts (per
+        verdict), blocking_bots, config_source.
+    """
+    return await gh.review_readiness_audit(repo=repo, pr_number=pr_number, limit=limit)
+
+
+@github_tool
 async def unresolved_threads(
     repo: str | None = None,
     pr_number: int | None = None,

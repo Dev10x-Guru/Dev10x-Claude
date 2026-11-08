@@ -90,6 +90,7 @@ from dev10x.coding.github.pulls import (
     pr_ready,
     update_pr,
 )
+from dev10x.coding.github.review_readiness import review_readiness_audit
 from dev10x.coding.github.reviews import (
     _BOT_LOGIN_RE,
     _MINIMIZE_CLASSIFIERS,
@@ -146,6 +147,8 @@ __all__ = [
     "pr_detect",
     "pre_pr_checks",
     "verify_pr_state",
+    # review_readiness
+    "review_readiness_audit",
     # reviews
     "_BOT_LOGIN_RE",
     "_MINIMIZE_CLASSIFIERS",

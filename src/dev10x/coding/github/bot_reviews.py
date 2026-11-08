@@ -26,7 +26,7 @@ from typing import Any
 from dev10x.coding.github import bot_review_config
 from dev10x.core.github import _gateway
 from dev10x.domain.common.repository_ref import RepositoryRef
-from dev10x.domain.common.result import ErrorResult, Result, SuccessResult, ok
+from dev10x.domain.common.result import ErrorResult, Result, SuccessResult, err, ok
 
 KIND_REVIEW = "review"
 KIND_COMMENT = "comment"
@@ -70,7 +70,7 @@ _WINDOWS = (
 )
 
 
-def _truncated(*, pr: dict[str, Any]) -> list[str]:
+def truncated_connections(*, pr: dict[str, Any]) -> list[str]:
     truncated: list[str] = []
     for connection, flag in _WINDOWS:
         container = pr.get(connection)
@@ -91,18 +91,18 @@ def _matches_any(*, login: str, globs: tuple[str, ...]) -> bool:
     return any(fnmatch.fnmatch(login.lower(), glob.lower()) for glob in globs)
 
 
-def _latest(*timestamps: str | None) -> str | None:
+def latest_timestamp(*timestamps: str | None) -> str | None:
     return max((t for t in timestamps if t), default=None)
 
 
-def _nodes(container: Any) -> list[dict[str, Any]]:
+def connection_nodes(container: Any) -> list[dict[str, Any]]:
     if not isinstance(container, dict):
         return []
     return [n for n in container.get("nodes") or [] if isinstance(n, dict)]
 
 
-def _first(container: Any) -> dict[str, Any]:
-    nodes = _nodes(container)
+def first_node(container: Any) -> dict[str, Any]:
+    nodes = connection_nodes(container)
     return nodes[0] if nodes else {}
 
 
@@ -129,35 +129,37 @@ def _collect_rows(*, pr: dict[str, Any]) -> dict[str, dict[str, Any]]:
             return None
         return rows.setdefault(login.lower(), _new_row(login=login))
 
-    submitted_reviews = [r for r in _nodes(pr.get("reviews")) if r.get("state") != "PENDING"]
+    submitted_reviews = [
+        r for r in connection_nodes(pr.get("reviews")) if r.get("state") != "PENDING"
+    ]
     # Oldest first, so each bot's newest review is the one left standing.
     for review in sorted(submitted_reviews, key=lambda r: r.get("submittedAt") or ""):
         row = row_for(review.get("author"))
         if row is None:
             continue
-        row["last_activity"] = _latest(row["last_activity"], review.get("submittedAt"))
+        row["last_activity"] = latest_timestamp(row["last_activity"], review.get("submittedAt"))
         row["kind"] = KIND_REVIEW
         row["reviewed_sha"] = (review.get("commit") or {}).get("oid")
         row["review_state"] = review.get("state")
         row["review_body_empty"] = not (review.get("body") or "").strip()
 
-    for thread in _nodes(pr.get("reviewThreads")):
-        first = _first(thread.get("first"))
+    for thread in connection_nodes(pr.get("reviewThreads")):
+        first = first_node(thread.get("first"))
         row = row_for(first.get("author"))
         if row is None:
             continue
-        row["last_activity"] = _latest(
+        row["last_activity"] = latest_timestamp(
             row["last_activity"],
             first.get("createdAt"),
-            _first(thread.get("last")).get("createdAt"),
+            first_node(thread.get("last")).get("createdAt"),
         )
         if not thread.get("isResolved"):
             row["open_inline_comments"] += 1
 
-    for comment in _nodes(pr.get("comments")):
+    for comment in connection_nodes(pr.get("comments")):
         row = row_for(comment.get("author"))
         if row is not None:
-            row["last_activity"] = _latest(row["last_activity"], comment.get("createdAt"))
+            row["last_activity"] = latest_timestamp(row["last_activity"], comment.get("createdAt"))
 
     return rows
 
@@ -172,15 +174,15 @@ def _head_pushed_at(*, pr: dict[str, Any], head_sha: str | None) -> str | None:
     earliest check suite (created on push) is used instead. A plain push
     with no CI leaves only the commit date — no worse than before.
     """
-    commit = _first(pr.get("commits")).get("commit") or {}
-    suites = [s.get("createdAt") for s in _nodes(commit.get("checkSuites"))]
+    commit = first_node(pr.get("commits")).get("commit") or {}
+    suites = [s.get("createdAt") for s in connection_nodes(commit.get("checkSuites"))]
     first_suite = min((t for t in suites if t), default=None)
     force_pushes = [
         event.get("createdAt")
-        for event in _nodes(pr.get("timelineItems"))
+        for event in connection_nodes(pr.get("timelineItems"))
         if (event.get("afterCommit") or {}).get("oid") == head_sha
     ]
-    return _latest(commit.get("committedDate"), first_suite, *force_pushes)
+    return latest_timestamp(commit.get("committedDate"), first_suite, *force_pushes)
 
 
 def _at_head(
@@ -219,7 +221,7 @@ def summarize(
 ) -> dict[str, Any]:
     """Fold one ``pullRequest`` GraphQL node into a per-bot status report."""
     head_sha = pr.get("headRefOid")
-    head_committed_at = (_first(pr.get("commits")).get("commit") or {}).get("committedDate")
+    head_committed_at = (first_node(pr.get("commits")).get("commit") or {}).get("committedDate")
     head_pushed_at = _head_pushed_at(pr=pr, head_sha=head_sha)
     is_draft = bool(pr.get("isDraft"))
 
@@ -243,7 +245,7 @@ def summarize(
     ]
     draft_hint = " (PR is a draft — review bots skip drafts; mark it ready)" if is_draft else ""
     reasons.extend(f"{glob}: no activity on this PR{draft_hint}" for glob in missing)
-    truncated = _truncated(pr=pr)
+    truncated = truncated_connections(pr=pr)
     reasons.extend(
         f"{connection}: more than 100 on this PR, so bot counts are incomplete"
         for connection in truncated
@@ -261,6 +263,17 @@ def summarize(
         "ready": not reasons,
         "reasons": reasons,
     }
+
+
+async def fetch_repository_node(*, query: str) -> Result[dict[str, Any]]:
+    """Run a ``repository { ... }`` GraphQL query and return that node."""
+    data = await _gateway._graphql(query)
+    if not isinstance(data, SuccessResult):
+        return data
+    repository = data.value.get("repository")
+    if not isinstance(repository, dict):
+        return err("Repository not found in GitHub GraphQL response")
+    return ok(repository)
 
 
 async def fetch_pull_request(*, ref: RepositoryRef, pr_number: int) -> Result[dict[str, Any]]:
