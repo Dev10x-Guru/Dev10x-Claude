@@ -23,6 +23,7 @@ allowed-tools:
   - Bash(magick:*)
   - Bash(convert:*)
   - AskUserQuestion
+  - mcp__plugin_dev10x_cli__resolve_gate
 ---
 
 # Self-QA — Automated Staging Test Execution
@@ -71,7 +72,8 @@ alongside `instructions.md`; both gates below still apply.
 ## Gates
 
 Two blocking gates in `instructions.md` are enforced with
-`AskUserQuestion` — never a plain-text question:
+`AskUserQuestion` — never a plain-text question (exception: a clean
+exploratory take at 4.4, below):
 
 1. **Test-failure recovery** (Phase 3) — fix and retry / skip the
    failing case / abort.
@@ -80,3 +82,8 @@ Two blocking gates in `instructions.md` are enforced with
    `scripts/verify-evidence.py` (Phase 4.1) and reviewed **locally**
    before anything reaches Linear: evidence trails on a ticket are
    append-only, so a bad take can only be superseded, never withdrawn.
+   In exploratory mode nothing is uploaded at this point, so a clean
+   take follows `mcp__plugin_dev10x_cli__resolve_gate` — auto-advance
+   under the adaptive baseline, which keeps a walk-away session moving
+   — while a defective take always asks, Re-capture recommended
+   (GH-1847).

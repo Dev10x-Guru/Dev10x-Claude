@@ -44,6 +44,10 @@ text). Options:
 - Re-capture — artifacts do not show what the test cases claim
 - Abort — stop without publishing
 
+An `--exploratory` run uploads nothing at 4.4, so there the gate
+resolves through `resolve_gate` and asks only when the resolver or a
+take defect says so — see § 4.4 (GH-1847).
+
 **Error recovery gate (Phase 3):** When tests fail, queue the
 decision in task metadata. If no other tasks can advance, present
 the decision.
@@ -1122,6 +1126,40 @@ bad take either way. Review locally first.
    the question text so the supervisor publishes knowing the terms.
 
 Only on *Approve* proceed to 4.5. Never upload first and ask after.
+
+**Exploratory mode resolves this gate instead of always asking
+(GH-1847).** In a `--exploratory` run nothing leaves the machine at
+4.4: *Approve* hands the evidence back to the caller, and
+`dev10x-qa:review-pack`, `dev10x-qa:qa-publish` and
+`dev10x-qa:yt-upload` each keep their own publish gate. So the session
+policy, not a hard-coded prompt, decides whether a clean take needs a
+human look: the gate follows the resolver, which auto-advances it under
+the adaptive baseline and asks where a project pin or overlay says so.
+That is what keeps a walk-away session from stalling here. Report steps
+1–2 exactly as above, then:
+
+1. **A defect always asks.** When any of these holds, skip the
+   resolver and **REQUIRED: Call `AskUserQuestion`** (do NOT use plain
+   text): the 4.1 verifier did not pass, the raster is below
+   `1920,1080`, `unrendered` is non-empty, or `anchor` is `install`.
+   **Re-capture** leads as the recommended option and *Approve — hand
+   the evidence to the caller* is offered without the marker, whichever
+   defect it is — a defective take is the one this gate exists to stop.
+2. Otherwise the take is clean. Call
+   `mcp__plugin_dev10x_cli__resolve_gate(gate="artifact_preview", context={})`
+   and branch on `effect`:
+   - `ask` — **REQUIRED: Call `AskUserQuestion`** with the step 3
+     options, *Approve — hand the evidence to the caller* in place of
+     the Linear upload option. It leads as the recommended option,
+     because the take passed every check above.
+   - `auto-advance` or `skip` — take *Approve*. Print the returned
+     `record` line (on `auto-advance`) and the screenshot manifest, so
+     the caller's Verify-AC summary can name what was approved.
+   - an `error` key — fail safe: ask, as for `ask`.
+
+The ticket-driven run keeps the unconditional gate: its *Approve*
+uploads to an append-only Linear trail. Neither branch ever approves an
+upload or a publish on its own.
 
 #### 4.5 Upload the evidence
 
