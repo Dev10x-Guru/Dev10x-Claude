@@ -12,6 +12,16 @@
       "description": "Step 1.5 filters bot approvals before matching reviews against headRefOid, and gates on a human approval of the current HEAD"
     },
     {
+      "id": "readiness-gate",
+      "name": "Readiness Gate",
+      "description": "Step 1.6 refuses (unattended) or asks (attended) before any reviewer is pinged when CI is not green, review threads are open, a blocking bot is not at head, or the PR is a draft (GH-1834)"
+    },
+    {
+      "id": "readiness-audit",
+      "name": "Readiness Audit",
+      "description": "--audit classifies review-requested PRs as SENT-NOT-READY or WENT-RED-AFTER through review_readiness_audit and writes nothing (GH-1834)"
+    },
+    {
       "id": "delegation",
       "name": "Skill Delegation",
       "description": "Assignment and notification are delegated to the sibling skills, never inlined as raw gh or API calls"
@@ -178,6 +188,223 @@
           "check": "tool_called",
           "signals": [
             "AskUserQuestion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "red-ci-attended-fires-the-readiness-gate",
+      "prompt": "/dev10x:request-review --pr 42 --repo org/repo",
+      "description": "GH-1834: CI is failing on the head. A reviewer must not be pinged on a PR that was never ready, so the attended run asks before Step 2, with stopping recommended.",
+      "setup": {
+        "ci_verdict": "failing",
+        "unresolved_threads": 0,
+        "bots_ready": true,
+        "is_draft": false
+      },
+      "dimensions": [
+        "readiness-gate"
+      ],
+      "assertions": [
+        {
+          "id": "readiness-gate-uses-the-tool",
+          "text": "Fires AskUserQuestion rather than a plain-text question",
+          "check": "tool_called",
+          "signals": [
+            "AskUserQuestion"
+          ]
+        },
+        {
+          "id": "no-plain-text-substitute",
+          "text": "No inline plain-text 'request review anyway?' question substitutes for, or precedes, the widget",
+          "check": "plain_text",
+          "signals": [
+            "No inline 'Request review anyway?' before the AskUserQuestion call"
+          ]
+        },
+        {
+          "id": "stop-is-recommended",
+          "text": "The widget leads with 'Stop — fix it first (Recommended)' and offers 'Request review anyway'",
+          "check": "output_contains",
+          "signals": [
+            "Stop — fix it first (Recommended)",
+            "Request review anyway"
+          ]
+        },
+        {
+          "id": "no-assignment-before-the-answer",
+          "text": "dev10x:gh-pr-request-review is not invoked before the user answers",
+          "check": "tool_called_before",
+          "signals": [
+            "AskUserQuestion",
+            "dev10x:gh-pr-request-review"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "name": "unattended-refuses-unresolved-threads",
+      "prompt": "/dev10x:request-review --pr 42 --repo org/repo --unattended",
+      "description": "GH-1834: two review threads are still open. Unattended callers have nobody to ask, so the skill refuses: no reviewer, no chat post, no PR comment.",
+      "setup": {
+        "ci_verdict": "green",
+        "unresolved_threads": 2,
+        "bots_ready": true,
+        "is_draft": false
+      },
+      "dimensions": [
+        "readiness-gate",
+        "delegation"
+      ],
+      "assertions": [
+        {
+          "id": "does-not-assign-reviewers",
+          "text": "Does NOT invoke dev10x:gh-pr-request-review",
+          "check": "command_absent",
+          "signals": [
+            "dev10x:gh-pr-request-review"
+          ]
+        },
+        {
+          "id": "does-not-notify",
+          "text": "Does NOT invoke either chat transport",
+          "check": "command_absent",
+          "signals": [
+            "dev10x:slack-review-request",
+            "dev10x:gchat-review-request"
+          ]
+        },
+        {
+          "id": "reports-the-reason",
+          "text": "Reports the open threads as the reason for refusing",
+          "check": "output_contains",
+          "signals": [
+            "not ready",
+            "thread"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "name": "unattended-refuses-a-draft-without-publishing-it",
+      "prompt": "/dev10x:request-review --pr 42 --repo org/repo --unattended",
+      "description": "GH-1834: the PR is still a draft. A draft is a failing condition like red CI. Marking it ready inside the check would publish the PR and notify code owners even on a refusal, so the unattended run refuses and leaves the draft alone.",
+      "setup": {
+        "is_draft": true,
+        "ci_verdict": "green",
+        "unresolved_threads": 0,
+        "bots_ready": true
+      },
+      "dimensions": [
+        "readiness-gate"
+      ],
+      "assertions": [
+        {
+          "id": "does-not-mark-ready",
+          "text": "Does NOT call pr_ready — the check never publishes a draft",
+          "check": "command_absent",
+          "signals": [
+            "mcp__plugin_dev10x_cli__pr_ready"
+          ]
+        },
+        {
+          "id": "refuses-without-assigning",
+          "text": "Does NOT invoke dev10x:gh-pr-request-review",
+          "check": "command_absent",
+          "signals": [
+            "dev10x:gh-pr-request-review"
+          ]
+        },
+        {
+          "id": "names-the-draft",
+          "text": "Reports the draft as the reason for refusing",
+          "check": "output_contains",
+          "signals": [
+            "draft"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "name": "audit-mode-classifies-and-writes-nothing",
+      "prompt": "/dev10x:request-review --audit --repo org/repo",
+      "description": "GH-1834: the audit looks back at PRs already sent and tells the requester's misses (SENT-NOT-READY) from later breakage (WENT-RED-AFTER). It is read-only.",
+      "dimensions": [
+        "readiness-audit"
+      ],
+      "assertions": [
+        {
+          "id": "calls-the-audit-tool",
+          "text": "Calls review_readiness_audit",
+          "check": "tool_called",
+          "signals": [
+            "mcp__plugin_dev10x_cli__review_readiness_audit"
+          ]
+        },
+        {
+          "id": "requests-no-review",
+          "text": "Does NOT request review or post a notification",
+          "check": "command_absent",
+          "signals": [
+            "dev10x:gh-pr-request-review",
+            "dev10x:slack-review-request",
+            "dev10x:gchat-review-request",
+            "mcp__plugin_dev10x_cli__pr_issue_comment"
+          ]
+        },
+        {
+          "id": "names-both-verdicts",
+          "text": "Groups the output by verdict",
+          "check": "output_contains",
+          "signals": [
+            "SENT-NOT-READY",
+            "WENT-RED-AFTER"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "name": "child-stop-ends-the-run",
+      "prompt": "/dev10x:request-review --pr 42 --repo org/repo",
+      "description": "GH-1834: the PR was a draft; the user answered 'Request review anyway' in Step 1.6. gh-pr-request-review flipped it, CI went red, the user chose 'Stop — fix it first', and the child returned it to draft, ending its output with 'Readiness: stopped — …'. Nobody was asked to review, so no chat notification or PR comment may go out.",
+      "setup": {
+        "is_draft": true,
+        "child_output_tail": "Readiness: stopped — CI failure: pytest (failure)",
+        "slack_config_names_repo": true
+      },
+      "dimensions": [
+        "readiness-gate"
+      ],
+      "assertions": [
+        {
+          "id": "delegates-to-the-sibling",
+          "text": "Step 2 invokes dev10x:gh-pr-request-review, so the stop path is reached",
+          "check": "tool_called",
+          "signals": [
+            "dev10x:gh-pr-request-review"
+          ]
+        },
+        {
+          "id": "posts-nothing-after-the-stop",
+          "text": "Does NOT post a chat notification or a PR comment",
+          "check": "command_absent",
+          "signals": [
+            "dev10x:slack-review-request",
+            "dev10x:gchat-review-request",
+            "mcp__plugin_dev10x_cli__pr_issue_comment"
+          ]
+        },
+        {
+          "id": "reports-stopped",
+          "text": "The summary repeats the sibling's stop line",
+          "check": "output_contains",
+          "signals": [
+            "Readiness: stopped —"
           ]
         }
       ]

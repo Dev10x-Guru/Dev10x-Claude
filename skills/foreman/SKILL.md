@@ -41,6 +41,7 @@ allowed-tools:
   - mcp__plugin_dev10x_cli__issue_close
   - mcp__plugin_dev10x_cli__pr_get
   - mcp__plugin_dev10x_cli__ci_check_status
+  - mcp__plugin_dev10x_cli__review_readiness_audit
   - mcp__plugin_dev10x_cli__milestone_close
   - mcp__plugin_dev10x_cli__background_preamble
   - mcp__plugin_dev10x_cli__resolve_gate
@@ -84,3 +85,11 @@ handover another session will read — Read
 first: only pushed commits and issue comments survive a session
 death, an inherited brief is a hypothesis until re-derived from
 origin, and a foreman cannot spawn named teammates (GH-965).
+
+**Optional review-readiness sweep (GH-1834).** Only when the
+supervisor asks for it at Phase 0: once per periodic status, call
+`mcp__plugin_dev10x_cli__review_readiness_audit` per manifest repo and
+list its `SENT-NOT-READY` rows in the status. Read-only — never
+comment, request review or relabel. See
+[`references/review-readiness.md`](../../references/review-readiness.md)
+§ Periodic sweep under foreman.
