@@ -21,6 +21,7 @@ from dev10x.mcp import server_cli as cli_server
 from dev10x.subprocess_utils import use_cwd
 
 wait_for_module = importlib.import_module("dev10x.coding.monitor.wait_for")
+polling_module = importlib.import_module("dev10x.core.domain.polling")
 
 NOW = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
 
@@ -42,8 +43,8 @@ class FakeClock:
 def clock() -> Iterator[FakeClock]:
     fake = FakeClock()
     with (
-        patch.object(wait_for_module, "_clock", new=fake),
-        patch.object(wait_for_module, "_sleep", new=fake.sleep),
+        patch.object(polling_module, "_clock", new=fake),
+        patch.object(polling_module, "_sleep", new=fake.sleep),
     ):
         yield fake
 
@@ -90,7 +91,7 @@ class TestFile:
             target.write_text("")
             clock.now += seconds
 
-        with patch.object(wait_for_module, "_sleep", new=create_then_sleep):
+        with patch.object(polling_module, "_sleep", new=create_then_sleep):
             result = await wait_for_module.wait_for(kind="file", target=str(target), timeout=10)
 
         assert result.value["met"] is True

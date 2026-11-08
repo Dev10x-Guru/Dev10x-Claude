@@ -7,6 +7,7 @@ from dev10x.domain.transport_budget import (
     MCP_IDLE_TIMEOUT_SECONDS,
     clamp_tool_timeout,
     polls_within_budget,
+    tool_call_room,
 )
 
 
@@ -103,3 +104,11 @@ class TestPollsWithinBudget:
         budget = polls_within_budget(requested=7, poll_interval=0, initial_wait=60, overhead=60)
 
         assert budget.polls == 7
+
+
+class TestToolCallRoom:
+    def test_sets_overhead_and_initial_wait_aside(self):
+        assert tool_call_room(overhead=60, initial_wait=40) == MAX_TOOL_CALL_SECONDS - 100
+
+    def test_initial_wait_defaults_to_zero(self):
+        assert tool_call_room(overhead=60) == MAX_TOOL_CALL_SECONDS - 60

@@ -18,6 +18,7 @@ from dev10x.core.github import _gateway
 from dev10x.mcp import server_cli as cli_server
 
 pr_wait_module = importlib.import_module("dev10x.coding.monitor.pr_wait")
+polling_module = importlib.import_module("dev10x.core.domain.polling")
 
 PULL = "repos/owner/repo/pulls/7"
 REVIEWS = f"{PULL}/reviews?per_page=100&page="
@@ -76,7 +77,7 @@ def mock_resolve_repo() -> Iterator[AsyncMock]:
 
 @pytest.fixture(autouse=True)
 def mock_sleep() -> Iterator[AsyncMock]:
-    with patch.object(pr_wait_module, "_sleep", new_callable=AsyncMock) as mock:
+    with patch.object(polling_module, "_sleep", new_callable=AsyncMock) as mock:
         yield mock
 
 
@@ -276,7 +277,7 @@ class TestBudget:
     @pytest.mark.asyncio
     async def test_slow_polls_stop_at_the_wall_clock_deadline(self, mock_sleep: AsyncMock) -> None:
         ticks = iter([0.0, 0.0, MAX_TOOL_CALL_SECONDS])
-        with patch.object(pr_wait_module, "_clock", side_effect=lambda: next(ticks)):
+        with patch.object(polling_module, "_clock", side_effect=lambda: next(ticks)):
             result = await _wait(responder=Responder(pulls=[_pull()]), until="merged")
 
         assert result.value["timed_out"] is True
@@ -286,7 +287,7 @@ class TestBudget:
     @pytest.mark.asyncio
     async def test_sleep_never_overshoots_the_deadline(self, mock_sleep: AsyncMock) -> None:
         ticks = iter([0.0, MAX_TOOL_CALL_SECONDS - 70.0, MAX_TOOL_CALL_SECONDS])
-        with patch.object(pr_wait_module, "_clock", side_effect=lambda: next(ticks)):
+        with patch.object(polling_module, "_clock", side_effect=lambda: next(ticks)):
             await _wait(responder=Responder(pulls=[_pull()]), until="merged")
 
         mock_sleep.assert_awaited_once_with(10.0)
