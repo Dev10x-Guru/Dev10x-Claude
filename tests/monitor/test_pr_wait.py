@@ -44,6 +44,38 @@ def _reviews(*items: dict) -> Any:
     return _completed(stdout=json.dumps(list(items)))
 
 
+def _gql_review(
+    *,
+    login: str,
+    kind: str = "Bot",
+    commit: str = HEAD,
+    state: str = "COMMENTED",
+) -> dict:
+    return {
+        "author": {"__typename": kind, "login": login},
+        "state": state,
+        "body": "",
+        "submittedAt": "2026-01-02T00:00:00Z",
+        "commit": {"oid": commit},
+    }
+
+
+def _gql_comment(*, login: str, at: str, kind: str = "Bot") -> dict:
+    return {"author": {"__typename": kind, "login": login}, "createdAt": at}
+
+
+def _graphql(*, reviews: tuple[dict, ...] = (), comments: tuple[dict, ...] = ()) -> Any:
+    node = {
+        "isDraft": False,
+        "headRefOid": HEAD,
+        "commits": {"nodes": [{"commit": {"oid": HEAD, "committedDate": "2026-01-01T00:00:00Z"}}]},
+        "reviews": {"nodes": list(reviews)},
+        "reviewThreads": {"nodes": []},
+        "comments": {"nodes": list(comments)},
+    }
+    return _completed(stdout=json.dumps({"data": {"repository": {"pullRequest": node}}}))
+
+
 class Responder:
     def __init__(
         self,
@@ -51,13 +83,17 @@ class Responder:
         pulls: list[Any],
         reviews: Any | None = None,
         review_pages: list[Any] | None = None,
+        graphql: Any | None = None,
     ) -> None:
         self.pulls = list(pulls)
         self.review_pages = review_pages or [reviews or _reviews()]
+        self.graphql = graphql or _graphql()
         self.calls: list[str] = []
 
     async def __call__(self, endpoint: str, **_: Any) -> Any:
         self.calls.append(endpoint)
+        if endpoint == "graphql":
+            return self.graphql
         if endpoint.startswith(REVIEWS):
             _, _, page = endpoint.partition("&page=")
             return self.review_pages[int(page or 1) - 1]
@@ -213,28 +249,27 @@ class TestApproved:
 
 
 class TestBotAtHead:
+    """``bot_at_head`` delegates to ``bot_review_status`` (GH-1857)."""
+
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
         ("review", "bot", "met"),
         [
-            (_review(login="claude[bot]", state="COMMENTED", kind="Bot"), None, True),
-            (_review(login="claude[bot]", state="COMMENTED", kind="Bot"), "claude", True),
-            (_review(login="claude[bot]", state="COMMENTED", kind="Bot"), "Claude[bot]", True),
-            (_review(login="other[bot]", state="COMMENTED", kind="Bot"), "claude", False),
-            (_review(login="ann", state="APPROVED"), None, False),
-            (_review(login="reviewer[bot]", state="COMMENTED"), None, True),
-            (
-                _review(login="claude[bot]", state="COMMENTED", kind="Bot", commit=NEW_HEAD),
-                None,
-                False,
-            ),
+            (_gql_review(login="claude"), None, True),
+            (_gql_review(login="claude"), "claude", True),
+            (_gql_review(login="claude"), "Claude[bot]", True),
+            (_gql_review(login="claude"), "clau*", True),
+            (_gql_review(login="other"), "claude", False),
+            (_gql_review(login="ann", kind="User", state="APPROVED"), None, False),
+            (_gql_review(login="claude-fan", kind="User"), None, False),
+            (_gql_review(login="claude", commit=NEW_HEAD), None, False),
         ],
     )
     async def test_matches_only_a_bot_review_on_the_head(
         self, review: dict, bot: str | None, met: bool
     ) -> None:
         result = await _wait(
-            responder=Responder(pulls=[_pull()], reviews=_reviews(review)),
+            responder=Responder(pulls=[_pull()], graphql=_graphql(reviews=(review,))),
             until="bot_at_head",
             bot=bot,
             max_polls=1,
@@ -243,18 +278,39 @@ class TestBotAtHead:
         assert result.value["met"] is met
 
     @pytest.mark.asyncio
-    async def test_reports_the_matching_review(self) -> None:
-        review = _review(login="claude[bot]", state="COMMENTED", kind="Bot")
+    @pytest.mark.parametrize(
+        ("at", "met"),
+        [("2026-01-03T00:00:00Z", True), ("2025-12-31T00:00:00Z", False)],
+    )
+    async def test_a_comment_only_bot_counts_on_the_timestamp_basis(
+        self, at: str, met: bool
+    ) -> None:
+        responder = Responder(
+            pulls=[_pull()], graphql=_graphql(comments=(_gql_comment(login="sonar", at=at),))
+        )
 
+        result = await _wait(responder=responder, until="bot_at_head", max_polls=1)
+
+        assert result.value["met"] is met
+
+    @pytest.mark.asyncio
+    async def test_reports_the_matching_row(self) -> None:
         result = await _wait(
-            responder=Responder(pulls=[_pull()], reviews=_reviews(review)), until="bot_at_head"
+            responder=Responder(
+                pulls=[_pull()], graphql=_graphql(reviews=(_gql_review(login="claude"),))
+            ),
+            until="bot_at_head",
         )
 
         assert result.value["observed"]["bot_review"] == {
-            "login": "claude[bot]",
+            "login": "claude",
+            "kind": "review",
             "state": "COMMENTED",
             "commit_id": HEAD,
+            "at_head_basis": "sha",
+            "last_activity": "2026-01-02T00:00:00Z",
         }
+        assert result.value["observed"]["bots"] == ["claude"]
 
     @pytest.mark.asyncio
     async def test_reports_none_when_no_bot_reviewed(self) -> None:
@@ -263,6 +319,23 @@ class TestBotAtHead:
         )
 
         assert result.value["observed"]["bot_review"] is None
+
+    @pytest.mark.asyncio
+    async def test_a_graphql_failure_is_a_probe_error(self) -> None:
+        responder = Responder(pulls=[_pull()], graphql=_completed(returncode=1, stderr="HTTP 502"))
+
+        result = await _wait(responder=responder, until="bot_at_head", max_polls=1)
+
+        assert isinstance(result, ErrorResult)
+        assert "HTTP 502" in result.error
+
+    @pytest.mark.asyncio
+    async def test_reviews_are_not_listed_over_rest(self) -> None:
+        responder = Responder(pulls=[_pull()])
+
+        await _wait(responder=responder, until="bot_at_head", max_polls=1)
+
+        assert responder.calls == [PULL, "graphql"]
 
 
 class TestBudget:
