@@ -120,6 +120,61 @@ class TestShellWrites:
     ) -> None:
         assert validator.validate(inp=_make_input(command=command)) is not None
 
+    @pytest.mark.parametrize(
+        "command",
+        [
+            # GH-1816: the redirect sits on the group, not on the verb.
+            "{ echo hi; } > src/x.py",
+            "(cat a b) > out.py",
+            "{ printf x; } >> f",
+            "( echo hi ) 2>/dev/null > f",
+            "{ { echo hi; } 2>/dev/null; } > f",
+            "{ true; echo hi; } > f",
+            "(echo hi)>f",
+            "{ echo hi; '}'; } > f",
+            "{ echo hi; case x in x) :;; esac; } > f",
+            "echo $(date) > f",
+            "cd x && { echo hi; } > f",
+            "( echo hi; case x in x) :;; esac ) > f",
+            "( case x in a|b) echo hi;; esac ) > f",
+            "( case x in\n x) echo hi;; esac ) > f",
+            "(echo hi; 'case') > f",
+            "cat <(true) > f",
+            "cat < $(true) > f",
+            "echo $(date) more > f",
+            "echo $(a) $(b) > f",
+            "(echo $(date) case) > f",
+            "cat < <(a) > f",
+        ],
+    )
+    def test_blocks_a_write_redirected_on_a_command_group(
+        self, validator: ExecutionSafetyValidator, command: str
+    ) -> None:
+        assert validator.validate(inp=_make_input(command=command)) is not None
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            # A group redirect counts like a bare one: only a write verb
+            # inside the group makes it a shell write (GH-1816).
+            "{ ls; } 2>/dev/null",
+            "( ls -la ) > f",
+            "{ git status; git diff; } > out.txt",
+            "{ echo hi; } < f",
+            "ls $(cat a) > f",
+            "grep x $(cat list) > out",
+            "{ ls cat; } > f",
+            "{ echo hi; } ; > f",
+            "ls <(true) > f",
+            "( case x in x) ls;; esac ) > f",
+            "echo $(a); { ls; } c > f",
+        ],
+    )
+    def test_allows_a_group_redirect_without_a_write_verb(
+        self, validator: ExecutionSafetyValidator, command: str
+    ) -> None:
+        assert validator.validate(inp=_make_input(command=command)) is None
+
 
 class TestPython3Inline:
     @pytest.fixture()
