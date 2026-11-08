@@ -933,13 +933,15 @@ def _closing_paragraph(*, text: str) -> str:
     return closing.replace("’", "'").replace("‘", "'")
 
 
+_ITEM_MARKER = r"(?:[-*+]|\d+[.)])"
+
 _SENTENCE_BREAK = re.compile(
     r"(?<=[.!?])(?<!\be\.g\.)(?<!\bi\.e\.)(?<!\bvs\.)[*_`\"')\]]*\s+"
-    r"|\n(?=[ \t]*(?:[-*+]|\d+[.)])[ \t])",
+    rf"|\n(?=[ \t]*{_ITEM_MARKER}[ \t])",
     re.IGNORECASE,
 )
 
-_LIST_ITEM = re.compile(r"(?:[-*+]|\d+[.)])\s")
+_LIST_ITEM = re.compile(rf"{_ITEM_MARKER}\s")
 
 _ITEM_NUMBER = re.compile(r"\d+\.")
 
@@ -977,16 +979,17 @@ def _sentences(*, text: str) -> list[str]:
     whitespace, and a line that opens a list item (``-``, ``*``, ``+``,
     ``1.``, ``1)``) even when the item before it has no full stop. A
     line wrap inside a sentence does not, so a wrapped promise keeps its
-    condition, and a version number or path is never split. Markdown bold, a
-    closing quote, paren or backtick may sit between the punctuation and
-    the whitespace: "**I'll push it now.** Once you approve…" is two
-    sentences. "e.g.", "i.e.", "vs." and an item number do not end one,
-    since splitting there would cut a condition off from the promise it
-    governs.
+    condition, and a version number or path is never split. Markdown
+    bold or italics, a straight closing quote, a paren, bracket or
+    backtick may sit between the punctuation and the whitespace:
+    "**I'll push it now.** Once you approve…" is two sentences. "e.g.",
+    "i.e.", "vs." and an item number do not end one, since splitting
+    there would cut a condition off from the promise it governs.
 
     A list item is judged together with the lead-in that introduces it
     when that lead-in ends in a colon: in "Once you approve:\\n- I'll
-    merge it" the condition governs every item below it.
+    merge it" the condition governs the items below it, up to the next
+    sentence that is not a list item.
     """
     lead_in = ""
     judged: list[str] = []
@@ -1042,12 +1045,13 @@ def promised_action(
     if not closing:
         return ""
     active = load_intent_patterns() if patterns is None else patterns
-    if not any(
+    if not any(pattern.search(closing) for pattern in active.intent):
+        return ""
+    broken = any(
         _breaks_its_word(sentence=sentence, patterns=active)
         for sentence in _sentences(text=closing)
-    ):
-        return ""
-    return closing
+    )
+    return closing if broken else ""
 
 
 def _promised_action_reason(*, closing: str) -> str:
