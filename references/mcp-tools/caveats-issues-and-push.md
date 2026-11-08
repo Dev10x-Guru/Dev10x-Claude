@@ -75,6 +75,10 @@ Behavioural caveats moved out of `.claude/rules/mcp-tools.md`
   `at_head` is `true`, `false` or `null`; read `null` ("cannot tell")
   as not at head. For a `kind: comment` bot (it posted an issue
   comment, not a review) `at_head_basis` is `timestamp`: it spoke
-  after the head commit's date, which is weaker than a SHA match.
+  no earlier than `head_pushed_at`, which is weaker than a SHA match.
+  `head_pushed_at` is the latest of the head commit's date, a
+  force-push onto the head, and the head's first check suite
+  (GH-1857); a plain push with no CI falls back to the commit date,
+  so an old commit pushed late can still read as reviewed.
   `open_inline_comments` counts unresolved review threads the bot
   started, not individual comments.

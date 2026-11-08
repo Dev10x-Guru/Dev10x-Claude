@@ -42,7 +42,10 @@ def _query(*, owner: str, name: str, pr_number: int) -> str:
         f"repository(owner: {json.dumps(owner)}, name: {json.dumps(name)}) "
         f"{{ pullRequest(number: {pr_number}) {{ "
         "isDraft headRefOid "
-        "commits(last: 1) { nodes { commit { oid committedDate } } } "
+        "commits(last: 1) { nodes { commit { oid committedDate "
+        "checkSuites(first: 20) { nodes { createdAt } } } } } "
+        "timelineItems(last: 20, itemTypes: [HEAD_REF_FORCE_PUSHED_EVENT]) { nodes { "
+        "... on HeadRefForcePushedEvent { createdAt afterCommit { oid } } } } "
         "reviews(last: 100) { pageInfo { hasPreviousPage } nodes { "
         "author { __typename login } state body submittedAt commit { oid } } } "
         "reviewThreads(first: 100) { pageInfo { hasNextPage } nodes { isResolved "
@@ -156,19 +159,40 @@ def _collect_rows(*, pr: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return rows
 
 
+def _head_pushed_at(*, pr: dict[str, Any], head_sha: str | None) -> str | None:
+    """Best evidence of when the head reached the PR (GH-1857).
+
+    ``committedDate`` alone is when the commit was made, not pushed: a
+    rebase or an old local commit pushed later carries an early date, so
+    a bot comment posted *before* the push read as at head. The latest of
+    the commit date, a force-push event onto this head, and the head's
+    earliest check suite (created on push) is used instead. A plain push
+    with no CI leaves only the commit date — no worse than before.
+    """
+    commit = _first(pr.get("commits")).get("commit") or {}
+    suites = [s.get("createdAt") for s in _nodes(commit.get("checkSuites"))]
+    first_suite = min((t for t in suites if t), default=None)
+    force_pushes = [
+        event.get("createdAt")
+        for event in _nodes(pr.get("timelineItems"))
+        if (event.get("afterCommit") or {}).get("oid") == head_sha
+    ]
+    return _latest(commit.get("committedDate"), first_suite, *force_pushes)
+
+
 def _at_head(
     *,
     row: dict[str, Any],
     head_sha: str | None,
-    head_committed_at: str | None,
+    head_pushed_at: str | None,
 ) -> bool | None:
     if row["kind"] == KIND_REVIEW:
         if not head_sha:
             return None
         return row["reviewed_sha"] == head_sha
-    if not head_committed_at or not row["last_activity"]:
+    if not head_pushed_at or not row["last_activity"]:
         return None
-    return row["last_activity"] >= head_committed_at
+    return row["last_activity"] >= head_pushed_at
 
 
 def _row_reasons(*, row: dict[str, Any]) -> list[str]:
@@ -193,12 +217,13 @@ def summarize(
     """Fold one ``pullRequest`` GraphQL node into a per-bot status report."""
     head_sha = pr.get("headRefOid")
     head_committed_at = (_first(pr.get("commits")).get("commit") or {}).get("committedDate")
+    head_pushed_at = _head_pushed_at(pr=pr, head_sha=head_sha)
     is_draft = bool(pr.get("isDraft"))
 
     bots: list[dict[str, Any]] = []
     reasons: list[str] = []
     for row in sorted(_collect_rows(pr=pr).values(), key=lambda r: r["login"].lower()):
-        row["at_head"] = _at_head(row=row, head_sha=head_sha, head_committed_at=head_committed_at)
+        row["at_head"] = _at_head(row=row, head_sha=head_sha, head_pushed_at=head_pushed_at)
         row["at_head_basis"] = _BASIS[row["kind"]]
         row["empty_body_with_inline"] = bool(
             row["review_body_empty"] and row["open_inline_comments"]
@@ -224,6 +249,7 @@ def summarize(
     return {
         "head_sha": head_sha,
         "head_committed_at": head_committed_at,
+        "head_pushed_at": head_pushed_at,
         "is_draft": is_draft,
         "bots": bots,
         "blocking_bots": list(blocking_globs),
