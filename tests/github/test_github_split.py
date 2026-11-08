@@ -60,6 +60,7 @@ PRE_SPLIT_NAMES = (
     "_pr_comment_list",
     "_BOT_LOGIN_RE",
     "is_bot_login",
+    "is_bot_author",
     "_list_unresolved_threads",
     "_REACTION_GROUP_CONTENT_TO_KEY",
     "_normalize_reaction_groups",

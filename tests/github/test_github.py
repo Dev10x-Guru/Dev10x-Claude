@@ -759,6 +759,32 @@ class TestIsBotLogin:
         assert gh.is_bot_login(login) is False
 
 
+class TestIsBotAuthor:
+    """GH-1857: the GraphQL account type outranks the login regex."""
+
+    @pytest.mark.parametrize(
+        ("author", "expected"),
+        [
+            ({"__typename": "Bot", "login": "renovate"}, True),
+            ({"__typename": "User", "login": "claude-fan"}, False),
+            ({"__typename": "User", "login": "alice"}, False),
+            ({"login": "claude"}, True),
+            ({"login": "alice"}, False),
+            (None, False),
+        ],
+        ids=[
+            "bot-type-without-known-login",
+            "human-with-bot-like-login",
+            "human",
+            "no-type-falls-back-to-login",
+            "no-type-human-login",
+            "no-author",
+        ],
+    )
+    def test_classifies(self, author: dict | None, expected: bool) -> None:
+        assert gh.is_bot_author(author) is expected
+
+
 class TestMinimizeComments:
     @pytest.fixture
     def batch_response(self) -> str:

@@ -81,6 +81,22 @@ def is_bot_login(login: str | None) -> bool:
     return bool(login) and bool(_BOT_LOGIN_RE.search(login or ""))
 
 
+def is_bot_author(author: dict[str, Any] | None) -> bool:
+    """True when a GraphQL ``author`` is a bot account (GH-1857).
+
+    The account type is authoritative whenever the query asked for it:
+    the login regex alone let a human such as ``claude-fan`` read as a
+    bot, and a bot-authored thread is one AFK may resolve without the
+    supervisor. The regex remains the fallback for a payload that does
+    not carry ``__typename``.
+    """
+    author = author or {}
+    typename = author.get("__typename")
+    if typename:
+        return typename == "Bot"
+    return is_bot_login(author.get("login"))
+
+
 async def _list_unresolved_threads(
     *,
     resolved_repo: str,
@@ -100,7 +116,7 @@ async def _list_unresolved_threads(
         "id isResolved isOutdated "
         "comments(first: 1) { nodes { "
         "databaseId body path line "
-        "author { login } "
+        "author { __typename login } "
         "pullRequestReview { databaseId } "
         "reactionGroups { content users { totalCount } } "
         "} } "
@@ -116,11 +132,10 @@ async def _list_unresolved_threads(
             continue
         comments = thread.get("comments", {}).get("nodes", [])
         first = comments[0] if comments else {}
-        first_author_login = (first.get("author") or {}).get("login")
         normalized = {
             "thread_id": thread.get("id"),
             "is_outdated": thread.get("isOutdated"),
-            "author_type": "bot" if is_bot_login(first_author_login) else "human",
+            "author_type": "bot" if is_bot_author(first.get("author")) else "human",
             **first,
         }
         reaction_groups = normalized.pop("reactionGroups", None)
