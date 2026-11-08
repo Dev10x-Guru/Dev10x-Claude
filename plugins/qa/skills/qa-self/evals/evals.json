@@ -177,9 +177,24 @@
         {
           "dimension": "review-gate",
           "check": "tool_called",
-          "tool": "AskUserQuestion",
-          "assertion": "exploratory_gate_uses_tool",
-          "signal": "gate_kept — AskUserQuestion is called at the Phase 4.4 evidence review before anything leaves the machine, never a plain-text question"
+          "tool": "mcp__plugin_dev10x_cli__resolve_gate",
+          "assertion": "exploratory_gate_resolves",
+          "signal": "gate_resolved — on a clean take the Phase 4.4 evidence review calls resolve_gate(gate=\"artifact_preview\") instead of asking unconditionally, so an afk session does not stall (GH-1847)"
+        },
+        {
+          "dimension": "review-gate",
+          "check": "behavioral",
+          "signal": "ask_effect_uses_tool — when resolve_gate returns ask (or an error), AskUserQuestion is called before anything leaves the machine, never a plain-text question"
+        },
+        {
+          "dimension": "review-gate",
+          "check": "behavioral",
+          "signal": "defect_always_asks — a failed verifier, a sub-1080p raster, a non-empty unrendered list or an install anchor fires AskUserQuestion without consulting the resolver"
+        },
+        {
+          "dimension": "review-gate",
+          "check": "behavioral",
+          "signal": "auto_advance_publishes_nothing — an auto-advanced approve only hands the evidence back with the record line and manifest; no upload or publish is approved by it"
         },
         {
           "dimension": "review-gate",
@@ -190,6 +205,31 @@
           "dimension": "artifact-verification",
           "check": "behavioral",
           "signal": "skip_without_environment — with no staging deploy and no local stack, nothing is recorded and the one-line 'Self-QA skipped: no runnable environment' note is returned"
+        }
+      ]
+    },
+    {
+      "id": "exploratory-defective-take-asks",
+      "name": "A defective exploratory take asks even when the resolver would auto-advance",
+      "description": "An unattended work-on session runs the self-QA step; the narrated take has captions that played silently (GH-1847)",
+      "input": "Skill(dev10x-qa:qa-self, args=\"--exploratory 1234\") in an afk session; narration.json reports a non-empty unrendered list",
+      "assertions": [
+        {
+          "dimension": "review-gate",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "assertion": "exploratory_defect_gate_uses_tool",
+          "signal": "defect_gate_kept — AskUserQuestion is called at Phase 4.4 without consulting resolve_gate, never a plain-text question"
+        },
+        {
+          "dimension": "review-gate",
+          "check": "behavioral",
+          "signal": "recapture_recommended — Re-capture leads as the recommended option and Approve is offered without the marker"
+        },
+        {
+          "dimension": "review-gate",
+          "check": "behavioral",
+          "signal": "no_auto_approve — the defective take is never handed back as approved without an answer"
         }
       ]
     }

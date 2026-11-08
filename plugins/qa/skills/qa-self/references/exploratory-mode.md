@@ -18,13 +18,27 @@ PR.
 | 1.2 Verify deployment | Staging image or deployed branch | Same check, or a local stack running the PR head |
 | 2–3 Script and execute | One test per ticket case | One walkthrough per changed surface, plus one unscripted probe of edge states |
 | 4 Prepare evidence | Screenshots and video | Same, and the video is **narrated** (see the external-failure fallback below) |
-| 4.4 Evidence review gate | Blocking `AskUserQuestion` | Kept — "Approve" hands the evidence to the caller instead of uploading it |
+| 4.4 Evidence review gate | Blocking `AskUserQuestion` | Resolved through `resolve_gate(gate="artifact_preview")`; any take defect still asks. "Approve" hands the evidence to the caller instead of uploading it |
 | 4.5 Upload the evidence | Upload to Linear | **Skipped** — there is no ticket; the evidence stays local |
 | 5 Post results | Comment on the ticket | **Skipped** — `dev10x-qa:review-pack` publishes on the PR |
 
 Everything not listed runs exactly as in `instructions.md`, including
 artifact verification (Phase 4.1) and the test-failure recovery gate
 (Phase 3).
+
+## The evidence gate follows session policy (GH-1847)
+
+The work-on self-QA step often runs in a walk-away session (the `afk`
+overlay), where every other shipping gate auto-advances. A gate that
+always asks would stop the pipeline here until someone came back. At
+4.4 an exploratory run publishes nothing, so `instructions.md` routes
+the gate for a clean take through `resolve_gate(gate="artifact_preview")`:
+the resolver auto-advances it under the adaptive baseline, attended or
+not, and asks where a project pin or overlay says so. A take is clean
+when the verifier passed, the raster is Full HD, no caption went
+unnarrated and the narration is anchored at video start. A defective
+take always asks, with Re-capture recommended. The upload and publish
+gates downstream are unchanged.
 
 ## Deriving the cases
 
