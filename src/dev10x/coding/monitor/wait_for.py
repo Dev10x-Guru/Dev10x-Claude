@@ -17,16 +17,15 @@ import http.client
 import math
 import os
 import re
-import time
 import urllib.error
 import urllib.request
-from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from dev10x.core.mcp.daemon import is_pid_alive
+from dev10x.domain import polling
 from dev10x.domain.common.result import Result, err, ok
 from dev10x.domain.transport_budget import clamp_tool_timeout
 from dev10x.subprocess_utils import async_run, effective_cwd
@@ -39,9 +38,6 @@ _PROBE_TIMEOUT_SECONDS = 10.0
 _MIN_POLL_INTERVAL = 0.1
 _MAX_READ_BYTES = 4 * 1024 * 1024
 _EXCERPT_CHARS = 200
-
-_sleep: Callable[[float], Awaitable[None]] = asyncio.sleep
-_clock: Callable[[], float] = time.monotonic
 
 
 def _now() -> datetime:
@@ -197,7 +193,7 @@ async def _probe(
 async def _wait_for_time(*, moment: datetime, timeout: float) -> dict[str, Any]:
     remaining = (moment - _now()).total_seconds()
     if remaining > 0:
-        await _sleep(min(remaining, timeout))
+        await polling._sleep(min(remaining, timeout))
     met = _now() >= moment
     return {
         "met": met,
@@ -251,28 +247,29 @@ async def wait_for(
 
     budget = clamp_tool_timeout(timeout)
     interval = max(poll_interval, _MIN_POLL_INTERVAL)
-    started = _clock()
+    started = polling._clock()
 
     moment = _parse_moment(target=target) if kind == "time" else None
     if moment is not None:
         outcome = await _wait_for_time(moment=moment, timeout=budget.seconds)
     else:
-        deadline = started + budget.seconds
-        polls = 0
-        while True:
-            polls += 1
-            probe = await _probe(
+
+        async def probe() -> Probe:
+            return await _probe(
                 kind=kind,
                 target=target,
                 pattern=pattern or "",
                 compiled=compiled,
                 expect_status=expect_status,
             )
-            remaining = deadline - _clock()
-            if probe.met or remaining <= 0:
-                break
-            await _sleep(min(interval, remaining))
-        outcome = {"met": probe.met, "observed": probe.observed, "polls": polls}
+
+        run = await polling.poll_until(
+            probe=probe,
+            done=lambda result: result.met,
+            deadline=polling.Deadline.after(seconds=budget.seconds),
+            interval=interval,
+        )
+        outcome = {"met": run.last.met, "observed": run.last.observed, "polls": run.polls}
 
     return ok(
         {
@@ -282,7 +279,7 @@ async def wait_for(
             "timed_out": not outcome["met"],
             "observed": outcome["observed"],
             "polls": outcome["polls"],
-            "elapsed": round(_clock() - started, 3),
+            "elapsed": round(polling._clock() - started, 3),
             "timeout": budget.seconds,
             "timeout_requested": budget.requested,
             "clamped": budget.was_clamped,

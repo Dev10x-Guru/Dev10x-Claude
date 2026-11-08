@@ -131,6 +131,16 @@ class ClampedPolls(NamedTuple):
         return self.polls < self.requested
 
 
+def tool_call_room(*, overhead: float, initial_wait: float = 0) -> float:
+    """Seconds a waiting tool may spend once its fixed costs are set aside.
+
+    The one place ``MAX_TOOL_CALL_SECONDS - overhead`` is computed (GH-1852):
+    the poll count and the wall-clock deadline both derive from it, so they
+    cannot drift apart.
+    """
+    return MAX_TOOL_CALL_SECONDS - initial_wait - overhead
+
+
 def polls_within_budget(
     *,
     requested: int,
@@ -152,6 +162,6 @@ def polls_within_budget(
     """
     if poll_interval <= 0:
         return ClampedPolls(polls=requested, requested=requested)
-    room = MAX_TOOL_CALL_SECONDS - initial_wait - overhead
+    room = tool_call_room(overhead=overhead, initial_wait=initial_wait)
     affordable = int(room // poll_interval)
     return ClampedPolls(polls=max(0, min(requested, affordable)), requested=requested)

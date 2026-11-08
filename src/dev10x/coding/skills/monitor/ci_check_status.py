@@ -132,6 +132,7 @@ from dataclasses import dataclass
 from typing import NoReturn
 
 from dev10x.domain.common.repository_ref import RepositoryRef
+from dev10x.domain.polling import Deadline
 
 # Bound every gh subprocess so a wedged CLI cannot hang the poll loop
 # indefinitely (GH-824), matching pr_notify.py / slack_review_request.py.
@@ -1006,17 +1007,17 @@ def poll_until_terminal(
     # GH-1518: a tolerated probe can burn a full subprocess timeout that the
     # poll count never budgeted for, so the count alone no longer bounds the
     # wait. Hold the loop to the wall-clock budget the count was sized for.
-    deadline = (
-        time.monotonic()
-        + initial_wait
-        + poll_interval * max(max_polls - 1, 0)
-        + _DEADLINE_GRACE_SECONDS
+    # GH-1852: the same Deadline primitive pr_wait and wait_for run on;
+    # this loop stays synchronous because it runs in its own process.
+    deadline = Deadline.after(
+        seconds=initial_wait + poll_interval * max(max_polls - 1, 0) + _DEADLINE_GRACE_SECONDS,
+        clock=time.monotonic,
     )
     time.sleep(initial_wait)
 
     consecutive_failures = 0
     for attempt in range(1, max_polls + 1):
-        if attempt > 1 and time.monotonic() >= deadline:
+        if attempt > 1 and deadline.expired():
             print(
                 f"[poll {attempt}/{max_polls}] wall-clock budget spent — ending the wait",
                 file=sys.stderr,

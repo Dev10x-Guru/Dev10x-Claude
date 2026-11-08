@@ -4,25 +4,24 @@ Sessions used to hand-roll a polling script per condition — merged,
 closed, head moved, approved, a bot reviewed the head — and every one
 skipped the transport budget (GH-1288), the retry policy (GH-1423) and
 the subprocess cap (GH-1422). This loop polls through the Gateway, so it
-inherits the last two, and sizes its poll count with the same
-``polls_within_budget`` that bounds ``ci_check_status``.
+inherits the last two, sizes its poll count with the same
+``polls_within_budget`` that bounds ``ci_check_status``, and runs on the
+shared ``poll_until`` loop (GH-1852).
 
 Dependencies are reached through ``_gateway.<name>`` (ADR-0027 D2).
 """
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
-import time
-from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
 from dev10x.core.github import _gateway
 from dev10x.domain.common.result import ErrorResult, Result, err, ok
-from dev10x.domain.transport_budget import MAX_TOOL_CALL_SECONDS, polls_within_budget
+from dev10x.domain.polling import Deadline, poll_until
+from dev10x.domain.transport_budget import polls_within_budget
 
 log = logging.getLogger(__name__)
 
@@ -43,8 +42,11 @@ _REVIEW_PAGE_SIZE = 100
 _MAX_REVIEW_PAGES = 10
 _BOT_SUFFIX = "[bot]"
 
-_sleep: Callable[[float], Awaitable[None]] = asyncio.sleep
-_clock: Callable[[], float] = time.monotonic
+
+@dataclass(frozen=True)
+class _Verdict:
+    met: bool
+    unreachable: bool
 
 
 @dataclass(frozen=True)
@@ -262,33 +264,39 @@ async def pr_wait(
         overhead=_OVERHEAD_SECONDS,
     )
     granted = max(budget.polls, 1)
-    deadline = _clock() + MAX_TOOL_CALL_SECONDS - _OVERHEAD_SECONDS
 
-    baseline_sha = since_sha or ""
-    snapshot: PrSnapshot | None = None
+    baseline = [since_sha or ""]
     probe_errors: list[str] = []
-    met = unreachable = False
-    polls = 0
-    for polls in range(1, granted + 1):
+    snapshots: list[PrSnapshot] = []
+
+    async def probe() -> _Verdict | None:
         fetched = await _fetch_snapshot(repo=resolved_repo, pr_number=pr_number, until=until)
         if isinstance(fetched, ErrorResult):
             probe_errors.append(fetched.error)
-            log.warning("pr_wait poll %d/%d failed: %s", polls, granted, fetched.error)
-        else:
-            current: PrSnapshot = fetched.value
-            snapshot = current
-            baseline_sha = baseline_sha or current.head_sha
-            met = is_met(until=until, snapshot=current, baseline_sha=baseline_sha, bot=bot)
-            unreachable = not met and is_unreachable(until=until, snapshot=current)
-            if met or unreachable:
-                break
-        remaining = deadline - _clock()
-        if polls == granted or remaining <= 0:
-            break
-        await _sleep(min(interval, remaining))
+            log.warning("pr_wait poll %d/%d failed: %s", len(probe_errors), granted, fetched.error)
+            return None
+        current: PrSnapshot = fetched.value
+        snapshots.append(current)
+        baseline[0] = baseline[0] or current.head_sha
+        met = is_met(until=until, snapshot=current, baseline_sha=baseline[0], bot=bot)
+        unreachable = not met and is_unreachable(until=until, snapshot=current)
+        return _Verdict(met=met, unreachable=unreachable)
 
-    if snapshot is None:
+    run = await poll_until(
+        probe=probe,
+        done=lambda verdict: verdict is not None and (verdict.met or verdict.unreachable),
+        deadline=Deadline.for_tool_call(overhead=_OVERHEAD_SECONDS),
+        interval=interval,
+        max_polls=granted,
+    )
+
+    if not snapshots:
         return err(f"every poll failed to read PR {pr_number}: {probe_errors[-1]}")
+    snapshot = snapshots[-1]
+    baseline_sha = baseline[0]
+    last_good = run.last or _Verdict(met=False, unreachable=False)
+    met, unreachable = last_good.met, last_good.unreachable
+    polls = run.polls
     return ok(
         {
             "pr_number": pr_number,
