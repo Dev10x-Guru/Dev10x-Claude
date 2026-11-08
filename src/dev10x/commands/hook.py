@@ -84,12 +84,16 @@ def validate_ship_gate() -> None:
 
 
 def _validate_ship_gate_body() -> None:
+    _run_rule_subset(rule_ids=_SHIP_GATE_RULES)
+
+
+def _run_rule_subset(*, rule_ids: tuple[str, ...]) -> None:
     from dev10x.hooks.hook_transport import emit, read_hook_input, select_result
     from dev10x.validators import ValidatorChain, ValidatorRegistry, get_registry
 
     inp = read_hook_input()
     registry = get_registry()
-    specs = [spec for rule_id in _SHIP_GATE_RULES if (spec := registry.find_by_rule_id(rule_id))]
+    specs = [spec for rule_id in rule_ids if (spec := registry.find_by_rule_id(rule_id))]
     chain = ValidatorChain(registry=ValidatorRegistry(specs=specs, filters=registry.filters))
 
     result = select_result(chain.run(inp=inp))
