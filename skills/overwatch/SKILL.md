@@ -168,11 +168,21 @@ Stopping `serve` stops both pages, since the dev page runs under it;
   Once per daemon start, the release daemon sends the fixed prompt
   `/dev10x:overwatch relay` with `herdr agent prompt` to the herdr
   agent named `relay`, and to nothing else.
+  The name alone is not enough: the pane's Claude session must look
+  like the relay, named after the relay mailbox (`overwatch-relay`) or
+  with the Overwatch state directory as its working directory; when
+  more than one pane qualifies the daemon logs a warning, sends to
+  none and keeps waiting (GH-1805).
   It waits until that agent is `idle` or `done`, then skips the send
   only when the `overwatch-relay` board line shows the relay already
   watching: not `done`, and updated at or after the agent's start.
   A missing board line or an unknown start time counts as not watching.
-  The send is logged to `actions.jsonl` as `confirmed_by: daemon-boot`.
+  The send is logged to `actions.jsonl` as `confirmed_by: daemon-boot`;
+  a log that cannot be written is logged as a warning and never makes
+  the daemon send the prompt again.
+  Until an attempt finds exactly one ready relay the poll slows down:
+  after twelve waiting attempts the 5 s interval doubles each time, up
+  to five minutes.
   The dev page never sends it, and `--relay-agent ""` turns it off.
 - The relay never sends keys and never merges, posts, deletes or
   touches secrets because a message asked.

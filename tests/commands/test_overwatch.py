@@ -168,10 +168,31 @@ def test_serve_wires_service(
     ) == (0, 0, True, True, True, True, True, True)
 
 
-def test_run_service_starts_rearm(config_home: Path, tmp_path: Path) -> None:
+class FakeServer:
+    server_address = ("127.0.0.1", 0)
+
+    def __init__(self) -> None:
+        self.stopped = threading.Event()
+        self.closed = False
+
+    def serve_forever(self) -> None:
+        self.stopped.wait()
+
+    def shutdown(self) -> None:
+        self.stopped.set()
+
+    def server_close(self) -> None:
+        self.closed = True
+
+
+def test_run_service_starts_rearm(
+    config_home: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     app = command.build_app(
         kb_root=tmp_path / "kb", bus_root=tmp_path / "bus", relay_mailbox="relay", token="t"
     )
+    server = FakeServer()
+    monkeypatch.setattr(command, "make_server", lambda **kwargs: server)
     stop = threading.Event()
     rearmed = threading.Event()
 
@@ -195,7 +216,12 @@ def test_run_service_starts_rearm(config_home: Path, tmp_path: Path) -> None:
         stop.set()
         service.join(timeout=5)
 
-    assert fired is True
+    assert (fired, service.is_alive(), server.stopped.is_set(), server.closed) == (
+        True,
+        False,
+        True,
+        True,
+    )
 
 
 def test_build_rearm_disabled_by_empty_name(config_home: Path, tmp_path: Path) -> None:
@@ -208,7 +234,18 @@ def test_build_rearm_disabled_by_empty_name(config_home: Path, tmp_path: Path) -
     )
 
 
-def test_build_rearm_runs_until_stopped(
+class FakeRelayRearm:
+    instances: list[FakeRelayRearm] = []
+
+    def __init__(self, **kwargs: object) -> None:
+        self.kwargs = kwargs
+        FakeRelayRearm.instances.append(self)
+
+    def attempt(self) -> None:
+        raise AssertionError("run_rearm is stubbed; attempt must not run")
+
+
+def test_build_rearm_wires_run_rearm_to_the_relay(
     config_home: Path,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -217,20 +254,24 @@ def test_build_rearm_runs_until_stopped(
         kb_root=tmp_path / "kb", bus_root=tmp_path / "bus", relay_mailbox="relay", token="t"
     )
     stop = threading.Event()
-    stop.set()
     seen: dict[str, object] = {}
+    monkeypatch.setattr(FakeRelayRearm, "instances", [])
+    monkeypatch.setattr(command, "RelayRearm", FakeRelayRearm)
+    monkeypatch.setattr(command, "run_rearm", lambda **kwargs: seen.update(kwargs))
 
-    def fake_run_rearm(**kwargs: object) -> None:
-        seen.update(kwargs)
-
-    monkeypatch.setattr(command, "run_rearm", fake_run_rearm)
     rearm = command.build_rearm(app=app, agent_name="relay", interval=2.0, stop=stop)
-    rearm()  # type: ignore[misc]
-    owner = seen["attempt"].__self__  # type: ignore[attr-defined]
+    assert rearm is not None
+    rearm()
+    (relay,) = FakeRelayRearm.instances
 
-    assert (owner.agent_name, owner.relay_mailbox, seen["interval"], seen["stop"]) == (
-        "relay",
-        "relay",
+    assert (relay.kwargs, seen["attempt"], seen["interval"], seen["stop"]) == (
+        {
+            "bus_root": app.bus_root,
+            "log_path": app.log_path,
+            "relay_mailbox": "relay",
+            "agent_name": "relay",
+        },
+        relay.attempt,
         2.0,
         stop,
     )
@@ -251,12 +292,12 @@ def test_serve_without_rearm(
     monkeypatch.setattr(command, "run_service", lambda **kwargs: seen.update(kwargs))
     monkeypatch.setattr(command.signal, "signal", lambda signum, handler: None)
 
-    CliRunner().invoke(
+    result = CliRunner().invoke(
         cli,
         ["overwatch", "serve", "--port", "0", "--bus-root", str(tmp_path / "bus"), *args],
     )
 
-    assert seen["rearm"] is None
+    assert (result.exit_code, seen["rearm"]) == (0, None)
 
 
 def test_serve_can_skip_the_start_rename(

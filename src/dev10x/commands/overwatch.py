@@ -99,7 +99,7 @@ def run_service(
     provider: Callable[[], Snapshot],
     announce: Callable[[str], None],
     token_file: Path | None = None,
-    rearm: Callable[[], object] | None = None,
+    rearm: Callable[[], None] | None = None,
 ) -> None:
     server = make_server(app=app, port=port)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -126,7 +126,7 @@ def build_rearm(
     agent_name: str,
     interval: float,
     stop: threading.Event,
-) -> Callable[[], object] | None:
+) -> Callable[[], None] | None:
     if not agent_name:
         return None
     rearm = RelayRearm(
@@ -135,7 +135,11 @@ def build_rearm(
         relay_mailbox=app.relay_mailbox,
         agent_name=agent_name,
     )
-    return lambda: run_rearm(attempt=rearm.attempt, interval=interval, stop=stop)
+
+    def rearm_once() -> None:
+        run_rearm(attempt=rearm.attempt, interval=interval, stop=stop)
+
+    return rearm_once
 
 
 def start_dev_watcher(
