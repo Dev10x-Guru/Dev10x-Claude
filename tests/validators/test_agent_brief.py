@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
 
@@ -26,7 +26,7 @@ def checkout(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def write_prefs(checkout: Path) -> Any:
+def write_prefs() -> Callable[..., None]:
     def write(*, section: dict[str, Any]) -> None:
         friction = Dev10xConfigDir.friction_yaml()
         friction.parent.mkdir(parents=True, exist_ok=True)
@@ -140,7 +140,7 @@ class TestAdvisoryMode:
 
 class TestProjectConfig:
     def test_deny_mode_blocks(
-        self, validator: AgentBriefValidator, checkout: Path, write_prefs: Any
+        self, validator: AgentBriefValidator, checkout: Path, write_prefs: Callable[..., None]
     ) -> None:
         write_prefs(section={"mode": "deny"})
 
@@ -151,7 +151,11 @@ class TestProjectConfig:
         assert "DEV10X_HOOK_DISABLE=DX020" in result.message
 
     def test_linked_worktree_reads_its_main_checkout_entry(
-        self, validator: AgentBriefValidator, checkout: Path, write_prefs: Any, tmp_path: Path
+        self,
+        validator: AgentBriefValidator,
+        checkout: Path,
+        write_prefs: Callable[..., None],
+        tmp_path: Path,
     ) -> None:
         write_prefs(section={"mode": "deny"})
         worktree = tmp_path / "wt-elsewhere"
@@ -163,14 +167,14 @@ class TestProjectConfig:
         assert isinstance(result, HookResult)
 
     def test_removed_skill_is_not_checked(
-        self, validator: AgentBriefValidator, checkout: Path, write_prefs: Any
+        self, validator: AgentBriefValidator, checkout: Path, write_prefs: Callable[..., None]
     ) -> None:
         write_prefs(section={"skill_keywords": {"remove": ["dev10x:py-test"]}})
 
         assert validator.validate(_agent_call(prompt="Run pytest.", cwd=checkout)) is None
 
     def test_added_entry_is_checked(
-        self, validator: AgentBriefValidator, checkout: Path, write_prefs: Any
+        self, validator: AgentBriefValidator, checkout: Path, write_prefs: Callable[..., None]
     ) -> None:
         write_prefs(
             section={
@@ -250,29 +254,23 @@ class TestFindUnnamedSkills:
         assert [finding.skill for finding in findings] == ["dev10x:git"]
 
     @pytest.mark.parametrize(
-        "brief",
+        ("brief", "unnamed"),
         [
-            "git push the branch via mcp__plugin_dev10x_cli__push_safe",
-            "git push the branch via push_safe",
+            pytest.param("via mcp__plugin_dev10x_cli__push_safe", [], id="mcp-qualified"),
+            pytest.param("via push_safe", [], id="bare-alias"),
+            pytest.param("via push_safe_v2", ["dev10x:git"], id="suffixed"),
+            pytest.param("via my_push_safe", ["dev10x:git"], id="snake-prefixed"),
+            pytest.param(
+                "via mcp__plugin_dev10x_cli__push_safe_v2", ["dev10x:git"], id="mcp-suffixed"
+            ),
         ],
     )
-    def test_mcp_qualified_alias_names_the_skill(self, brief: str) -> None:
-        findings = find_unnamed_skills(brief=brief, entries=agent_brief.default_entries())
+    def test_alias_counts_only_as_a_whole_name(self, brief: str, unnamed: list[str]) -> None:
+        findings = find_unnamed_skills(
+            brief=f"git push the branch {brief}", entries=agent_brief.default_entries()
+        )
 
-        assert findings == []
-
-    @pytest.mark.parametrize(
-        "brief",
-        [
-            "git push the branch via push_safe_v2",
-            "git push the branch via my_push_safe",
-            "git push the branch via mcp__plugin_dev10x_cli__push_safe_v2",
-        ],
-    )
-    def test_alias_inside_another_identifier_is_not_a_name(self, brief: str) -> None:
-        findings = find_unnamed_skills(brief=brief, entries=agent_brief.default_entries())
-
-        assert [finding.skill for finding in findings] == ["dev10x:git"]
+        assert [finding.skill for finding in findings] == unnamed
 
     def test_reports_each_skill_once(self) -> None:
         findings = find_unnamed_skills(

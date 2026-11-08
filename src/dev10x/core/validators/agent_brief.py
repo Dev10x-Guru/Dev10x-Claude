@@ -28,10 +28,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, ClassVar
 
-import yaml
-
 from dev10x.domain import HookHint, HookInput, HookResult
 from dev10x.domain.documents.friction_yaml import FrictionYamlDocument
+from dev10x.domain.documents.yaml_mapping import load_yaml_mapping
 from dev10x.domain.linked_worktree import main_checkout
 from dev10x.domain.profile_tier import ProfileTier
 from dev10x.validators.base import ValidatorBase
@@ -54,6 +53,7 @@ _HOOK_DENIAL_RULE = (
 class SkillKeyword:
     skill: str
     patterns: tuple[re.Pattern[str], ...]
+    names: re.Pattern[str]
     accept: tuple[str, ...] = ()
 
     def first_match(self, *, brief: str) -> str | None:
@@ -64,10 +64,7 @@ class SkillKeyword:
         return None
 
     def is_named_in(self, *, brief: str) -> bool:
-        return any(
-            re.search(rf"(?:(?<=__)|(?<![\w-])){re.escape(name)}(?![\w-])", brief, re.IGNORECASE)
-            for name in (self.skill, *self.accept)
-        )
+        return self.names.search(brief) is not None
 
 
 @dataclass(frozen=True)
@@ -76,18 +73,26 @@ class Finding:
     matched: str
 
 
-def _compile(*, raw: Any, skill: str) -> tuple[re.Pattern[str], ...]:
+def _strings(*, raw: Any) -> tuple[str, ...]:
+    """The non-empty strings of a YAML list; anything else reads as empty."""
     if not isinstance(raw, list):
         return ()
+    return tuple(item for item in raw if isinstance(item, str) and item)
+
+
+def _compile(*, raw: Any, skill: str) -> tuple[re.Pattern[str], ...]:
     compiled = []
-    for item in raw:
-        if not isinstance(item, str) or not item:
-            continue
+    for item in _strings(raw=raw):
         try:
             compiled.append(re.compile(item, re.IGNORECASE))
         except re.error:
             log.warning("DX020: skipping invalid pattern %r for %s", item, skill)
     return tuple(compiled)
+
+
+def _name_pattern(*, names: tuple[str, ...]) -> re.Pattern[str]:
+    alternatives = "|".join(re.escape(name) for name in names)
+    return re.compile(rf"(?:(?<=__)|(?<![\w-]))(?:{alternatives})(?![\w-])", re.IGNORECASE)
 
 
 def parse_entries(*, raw: Any) -> tuple[SkillKeyword, ...]:
@@ -104,26 +109,24 @@ def parse_entries(*, raw: Any) -> tuple[SkillKeyword, ...]:
         patterns = _compile(raw=item.get("patterns"), skill=skill)
         if not patterns:
             continue
-        accept = item.get("accept")
-        aliases = (
-            tuple(a for a in accept if isinstance(a, str) and a)
-            if isinstance(accept, list)
-            else ()
+        aliases = _strings(raw=item.get("accept"))
+        entries.append(
+            SkillKeyword(
+                skill=skill,
+                patterns=patterns,
+                names=_name_pattern(names=(skill, *aliases)),
+                accept=aliases,
+            )
         )
-        entries.append(SkillKeyword(skill=skill, patterns=patterns, accept=aliases))
     return tuple(entries)
 
 
 @functools.cache
 def default_entries() -> tuple[SkillKeyword, ...]:
-    try:
-        document = yaml.safe_load(MAP_PATH.read_text())
-    except (OSError, yaml.YAMLError):
-        log.warning("DX020: could not load %s", MAP_PATH, exc_info=True)
-        return ()
-    if not isinstance(document, dict):
-        return ()
-    return parse_entries(raw=document.get("entries"))
+    entries = parse_entries(raw=load_yaml_mapping(MAP_PATH).get("entries"))
+    if not entries:
+        log.warning("DX020: no keyword entries loaded from %s", MAP_PATH)
+    return entries
 
 
 def effective_entries(*, section: dict[str, Any]) -> tuple[SkillKeyword, ...]:
@@ -131,12 +134,7 @@ def effective_entries(*, section: dict[str, Any]) -> tuple[SkillKeyword, ...]:
     overrides = section.get("skill_keywords")
     if not isinstance(overrides, dict):
         return default_entries()
-    removed_raw = overrides.get("remove")
-    removed = (
-        {skill for skill in removed_raw if isinstance(skill, str)}
-        if isinstance(removed_raw, list)
-        else set()
-    )
+    removed = set(_strings(raw=overrides.get("remove")))
     kept = tuple(entry for entry in default_entries() if entry.skill not in removed)
     return kept + parse_entries(raw=overrides.get("add"))
 
