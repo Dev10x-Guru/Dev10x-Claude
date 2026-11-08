@@ -79,11 +79,12 @@ class TestIndexAdd:
         assert _payload(result)["action"] == "created"
         assert "- [[A]]" in (vault / "Retros" / "index.md").read_text()
 
-    def test_unconfigured_fails(self) -> None:
+    def test_unconfigured_skips_like_config(self) -> None:
         result = _invoke("index-add", "--folder", "Retros", "--line", "- [[A]]")
 
-        assert result.exit_code == 1
-        assert "no knowledge vault" in _payload(result)["error"]
+        assert result.exit_code == 0
+        assert _payload(result)["action"] == "skipped"
+        assert "no knowledge vault" in _payload(result)["reason"]
 
     @pytest.mark.usefixtures("vault")
     def test_escape_fails(self) -> None:
@@ -121,10 +122,13 @@ class TestLogAdd:
         assert result.exit_code == 0
         assert _payload(result)["action"] == "skipped"
 
-    def test_unconfigured_fails(self) -> None:
+    def test_unconfigured_skips_like_config(self) -> None:
         result = _invoke("log-add", "--folder", "Retros", "--entry", "x")
 
-        assert result.exit_code == 1
+        payload = _payload(result)
+        assert result.exit_code == 0
+        assert (payload["path"], payload["action"]) == (None, "skipped")
+        assert "no knowledge vault" in payload["reason"]
 
     @pytest.mark.usefixtures("vault")
     def test_empty_entry_fails(self) -> None:

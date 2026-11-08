@@ -116,6 +116,66 @@ class TestIndex:
         assert isinstance(result, ErrorResult)
         assert result.error == "no vault"
 
+    def test_reuses_the_index_list_marker(self, config: VaultConfig, vault: Path) -> None:
+        (vault / "Retros" / "index.md").write_text("# Retros\n* [[A]]\n")
+
+        appended = _index(config, "- [[B]]")
+        repeated = _index(config, "- [[A]]")
+
+        assert (appended.action, repeated.action) == (NoteAction.APPENDED, NoteAction.UNCHANGED)
+        assert (vault / "Retros" / "index.md").read_text() == "# Retros\n* [[A]]\n* [[B]]\n"
+
+    def test_keeps_sub_bullet_indentation(self, config: VaultConfig, vault: Path) -> None:
+        (vault / "Retros" / "index.md").write_text("# Retros\n* [[A]]\n")
+
+        _index(config, "  - [[A1]]")
+
+        assert (vault / "Retros" / "index.md").read_text() == "# Retros\n* [[A]]\n  * [[A1]]\n"
+
+    def test_appends_non_list_line_verbatim(self, config: VaultConfig, vault: Path) -> None:
+        (vault / "Retros" / "index.md").write_text("# Retros\n")
+
+        _index(config, "See also [[Hub]]")
+
+        assert (vault / "Retros" / "index.md").read_text() == "# Retros\nSee also [[Hub]]\n"
+
+
+class TestSymlinkedNotes:
+    @pytest.fixture
+    def outside(self, tmp_path: Path) -> Path:
+        path = tmp_path / "outside.md"
+        path.write_text("# Private\n- secret\n")
+        return path
+
+    def test_refuses_symlinked_index(
+        self, config: VaultConfig, vault: Path, outside: Path
+    ) -> None:
+        (vault / "Retros" / "index.md").symlink_to(outside)
+
+        result = add_index_line(config=config, folder="Retros", line="- [[A]]")
+
+        assert isinstance(result, ErrorResult)
+        assert "is a symlink" in result.error
+        assert outside.read_text() == "# Private\n- secret\n"
+
+    def test_refuses_symlinked_log(self, config: VaultConfig, vault: Path, outside: Path) -> None:
+        (vault / "Retros" / "log.md").symlink_to(outside)
+
+        result = add_log_entry(config=config, folder="Retros", entry="x", day=DAY, create=True)
+
+        assert isinstance(result, ErrorResult)
+        assert "is a symlink" in result.error
+        assert outside.read_text() == "# Private\n- secret\n"
+
+    def test_refuses_dangling_symlink(self, config: VaultConfig, vault: Path) -> None:
+        (vault / "Retros" / "log.md").symlink_to(vault.parent / "missing.md")
+
+        result = add_log_entry(config=config, folder="Retros", entry="x", day=DAY, create=True)
+
+        assert isinstance(result, ErrorResult)
+        assert "is a symlink" in result.error
+        assert not (vault.parent / "missing.md").exists()
+
 
 class TestLog:
     def test_skips_folder_without_log(self, config: VaultConfig) -> None:
@@ -173,6 +233,15 @@ class TestLog:
         assert (vault / "Retros" / "log.md").read_text() == (
             "# Log\n\n## 2026-11-05\n- a\n- b\n\n## 2026-11-01\n"
         )
+
+    def test_reuses_the_log_list_marker(self, config: VaultConfig, vault: Path) -> None:
+        (vault / "Retros" / "log.md").write_text("# Log\n\n## 2026-11-05\n* a\n")
+
+        appended = _log(config, "- b")
+        repeated = _log(config, "- a")
+
+        assert (appended.action, repeated.action) == (NoteAction.APPENDED, NoteAction.UNCHANGED)
+        assert (vault / "Retros" / "log.md").read_text() == "# Log\n\n## 2026-11-05\n* a\n* b\n"
 
     @pytest.mark.parametrize(
         ("entry", "message"),
@@ -267,6 +336,10 @@ def worker_exit_codes(config: VaultConfig) -> Generator[list[int | None], None, 
         worker.kill()
 
 
+@pytest.mark.skipif(
+    "fork" not in multiprocessing.get_all_start_methods(),
+    reason="the writers inherit the test's patched config dir only through fork",
+)
 def test_concurrent_writers_lose_nothing(worker_exit_codes: list[int | None], vault: Path) -> None:
     index = (vault / "Retros" / "index.md").read_text()
     log = (vault / "Retros" / "log.md").read_text()

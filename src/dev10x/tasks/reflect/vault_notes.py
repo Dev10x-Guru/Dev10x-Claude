@@ -33,6 +33,8 @@ from dev10x.tasks.reflect.vault_config import VaultConfig, confine
 log = logging.getLogger(__name__)
 
 _DAY_HEADING = re.compile(r"^## (\d{4}-\d{2}-\d{2})\s*$")
+_LIST_ITEM = re.compile(r"^([-*+])\s+")
+DEFAULT_MARKER = "-"
 
 
 class NoteAction(StrEnum):
@@ -67,7 +69,32 @@ def _note_path(*, config: VaultConfig, folder: str, name: str) -> Result[Path]:
 
 
 def _normalize(line: str) -> str:
-    return line.strip()
+    """Compare list items by content, so `* [[A]]` and `- [[A]]` are one entry."""
+    return _LIST_ITEM.sub("", line.strip())
+
+
+def _marker(lines: list[str]) -> str:
+    """The list marker the note already uses; a new note gets ``-``."""
+    for line in lines:
+        match = _LIST_ITEM.match(line.strip())
+        if match:
+            return match.group(1)
+    return DEFAULT_MARKER
+
+
+def _with_marker(line: str, *, marker: str) -> str:
+    stripped = line.lstrip()
+    indent = line[: len(line) - len(stripped)]
+    if not _LIST_ITEM.match(stripped):
+        return line
+    return f"{indent}{marker} {_LIST_ITEM.sub('', stripped)}"
+
+
+def _refuse_symlink(path: Path) -> Result[Path]:
+    """A symlinked note could pull content from outside the vault into it."""
+    if path.is_symlink():
+        return err(f"{path} is a symlink; refusing to read or write through it", path=str(path))
+    return ok(path)
 
 
 def _is_multiline(value: str) -> bool:
@@ -109,13 +136,17 @@ def add_index_line(
     entry = line.rstrip()
     try:
         with file_lock(_lock_target(path)):
+            guarded = _refuse_symlink(path)
+            if not isinstance(guarded, SuccessResult):
+                return guarded
             if path.is_file():
                 text = path.read_text(encoding="utf-8")
-                existing = {_normalize(item) for item in text.splitlines()}
+                lines = text.splitlines()
+                existing = {_normalize(item) for item in lines}
                 if _normalize(entry) in existing:
                     return ok(NoteWrite(path=path, action=NoteAction.UNCHANGED))
                 body = text if text.endswith("\n") or not text else text + "\n"
-                atomic_write_text(path, body + entry + "\n")
+                atomic_write_text(path, body + _with_marker(entry, marker=_marker(lines)) + "\n")
                 return ok(NoteWrite(path=path, action=NoteAction.APPENDED))
             lines = [f"# {path.parent.name or 'Index'}", ""]
             if seed_listing:
@@ -123,7 +154,7 @@ def add_index_line(
                 lines.extend(
                     item
                     for item in _listing(path.parent, exclude=excluded)
-                    if item != _normalize(entry)
+                    if _normalize(item) != _normalize(entry)
                 )
             lines.append(entry)
             atomic_write_text(path, "\n".join(lines) + "\n")
@@ -135,23 +166,25 @@ def add_index_line(
         return err(f"cannot write {path}: {exc}", path=str(path))
 
 
-def _insert_log_entry(*, text: str, day: str, bullet: str) -> str | None:
-    """Return ``text`` with ``bullet`` under ``## <day>``, newest day first.
+def _insert_log_entry(*, text: str, day: str, entry: str) -> str | None:
+    """Return ``text`` with ``entry`` as a bullet under ``## <day>``, newest day first.
 
-    ``None`` means the bullet is already under that day's heading.
+    The bullet reuses the list marker the log already uses. ``None`` means
+    the entry is already under that day's heading, whatever its marker.
     """
     lines = text.splitlines()
+    bullet = f"{_marker(lines)} {entry}"
     heading = f"## {day}"
     for index, current in enumerate(lines):
         if current.strip() != heading:
             continue
         end = index + 1
         while end < len(lines) and not _DAY_HEADING.match(lines[end]):
-            if lines[end].strip() == bullet:
+            if _normalize(lines[end]) == entry:
                 return None
             end += 1
         insert_at = index + 1
-        while insert_at < end and lines[insert_at].strip().startswith("- "):
+        while insert_at < end and _LIST_ITEM.match(lines[insert_at].strip()):
             insert_at += 1
         lines.insert(insert_at, bullet)
         return "\n".join(lines) + "\n"
@@ -193,9 +226,11 @@ def add_log_entry(
     if not isinstance(note, SuccessResult):
         return note
     path = note.value
-    bullet = f"- {entry.strip().removeprefix('- ')}"
     try:
         with file_lock(_lock_target(path)):
+            guarded = _refuse_symlink(path)
+            if not isinstance(guarded, SuccessResult):
+                return guarded
             if not path.is_file():
                 if not create:
                     return ok(
@@ -210,7 +245,7 @@ def add_log_entry(
             else:
                 text = path.read_text(encoding="utf-8")
                 action = NoteAction.APPENDED
-            updated = _insert_log_entry(text=text, day=day.isoformat(), bullet=bullet)
+            updated = _insert_log_entry(text=text, day=day.isoformat(), entry=_normalize(entry))
             if updated is None:
                 return ok(NoteWrite(path=path, action=NoteAction.UNCHANGED))
             atomic_write_text(path, updated)

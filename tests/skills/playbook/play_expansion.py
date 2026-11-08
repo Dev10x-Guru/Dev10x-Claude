@@ -1,7 +1,9 @@
 """Expand the plugin-default work-on plays the way work-on Phase 3 does.
 
-Fragment references expand recursively, and a reference's ``condition``
-reaches every expanded step that carries no condition of its own.
+Fragment references expand recursively. A reference's ``condition``
+reaches every expanded step; a step that carries its own condition keeps
+it too, joined as ``<outer> and <inner>`` — neither side wins, because
+dropping either one would run the step on a path one of them excludes.
 """
 
 from __future__ import annotations
@@ -22,6 +24,12 @@ def load_work_on_playbook() -> dict[str, Any]:
     return document
 
 
+def combine_conditions(*, outer: str | None, inner: str | None) -> str | None:
+    if outer and inner:
+        return f"{outer} and {inner}"
+    return outer or inner
+
+
 def expand_steps(
     *,
     steps: list[dict[str, Any]],
@@ -32,7 +40,7 @@ def expand_steps(
     assert depth <= MAX_FRAGMENT_DEPTH, "fragment references nest too deep"
     expanded: list[dict[str, Any]] = []
     for step in steps:
-        inherited = step.get("condition", condition)
+        inherited = combine_conditions(outer=condition, inner=step.get("condition"))
         if "fragment" in step:
             expanded.extend(
                 expand_steps(

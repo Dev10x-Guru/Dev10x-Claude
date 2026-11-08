@@ -136,6 +136,82 @@ class TestConfigured:
         assert payload["vault"] == str(vault)
         assert payload["configured"] is True
         assert payload["repo"] == "acme/shop"
+        assert payload["log_folders"] == DEFAULT_FOLDERS
+
+
+class TestLogFolders:
+    def test_each_kind_logs_in_its_own_folder_by_default(
+        self, config_path: Path, vault: Path
+    ) -> None:
+        config_path.write_text(f"vault: {vault}\n", encoding="utf-8")
+
+        assert _resolve().log_folder(kind="retro") == "Retros"
+
+    def test_kind_can_log_in_a_parent_folder(self, config_path: Path, vault: Path) -> None:
+        config_path.write_text(
+            f"vault: {vault}\n"
+            "folders:\n  retro: Project/Retros\n"
+            "log_folders:\n  retro: Project/\n",
+            encoding="utf-8",
+        )
+
+        config = _resolve()
+
+        assert config.log_folder(kind="retro") == "Project"
+        assert config.to_dict()["log_folders"]["patterns"] == "Patterns"
+
+    def test_project_entry_merges_log_folders_key_by_key(
+        self, config_path: Path, vault: Path
+    ) -> None:
+        config_path.write_text(
+            f"vault: {vault}\n"
+            "log_folders:\n  retro: Eng\n  patterns: Shared\n"
+            "projects:\n  - match_repo: acme/*\n    log_folders:\n      retro: Acme\n",
+            encoding="utf-8",
+        )
+
+        config = _resolve()
+
+        assert (config.log_folder(kind="retro"), config.log_folder(kind="patterns")) == (
+            "Acme",
+            "Shared",
+        )
+
+    @pytest.mark.parametrize(
+        ("entry_log_folders", "kind", "expected"),
+        [
+            pytest.param("", "retro", "Clients/Acme/Retros", id="moved-kind-drops-inherited"),
+            pytest.param("", "patterns", "Shared", id="untouched-kind-keeps-inherited"),
+            pytest.param(
+                "    log_folders:\n      retro: Clients/Acme\n",
+                "retro",
+                "Clients/Acme",
+                id="moved-kind-keeps-its-own",
+            ),
+        ],
+    )
+    def test_project_that_moves_a_folder(
+        self,
+        config_path: Path,
+        vault: Path,
+        entry_log_folders: str,
+        kind: str,
+        expected: str,
+    ) -> None:
+        config_path.write_text(
+            f"vault: {vault}\n"
+            "log_folders:\n  retro: Eng\n  patterns: Shared\n"
+            "projects:\n  - match_repo: acme/*\n"
+            "    folders:\n      retro: Clients/Acme/Retros\n" + entry_log_folders,
+            encoding="utf-8",
+        )
+
+        assert _resolve().log_folder(kind=kind) == expected
+
+    def test_unknown_kind_has_no_log_folder(self, config_path: Path, vault: Path) -> None:
+        config_path.write_text(f"vault: {vault}\n", encoding="utf-8")
+
+        assert _resolve().log_folder(kind="nonexistent") == ""
 
 
 class TestInvalid:
@@ -160,6 +236,10 @@ class TestInvalid:
             ("index_note: sub/index.md\n", "bare Markdown file name"),
             ("log_note: log.txt\n", "bare Markdown file name"),
             ("rules_note: ../rules.md\n", "rules_note"),
+            ("log_folders: [a]\n", "`log_folders:` must be a mapping"),
+            ("log_folders:\n  retro: ../up\n", "`log_folders.retro`"),
+            ("folders:\n  retro: ' ../up'\n", "must not contain '..'"),
+            ("log_folders:\n  retro: '.. '\n", "must not contain '..'"),
         ],
     )
     def test_bad_keys(self, config_path: Path, vault: Path, suffix: str, message: str) -> None:
