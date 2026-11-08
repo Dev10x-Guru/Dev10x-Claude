@@ -399,6 +399,18 @@ zero-findings confirmation adds friction without safety value.
 - Re-review — Run the review again with different scope (in a `--loop`
   round, the same scope: Step 6b item 4)
 
+In a `--loop` round whose ledger holds a `declined` finding, the
+question must say that **Continue** ends the loop clean but
+**unstamped**, and name the declined findings (`file:line`) — Step 6c
+refuses the stamp, so the user is not offered a confirmation the pass
+cannot earn (GH-1863). **Continue** stays the recommended option even
+then: a `declined` entry is never removed for the rest of the loop —
+a Re-review keeps the round's `declined` list when it replaces the
+entry, whether it comes back clean or turns into a fix round, and
+Step 6c refuses a loop that holds one from any round. No option at
+this gate can earn the stamp, so the recommendation does not depend
+on the ledger state (`.claude/rules/skill-gates.md`, GH-1404).
+
 **When findings > 0:**
 
 **REQUIRED: Call `AskUserQuestion`** (do NOT use plain text).
@@ -442,9 +454,17 @@ included — is followed by a round that reviews those fixes.
 4. Clean round → end the loop. Attended, first fire the Step 6
    zero-findings gate, even when the round also listed INFO,
    below-threshold or polish findings: name them in the question.
-   **Re-review** repeats this round on the same scope with new `Agent`
-   calls and no new ledger entry, then returns to item 3. Then go to
-   Step 6c.
+   When the ledger holds a `declined` finding, the question also says
+   that **Continue** ends the loop unstamped and names those findings
+   (GH-1863). **Re-review** repeats this round on the same scope with
+   new `Agent` calls and **replaces** the round's ledger entry — same
+   `round` and `round_start_sha`, new `findings_file`, `defects` and
+   `polish` counts. It keeps the entry's `scope` and `declined`: the
+   HEAD has not moved, and a `declined` finding stays for the rest of
+   the loop. Then it returns to item 3. A Re-review that finds a
+   defect makes the round not clean: it continues through items 5–6
+   like any other round, and its fixes get a following round (GH-1863).
+   Then go to Step 6c.
 5. Round 4 or later and not clean → fire the round-cap gate below
    **before** fixing anything.
 6. Hand the fix set over with Step 6's mechanics: unattended, straight

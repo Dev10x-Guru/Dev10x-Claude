@@ -9,7 +9,7 @@
     {
       "id": "zero-findings-gate",
       "name": "Zero-Findings Confirmation Gate (GH-447 F5)",
-      "description": "In attended mode, even when zero findings are produced, the skill fires AskUserQuestion to confirm the clean review rather than silently skipping through. The gate is exempted only when invoked with --unattended (GH-760 F6)."
+      "description": "In attended mode, whenever a pass or loop round hands nothing to dev10x:review-fix — zero findings, or in a --loop round only INFO and below-threshold findings and, from round 2 on, polish — the skill fires AskUserQuestion (Continue / Re-review) to confirm the clean review rather than silently skipping through. The question names the uncounted findings and, when the round ledger holds a declined finding, says that Continue ends the loop unstamped (GH-1863). The gate is exempted only when invoked with --unattended (GH-760 F6)."
     },
     {
       "id": "findings-present-gate",
@@ -306,7 +306,7 @@
         {
           "dimension": "loop-defect-convergence",
           "check": "behavioral",
-          "signal": "No round 3 starts and dev10x:review-fix is not invoked for the round-2 polish; the summary lists both polish findings and reports the loop ended clean"
+          "signal": "No round 3 starts and dev10x:review-fix is not invoked for the round-2 polish; the summary lists both polish findings and reports the loop ended clean — the polish is listed, not offered, and sits under the stamp by design (GH-1863)"
         },
         {
           "dimension": "findings-contract-unchanged",
@@ -459,6 +459,64 @@
           "dimension": "loop-fresh-reviewers",
           "check": "behavioral",
           "signal": "Re-review dispatches new Agent calls on round 2's scope and adds no ledger entry"
+        }
+      ]
+    },
+    {
+      "id": "loop-re-review-finds-defect-continues-round",
+      "name": "A Re-review that finds a defect turns the clean round into a fix round",
+      "description": "Attended loop round 2 is clean; the user answers Re-review and the repeat finds 1 defect. The round's ledger entry is replaced in place, the defect goes to the fixer through the findings gate, and round 3 reviews the fix.",
+      "input": "/dev10x:review --loop (round 2: clean; user picks Re-review; repeat: 1 defect; user picks Fix all; round 3: clean)",
+      "assertions": [
+        {
+          "dimension": "loop-defect-convergence",
+          "check": "behavioral",
+          "signal": "The ledger still has one entry for round 2, with the same round_start_sha and defects=1; no entry is appended for the repeat"
+        },
+        {
+          "dimension": "findings-present-gate",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "After the repeat, the Fix all / Pick findings / Skip gate fires for the defect; Skill(dev10x:review-fix) runs only after it"
+        },
+        {
+          "dimension": "findings-present-gate",
+          "check": "plain_text",
+          "signal": "No inline 're-review found a defect, fix it?' text substitutes for the Fix all / Pick findings / Skip widget"
+        },
+        {
+          "dimension": "clean-pass-stamp",
+          "check": "behavioral",
+          "signal": "mcp__plugin_dev10x_cli__review_stamp_write is not called after round 2; it is called once after the clean round 3"
+        }
+      ]
+    },
+    {
+      "id": "loop-clean-round-gate-warns-unstamped",
+      "name": "A clean round after a declined finding warns that Continue will not stamp",
+      "description": "Attended loop round 1 has 2 defects and the user picks one under Pick findings; round 2 reviews that fix and is clean. The zero-findings gate must say the loop ends unstamped and name the declined defect.",
+      "input": "/dev10x:review --loop (round 1: 2 defects, user picks 1; round 2: clean; user picks Continue)",
+      "assertions": [
+        {
+          "dimension": "zero-findings-gate",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "The Continue / Re-review gate fires; its question says Continue ends the loop clean but unstamped and names the declined finding's file:line"
+        },
+        {
+          "dimension": "zero-findings-gate",
+          "check": "plain_text",
+          "signal": "No inline 'round is clean but a finding was declined, continue?' text substitutes for the widget"
+        },
+        {
+          "dimension": "zero-findings-gate",
+          "check": "behavioral",
+          "signal": "The widget's options are 'Continue (Recommended)' and 'Re-review'; exactly one option carries (Recommended)"
+        },
+        {
+          "dimension": "clean-pass-stamp",
+          "check": "behavioral",
+          "signal": "mcp__plugin_dev10x_cli__review_stamp_write is never called after Continue; the summary lists the declined finding as open"
         }
       ]
     },
