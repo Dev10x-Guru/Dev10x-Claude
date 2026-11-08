@@ -45,7 +45,7 @@
 
   const NAME_PATTERN = "[A-Za-z0-9][A-Za-z0-9._\\-]{0,63}";
   const COMMANDS = [
-    ["reflect", "Reflect", "/my:reflect"],
+    ["reflect", "Reflect", "/dev10x:reflect"],
     ["wrap-up", "Wrap up", "/dev10x:session-wrap-up"],
   ] as const;
 
