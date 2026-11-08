@@ -39,7 +39,7 @@ probe and reports a failed probe in `observed`.
 | `merged_or_closed` | closed either way | never |
 | `head_changed` | head SHA differs from `since_sha` (default: first head read) | the PR is no longer open |
 | `approved` | some reviewer's latest verdict is `APPROVED` and none is `CHANGES_REQUESTED` | the PR is no longer open |
-| `bot_at_head` | a bot-authored PR review's `commit_id` equals the current head | the PR is no longer open |
+| `bot_at_head` | `bot_review_status` reports a bot (or the named `bot`) at the current head | the PR is no longer open |
 
 - `observed` always carries `state`, `merged` and `head_sha`, plus the
   condition's own evidence: `baseline_sha`, `review_states` or
@@ -50,20 +50,26 @@ probe and reports a failed probe in `observed`.
   It does not know about branch protection, CODEOWNERS or required
   reviewer counts; `merge_pr` remains the authority on mergeability.
 
-### `bot_at_head` is deliberately narrow
+### `bot_at_head` delegates to `bot_review_status` (GH-1857)
 
-It answers one question: has a bot submitted a **PR review** anchored
-to the current head commit?
-`bot` names the login (the `[bot]` suffix is optional); without it, any
-reviewer whose account type is `Bot`, or whose login ends in `[bot]`,
+There is one definition of "a bot reviewed the head", and it lives in
+`bot_review_status` (see `caveats-issues-and-push.md`).
+`bot_at_head` reads the same GraphQL node each poll and is met when a
+bot's row says `at_head: true`:
+
+- a bot that submits reviews is at head when its newest review's commit
+  is the head (`at_head_basis: "sha"`);
+- a bot that only comments is at head when its last activity is not
+  older than the head (`at_head_basis: "timestamp"`).
+
+Bot-ness comes from the GraphQL account type alone, so a human login
+such as `claude-fan` never counts.
+`bot` is a login or glob, `[bot]` suffix optional; without it any bot
 counts.
-
-It does not read issue comments, check runs, or a review's verdict, and
-it does not decide whether the bot's findings were addressed.
-A bot that comments instead of reviewing never satisfies it.
-Richer bot-review state is expected from a dedicated status tool; when
-that lands, `bot_at_head` should delegate to it rather than grow a
-second definition.
+`observed.bot_review` carries the matching row and `observed.bots` the
+logins considered.
+It still does not judge a review's verdict or whether findings were
+addressed — `bot_review_status`'s `ready` and `reasons` do that.
 
 ## `wait_for`
 

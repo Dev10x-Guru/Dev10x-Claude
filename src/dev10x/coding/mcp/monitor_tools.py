@@ -127,8 +127,10 @@ async def pr_wait(
             longer wait is a second call or a background Monitor.
         since_sha: Baseline head for ``head_changed``; defaults to the
             head read on the first poll.
-        bot: Bot login for ``bot_at_head`` (``[bot]`` suffix optional).
-            When omitted, any bot-authored PR review at the head counts.
+        bot: Bot login or glob for ``bot_at_head`` (``[bot]`` suffix
+            optional). When omitted, any bot account counts. "At head" is
+            ``bot_review_status``'s definition, so a bot that only
+            comments counts by timestamp (GH-1857).
         cwd: Effective working directory (GH-979).
 
     Returns:
