@@ -69,6 +69,9 @@ _DURABLE_KEYS = (
     # behind a clean-review stamp at the PR head; absent or `none` leaves them
     # alone.
     "review_stamp",
+    # DX020 (GH-1835): `dx020.mode` (advisory | deny) and
+    # `dx020.skill_keywords.{add,remove}` tune the Agent-brief check.
+    "dx020",
 )
 
 # Public alias for cross-module callers (e.g. the GH-812 R4 migration) that

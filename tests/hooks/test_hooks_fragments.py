@@ -38,6 +38,12 @@ def pre_split_entries() -> set[HookEntry]:
             _wrapped(name="validate-edit-write", script="validate-edit-write.py"),
             5,
         ),
+        (
+            "PreToolUse",
+            "Agent",
+            _wrapped(name="validate-agent-brief", script="validate-agent-brief.py"),
+            5,
+        ),
         ("PreToolUse", "TaskUpdate", _wrapped(name="task-guard", script="task-guard.py"), 5),
         (
             "PreToolUse",

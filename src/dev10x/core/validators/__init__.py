@@ -158,6 +158,12 @@ _SPECS: list[ValidatorSpec] = [
         rule_id="DX019",
         profile=ProfileTier.STANDARD,
     ),
+    ValidatorSpec(
+        module_path="dev10x.validators.agent_brief",
+        class_name="AgentBriefValidator",
+        rule_id="DX020",
+        profile=ProfileTier.STANDARD,
+    ),
 ]
 
 

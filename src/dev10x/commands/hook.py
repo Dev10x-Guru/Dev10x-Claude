@@ -87,6 +87,29 @@ def _validate_ship_gate_body() -> None:
     _run_rule_subset(rule_ids=_SHIP_GATE_RULES)
 
 
+# Rule ids that read an `Agent` call's brief (GH-1835).
+_AGENT_BRIEF_RULES = ("DX020",)
+
+
+@hook.command(name="validate-agent-brief")
+def validate_agent_brief() -> None:
+    """Check that an Agent brief names the skill owning its work (DX020).
+
+    Reads JSON from stdin. Exit codes: 0=allow or hint, 2=block.
+    """
+    from dev10x.domain.events.hook_event import HookEventName
+    from dev10x.hooks.audit_emit import audit_hook
+
+    _run = audit_hook(name="validate-agent-brief", event=HookEventName.PRE_TOOL_USE)(
+        _validate_agent_brief_body
+    )
+    _run()
+
+
+def _validate_agent_brief_body() -> None:
+    _run_rule_subset(rule_ids=_AGENT_BRIEF_RULES)
+
+
 def _run_rule_subset(*, rule_ids: tuple[str, ...]) -> None:
     from dev10x.hooks.hook_transport import emit, read_hook_input, select_result
     from dev10x.validators import ValidatorChain, ValidatorRegistry, get_registry

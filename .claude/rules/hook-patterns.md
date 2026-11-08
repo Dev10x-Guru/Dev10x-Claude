@@ -10,7 +10,7 @@ paths:
 
 # Hook Implementation Patterns
 
-> **[OVERRIDE DETECTED]** — ~610 lines against the 200-line rule-file
+> **[OVERRIDE DETECTED]** — ~640 lines against the 200-line rule-file
 > budget in `.claude/rules/INDEX.md` (GH-1438), the largest breach in
 > `.claude/rules/` since GH-1606 trimmed `mcp-tools.md`. Its `paths:`
 > front matter keeps it out of sessions that touch no hook code.
@@ -19,7 +19,7 @@ paths:
 > "how does a hook get added or changed here": cross-language parity
 > (Python/shell), the direct-shebang + orchestrator dispatch pattern,
 > the Stop-verdict merge rules, the PostToolUse formatter's hunk-scope
-> contract, and the DX001-DX019 profile-tier table all answer that
+> contract, and the DX001-DX020 profile-tier table all answer that
 > one question, and a reviewer checking one section routinely needs
 > the rule two sections over (e.g. a new Stop feature needs both the
 > orchestrator-consolidation rule and the verdict-merge rule).
@@ -363,6 +363,29 @@ higher tiers — `minimal` rules are always active.
 | DX017 | write-destination | standard |
 | DX018 | exec-flag | standard |
 | DX019 | review-stamp (MCP ship tools, own hook entry) | standard |
+| DX020 | agent-brief (`Agent` calls, own hook entry) | standard |
+
+### DX020 Reads the Brief, Not a Command (GH-1835)
+
+A plain `Agent` call carries a free-form brief, and that is where a
+subagent rebuilds a skill by hand or works around a hook denial. DX020
+matches the brief against `agent-skill-map.yaml` and flags a match that
+names neither the mapped skill nor an accepted alias. It runs from its
+own `validate-agent-brief` entry, because the Bash chain exits on any
+tool but `Bash` and `Monitor`.
+
+1. **Advisory by default.** It returns a `HookHint`, so the dispatcher
+   reads the finding before the subagent starts and the call proceeds.
+   `dx020: {mode: deny}` in a project's `friction.yaml` entry turns it
+   into a deny.
+2. **Patterns name the action.** `git commit` and `open a PR` are in the
+   map; the bare word `commit` is not, since nearly every brief has it.
+3. **The escape is a line, not a flag.** `dev10x-ok: <reason>` in the
+   brief skips the check and leaves the reason in the transcript. An
+   empty reason does not count.
+4. **Projects edit the map in `friction.yaml`.**
+   `dx020.skill_keywords.add` appends entries and `.remove` drops
+   default entries by skill name.
 
 ### DX014 Sensitivity Axis: `ask`, Not `deny` (GH-604)
 
