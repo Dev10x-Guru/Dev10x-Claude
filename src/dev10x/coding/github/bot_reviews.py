@@ -25,7 +25,8 @@ from typing import Any
 
 from dev10x.coding.github import bot_review_config
 from dev10x.core.github import _gateway
-from dev10x.domain.common.result import ErrorResult, Result, SuccessResult, err, ok
+from dev10x.domain.common.repository_ref import RepositoryRef
+from dev10x.domain.common.result import ErrorResult, Result, SuccessResult, ok
 
 KIND_REVIEW = "review"
 KIND_COMMENT = "comment"
@@ -233,6 +234,15 @@ def summarize(
     }
 
 
+async def fetch_pull_request(*, ref: RepositoryRef, pr_number: int) -> Result[dict[str, Any]]:
+    """The ``pullRequest`` node :func:`summarize` folds, read in one query."""
+    return await _gateway._graphql_pull_request(
+        _query(owner=ref.owner, name=ref.name, pr_number=pr_number),
+        ref=ref,
+        pr_number=pr_number,
+    )
+
+
 async def bot_review_status(
     *,
     pr_number: int,
@@ -246,26 +256,10 @@ async def bot_review_status(
     if not isinstance(config, SuccessResult):
         return config
 
-    result = await _gateway._gh_api_raw(
-        "graphql",
-        fields={"query": _query(owner=ref.owner, name=ref.name, pr_number=pr_number)},
-    )
-    if result.returncode != 0:
-        return err(result.stderr.strip() or "GitHub GraphQL call failed")
-    try:
-        data = json.loads(result.stdout)
-    except json.JSONDecodeError:
-        return err(f"Invalid JSON from GitHub API: {result.stdout[:200]}")
-    if not isinstance(data, dict):
-        return err(f"Unexpected GitHub API payload (not an object): {result.stdout[:200]}")
-    errors = data.get("errors")
-    if errors:
-        first = errors[0] if isinstance(errors, list) and errors else errors
-        message = first.get("message", first) if isinstance(first, dict) else first
-        return err(f"GitHub GraphQL error: {message}")
-    pr = ((data.get("data") or {}).get("repository") or {}).get("pullRequest")
-    if not isinstance(pr, dict):
-        return err(f"PR #{pr_number} not found in {ref}")
+    node = await fetch_pull_request(ref=ref, pr_number=pr_number)
+    if not isinstance(node, SuccessResult):
+        return node
+    pr = node.value
 
     report = summarize(pr=pr, blocking_globs=config.value.globs)
     return ok(

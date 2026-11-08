@@ -216,6 +216,52 @@ async def _gh_api_paginated(
     return ok(Listing(items=tuple(items), truncated=True))
 
 
+async def _graphql(query: str) -> Result[dict[str, Any]]:
+    """Run a GraphQL query and return its ``data`` object (GH-1857).
+
+    Every caller repeated the same three checks — exit code, JSON, the
+    ``errors`` array — and they had drifted: one ignored ``errors``
+    entirely, so a query GitHub rejected read as an empty result.
+    """
+    result = await _gh_api_raw("graphql", fields={"query": query})
+    if result.returncode != 0:
+        return err(result.stderr.strip() or "GitHub GraphQL call failed")
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return err(f"Invalid JSON from GitHub API: {result.stdout[:200]}")
+    if not isinstance(payload, dict):
+        return err(f"Unexpected GitHub API payload (not an object): {result.stdout[:200]}")
+    errors = payload.get("errors")
+    if errors:
+        first = errors[0] if isinstance(errors, list) else errors
+        message = first.get("message", first) if isinstance(first, dict) else first
+        return err(f"GitHub GraphQL error: {message}")
+    data = payload.get("data")
+    return ok(data if isinstance(data, dict) else {})
+
+
+async def _graphql_pull_request(
+    query: str,
+    *,
+    ref: RepositoryRef,
+    pr_number: int,
+) -> Result[dict[str, Any]]:
+    """The ``repository.pullRequest`` node a query selected, or why not.
+
+    An unknown PR comes back as ``pullRequest: null``; reading that as an
+    empty node turned "no such PR" into "no unresolved threads" (GH-1857),
+    so every pullRequest query takes the same guard.
+    """
+    data = await _graphql(query)
+    if not isinstance(data, SuccessResult):
+        return data
+    node = (data.value.get("repository") or {}).get("pullRequest")
+    if not isinstance(node, dict):
+        return err(f"PR #{pr_number} not found in {ref}")
+    return ok(node)
+
+
 async def _bot_env(*, repo: str) -> dict[str, str] | None:
     try:
         ref = RepositoryRef.parse(repo)
