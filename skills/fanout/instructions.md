@@ -659,6 +659,10 @@ remember mid-task.
   autonomous/cascade) Skill(dev10x:gh-pr-merge) to complete.
 - If your turn ends before the finish line, your final line MUST
   be NEEDS_CONTEXT (not DONE). The orchestrator will re-dispatch.
+- A hook denial is the one early end that is not NEEDS_CONTEXT:
+  use the sanctioned tool, or stop and end with
+  `BLOCKED: hook denied <command>` — a re-dispatch would hit the
+  same hook. Never work around it (GH-1835).
 
 Sibling coordination (BEST-EFFORT — never your conflict guard):
 - The real conflict guard is the orchestrator's Phase 2
