@@ -453,6 +453,58 @@ class TestResolveBlockingBots:
         assert isinstance(resolve_blocking_bots(repo="owner/repo", path=path), ErrorResult)
 
 
+class TestConfigFoundSignal:
+    """Say why nothing blocks when that was not a stated choice (GH-1857)."""
+
+    def test_an_absent_file_is_named(self) -> None:
+        config = resolve_blocking_bots(repo="owner/repo").value
+
+        assert config.found is False
+        assert "not found" in config.notes()[0]
+
+    @pytest.mark.parametrize(
+        ("text", "note"),
+        [
+            (
+                "projects:\n  - match_repo: 'other/*'\n    blocking_bots: [claude]\n",
+                "matched this repo",
+            ),
+            ("merge_strategy: rebase\n", "sets no `blocking_bots:`"),
+            ("# nothing yet\n", "sets no `blocking_bots:`"),
+        ],
+        ids=["unmatched-no-default", "file-without-key", "empty-file"],
+    )
+    def test_an_unstated_list_is_noted(self, text: str, note: str) -> None:
+        _write_merge_settings(text=text)
+
+        config = resolve_blocking_bots(repo="owner/repo").value
+
+        assert (config.found, config.stated) == (True, False)
+        assert note in config.notes()[0]
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "blocking_bots: [claude]\nprojects:\n  - match_repo: 'other/*'\n",
+            "blocking_bots: []\nprojects:\n  - match_repo: 'other/*'\n",
+            "blocking_bots: []\n",
+            "projects:\n  - match_repo: 'owner/*'\n    blocking_bots: []\n",
+        ],
+        ids=[
+            "unmatched-with-default",
+            "unmatched-with-explicit-empty-default",
+            "explicit-empty",
+            "matched-explicit-empty",
+        ],
+    )
+    def test_a_stated_list_is_not_noted(self, text: str) -> None:
+        _write_merge_settings(text=text)
+
+        config = resolve_blocking_bots(repo="owner/repo").value
+
+        assert (config.stated, config.notes()) == (True, [])
+
+
 @pytest.mark.usefixtures("mock_resolve_repo")
 class TestBotReviewStatusTool:
     @pytest.mark.asyncio
@@ -470,6 +522,20 @@ class TestBotReviewStatusTool:
             False,
         )
         assert result["blocking_bots"] == ["claude"]
+        assert (result["config_found"], result["notes"]) == (True, [])
+
+    @pytest.mark.asyncio
+    async def test_reports_a_missing_config_without_blocking(
+        self, mock_graphql: AsyncMock
+    ) -> None:
+        mock_graphql.return_value = _completed(
+            stdout=json.dumps(_payload(name="empty_body_inline"))
+        )
+
+        result = await cli_server.bot_review_status(pr_number=7)
+
+        assert (result["config_found"], result["ready"]) == (False, True)
+        assert "not found" in result["notes"][0]
 
     @pytest.mark.asyncio
     async def test_queries_the_requested_pr(self, mock_graphql: AsyncMock) -> None:

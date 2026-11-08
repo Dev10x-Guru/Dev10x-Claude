@@ -72,6 +72,11 @@ Behavioural caveats moved out of `.claude/rules/mcp-tools.md`
   bots matched by `blocking_bots` in `settings-pr-merge.yaml`. With
   none configured nothing can block, so `ready: true` does not mean
   any bot reviewed the head — check `blocking_bots` is non-empty.
+  `config_found: false`, or any `notes` entry, says the empty list
+  was not a stated choice — no file, no `blocking_bots:` key, or a
+  `projects:` list that matched nothing with no default (GH-1857).
+  An explicit `blocking_bots: []` is a choice and gets no note;
+  `notes` never blocks.
   `at_head` is `true`, `false` or `null`; read `null` ("cannot tell")
   as not at head. For a `kind: comment` bot (it posted an issue
   comment, not a review) `at_head_basis` is `timestamp`: it spoke

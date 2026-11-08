@@ -44,6 +44,27 @@ class BlockingBotsConfig:
     source: str
     globs: tuple[str, ...] = ()
     project_status: str = ProjectsStatus.ABSENT.value
+    found: bool = False
+    stated: bool = False
+
+    def notes(self) -> list[str]:
+        """Why nothing may be blocking, when that is not an explicit choice.
+
+        ``ready: true`` with no blocking bots reads the same whether the
+        repo chose "no bot blocks" or never said, so the report says
+        which (GH-1857). A ``blocking_bots:`` key — even ``[]`` — is a
+        choice and gets no note. Informational: it never blocks.
+        """
+        if not self.found:
+            return [f"{self.source} not found — no bot is blocking for this repo"]
+        if self.stated:
+            return []
+        if self.project_status == ProjectsStatus.NO_MATCH.value:
+            return [
+                f"no `projects:` entry in {self.source} matched this repo and no "
+                f"`{BLOCKING_BOTS_KEY}:` default is set — no bot is blocking"
+            ]
+        return [f"{self.source} sets no `{BLOCKING_BOTS_KEY}:` — no bot is blocking"]
 
 
 def _globs(*, raw: Any, source: str) -> Result[tuple[str, ...]]:
@@ -87,8 +108,9 @@ def resolve_blocking_bots(
     index = report.matched_index
     entry = document["projects"][index] if index is not None else None
     holder = entry if isinstance(entry, dict) and BLOCKING_BOTS_KEY in entry else document
+    stated = BLOCKING_BOTS_KEY in holder
     globs: tuple[str, ...] = ()
-    if BLOCKING_BOTS_KEY in holder:
+    if stated:
         parsed = _globs(raw=holder[BLOCKING_BOTS_KEY], source=source)
         if not isinstance(parsed, SuccessResult):
             return parsed
@@ -98,5 +120,7 @@ def resolve_blocking_bots(
             source=source,
             globs=globs,
             project_status=report.status.value,
+            found=True,
+            stated=stated,
         )
     )

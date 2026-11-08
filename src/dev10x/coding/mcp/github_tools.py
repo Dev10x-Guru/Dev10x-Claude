@@ -1505,15 +1505,17 @@ async def bot_review_status(
 
     Returns:
         Dictionary with keys: pr_number, repo, head_sha,
-        head_committed_at, is_draft, bots (per bot: login, kind
+        head_committed_at, head_pushed_at (the basis a comment-only bot
+        is judged against, GH-1857), is_draft, bots (per bot: login, kind
         review|comment, reviewed_sha, at_head true|false|null,
         at_head_basis sha|timestamp, review_state, review_body_empty,
         open_inline_comments — unresolved review threads the bot
         started, empty_body_with_inline, last_activity, blocking),
         blocking_bots (globs from ``settings-pr-merge.yaml``),
         missing_blocking_bots, truncated (connections past 100 items),
-        ready (bool), reasons (list[str]), config_source,
-        project_status.
+        ready (bool), reasons (list[str]), config_source, config_found,
+        project_status, notes (informational: why nothing blocks when
+        the config is absent or matched no project — never blocks).
     """
     return await gh.bot_review_status(pr_number=pr_number, repo=repo)
 

@@ -294,6 +294,8 @@ async def bot_review_status(
             "repo": str(ref),
             **report,
             "config_source": config.value.source,
+            "config_found": config.value.found,
             "project_status": config.value.project_status,
+            "notes": config.value.notes(),
         }
     )
