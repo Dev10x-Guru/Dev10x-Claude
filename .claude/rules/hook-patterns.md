@@ -24,7 +24,8 @@ paths:
 > the rule two sections over (e.g. a new Stop feature needs both the
 > orchestrator-consolidation rule and the verdict-merge rule).
 >
-> **Conditional split plan.** If this file passes ~600 lines, or a
+> **Conditional split plan — triggered, tracked in GH-1867.** The
+> file has passed ~600 lines. If this file passes ~600 lines, or a
 > reviewer has to hold two unrelated sections in mind at once, split
 > along the seam that already exists: `hook-dispatch-patterns.md`
 > (direct-shebang/orchestrator pattern, SessionStart/Stop
@@ -243,7 +244,9 @@ Three constraints came out of building the first one:
    (GH-1464). The phrases live in
    `src/dev10x/core/hooks/stop_intent_patterns.yaml`, keyed by
    language. A broken `exempt` pattern disarms the gate, since losing
-   an exemption would mean more blocks.
+   an exemption would mean more blocks. An exemption covers only the
+   sentence it sits in (GH-1854), so a conditional promise cannot
+   excuse an unconditional one in the same paragraph.
 
 **Keep the decision out of the hook.** `dev10x.core.hooks.stop_verdict`
 holds the rule and is a pure function over `(payload, plan)`;
