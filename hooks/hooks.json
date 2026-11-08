@@ -53,6 +53,16 @@
             "timeout": 5
           }
         ]
+      },
+      {
+        "matcher": "Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PLUGIN_ROOT/hooks/scripts/audit-wrap validate-agent-brief $CLAUDE_PLUGIN_ROOT/hooks/scripts/validate-agent-brief.py",
+            "timeout": 5
+          }
+        ]
       }
     ],
     "Stop": [

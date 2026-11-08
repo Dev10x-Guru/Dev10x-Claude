@@ -1,0 +1,63 @@
+# DX020 agent-brief keyword map (GH-1835).
+#
+# Each entry names a sanctioned skill and the brief wording that means a
+# subagent is about to do that skill's job. When an `Agent` prompt matches
+# any `patterns` regex (case-insensitive) but names neither `skill` nor any
+# `accept` alias, DX020 reports it. A brief opts out with a line
+# `dev10x-ok: <reason>`.
+#
+# Projects adjust the map in their friction.yaml `projects[]` entry:
+#
+#   dx020:
+#     mode: advisory          # advisory (default) | deny
+#     skill_keywords:
+#       add:
+#         - skill: my:deploy
+#           patterns: ['\bkubectl apply\b']
+#       remove: [dev10x:git-commit]
+#
+# Patterns aim at the action, not the noun: "commit" alone is in almost
+# every brief, "git commit" is a subagent about to make one.
+
+entries:
+  - skill: dev10x-qa:qa-self
+    patterns:
+      - '\bplaywright\b'
+      - '\bheadless (?:browser|chrome|chromium)\b'
+    accept: [qa-self]
+
+  - skill: dev10x:git-commit
+    patterns:
+      - '\bgit commit\b'
+      - '\bcommit (?:the|your|these|all) (?:changes|work|edits)\b'
+    accept: [git-commit]
+
+  - skill: dev10x:gh-pr-create
+    patterns:
+      - '\bgh pr create\b'
+      - '\b(?:open|create) (?:a |the )?(?:draft )?(?:pr|pull request)\b'
+    accept: [gh-pr-create, create_pr]
+
+  - skill: dev10x:git
+    patterns:
+      - '\bgit push\b'
+      - '\bforce[- ]push\b'
+    accept: [push_safe]
+
+  - skill: dev10x:gh-pr-merge
+    patterns:
+      - '\bgh pr merge\b'
+      - '\bmerge (?:the |this )?(?:pr|pull request)\b'
+    accept: [gh-pr-merge, merge_pr]
+
+  - skill: dev10x:git-groom
+    patterns:
+      - '\bgit rebase -i\b'
+      - '\binteractive rebase\b'
+      - '\bsquash (?:the )?(?:fixups?|commits)\b'
+    accept: [git-groom, rebase_groom]
+
+  - skill: dev10x:py-test
+    patterns:
+      - '\bpytest\b'
+    accept: [py-test, run_tests, Skill(test)]
