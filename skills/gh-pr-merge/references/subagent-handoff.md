@@ -39,7 +39,7 @@ orchestrator re-runs everything. Required fields:
 | Field | Meaning |
 |-------|---------|
 | `pr` | `owner/repo#N` |
-| `head_sha` | Full SHA the nine checks were measured against |
+| `head_sha` | Full SHA the twelve checks were measured against |
 | `measured_at` | ISO-8601 UTC timestamp of the check run |
 | `checks` | One entry per check, each naming its **observed value** — `isDraft: false`, `mergeable: MERGEABLE`, `verdict: green`, `unresolved threads: 0`, … |
 | `blocked_gate` | Which `ALWAYS_ASK` gate could not be fired |
@@ -56,6 +56,7 @@ unverifiable tick is the shortcut GH-112 caught.
 | Check | Why it cannot be inherited |
 |-------|----------------------------|
 | 1, 1b, 1c (threads, top-level, inline) | A reviewer or bot can post between handoff and merge — the documented late-comment race (GH-462 F3) |
+| 1e (blocking review bots) | A bot can review, or the head can move, between handoff and merge; `bot_review_status` is cheap to re-read |
 | 2 (CI) | A pending leg can settle either way; a re-run can turn a green leg red |
 | 2b, 3, 4, 7 (merged/auto-merge, draft, mergeable, approval) | Already a **single** `pr_get` call, which the orchestrator must make anyway to confirm state and HEAD — inheriting them would save nothing |
 
@@ -124,7 +125,7 @@ and adds the one that catches this class:
 | Verdict | When | Orchestrator's move |
 |---------|------|---------------------|
 | `accept` | Every required field present, every check naming an observed value, head SHA matching, report inside 30 minutes | Inherit Checks 1d / 5 / 6 |
-| `reject` | Any of those unmet — named per reason | Run all 9 checks |
+| `reject` | Any of those unmet — named per reason | Run all 12 checks |
 | `already_merged` | The PR is merged | Attribute the merge (Check 2b); no report can gate it |
 
 No new trace was recorded to make this work. GitHub already
@@ -145,7 +146,7 @@ saw, on a PR that has not merged, within half an hour — which is
 the same thing as having run the checks.
 
 What it does **not** do is police prose. A worker that writes a
-fluent paragraph claiming nine passing checks and supplies no
+fluent paragraph claiming twelve passing checks and supplies no
 report still tells the orchestrator nothing the exception can
 accept, and the orchestrator re-runs everything. That is the
 intended floor: the exception is the only place a report

@@ -18,8 +18,8 @@
     },
     {
       "id": "all-checks-pass",
-      "name": "All 9 Checks Required",
-      "description": "All 9 pre-merge checks run on every invocation. No check is skippable based on agent recollection from a previous invocation."
+      "name": "All 12 Checks Required",
+      "description": "All 12 pre-merge checks (1, 1b–1e, 2, 2b, 3–7) run on every invocation. No check is skippable based on agent recollection from a previous invocation."
     },
     {
       "id": "merge-tool",
@@ -39,7 +39,12 @@
     {
       "id": "already-merged-attribution",
       "name": "Already-Merged Attribution",
-      "description": "Check 2b reports ALREADY MERGED with the merging actor when the PR is already merged, and never emits the nine-item checklist — those checks did not run in this invocation (GH-1380)."
+      "description": "Check 2b reports ALREADY MERGED with the merging actor when the PR is already merged, and never emits the twelve-item checklist — those checks did not run in this invocation (GH-1380)."
+    },
+    {
+      "id": "bot-review-block",
+      "name": "Blocking Review Bot Block",
+      "description": "Check 1e calls bot_review_status and refuses merge while ready is false — a blocking bot missing, not at the head, or with open inline comments. A stale bot after a force-push goes back to gh-pr-monitor, never an override (GH-1832, GH-1857)."
     }
   ],
   "evals": [
@@ -140,7 +145,7 @@
     {
       "id": "happy-path-merge",
       "name": "All checks pass — merge executes via MCP tool",
-      "description": "All 9 checks pass. Merge must execute via mcp__plugin_dev10x_cli__merge_pr, not raw gh pr merge.",
+      "description": "All 12 checks pass. Merge must execute via mcp__plugin_dev10x_cli__merge_pr, not raw gh pr merge.",
       "input": "/dev10x:gh-pr-merge",
       "assertions": [
         {
@@ -190,7 +195,7 @@
     {
       "id": "already-merged-reports-actor-not-checklist",
       "name": "Already-merged PR is attributed, not narrated",
-      "description": "pr_get returns state=MERGED with a mergedAt and mergedBy. Check 2b must report ALREADY MERGED naming the actor, and must NOT emit the nine-item pre-merge checklist — no check ran in this invocation.",
+      "description": "pr_get returns state=MERGED with a mergedAt and mergedBy. Check 2b must report ALREADY MERGED naming the actor, and must NOT emit the twelve-item pre-merge checklist — no check ran in this invocation.",
       "input": "/dev10x:gh-pr-merge",
       "assertions": [
         {
@@ -202,12 +207,37 @@
         {
           "dimension": "already-merged-attribution",
           "check": "behavioral",
-          "signal": "The nine-item pre-merge checklist is NOT emitted for an already-merged PR"
+          "signal": "The twelve-item pre-merge checklist is NOT emitted for an already-merged PR"
         },
         {
           "dimension": "merge-tool",
           "check": "behavioral",
           "signal": "mcp__plugin_dev10x_cli__merge_pr is NOT called for an already-merged PR"
+        }
+      ]
+    },
+    {
+      "id": "blocking-bot-not-at-head-blocks-merge",
+      "name": "Blocking review bot not at head blocks merge",
+      "description": "Check 1e: bot_review_status reports ready: false because the blocking bot claude last reviewed an older commit after a force-push. The skill must refuse the merge, report the reason, and send the PR back to dev10x:gh-pr-monitor to wait for the bot rather than overriding.",
+      "input": "/dev10x:gh-pr-merge",
+      "assertions": [
+        {
+          "dimension": "bot-review-block",
+          "check": "tool_called",
+          "tool": "mcp__plugin_dev10x_cli__bot_review_status",
+          "signal": "Check 1e calls bot_review_status for the PR before any merge"
+        },
+        {
+          "dimension": "bot-review-block",
+          "check": "output_contains",
+          "value": "not at the PR head",
+          "signal": "The checklist reports the stale blocking bot from reasons"
+        },
+        {
+          "dimension": "merge-tool",
+          "check": "behavioral",
+          "signal": "mcp__plugin_dev10x_cli__merge_pr is NOT called while bot_review_status reports ready: false"
         }
       ]
     }
@@ -217,7 +247,7 @@
     "should_trigger": [
       {
         "query": "/dev10x:gh-pr-merge",
-        "rationale": "Direct invocation — runs the full 9-check gate and merges if clean"
+        "rationale": "Direct invocation — runs the full 12-check gate and merges if clean"
       },
       {
         "query": "the PR looks good, go ahead and merge it",
