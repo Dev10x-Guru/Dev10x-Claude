@@ -5,6 +5,32 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.115.0 — Keep Auto Mode On
+
+Released 2026-11-08
+
+### Features
+
+- **Auto mode stays on across upgrades and new worktrees** — a user
+  who runs every session in auto mode can now list the enforced safety
+  keys in `~/.config/Dev10x/safety-keys.yaml`:
+
+  ```yaml
+  safety_keys:
+    - disableBypassPermissionsMode
+  ```
+
+  With that file, `ensure-base`, `ensure-safety-keys`, worktree seeding
+  and `doctor safety-keys` stop writing or demanding `disableAutoMode`,
+  while `ensure-base` still seeds the catalog and creates missing
+  worktree settings files. Before, the only way to keep auto mode was
+  to skip `ensure-base` and lose those rules with it.
+  `disableBypassPermissionsMode` stays a fixed floor, an existing
+  `disableAutoMode` value is never removed, and with no file both keys
+  are enforced as in 0.114.0. A malformed file enforces both keys with
+  a warning, so a typo costs a prompt, not the floor
+  ([GH-1856](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1856))
+
 ## 0.114.0 — Split the Plugin, Prove the Head
 
 Released 2026-11-08
