@@ -153,11 +153,24 @@ class TestFileText:
         os.mkfifo(fifo)
 
         result = await wait_for_module.wait_for(
-            kind="file_text", target=str(fifo), pattern="x", timeout=0
+            kind="file_text", target=str(fifo), pattern="x", timeout=60
         )
 
         assert result.value["met"] is False
         assert result.value["observed"]["error"] == "not a regular file"
+        assert (result.value["unreachable"], result.value["timed_out"]) == (True, False)
+        assert result.value["polls"] == 1
+
+    @pytest.mark.asyncio
+    async def test_a_file_that_is_not_there_yet_keeps_waiting(
+        self, tmp_path: Path, clock: FakeClock
+    ) -> None:
+        result = await wait_for_module.wait_for(
+            kind="file_text", target=str(tmp_path / "later"), pattern="x", timeout=10
+        )
+
+        assert (result.value["unreachable"], result.value["timed_out"]) == (False, True)
+        assert result.value["polls"] > 1
 
 
 class TestRegex:
@@ -218,6 +231,15 @@ class TestHttp:
 
         assert result.value["met"] is met
         assert result.value["observed"]["status"] == status
+
+    @pytest.mark.asyncio
+    async def test_a_refused_connection_keeps_waiting(self) -> None:
+        with patch.object(wait_for_module, "_http_status", return_value=(None, "refused")):
+            result = await wait_for_module.wait_for(
+                kind="http", target="http://localhost:8000/health", timeout=10
+            )
+
+        assert (result.value["unreachable"], result.value["timed_out"]) == (False, True)
 
     def test_http_status_reads_response(self) -> None:
         response = MagicMock(status=204)
@@ -304,6 +326,25 @@ class TestProcessGone:
 
         assert result.value["met"] is False
         assert result.value["observed"]["error"] == "pgrep unavailable: pgrep"
+        assert result.value["unreachable"] is True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(("returncode", "unreachable"), [(2, True), (-1, False)])
+    async def test_only_a_rejected_pattern_ends_the_wait_early(
+        self, returncode: int, unreachable: bool
+    ) -> None:
+        with patch.object(
+            wait_for_module,
+            "async_run",
+            new_callable=AsyncMock,
+            return_value=_completed(returncode=returncode),
+        ):
+            result = await wait_for_module.wait_for(
+                kind="process_gone", target="uvicorn", timeout=10
+            )
+
+        assert result.value["unreachable"] is unreachable
+        assert result.value["timed_out"] is not unreachable
 
 
 class TestTime:
@@ -375,6 +416,8 @@ class TestValidation:
             ({"kind": "file_text", "target": "x"}, "needs a 'pattern'"),
             ({"kind": "regex", "target": "x"}, "needs a 'pattern'"),
             ({"kind": "http", "target": "file:///etc/passwd"}, "needs an http(s) URL"),
+            ({"kind": "http", "target": "http://localhost:port/"}, "needs an http(s) URL"),
+            ({"kind": "http", "target": "http:///health"}, "needs an http(s) URL"),
             ({"kind": "time", "target": "tomorrow"}, "needs an ISO-8601"),
         ],
     )

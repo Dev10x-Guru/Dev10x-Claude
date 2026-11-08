@@ -18,6 +18,7 @@ import math
 import os
 import re
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -46,8 +47,18 @@ def _now() -> datetime:
 
 @dataclass(frozen=True)
 class Probe:
+    """One look at the condition.
+
+    ``unreachable`` marks a probe that can never succeed however long it
+    waits — no ``pgrep``, a target that is not a regular file, a file it
+    may not read — so the wait ends at once instead of sitting out the
+    timeout (GH-1852). A refused connection is NOT unreachable: waiting
+    for a server to start listening is what ``http`` is for.
+    """
+
     met: bool
     observed: dict[str, Any]
+    unreachable: bool = False
 
 
 def _resolve_path(*, target: str) -> Path:
@@ -87,7 +98,7 @@ def _probe_text(*, target: str, pattern: str, compiled: re.Pattern[str] | None) 
     if error:
         observed["error"] = error
     if text is None:
-        return Probe(met=False, observed=observed)
+        return Probe(met=False, observed=observed, unreachable=bool(error))
     if compiled is None:
         found = pattern in text
         observed["match"] = pattern if found else None
@@ -128,14 +139,37 @@ async def _probe_process(*, target: str) -> Probe:
             args=["pgrep", "-f", "--", target], timeout=_PROBE_TIMEOUT_SECONDS
         )
     except OSError as exc:
-        return Probe(met=False, observed={"pattern": target, "error": f"pgrep unavailable: {exc}"})
+        return Probe(
+            met=False,
+            observed={"pattern": target, "error": f"pgrep unavailable: {exc}"},
+            unreachable=True,
+        )
     if result.returncode not in (0, 1):
+        # A negative code is our own probe timeout, which may pass; a
+        # positive one is pgrep rejecting the pattern, which will not.
         return Probe(
             met=False,
             observed={"pattern": target, "error": (result.stderr or "pgrep failed").strip()},
+            unreachable=result.returncode > 1,
         )
     pids = [int(line) for line in result.stdout.split() if line.isdigit()]
     return Probe(met=not pids, observed={"pattern": target, "pids": pids})
+
+
+def _is_http_url(*, target: str) -> bool:
+    """A URL ``urlopen`` can at least attempt; a bad one never would.
+
+    Checked up front so a malformed port or a missing host is a refused
+    argument, not a probe that fails for the whole timeout (GH-1852).
+    """
+    if not target.startswith(_HTTP_SCHEMES):
+        return False
+    try:
+        parts = urllib.parse.urlsplit(target)
+        parts.port  # noqa: B018 — the property raises on a malformed port
+    except ValueError:
+        return False
+    return bool(parts.hostname)
 
 
 def _parse_moment(*, target: str) -> datetime | None:
@@ -164,8 +198,8 @@ def _validate(
         return f"poll_interval must be a finite number, got {poll_interval}"
     if kind in _NEEDS_PATTERN and not pattern:
         return f"kind={kind!r} needs a 'pattern'"
-    if kind == "http" and not target.startswith(_HTTP_SCHEMES):
-        return f"kind='http' needs an http(s) URL, got {target!r}"
+    if kind == "http" and not _is_http_url(target=target):
+        return f"kind='http' needs an http(s) URL with a host, got {target!r}"
     if kind == "time" and _parse_moment(target=target) is None:
         return f"kind='time' needs an ISO-8601 timestamp, got {target!r}"
     return None
@@ -197,6 +231,7 @@ async def _wait_for_time(*, moment: datetime, timeout: float) -> dict[str, Any]:
     met = _now() >= moment
     return {
         "met": met,
+        "unreachable": False,
         "observed": {"target": moment.isoformat(), "now": _now().isoformat()},
         "polls": 1,
     }
@@ -226,8 +261,10 @@ async def wait_for(
             omitted.
 
     Returns:
-        ``{"kind", "target", "met", "timed_out", "observed", "polls",
-        "elapsed", "timeout", "timeout_requested", "clamped"}``.
+        ``{"kind", "target", "met", "timed_out", "unreachable", "observed",
+        "polls", "elapsed", "timeout", "timeout_requested", "clamped"}``.
+        ``unreachable`` ends the wait early on a probe that cannot
+        succeed; ``timed_out`` is then false.
     """
     problem = _validate(
         kind=kind,
@@ -265,18 +302,24 @@ async def wait_for(
 
         run = await polling.poll_until(
             probe=probe,
-            done=lambda result: result.met,
+            done=lambda result: result.met or result.unreachable,
             deadline=polling.Deadline.after(seconds=budget.seconds),
             interval=interval,
         )
-        outcome = {"met": run.last.met, "observed": run.last.observed, "polls": run.polls}
+        outcome = {
+            "met": run.last.met,
+            "unreachable": run.last.unreachable,
+            "observed": run.last.observed,
+            "polls": run.polls,
+        }
 
     return ok(
         {
             "kind": kind,
             "target": target,
             "met": outcome["met"],
-            "timed_out": not outcome["met"],
+            "timed_out": not outcome["met"] and not outcome["unreachable"],
+            "unreachable": outcome["unreachable"],
             "observed": outcome["observed"],
             "polls": outcome["polls"],
             "elapsed": round(polling._clock() - started, 3),

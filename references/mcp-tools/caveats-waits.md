@@ -25,7 +25,10 @@ probe and reports a failed probe in `observed`.
 - **`met: false` is an answer, not an error.**
   An `{"error": ...}` payload means the arguments were invalid or, for
   `pr_wait`, no poll could read the PR at all.
-  Branch on `met` / `timed_out`, never on the presence of `observed`.
+  Branch on `met` / `timed_out` / `unreachable`, never on the presence
+  of `observed`.
+- **Both run on one poll loop** (GH-1852): `dev10x.domain.polling`
+  holds the deadline, the loop and the `_sleep` / `_clock` test seams.
 
 ## `pr_wait`
 
@@ -82,6 +85,13 @@ second definition.
 - `process_gone` with a pattern needs `pgrep` on the host.
   A missing `pgrep`, or a `pgrep` failure other than "no match", is
   reported in `observed.error` and does not count as gone.
+- **A probe that can never succeed ends the wait at once** (GH-1852):
+  `unreachable: true`, `timed_out: false`.
+  That covers a missing `pgrep`, a pattern `pgrep` rejects, and a text
+  target that is not a readable regular file.
+  A file that does not exist yet, a refused connection and a `pgrep`
+  timeout are not unreachable — the wait continues.
+  A URL with no host or a malformed port is refused as an argument.
 - A pattern that matches nothing — a typo included — is met at once.
   Check `observed.pids` on an earlier call when that matters.
 - `time` sleeps once, up to the clamped timeout; a moment further away
