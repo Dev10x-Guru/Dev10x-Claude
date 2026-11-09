@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+import unicodedata
 
 _URL = re.compile(
     r"https://github\.com/(?P<repo>[\w.-]+/[\w.-]+)/issues/(?P<number>\d+)",
@@ -37,6 +38,18 @@ _PLACEHOLDER = re.compile(r"<[^<>]*>")
 _FENCE_MARKERS = ("```", "~~~")
 _COMMENT_OPEN = "<!--"
 _COMMENT_CLOSE = "-->"
+
+EXIT_REFS = 0
+EXIT_MISSING = 1
+EXIT_DECLARED_NONE = 3
+
+RECOGNIZED_SHAPES = (
+    "Fixes: GH-123",
+    "Fixes: #123",
+    "Closes #123",
+    "Resolves #123",
+    "Fixes: https://github.com/<owner>/<repo>/issues/123",
+)
 
 NONE_TRAILER_HINT = (
     "a 'Fixes: none' trailer must stand on its own line and carry a reason "
@@ -141,30 +154,52 @@ def explicit_none_reason(*, body: str) -> str | None:
     return None
 
 
+def workflow_data(*, text: str) -> str:
+    """Make PR-author text safe inside a GitHub workflow command."""
+    printable = "".join(ch for ch in text if unicodedata.category(ch) != "Cc")
+    return printable.replace("%", "%25")
+
+
+def verdict(*, body: str, repo: str) -> tuple[int, list[str]]:
+    """Decide what close-issues does with ``body``: exit code and lines to print.
+
+    `EXIT_REFS` prints the references to close, `EXIT_DECLARED_NONE` a
+    notice, and `EXIT_MISSING` the errors that fail the merged PR.
+    """
+    refs = extract(body=body, repo=repo)
+    if refs:
+        return EXIT_REFS, refs
+
+    reason = explicit_none_reason(body=body)
+    if reason is not None:
+        notice = f"PR declares 'Fixes: none' ({reason}); nothing to close."
+        return EXIT_DECLARED_NONE, [f"::notice::{workflow_data(text=notice)}"]
+
+    lines = ["::error::No closable issue references found in the PR body."]
+    if any(declares_none(line=line) for line in visible_lines(body=body)):
+        lines.append(f"::error::{workflow_data(text=NONE_TRAILER_HINT)}.")
+    shapes = ", ".join(f"'{shape}'" for shape in RECOGNIZED_SHAPES)
+    lines.append(f"Recognized shapes: {shapes}.")
+    lines.append("A PR that closes nothing declares 'Fixes: none — <reason>'.")
+    return EXIT_MISSING, lines
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Extract closable issue references from a PR body on stdin."
+        description=(
+            "Decide which issues a merged PR body closes. Exit 0 prints the "
+            f"references, {EXIT_DECLARED_NONE} a declared-none notice, "
+            f"{EXIT_MISSING} the errors."
+        )
     )
     parser.add_argument(
         "--repo",
+        required=True,
         help="owner/repo that bare GH-N / #N references resolve against",
     )
-    parser.add_argument(
-        "--explicit-none",
-        action="store_true",
-        help="print the reason of a `Fixes: none — <reason>` trailer instead",
-    )
     args = parser.parse_args()
-    if not args.explicit_none and not args.repo:
-        parser.error("--repo is required unless --explicit-none is given")
 
-    body = sys.stdin.read()
-    if args.explicit_none:
-        reason = explicit_none_reason(body=body)
-        if reason is not None:
-            print(reason)
-        return 0
-
-    for ref in extract(body=body, repo=args.repo):
-        print(ref)
-    return 0
+    code, lines = verdict(body=sys.stdin.read(), repo=args.repo)
+    for line in lines:
+        print(line)
+    return code
