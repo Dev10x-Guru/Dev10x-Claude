@@ -34,7 +34,8 @@ always asks would stop the pipeline here until someone came back. At
 4.4 an exploratory run publishes nothing, so `instructions.md` routes
 the gate for a clean take through `resolve_gate(gate="artifact_preview")`:
 the resolver auto-advances it under the adaptive baseline, attended or
-not, and asks where a project pin or overlay says so. A take is clean
+not, and asks only where a pin, overlay or override sets
+`artifact_preview: ask` (`skip` approves without asking). A take is clean
 when the verifier passed, the raster is Full HD, no caption went
 unnarrated and the narration is anchored at video start. A defective
 take always asks, with Re-capture recommended. The upload and publish
