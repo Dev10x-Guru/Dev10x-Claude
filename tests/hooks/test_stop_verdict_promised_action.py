@@ -133,6 +133,51 @@ _EXEMPT_PROMISES = [
     "Give me the word and I will merge.",
     "With your approval I'll open the PR.",
     "I'll now pick up the docs in the next session.",
+    "Now I'll merge it once you approve.",
+    "Next, I'll push the branch after you've reviewed it.",
+    "I'll push the branch when you're ready.",
+    "I'll rebase it if you'd like.",
+    "I'll rebase it if you want me to.",
+    "Let me know if you want me to, and I'll rebase it.",
+    "Ping me once you approve, I'll merge it.",
+    "I'll merge it once you sign.",
+    "I'll merge it once you've chosen.",
+    "I'll push it once you've fixed the tests.",
+    "I'll update the docs after you merge the PR.",
+    "I'll push the branch when you've read the plan.",
+    "I'll merge it if you agree.",
+    "I'll rebase it if you'd rather.",
+    "I'll push it if you need me to.",
+    "I'll push it if you're ready.",
+    "I'll merge it if you're happy.",
+    "Otherwise, if you see failures, I'll fix them.",
+    "So if you see failures, I'll fix them.",
+    "+ If you see failures, I'll fix them.",
+    "(If you see failures, I'll fix them.)",
+    "Here is the plan:\n- If you see failures, I'll fix them.",
+    "Plan: 1. If you see failures, I'll fix them.",
+    "I'll rebase it when you'd like.",
+    "I'll merge it when you want.",
+    "• If you see failures, I'll fix them.",
+    '"If you see failures, I\'ll fix them."',
+    "[If you see failures, I'll fix them.]",
+    "And if you see failures, I'll fix them.",
+    "Then, if you see failures, I'll fix them.",
+    "I'll merge it if you're done.",
+    "I'll push it if you're ok with it.",
+    "I'll push it when you're sure.",
+    "I'll merge it if you accept.",
+    "I'll rebase it if you decide to.",
+    "I'll merge it if you wish.",
+    "I'll rerun it if you ask.",
+    "I'll merge it if you would like.",
+    "I'll merge it when you accept.",
+    "I'll push it when you tell me.",
+    "I'll push it when you let me know.",
+    "I'll merge it if you're happy with the diff.",
+    "If you see failures, I'll fix them.",
+    "- If you see failures, I'll fix them.",
+    "2. When you have a minute, I'll review it with you.",
 ]
 
 
@@ -370,6 +415,51 @@ _UNCONDITIONAL_BESIDE_CONDITIONAL = [
         id="lead-in-stops-at-next-sentence",
     ),
 ]
+
+
+#: Closings where "if/when you" hedges rather than conditions: it
+#: neither opens the sentence nor names the supervisor's decision, so
+#: nothing in it waits on them (GH-1869). A hedge built from a gate
+#: phrase ("let me know if you'd like, …") is GH-1894's, not pinned here.
+_HEDGED_PROMISES = [
+    pytest.param("Let me know if you disagree, I'll run the tests now.", id="if-you-disagree"),
+    pytest.param("Shout if you have questions; I'll push the branch now.", id="if-you-have"),
+    pytest.param("Ping me when you see this, I'll rerun the tests now.", id="when-you-see"),
+    pytest.param("Tell me if you spot anything off; next, I'll push it.", id="if-you-spot"),
+    pytest.param("Shout if you're stuck; I'll push it now.", id="if-you-are-stuck"),
+    pytest.param("Ping me when you're back, I'll rerun the tests now.", id="when-you-are-back"),
+    pytest.param("Let me know: if you disagree, I'll run the tests now.", id="colon-then-if-you"),
+    pytest.param(
+        "I'll run the tests now: if you see failures, I'll fix them.", id="promise-colon-if-you"
+    ),
+    pytest.param("Now I'll run it:\nIf you see failures, I'll fix them.", id="colon-newline-if"),
+    pytest.param(
+        "Let me know if you disagree with this plan:\n- I'll run the tests now\n- I'll push it",
+        id="hedged-lead-in",
+    ),
+]
+
+
+class TestAHedgeIsNotACondition:
+    """GH-1869: "if you" in passing must not excuse the promise beside it."""
+
+    @pytest.mark.parametrize("closing", _HEDGED_PROMISES)
+    def test_a_hedged_promise_blocks(
+        self, tmp_path: Path, isolated_markers: Path, closing: str
+    ) -> None:
+        verdict = decide(
+            data={
+                "session_id": "h1",
+                "transcript_path": _closing_turn(tmp_path=tmp_path, closing=closing),
+            },
+            plan=PENDING_PLAN,
+        )
+
+        assert verdict.signal == StopSignal.PROMISED_ACTION
+
+    @pytest.mark.parametrize("closing", _HEDGED_PROMISES)
+    def test_a_hedged_promise_is_returned_whole(self, closing: str) -> None:
+        assert promised_action(entries=_entries(closing=closing)) == closing
 
 
 class TestAnExemptionCoversOnlyItsOwnSentence:
