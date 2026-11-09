@@ -18,8 +18,9 @@ from dev10x.core.paths import skill_script
 from dev10x.domain.common.result import ErrorResult, Result, err, ok
 from dev10x.domain.pr_body import (
     fixes_references,
-    has_fixes_trailer,
+    fixes_trailer_error,
     job_story_error,
+    none_trailer_error,
     normalize_pr_body,
 )
 from dev10x.subprocess_utils import parse_key_value_output
@@ -149,12 +150,20 @@ async def create_pr(
             "branch, not the base."
         )
 
-    args = [title, job_story, issue_id]
-    args.append(
+    references = (
         ""
         if body is not None
         else fixes_references(issue_id=issue_id, fixes_url=fixes_url, closes=closes)
     )
+    # GH-1873
+    trailer_error = none_trailer_error(
+        body=normalize_pr_body(body=body) if body is not None else f"Fixes: {references}"
+    )
+    if trailer_error:
+        return err(f"create_pr: {trailer_error}")
+
+    args = [title, job_story, issue_id]
+    args.append(references)
     args.append(base_branch or "")
     args.append(",".join(str(n) for n in closes) if closes else "")
     args.append("true" if draft else "false")
@@ -218,13 +227,14 @@ async def create_pr(
         )
         return ok(payload)
 
-    if not has_fixes_trailer(body=str(verified.value.get("body", ""))):
+    trailer_problem = fixes_trailer_error(body=str(verified.value.get("body", "")))
+    if trailer_problem:
         # Named like the milestone failure above: the PR is already open,
         # so an error that does not identify it strands it.
         return err(
             f"PR #{payload['pr_number']} ({payload['url']}) was created, but its "
-            "body carries no Fixes: trailer — the hygiene bot will reject it and "
-            "no linked issue will close on merge. Add the trailer with update_pr."
+            f"{trailer_problem} — the hygiene bot will reject it and no linked "
+            "issue will close on merge. Fix the trailer with update_pr."
         )
 
     payload["fixes_trailer_verified"] = True

@@ -88,6 +88,8 @@ The body should be **compact** to avoid cluttering Slack previews.
      (for issue-tracked work)
    - `Fixes: none — self-motivated refactor` (for internal improvements,
      features, or experiments without a tracking issue)
+   - The reason after the dash needs a letter or digit; `create_pr` refuses
+     a bare one, a `<reason>` placeholder, or one inside code or a comment.
    - Do NOT manually add `---`, blank lines, or separators after `Fixes:`
      (Note: The `create-pr.sh` template automatically adds separators as
      part of standard formatting. Do not remove them.)

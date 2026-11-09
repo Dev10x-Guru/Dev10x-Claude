@@ -348,8 +348,11 @@ Fixes: {fixes_url from detect_tracker MCP tool}
 If `fixes_url` is empty (unknown tracker), first call
 `mcp__plugin_dev10x_cli__tracker_status` — a pinned `tracker` names
 where the key lives, so build the issue URL from it.
-When no URL can be built, pass the bare ticket key, or
-`fixes_url="none — <reason>"` when there is no ticket at all.
+When no URL can be built, pass the bare ticket key, or a written-out
+reason such as `fixes_url="none — self-motivated refactor"` when there
+is no ticket at all.
+`create_pr` refuses a bare `none`, a punctuation-only reason, or a
+literal `<reason>` placeholder, because close-issues would fail on them.
 
 **Partial delivery (GH-1604).**
 When the PR delivers only part of issue #N, the trailer must be

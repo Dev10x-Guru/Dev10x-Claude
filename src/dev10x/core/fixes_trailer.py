@@ -27,9 +27,23 @@ _BARE = re.compile(
     re.IGNORECASE,
 )
 
+_DECLARES_NONE = re.compile(r"fixes:[ \t]*none(?![\w-])", re.IGNORECASE)
 _EXPLICIT_NONE = re.compile(
     r"fixes:[ \t]*none(?![\w-])[ \t]*[-–—]+(?P<reason>.*)",
     re.IGNORECASE,
+)
+_WORD = re.compile(r"[^\W_]")
+_PLACEHOLDER = re.compile(r"<[^<>]*>")
+_FENCE_MARKERS = ("```", "~~~")
+_COMMENT_OPEN = "<!--"
+_COMMENT_CLOSE = "-->"
+
+NONE_TRAILER_HINT = (
+    "a 'Fixes: none' trailer must stand on its own line and carry a reason "
+    "after a dash, e.g. 'Fixes: none — part of #123' or 'Fixes: none — "
+    "self-motivated'. A bare 'Fixes: none', a punctuation-only reason, the "
+    "'<reason>' placeholder, or a line inside a code block or HTML comment "
+    "does not count, and close-issues fails the merge on it"
 )
 
 
@@ -58,14 +72,71 @@ def extract(*, body: str, repo: str) -> list[str]:
     return found
 
 
+def closes_any(*, body: str) -> bool:
+    """Whether ``body`` carries a reference close-issues would act on."""
+    return bool(extract(body=body, repo=""))
+
+
+def declares_none(*, line: str) -> bool:
+    """Whether ``line`` is an attempt at a `Fixes: none` trailer, valid or not."""
+    return _DECLARES_NONE.match(line.strip()) is not None
+
+
+def is_usable_reason(*, reason: str) -> bool:
+    stripped = reason.strip()
+    return bool(_WORD.search(stripped)) and _PLACEHOLDER.fullmatch(stripped) is None
+
+
+def visible_lines(*, body: str) -> list[str]:
+    """Return the stripped lines a reader sees: no fenced code, no HTML comments."""
+    visible: list[str] = []
+    fence: str | None = None
+    in_comment = False
+    for raw in body.splitlines():
+        text = raw
+        if in_comment:
+            close = text.find(_COMMENT_CLOSE)
+            if close < 0:
+                continue
+            text = text[close + len(_COMMENT_CLOSE) :]
+            in_comment = False
+        stripped = text.strip()
+        if fence is not None:
+            if stripped.startswith(fence):
+                fence = None
+            continue
+        opening = next((m for m in _FENCE_MARKERS if stripped.startswith(m)), None)
+        if opening is not None:
+            fence = opening
+            continue
+        text, in_comment = _without_comments(text=text)
+        visible.append(text.strip())
+    return visible
+
+
+def _without_comments(*, text: str) -> tuple[str, bool]:
+    kept: list[str] = []
+    position = 0
+    while True:
+        start = text.find(_COMMENT_OPEN, position)
+        if start < 0:
+            kept.append(text[position:])
+            return "".join(kept), False
+        kept.append(text[position:start])
+        close = text.find(_COMMENT_CLOSE, start + len(_COMMENT_OPEN))
+        if close < 0:
+            return "".join(kept), True
+        position = close + len(_COMMENT_CLOSE)
+
+
 def explicit_none_reason(*, body: str) -> str | None:
-    """Return the reason of a `Fixes: none — <reason>` line, else None."""
-    for line in body.splitlines():
-        match = _EXPLICIT_NONE.fullmatch(line.strip())
+    """Return the reason of a usable `Fixes: none — <reason>` line, else None."""
+    for line in visible_lines(body=body):
+        match = _EXPLICIT_NONE.fullmatch(line)
         if match is None:
             continue
         reason = match.group("reason").strip()
-        if reason:
+        if is_usable_reason(reason=reason):
             return reason
     return None
 

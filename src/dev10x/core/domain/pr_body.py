@@ -8,6 +8,13 @@ bold markers, and `Fixes:` must be the literal last line.
 import re
 from dataclasses import dataclass
 
+from dev10x.core.fixes_trailer import (
+    NONE_TRAILER_HINT,
+    closes_any,
+    declares_none,
+    explicit_none_reason,
+)
+
 WHEN_MARKER = "**When**"
 WANTS_MARKER = "**<actor> wants**"
 SO_CAN_MARKER = "**so <beneficiary> can**"
@@ -141,8 +148,33 @@ def fixes_references(
     return " ".join(dict.fromkeys(reference for reference in references if reference))
 
 
+def none_trailer_error(*, body: str) -> str | None:
+    """Refuse a `Fixes: none` trailer that close-issues would fail on (GH-1873).
+
+    Only the none-declaration is checked: whether a reference trailer
+    closes anything depends on the repo's tracker, which create_pr does
+    not know.
+    """
+    lines = body.rstrip().split("\n")
+    start = _fixes_block_start(lines=lines)
+    if start is None:
+        return None
+    block = lines[start : _fixes_block_end(lines=lines, start=start) + 1]
+    if not any(declares_none(line=line) for line in block):
+        return None
+    if closes_any(body=body) or explicit_none_reason(body=body) is not None:
+        return None
+    return f"Fixes: trailer is malformed — {NONE_TRAILER_HINT}"
+
+
+def fixes_trailer_error(*, body: str) -> str | None:
+    if _last_fixes_index(lines=body.rstrip().split("\n")) is None:
+        return "body carries no Fixes: trailer"
+    return none_trailer_error(body=body)
+
+
 def has_fixes_trailer(*, body: str) -> bool:
-    return _last_fixes_index(lines=body.rstrip().split("\n")) is not None
+    return fixes_trailer_error(body=body) is None
 
 
 def normalize_pr_body(*, body: str) -> str:
