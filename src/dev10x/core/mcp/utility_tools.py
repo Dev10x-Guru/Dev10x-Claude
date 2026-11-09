@@ -15,19 +15,20 @@ async def background_preamble() -> dict:
     Dispatchers fetch this text and prepend it verbatim to each subagent
     prompt so the subagent avoids hook-tripping command shapes and stays on
     the pre-approved tool surface. The canonical source is
-    ``references/orchestration/background-preamble.md``; this tool serves it
-    without a Read permission prompt and keeps the dispatch paths from
-    drifting.
+    ``references/orchestration/background-preamble.md``; this tool serves
+    the block between its PREAMBLE markers without a Read permission
+    prompt and keeps the dispatch paths from drifting (GH-1874).
 
     Returns:
-        Dictionary with key: preamble (str) — the preamble document text.
-        Returns ``{"error": ...}`` when the canonical document is missing.
+        Dictionary with key: preamble (str) — the marked preamble block.
+        Returns ``{"error": ...}`` when the canonical document or either
+        marker is missing.
     """
     from dev10x.session.service import SessionService
 
     text = SessionService().build_background_preamble_context()
     if not text:
-        return to_wire(err("background-preamble.md not found in plugin root"))
+        return to_wire(err("background-preamble.md missing, or its PREAMBLE markers are missing"))
     return to_wire(ok({"preamble": text}))
 
 
