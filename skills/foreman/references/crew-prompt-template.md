@@ -64,8 +64,9 @@ prompts. Losing a tool means REPORT, never improvise a shape.
 
 If a hook blocks a command, use the sanctioned tool, or Write
 `- <UTC timestamp> BLOCKED: hook denied <command>` (timestamp from
-`date -u`) as your last status line and stop. Never work around it,
-and never mark it DONE — the stall alarm is how the overseer finds you.
+`date -u +%Y-%m-%dT%H:%M:%SZ`) as your last status line and stop. Never work around it,
+and never mark it DONE — the watcher reports a BLOCKED last line to the
+overseer within one poll, so stop and wait for instructions.
 ```
 
 ## 2b. Tool-surface bootstrap (immediately after the fatal-shapes block)
@@ -384,7 +385,8 @@ supervisor-only decision. Do not route around the gate.
 Every ~15 minutes AND at each phase transition, append one line to
 {{run_dir}}/status-{{chunk_id}}.md via the Write tool:
 `- <UTC timestamp> <phase>: <one-liner>`. Obtain that timestamp ONLY
-by running `date -u` — never compose, estimate, or carry one forward
+by running `date -u +%Y-%m-%dT%H:%M:%SZ` — the watcher reads only that
+ISO form — and never compose, estimate, or carry one forward
 from earlier in the session. Invented times corrupt the morning audit
 trail (field case: a worker logged `20:49:00Z` when real UTC was
 `17:57`). Your LAST line, once the chunk is handed off, is

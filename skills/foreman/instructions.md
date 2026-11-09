@@ -124,7 +124,10 @@ each into this directory.
    inline loop/pipeline): `dev10x foreman watch --scratchpad <run-dir>
    --base-branch <base>`, using the CLI shape Phase 0.4 recorded. It
    emits `STALL <file>:` (one line per silent heartbeat file, already
-   naming the chunk — GH-1064), `MERGE REQUEST` / `ESCALATION` (tailed
+   naming the chunk — GH-1064), `BLOCKED <file>:` (a worker whose last
+   heartbeat line is `<ISO timestamp> BLOCKED: …`, reported at once and
+   again every stall window while it stands, in place of the stall
+   alarm — GH-1874), `MERGE REQUEST` / `ESCALATION` (tailed
    off `escalations-*.md`, so a request reaches you within a poll
    interval instead of whenever its message lands — GH-1060),
    `BASE MOVED:`, `QUOTA MILESTONE:`, `QUOTA RESET:`,
@@ -193,6 +196,11 @@ turn are the most precious resources on site:
   Who may enter a dead worker's tree, and the two sanctioned recovery
   paths when it holds uncommitted work:
   [`references/worktree-recovery.md`](references/worktree-recovery.md).
+- `BLOCKED <file>` → the worker stopped on a wall, usually a hook
+  denial, and is waiting. Relay to the foreman: point the worker at the
+  sanctioned tool for the denied command, or cut the scope per the crew
+  contract when no sanctioned path exists. Never tell it to retry the
+  denied shape or route around the hook (GH-1874).
 - `BASE MOVED` → relay to the foreman (it instructs the active worker
   to rebase, re-verify, and never merge on stale ancestry).
 - **`MERGE REQUEST <chunk>` from the foreman → run the merge gate.**

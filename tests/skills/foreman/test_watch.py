@@ -16,11 +16,13 @@ from dev10x.skills.foreman import (
     append_escalation,
     base_branch_sha,
     block_identity,
+    blocked_heartbeats,
     escalation_baseline,
     handled_merge_prs,
     heartbeat_ages,
     heartbeat_lines,
     historical_token_ceiling,
+    is_blocked_line,
     is_done_line,
     is_handled_merge_request,
     is_own_merge,
@@ -395,6 +397,249 @@ class TestRetiredHeartbeats:
         before = heartbeat.stat().st_mtime
         retire_chunk(scratchpad=tmp_path, chunk="B1")
         assert heartbeat.stat().st_mtime == before
+
+
+BLOCKED_LINE = "- 2026-11-09T02:14:00Z BLOCKED: hook denied git -C /wt push"
+
+
+class TestBlockedHeartbeats:
+    @pytest.mark.parametrize("line", [BLOCKED_LINE, "BLOCKED: no MCP", "* BLOCKED"])
+    def test_blocked_line_is_recognised(self, line: str) -> None:
+        assert is_blocked_line(line=line) is True
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "- 2026-11-09T02:14:00Z UNBLOCKED: resumed",
+            "- 2026-11-09T02:14:00Z implement: was BLOCKED earlier",
+            "- not-a-timestamp BLOCKED: claimed",
+            "- Mon Nov  9 02:14:00 UTC 2026 BLOCKED: bare date -u form",
+            "",
+        ],
+    )
+    def test_other_lines_are_not_blocked(self, line: str) -> None:
+        assert is_blocked_line(line=line) is False
+
+    def test_reads_only_files_whose_last_line_is_blocked(self, tmp_path: Path) -> None:
+        _touch(tmp_path / "status-B1.md", age_min=5, content=f"- t setup: x\n{BLOCKED_LINE}\n")
+        _touch(tmp_path / "status-B2.md", age_min=5, content=f"{BLOCKED_LINE}\n- t resumed\n")
+
+        assert blocked_heartbeats(scratchpad=tmp_path) == {"status-B1.md": BLOCKED_LINE}
+
+    def test_lines_flag_blocked_files(self, tmp_path: Path) -> None:
+        _touch(tmp_path / "status-B1.md", age_min=5, content=BLOCKED_LINE)
+
+        lines = heartbeat_lines(scratchpad=tmp_path, now=NOW)
+
+        assert lines == [f"heartbeat: status-B1.md blocked age=5min last={BLOCKED_LINE}"]
+
+
+BLOCKED_EVENT = "BLOCKED status-B1.md: 2026-11-09T02:14:00Z BLOCKED: hook denied git -C /wt push"
+BLOCKED_REMINDER = (
+    "BLOCKED status-B1.md: still waiting after 26 min: "
+    "2026-11-09T02:14:00Z BLOCKED: hook denied git -C /wt push"
+)
+
+
+def _observe_blocked(
+    *,
+    state: WatchState,
+    block: dict,
+    minute: float,
+    blocked: dict[str, str] | None,
+    age: int = 1,
+    parked: bool = False,
+    retired: frozenset[str] = frozenset(),
+) -> list[str]:
+    return state.observe(
+        now=NOW + minute * 60,
+        sha="aaa111",
+        block=block,
+        heartbeat_ages={"status-B1.md": age},
+        blocked=blocked,
+        parked=parked,
+        retired=retired,
+    )
+
+
+class TestBlockedEvents:
+    def test_blocked_file_is_reported_without_waiting_for_a_stall(
+        self, state: WatchState, quiet_block: dict
+    ) -> None:
+        events = _observe_blocked(
+            state=state, block=quiet_block, minute=1, blocked={"status-B1.md": BLOCKED_LINE}
+        )
+
+        assert events == [BLOCKED_EVENT]
+
+    def test_stale_blocked_file_reports_blocked_not_stall(
+        self, state: WatchState, quiet_block: dict
+    ) -> None:
+        events = _observe_blocked(
+            state=state,
+            block=quiet_block,
+            minute=1,
+            age=90,
+            blocked={"status-B1.md": BLOCKED_LINE},
+        )
+
+        assert events == [BLOCKED_EVENT]
+
+    def test_same_line_is_quiet_within_a_stall_window(
+        self, state: WatchState, quiet_block: dict
+    ) -> None:
+        first = _observe_blocked(
+            state=state, block=quiet_block, minute=1, blocked={"status-B1.md": BLOCKED_LINE}
+        )
+        second = _observe_blocked(
+            state=state,
+            block=quiet_block,
+            minute=2,
+            age=90,
+            blocked={"status-B1.md": BLOCKED_LINE},
+        )
+
+        assert (first, second) == ([BLOCKED_EVENT], [])
+
+    def test_unanswered_block_is_repeated_every_stall_window(
+        self, state: WatchState, quiet_block: dict
+    ) -> None:
+        _observe_blocked(
+            state=state, block=quiet_block, minute=1, blocked={"status-B1.md": BLOCKED_LINE}
+        )
+
+        events = _observe_blocked(
+            state=state, block=quiet_block, minute=27, blocked={"status-B1.md": BLOCKED_LINE}
+        )
+
+        assert events == [BLOCKED_REMINDER]
+
+    def test_next_reminder_counts_from_when_the_block_began(
+        self, state: WatchState, quiet_block: dict
+    ) -> None:
+        _observe_blocked(
+            state=state, block=quiet_block, minute=1, blocked={"status-B1.md": BLOCKED_LINE}
+        )
+        _observe_blocked(
+            state=state, block=quiet_block, minute=27, blocked={"status-B1.md": BLOCKED_LINE}
+        )
+
+        events = _observe_blocked(
+            state=state, block=quiet_block, minute=53, blocked={"status-B1.md": BLOCKED_LINE}
+        )
+
+        assert events == [
+            "BLOCKED status-B1.md: still waiting after 52 min: "
+            "2026-11-09T02:14:00Z BLOCKED: hook denied git -C /wt push"
+        ]
+
+    @pytest.mark.parametrize(
+        ("minute", "expected_count"),
+        [(25, 0), (26, 1)],
+        ids=["24-min-after-alert", "25-min-after-alert"],
+    )
+    def test_reminder_waits_one_full_stall_window(
+        self, state: WatchState, quiet_block: dict, minute: int, expected_count: int
+    ) -> None:
+        _observe_blocked(
+            state=state, block=quiet_block, minute=1, blocked={"status-B1.md": BLOCKED_LINE}
+        )
+
+        events = _observe_blocked(
+            state=state, block=quiet_block, minute=minute, blocked={"status-B1.md": BLOCKED_LINE}
+        )
+
+        assert len(events) == expected_count
+
+    def test_changed_blocked_line_alerts_at_once(
+        self, state: WatchState, quiet_block: dict
+    ) -> None:
+        _observe_blocked(
+            state=state, block=quiet_block, minute=1, blocked={"status-B1.md": BLOCKED_LINE}
+        )
+
+        events = _observe_blocked(
+            state=state,
+            block=quiet_block,
+            minute=2,
+            blocked={"status-B1.md": "- 2026-11-09T02:15:00Z BLOCKED: hook denied rm -rf x"},
+        )
+
+        assert events == [
+            "BLOCKED status-B1.md: 2026-11-09T02:15:00Z BLOCKED: hook denied rm -rf x"
+        ]
+
+    def test_changed_blocked_line_restarts_the_clock(
+        self, state: WatchState, quiet_block: dict
+    ) -> None:
+        changed = {"status-B1.md": "- 2026-11-09T02:15:00Z BLOCKED: hook denied rm -rf x"}
+        _observe_blocked(
+            state=state, block=quiet_block, minute=1, blocked={"status-B1.md": BLOCKED_LINE}
+        )
+        _observe_blocked(state=state, block=quiet_block, minute=10, blocked=changed)
+
+        events = _observe_blocked(state=state, block=quiet_block, minute=36, blocked=changed)
+
+        assert events == [
+            "BLOCKED status-B1.md: still waiting after 26 min: "
+            "2026-11-09T02:15:00Z BLOCKED: hook denied rm -rf x"
+        ]
+
+    def test_parked_queue_holds_the_reminder(self, state: WatchState, quiet_block: dict) -> None:
+        _observe_blocked(
+            state=state, block=quiet_block, minute=1, blocked={"status-B1.md": BLOCKED_LINE}
+        )
+
+        events = _observe_blocked(
+            state=state,
+            block=quiet_block,
+            minute=27,
+            parked=True,
+            blocked={"status-B1.md": BLOCKED_LINE},
+        )
+
+        assert events == []
+
+    def test_blocking_again_after_resuming_realerts(
+        self, state: WatchState, quiet_block: dict
+    ) -> None:
+        _observe_blocked(
+            state=state, block=quiet_block, minute=1, blocked={"status-B1.md": BLOCKED_LINE}
+        )
+        _observe_blocked(state=state, block=quiet_block, minute=2, blocked={})
+
+        events = _observe_blocked(
+            state=state, block=quiet_block, minute=3, blocked={"status-B1.md": BLOCKED_LINE}
+        )
+
+        assert events == [BLOCKED_EVENT]
+
+    def test_retired_file_is_not_reported_blocked(
+        self, state: WatchState, quiet_block: dict
+    ) -> None:
+        events = _observe_blocked(
+            state=state,
+            block=quiet_block,
+            minute=1,
+            retired=frozenset({"status-B1.md"}),
+            blocked={"status-B1.md": BLOCKED_LINE},
+        )
+
+        assert events == []
+
+    def test_omitting_blocked_keeps_the_alert_memory(
+        self, state: WatchState, quiet_block: dict
+    ) -> None:
+        _observe_blocked(
+            state=state, block=quiet_block, minute=1, blocked={"status-B1.md": BLOCKED_LINE}
+        )
+        _observe_blocked(state=state, block=quiet_block, minute=2, blocked=None)
+
+        events = _observe_blocked(
+            state=state, block=quiet_block, minute=3, blocked={"status-B1.md": BLOCKED_LINE}
+        )
+
+        assert events == []
 
 
 class TestRetiredStallMuting:

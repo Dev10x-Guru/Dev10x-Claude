@@ -98,6 +98,7 @@ brief — the foreman still owns authorship.
 | Failure | Signal | Recovery |
 |---|---|---|
 | Crew worker hangs on a blocking wait / permission wall | `STALL:` while foreman heartbeat is fresh | Foreman: run the stand-down handshake (`stall-protocol.md`); on a second silent window, TaskStop worker and respawn with a corrective brief naming the banned shape and the current on-disk state (branch/PR survive — resume, don't redo) |
+| Crew worker stops on a hook denial and reports it | `BLOCKED status-<chunk>.md:` within one poll, repeated as `still waiting after N min` every stall window while the line stands (held while `parked`); no `STALL` fires for that file | Foreman: brief the worker onto the sanctioned tool for the denied command, or cut the scope when none exists. Never instruct a retry of the denied shape (GH-1874) |
 | Foreman itself dies or hangs | `STALL:` and `status-foreman.md` is the stale file | Watchdog: handshake first (a foreman waiting on a relay is idle by instruction, not dead), then TaskStop and respawn from `manifest.md` + newest heartbeats. All durable state is on disk by design. **Under spawn-by-request this signal is expected noise — see § It inverts the event flow; nudge, do not respawn.** |
 | A replaced foreman revives and duplicates the supervisor | Two live foremen on one queue; the older one relays orders to workers `SendMessage` reports as having no transcript | Prevented, not recovered: a session-limit death PAUSES a top-level session while KILLING its subagents, so "replaced" never implies "gone". The watchdog rewrites `current-generation` in the run dir on every spawn/replacement, and every foreman re-reads it before acting — a predecessor that finds another name stands itself down (GH-971) |
 | A worker declared dead revives after takeover | Duplicate commits/comments; a second agent acting on the same chunk | Prevented, not recovered: the stand-down handshake positively retires the original before anyone else touches the chunk (`stall-protocol.md`) |
@@ -136,7 +137,10 @@ reaches the tracker). Each file has exactly one writer.
   in the run directory; appended via the Write tool (never shell
   redirects).
 - Line format: `- <UTC timestamp> <phase>: <one-liner>`, where the
-  timestamp comes from `date -u` and is never composed by hand.
+  timestamp comes from `date -u +%Y-%m-%dT%H:%M:%SZ` and is never
+  composed by hand. The watcher recognizes `DONE` and `BLOCKED` only
+  after an ISO-8601 timestamp; the bare `date -u` form is
+  locale-dependent and never matches.
 - **mtime is truth.** Workers mis-stamp their line text (wrong clock
   math is common); the watcher only trusts `stat` mtimes.
 - **Each status file has exactly one writer — the agent it is named
