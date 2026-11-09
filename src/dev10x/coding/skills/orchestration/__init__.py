@@ -14,6 +14,7 @@ from dev10x.coding.skills.orchestration.subagent_protocol import (
     STATUS_PROMPT_TEMPLATE,
     ParsedStatus,
     SubagentStatus,
+    is_hook_denial,
     parse_subagent_status,
     requires_main_session_fallback,
 )
@@ -27,6 +28,7 @@ __all__ = [
     "STATUS_PROMPT_TEMPLATE",
     "SubagentStatus",
     "group_into_batches",
+    "is_hook_denial",
     "parse_subagent_status",
     "requires_main_session_fallback",
     "tickets_share_batch",

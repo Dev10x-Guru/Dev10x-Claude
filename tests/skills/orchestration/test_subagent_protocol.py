@@ -8,6 +8,7 @@ from dev10x.skills.orchestration.subagent_protocol import (
     STATUS_PROMPT_TEMPLATE,
     ParsedStatus,
     SubagentStatus,
+    is_hook_denial,
     parse_subagent_status,
     requires_main_session_fallback,
 )
@@ -84,27 +85,62 @@ class TestParseSubagentStatus:
 
 class TestRequiresMainSessionFallback:
     @pytest.mark.parametrize(
-        ("status", "expected"),
+        ("result", "expected"),
         [
-            (SubagentStatus.DONE, False),
-            (SubagentStatus.DONE_WITH_CONCERNS, False),
-            (SubagentStatus.NEEDS_CONTEXT, False),
-            (SubagentStatus.BLOCKED, True),
-            (SubagentStatus.MALFORMED, True),
+            ("DONE", False),
+            ("DONE_WITH_CONCERNS: minor", False),
+            ("NEEDS_CONTEXT: need ticket body", False),
+            ("BLOCKED: gh auth expired", True),
+            ("prose with no status line", True),
         ],
     )
-    def test_fallback_only_for_blocked_and_malformed(
-        self,
-        status: SubagentStatus,
-        expected: bool,
-    ):
-        assert requires_main_session_fallback(status=status) is expected
+    def test_fallback_only_for_blocked_and_malformed(self, result: str, expected: bool) -> None:
+        parsed = parse_subagent_status(result=result)
+
+        assert requires_main_session_fallback(parsed=parsed) is expected
+
+    @pytest.mark.parametrize(
+        "result",
+        [
+            "BLOCKED: hook denied git -C /wt push",
+            "BLOCKED: Hook denied rm -rf build",
+            "Blocked: hook denied git push",
+        ],
+    )
+    def test_hook_denial_is_surfaced_not_rerun(self, result: str) -> None:
+        parsed = parse_subagent_status(result=result)
+
+        assert requires_main_session_fallback(parsed=parsed) is False
+
+
+class TestIsHookDenial:
+    @pytest.mark.parametrize(
+        ("result", "expected"),
+        [
+            ("BLOCKED: hook denied git push", True),
+            ("BLOCKED: the hook denied git push", True),
+            ("BLOCKED: PreToolUse hook blocked git push", True),
+            ("BLOCKED: git push was denied by a hook", True),
+            ("BLOCKED: two hooks refused rm -rf build", True),
+            ("BLOCKED hook denied git push", True),
+            ("BLOCKED: webhook endpoint unreachable", False),
+            ("BLOCKED: permission wall", False),
+            ("NEEDS_CONTEXT: hook denied wording in prose", False),
+            ("DONE_WITH_CONCERNS: a hook warned once", False),
+        ],
+    )
+    def test_a_blocked_or_unreadable_hook_mention_counts(
+        self, result: str, expected: bool
+    ) -> None:
+        parsed = parse_subagent_status(result=result)
+
+        assert is_hook_denial(parsed=parsed) is expected
 
 
 class TestStatusPromptTemplate:
     @pytest.mark.parametrize(
         "marker",
-        ["DONE", "DONE_WITH_CONCERNS:", "NEEDS_CONTEXT:", "BLOCKED:"],
+        ["DONE", "DONE_WITH_CONCERNS:", "NEEDS_CONTEXT:", "BLOCKED:", "BLOCKED: hook denied"],
     )
     def test_template_documents_every_status(self, marker: str):
         assert marker in STATUS_PROMPT_TEMPLATE
@@ -128,11 +164,11 @@ class TestBackgroundDeliveryTemplate:
 class TestParseSubagentStatusEdgeCases:
     def test_needs_context_does_not_require_fallback(self):
         parsed = parse_subagent_status(result="NEEDS_CONTEXT: need ticket body")
-        assert requires_main_session_fallback(status=parsed.status) is False
+        assert requires_main_session_fallback(parsed=parsed) is False
 
     def test_done_with_concerns_does_not_require_fallback(self):
         parsed = parse_subagent_status(result="DONE_WITH_CONCERNS: minor style issues")
-        assert requires_main_session_fallback(status=parsed.status) is False
+        assert requires_main_session_fallback(parsed=parsed) is False
 
     def test_colon_and_spaces_in_payload_are_preserved(self):
         parsed = parse_subagent_status(result="BLOCKED: gh auth: token expired")

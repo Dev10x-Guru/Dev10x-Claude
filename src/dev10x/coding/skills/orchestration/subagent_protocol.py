@@ -10,6 +10,7 @@ re-derived in each skill body.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from enum import StrEnum
 
@@ -22,8 +23,15 @@ exactly one of these prefixes:
 - NEEDS_CONTEXT: <what>          — re-dispatch needed
 - BLOCKED: <reason>              — cannot proceed (permission,
                                     missing tool, unrecoverable)
+- BLOCKED: hook denied <command> — a hook refused a command; stop,
+                                    do not try another shape
 
 Do not write anything after the status line."""
+
+# The template asks for `hook denied <command>`, but any blocked or
+# unreadable report that mentions a hook is surfaced rather than re-run:
+# listing phrasings left a new gap with every wording (GH-1874).
+HOOK_MENTION = re.compile(r"\bhooks?\b", re.IGNORECASE)
 
 # A named background agent's plain-text output is NOT delivered to the
 # orchestrator — only an idle notification with no content arrives
@@ -97,5 +105,23 @@ def parse_subagent_status(result: str) -> ParsedStatus:
     return ParsedStatus(status=SubagentStatus.MALFORMED, payload="", raw_line=raw_line)
 
 
-def requires_main_session_fallback(status: SubagentStatus) -> bool:
-    return status in (SubagentStatus.BLOCKED, SubagentStatus.MALFORMED)
+_FALLBACK_STATUSES = (SubagentStatus.BLOCKED, SubagentStatus.MALFORMED)
+
+
+def is_hook_denial(*, parsed: ParsedStatus) -> bool:
+    """A blocked or unreadable report that names a hook (GH-1874).
+
+    Deliberately broad: a false match only means the controller surfaces
+    the report instead of re-running it, while a miss re-runs a command a
+    hook refused.
+    """
+    return parsed.status in _FALLBACK_STATUSES and HOOK_MENTION.search(parsed.raw_line) is not None
+
+
+def requires_main_session_fallback(*, parsed: ParsedStatus) -> bool:
+    """Whether the controller re-runs the work in the main session (GH-901).
+
+    A hook denial is surfaced instead: re-running the denied command from
+    the main session either hits the same hook or slips past it.
+    """
+    return parsed.status in _FALLBACK_STATUSES and not is_hook_denial(parsed=parsed)
