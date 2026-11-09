@@ -6,6 +6,12 @@
 # `accept` alias, DX020 reports it. A brief opts out with a line
 # `dev10x-ok: <reason>`.
 #
+# Names match as whole tokens (word characters, `:`, `-`, `.` and `/`),
+# never as a substring: `my_push_safe` and `src/push_safe.py` do not name
+# `push_safe`. An MCP tool counts only under its full registered name, so
+# list it as an alias. An alias with other characters, such as
+# `Skill(test)`, must appear as written, ignoring case.
+#
 # Projects adjust the map in their friction.yaml `projects[]` entry:
 #
 #   dx020:
@@ -36,28 +42,28 @@ entries:
     patterns:
       - '\bgh pr create\b'
       - '\b(?:open|create) (?:a |the )?(?:draft )?(?:pr|pull request)\b'
-    accept: [gh-pr-create, create_pr]
+    accept: [gh-pr-create, create_pr, mcp__plugin_dev10x_cli__create_pr]
 
   - skill: dev10x:git
     patterns:
       - '\bgit push\b'
       - '\bforce[- ]push\b'
-    accept: [push_safe]
+    accept: [push_safe, mcp__plugin_dev10x_cli__push_safe]
 
   - skill: dev10x:gh-pr-merge
     patterns:
       - '\bgh pr merge\b'
       - '\bmerge (?:the |this )?(?:pr|pull request)\b'
-    accept: [gh-pr-merge, merge_pr]
+    accept: [gh-pr-merge, merge_pr, mcp__plugin_dev10x_cli__merge_pr]
 
   - skill: dev10x:git-groom
     patterns:
       - '\bgit rebase -i\b'
       - '\binteractive rebase\b'
       - '\bsquash (?:the )?(?:fixups?|commits)\b'
-    accept: [git-groom, rebase_groom]
+    accept: [git-groom, rebase_groom, mcp__plugin_dev10x_cli__rebase_groom]
 
   - skill: dev10x:py-test
     patterns:
       - '\bpytest\b'
-    accept: [py-test, run_tests, Skill(test)]
+    accept: [py-test, run_tests, mcp__plugin_dev10x_cli__run_tests, Skill(test)]

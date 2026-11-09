@@ -244,6 +244,77 @@ class TestDefaultMap:
         assert len(agent_brief.default_entries()) == len(document["entries"])
 
 
+class TestNameTokens:
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            ("Use Skill(dev10x:git-commit).", ("use", "skill", "dev10x:git-commit")),
+            (
+                "call `mcp__plugin_dev10x_cli__push_safe`",
+                ("call", "mcp__plugin_dev10x_cli__push_safe"),
+            ),
+            ("dev10x-ok: -- done:", ("dev10x-ok", "done")),
+            ("edit src/a.py, then /x/.", ("edit", "src/a.py", "then", "/x")),
+            ("run ./push_safe -- now:", ("run", "./push_safe", "now")),
+            ("", ()),
+        ],
+    )
+    def test_keeps_names_whole_and_trims_edges(self, text: str, expected: tuple[str, ...]) -> None:
+        assert agent_brief.name_tokens(text=text) == expected
+
+
+class TestSkillKeywordNames:
+    @pytest.fixture()
+    def entry(self) -> agent_brief.SkillKeyword:
+        return agent_brief.SkillKeyword(
+            skill="A:B", patterns=(), accept=("()", "x", "Skill(test)", "-y-")
+        )
+
+    def test_single_token_names_compare_whole(self, entry: agent_brief.SkillKeyword) -> None:
+        assert entry.token_names == frozenset({"a:b", "x"})
+
+    def test_other_names_match_verbatim(self, entry: agent_brief.SkillKeyword) -> None:
+        assert entry.literal_names == ("Skill(test)", "-y-")
+
+    @pytest.mark.parametrize(
+        ("brief", "expected"),
+        [
+            pytest.param("use Skill(test) here", True, id="first-literal"),
+            pytest.param("use -y- here", True, id="second-literal"),
+            pytest.param("use SKILL(TEST)", True, id="literal-ignores-case"),
+            pytest.param("use Skill(test). now", True, id="literal-then-punctuation"),
+            pytest.param("use mySkill(test)", False, id="literal-glued-to-a-word"),
+            pytest.param("use a-y-b", False, id="literal-inside-a-hyphenated-word"),
+            pytest.param("use x-y- now", False, id="literal-after-a-hyphenated-prefix"),
+            pytest.param("use x here", True, id="token"),
+            pytest.param("use A:B", True, id="token-ignores-case"),
+            pytest.param("call ()", False, id="empty-alias-never-matches"),
+            pytest.param("nothing relevant", False, id="no-name"),
+        ],
+    )
+    def test_is_named_in_matches_accepted_names_whole(
+        self, entry: agent_brief.SkillKeyword, brief: str, expected: bool
+    ) -> None:
+        assert entry.is_named_in(brief=brief) is expected
+
+    @pytest.fixture()
+    def entry_without_literals(self) -> agent_brief.SkillKeyword:
+        return agent_brief.SkillKeyword(skill="a:b", patterns=(), accept=("x",))
+
+    @pytest.mark.parametrize(
+        ("brief", "expected"),
+        [
+            pytest.param("use x here", True, id="token"),
+            pytest.param("Skill(test) only", False, id="foreign-literal"),
+            pytest.param("unrelated text", False, id="no-name"),
+        ],
+    )
+    def test_entry_without_literals_matches_tokens_only(
+        self, entry_without_literals: agent_brief.SkillKeyword, brief: str, expected: bool
+    ) -> None:
+        assert entry_without_literals.is_named_in(brief=brief) is expected
+
+
 class TestFindUnnamedSkills:
     def test_longer_skill_name_does_not_name_its_prefix(self) -> None:
         findings = find_unnamed_skills(
@@ -263,12 +334,44 @@ class TestFindUnnamedSkills:
             pytest.param(
                 "via mcp__plugin_dev10x_cli__push_safe_v2", ["dev10x:git"], id="mcp-suffixed"
             ),
+            pytest.param("via foo__push_safe", ["dev10x:git"], id="double-underscore-prefixed"),
+            pytest.param(
+                "via mcp__plugin_other_cli__push_safe", ["dev10x:git"], id="other-mcp-server"
+            ),
+            pytest.param("via `push_safe`.", [], id="punctuated"),
+            pytest.param("via PUSH_SAFE", [], id="case-insensitive"),
+            pytest.param("via push_safe.", [], id="sentence-final"),
+            pytest.param("see src/dev10x/push_safe.py", ["dev10x:git"], id="path-mention"),
+            pytest.param("see foo.push_safe", ["dev10x:git"], id="dotted-mention"),
+            pytest.param("run ./push_safe", ["dev10x:git"], id="relative-path"),
+            pytest.param("see /push_safe", ["dev10x:git"], id="rooted-path"),
+            pytest.param(
+                "via push_safe/pr_ready", ["dev10x:git"], id="slash-joined-list-over-reports"
+            ),
         ],
     )
     def test_alias_counts_only_as_a_whole_name(self, brief: str, unnamed: list[str]) -> None:
         findings = find_unnamed_skills(
             brief=f"git push the branch {brief}", entries=agent_brief.default_entries()
         )
+
+        assert [finding.skill for finding in findings] == unnamed
+
+    @pytest.mark.parametrize(
+        ("brief", "unnamed"),
+        [
+            pytest.param("Run pytest via Skill(test).", [], id="parenthesised-alias"),
+            pytest.param("Run pytest via skill(TEST).", [], id="alias-case-insensitive"),
+            pytest.param(
+                "Run pytest, then test the Skill output.", ["dev10x:py-test"], id="split"
+            ),
+            pytest.param("Run a skill test with pytest.", ["dev10x:py-test"], id="prose"),
+            pytest.param("Run pytest via mySkill(test).", ["dev10x:py-test"], id="prefixed"),
+            pytest.param("Run pytest via dev10x:py-test-flaky.", ["dev10x:py-test"], id="longer"),
+        ],
+    )
+    def test_multi_token_alias_matches_only_verbatim(self, brief: str, unnamed: list[str]) -> None:
+        findings = find_unnamed_skills(brief=brief, entries=agent_brief.default_entries())
 
         assert [finding.skill for finding in findings] == unnamed
 

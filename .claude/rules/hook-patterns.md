@@ -382,6 +382,15 @@ tool but `Bash` and `Monitor`.
    into a deny.
 2. **Patterns name the action.** `git commit` and `open a PR` are in the
    map; the bare word `commit` is not, since nearly every brief has it.
+   **Names match as whole tokens (GH-1874).** A name token is a run of
+   word characters, `:`, `-`, `.` and `/`; trailing punctuation and a
+   leading `:` or `-` are trimmed, so `foo__push_safe`,
+   `src/push_safe.py` and `./push_safe` do not name `push_safe` while a
+   sentence-final `push_safe.` does. An MCP tool counts under its full
+   registered name, listed as its own alias. An alias with other
+   characters, such as `Skill(test)`, must appear as written, ignoring
+   case. A slash-joined list such as `push_safe/pr_ready` names
+   neither, so DX020 over-reports it: the safe side of the trade.
 3. **The escape is a line, not a flag.** `dev10x-ok: <reason>` in the
    brief skips the check and leaves the reason in the transcript. An
    empty reason does not count.
