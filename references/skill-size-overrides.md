@@ -1,8 +1,9 @@
 # Known SKILL.md Size Overrides
 
-Orchestration hubs whose SKILL.md or `instructions.md` exceeds the
-200-line budget in `.claude/rules/INDEX.md` § Size Budgets, each with
-its cohesion justification. Moved out of INDEX.md, which loads in
+Skills — mostly orchestration hubs — whose SKILL.md or
+`instructions.md` exceeds the 200-line budget in
+`.claude/rules/INDEX.md` § Size Budgets, each with its cohesion
+justification. Moved out of INDEX.md, which loads in
 every session, to keep that index inside its own rule budget
 (GH-1750). New overrides are recorded here, not in INDEX.md. When
 this file nears its own 200-line budget, move the `foreman` entry —
@@ -126,6 +127,11 @@ most of it — to `skills/foreman/references/` and leave a pointer.
   `references/spec-gate.md` and `references/domain-dispatch.md`.
   Split plan: move § Step 5's confidence-threshold destination note and
   § Design Note (`--post-to-pr`) to `references/` first
+- `review-pack` (~239 lines, GH-1878) — the pre-send gate and its
+  pack-only resolver branch are execution-gating and stay inline.
+  Split plan: move § Video and the hosting prose of § Where the pack
+  lives to `references/` first, keeping its Verify-before-sending
+  bullet inline — it backs the gate's fourth box
 - `ddd` (~299 lines) — workshop orchestration hub: 4 session
   modes, 7-layer event storming flow, solo AI-cast facilitation
   (incl. the GH-789 discussion-agent model-tier gate), and

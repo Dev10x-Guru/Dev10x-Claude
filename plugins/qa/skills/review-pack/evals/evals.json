@@ -69,6 +69,110 @@
       ]
     },
     {
+      "id": "pack-only-gate-resolves",
+      "name": "A pack-only run resolves the pre-send gate instead of always asking",
+      "description": "The work-on self-QA step calls review-pack with --no-request-review in an afk session; the self-review box is unchecked because a fixup moved HEAD after the clean round (GH-1878)",
+      "input": "Skill(dev10x-qa:review-pack, args=\"--no-request-review 1234\") in an afk session; footage is staging-only",
+      "assertions": [
+        {
+          "dimension": "gate-enforcement",
+          "check": "tool_called",
+          "tool": "mcp__plugin_dev10x_cli__resolve_gate",
+          "assertion": "gate2_resolves_pack_only",
+          "signal": "resolve_gate(gate=\"artifact_preview\") is called at the pre-send gate instead of an unconditional AskUserQuestion"
+        },
+        {
+          "dimension": "gate-enforcement",
+          "check": "behavioral",
+          "assertion": "gate2_auto_advance_states_gap",
+          "signal": "On auto-advance or skip, Send with the gap stated is taken: the unchecked boxes are written into section 4 and printed, with the record line on auto-advance; no AskUserQuestion fires"
+        },
+        {
+          "dimension": "gate-enforcement",
+          "check": "behavioral",
+          "assertion": "gate2_no_review_request",
+          "signal": "dev10x:request-review is never invoked; the run stops after the gate and returns the pack link"
+        }
+      ]
+    },
+    {
+      "id": "pack-only-ask-pin-asks",
+      "name": "A project pin of artifact_preview: ask turns the pack-only gate into a question",
+      "description": "The repo's friction.yaml pins artifact_preview to ask; a pack-only run finds the self-review box unchecked (GH-1878)",
+      "input": "Skill(dev10x-qa:review-pack, args=\"--no-request-review 1234\") with artifact_preview pinned to ask; footage is staging-only",
+      "assertions": [
+        {
+          "dimension": "gate-enforcement",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "assertion": "gate2_ask_effect_uses_tool",
+          "signal": "resolve_gate returns ask, and AskUserQuestion is called rather than a plain-text question"
+        },
+        {
+          "dimension": "gate-enforcement",
+          "check": "tool_parameters",
+          "tool": "AskUserQuestion",
+          "assertion": "gate2_correct_options",
+          "signal": "Options are Send with the gap stated (Recommended) / Fix the gap first / Hold, in that order, with the marker only on the first; the question says handing gaps on is this mode's default"
+        },
+        {
+          "dimension": "gate-enforcement",
+          "check": "behavioral",
+          "assertion": "gate2_send_answer_states_gap",
+          "signal": "Answering Send writes each unchecked box into section 4 and prints the unchecked list, the same as the auto-advance path"
+        }
+      ]
+    },
+    {
+      "id": "pack-only-unknown-frame-source-asks",
+      "name": "A frame whose source cannot be named asks even on a pack-only run",
+      "description": "A pack-only run in an afk session cannot say where one screenshot came from, so the staging box stays unchecked (GH-1878)",
+      "input": "Skill(dev10x-qa:review-pack, args=\"--no-request-review 1234\") in an afk session; one screenshot has no recorded source",
+      "assertions": [
+        {
+          "dimension": "gate-enforcement",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "assertion": "gate2_unknown_source_uses_tool",
+          "signal": "AskUserQuestion is called at the pre-send gate, without consulting resolve_gate for it"
+        }
+      ]
+    },
+    {
+      "id": "pack-only-non-staging-asks",
+      "name": "Possible non-staging footage asks even on a pack-only run",
+      "description": "A pack-only run in an afk session whose screenshots may show production data, so the staging box is unchecked (GH-1878)",
+      "input": "Skill(dev10x-qa:review-pack, args=\"--no-request-review 1234\") in an afk session; one screenshot came from a production URL",
+      "assertions": [
+        {
+          "dimension": "gate-enforcement",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "assertion": "gate2_staging_box_uses_tool",
+          "signal": "AskUserQuestion is called at the pre-send gate"
+        },
+        {
+          "dimension": "gate-enforcement",
+          "check": "behavioral",
+          "assertion": "gate2_staging_skips_resolver",
+          "signal": "resolve_gate is not called for this gate: an unchecked staging/seed-data box goes straight to AskUserQuestion"
+        },
+        {
+          "dimension": "gate-enforcement",
+          "check": "tool_parameters",
+          "tool": "AskUserQuestion",
+          "assertion": "gate2_staging_correct_options",
+          "signal": "Options are Fix the gap first (Recommended) / Hold, in that order; Send with the gap stated is not offered"
+        },
+        {
+          "dimension": "gate-enforcement",
+          "check": "behavioral",
+          "assertion": "gate2_no_auto_send",
+          "signal": "The pack is never handed back as sent-with-gap without an answer"
+        }
+      ]
+    },
+    {
       "id": "pack-has-five-sections",
       "name": "The pack follows the template",
       "description": "A UI change with configured evidence repo",
