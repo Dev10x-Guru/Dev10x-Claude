@@ -78,6 +78,10 @@ class TestBlocksWritesIntoTheWorkingTree:
             "mv `cat /tmp/list` docs/x.py",
             "install -m $(cat /tmp/mode) /tmp/a.conf docs/a.conf",
             "cp /tmp/x docs/$(date).py",
+            "cp /tmp/x docs/x.py$(:)",
+            "cp /tmp/x $(pwd)docs/x.py",
+            "$(true) cp /tmp/x docs/x.py",
+            ">/tmp/o$(date) cp /tmp/x docs/x.py",
             # `..` must be normalised before comparing, or a traversal
             # that lands back inside the tree reads as outside.
             "cp /tmp/x docs/../src/x.py",

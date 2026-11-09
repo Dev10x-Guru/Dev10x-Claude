@@ -442,15 +442,13 @@ _PIPE_OPERATORS = frozenset({"|", "|&"})
 _SUBSTITUTION_OPENERS = frozenset({"$(", "<(", ">(", "`"})
 _PAREN_SUBSTITUTION_OPENERS = ("$(", "<(", ">(")
 _PROCESS_SUBSTITUTION_REDIRECTS = {"<(": "<", ">(": ">"}
-# A command substitution is a word whose text is unknown until it runs.
-# It keeps its argv slot, so `cp $(a) dest` still has two operands, and
-# the leading `$` tells a path guard the word is unresolved.
+# How argv spells a word that is only a command substitution: its text is
+# unknown until it runs, and the leading `$` tells a path guard so.
 SUBSTITUTION_WORD = "$(...)"
-# Open-group kinds for a substitution: which closer ends it, and whether
-# it left SUBSTITUTION_WORD in the holder's argv.
-_PAREN_SUBSTITUTION_KINDS = frozenset({"$", "<"})
-_BACKTICK_KINDS = frozenset({"`", "`<"})
-_WORD_SUBSTITUTION_KINDS = frozenset({"$", "`"})
+# Where a substitution sits inside a raw argv word, until the segment is
+# finalized. No shell word can hold a NUL, so command_segments drops any
+# from its input and `$'\0'` decodes to nothing.
+_SUBSTITUTION_MARK = "\0"
 # Characters that start an operator ending one command (GH-1773). An
 # unquoted newline ends a command the way `;` does.
 _OPERATOR_CHARS = ";&|()\n"
@@ -460,7 +458,12 @@ _TWO_CHAR_OPERATORS = frozenset({";;", "&&", "||", "|&"})
 _REDIRECT_CHARS = frozenset("<>")
 # Not `\r`: bash does not split on it, so `git\rstatus` is one word.
 _BLANKS = " \t"
-_ANSI_C_ESCAPES = {"n": "\n", "t": "\t", "r": "\r", "a": "\a", "e": "\x1b", "0": "\0"}
+_ANSI_C_ESCAPES = {"n": "\n", "t": "\t", "r": "\r", "a": "\a", "e": "\x1b"}
+_OCTAL_DIGITS = frozenset("01234567")
+_OCTAL_ESCAPE_MAX_DIGITS = 3
+# `$'\160ython3'` runs python3, and only the scanner decodes it, so a
+# probe that misses the raw text looks again at the decoded words.
+_OCTAL_ESCAPE = re.compile(r"\\[0-7]")
 _DOUBLE_QUOTE_ESCAPES = '$`"\\\n'
 
 # Reserved words that may open a segment without being the program it
@@ -468,6 +471,13 @@ _DOUBLE_QUOTE_ESCAPES = '$`"\\\n'
 # after the keyword. Process wrappers (`time`, `exec`, `command`) are not
 # here; `strip_command_wrappers` owns them, options and all.
 SHELL_KEYWORDS = frozenset({"!", "{", "}", "if", "then", "else", "elif", "while", "until", "do"})
+
+# Compound commands a redirect can follow (GH-1876): `while …; done > f`
+# writes `f` from every command inside. `for` and `case` stay in argv as
+# their segment's first word; a closer is dropped like `}`, so the
+# redirect lands on a program-less segment and reaches the enclosed ones.
+_COMPOUND_OPENERS = {"if": "if", "while": "do", "until": "do", "for": "do", "case": "case"}
+_COMPOUND_CLOSERS = {"fi": "if", "done": "do", "esac": "case"}
 
 
 class UntokenizableCommandError(ValueError):
@@ -544,6 +554,14 @@ class _Token:
     glued: bool = False
 
 
+class _Glue(Enum):
+    """What a token glued to the previous one continues."""
+
+    NONE = auto()
+    WORD = auto()
+    TARGET = auto()
+
+
 class _WordState(Enum):
     START = auto()
     FD = auto()
@@ -581,6 +599,8 @@ class _Scanner:
                 continue
             if char == "\\" and self.source.startswith("\\\n", self.index):
                 self.index += 2
+                if glued:
+                    previous_end = self.index
                 continue
             if char == "#":
                 self._skip_comment()
@@ -712,8 +732,12 @@ class _Scanner:
         quote parity then disagrees with bash: ``$'\\''; rm -rf ~; $'\\''``
         is two operators to bash and one argument to a naive scanner
         (GH-1795 review). Escapes are decoded only as far as a guard needs.
+        A NUL ends the word, as it does for bash: ``$'rm\\0junk'`` runs
+        ``rm``. No shell word can hold a NUL, and the segmenter uses NUL
+        as its own substitution mark.
         """
         chars: list[str] = []
+        truncated = False
         self.index += 2
         while self.index < len(self.source):
             char = self.source[self.index]
@@ -721,13 +745,27 @@ class _Scanner:
                 self.index += 1
                 return "".join(chars)
             if char == "\\" and self.index + 1 < len(self.source):
-                escaped = self.source[self.index + 1]
-                chars.append(_ANSI_C_ESCAPES.get(escaped, escaped))
-                self.index += 2
-                continue
-            chars.append(char)
-            self.index += 1
+                decoded = self._ansi_c_escape()
+            else:
+                decoded = char
+                self.index += 1
+            truncated = truncated or decoded == "\0"
+            if not truncated:
+                chars.append(decoded)
         raise UntokenizableCommandError("unterminated ANSI-C quote")
+
+    def _ansi_c_escape(self) -> str:
+        escaped = self.source[self.index + 1]
+        if escaped not in _OCTAL_DIGITS:
+            self.index += 2
+            return _ANSI_C_ESCAPES.get(escaped, escaped)
+        end = self.index + 1
+        limit = min(end + _OCTAL_ESCAPE_MAX_DIGITS, len(self.source))
+        while end < limit and self.source[end] in _OCTAL_DIGITS:
+            end += 1
+        digits = self.source[self.index + 1 : end]
+        self.index = end
+        return chr(int(digits, 8) & 0xFF)
 
     def _double_quoted(self) -> str:
         chars: list[str] = []
@@ -772,19 +810,22 @@ def command_segments(*, command: str) -> tuple[CommandSegment, ...]:
     group (GH-1816): the shell applies it to the group as a whole, and a
     guard judging the verb would otherwise see a program-less trailing
     segment and nothing on ``echo``. The trailing segment stays, so a
-    caller counting segments sees the same shape as before.
+    caller counting segments sees the same shape as before. A compound
+    command is a group the same way (GH-1876): ``if …; fi > f``,
+    ``while``/``until``/``for …; done > f`` and ``case …; esac > f``
+    attribute ``f`` to every segment from the opening keyword's on,
+    and ``fi``/``done``/``esac`` leave ``argv`` like ``}`` does.
     The scanner emits ``$(``, ``<(``, ``>(`` and backticks as operators
     (GH-1876). The command holding a substitution is one segment, before
     the body's: the words and redirects after the substitution continue
-    it, so ``echo $(date) more > f`` is one ``echo`` writing ``f``. A
-    command substitution stays a word in ``argv``, as
-    :data:`SUBSTITUTION_WORD` glued to the text around it
-    (``cp a$(b) dest`` keeps two operands). A process
-    substitution is kept as a target-less redirect (``cat <(a)``), and a
-    substitution after a bare redirect is its target (``cat < <(a)``
-    reads ``<(``). A closer with no matching opener,
-    a quoted brace or keyword, and a ``)`` that ends a ``case`` pattern
-    attribute nothing.
+    it, so ``echo $(date) more > f`` is one ``echo`` writing ``f``. How a
+    command substitution reads in ``argv`` is set by
+    :func:`_finalized_argv`. A process substitution is kept as a
+    target-less redirect (``cat <(a)``), and a substitution after a
+    redirect operator is part of its target (``cat < <(a)`` reads
+    ``<(``). A reserved word in case-pattern position is a pattern
+    (``a|if)``). A closer with no matching opener, a quoted brace or
+    keyword, and a ``)`` that ends a ``case`` pattern attribute nothing.
     Substitution bodies are not unwrapped here; :func:`command_units`
     hands each one over as its own command.
 
@@ -792,7 +833,8 @@ def command_segments(*, command: str) -> tuple[CommandSegment, ...]:
     Skipping such input silently was the evasion this function replaces,
     so every caller must choose its fallback.
     """
-    return _Segmenter().run(tokens=_Scanner(source=command).tokens())
+    source = command.replace(_SUBSTITUTION_MARK, "")
+    return _Segmenter().run(tokens=_Scanner(source=source).tokens())
 
 
 @dataclass
@@ -806,16 +848,28 @@ class _Segmenter:
     bare_operator: str | None = None
     # Open groups, innermost last: the opener and the index of the first
     # segment inside it. A substitution entry (`$`, or a backtick)
-    # carries the index of the command that holds it instead. A `case`
-    # entry only tells a `)` apart from a subshell close.
+    # carries the index of the command that holds it instead. `if`, `do`
+    # and `case` entries are compound commands; `case` also tells a
+    # pattern's `)` apart from a subshell close.
     open_groups: list[tuple[str, int]] = field(default_factory=list)
     closed_group: tuple[int, int] | None = None
     # The command a closed substitution sits in. The words and redirects
     # after it continue that command: `echo $(date) more > f` runs `echo`
     # with `more` and writes `f` through it.
     resumed: int | None = None
-    # The last argv word can absorb a glued token: `a$(b)c` is one word.
-    extendable: bool = False
+    # Per open substitution's holder: its raw argv (with _SUBSTITUTION_MARK
+    # where the substitution sits) and what a glued token after it extends.
+    held: dict[int, tuple[list[str], _Glue]] = field(default_factory=dict)
+    # What a token glued to the previous one extends: `a$(b)c` is one argv
+    # word, `>o$(b)` one redirect target.
+    glue: _Glue = _Glue.NONE
+    # The next word is a case pattern, where `if)` names a pattern and
+    # opens nothing; only `esac` keeps its meaning there.
+    case_pattern: bool = False
+    # The current segment is a case pattern list, so `|` starts another
+    # pattern: `a|if)`.
+    pattern_list: bool = False
+    last_operator: str = ""
 
     def run(self, *, tokens: list[_Token]) -> tuple[CommandSegment, ...]:
         for token in tokens:
@@ -830,7 +884,9 @@ class _Segmenter:
 
     def _current(self) -> CommandSegment:
         return CommandSegment(
-            argv=tuple(self.argv), opener=self.opener, redirects=tuple(self.redirects)
+            argv=_finalized_argv(argv=self.argv),
+            opener=self.opener,
+            redirects=tuple(self.redirects),
         )
 
     def _flush(self, *, next_opener: str) -> None:
@@ -839,6 +895,7 @@ class _Segmenter:
                 segments=self.segments, group=self.closed_group, redirects=self.redirects
             )
         self.closed_group = None
+        self.pattern_list = False
         if self.resumed is not None:
             self.segments[self.resumed] = self._current()
             self.resumed = None
@@ -851,21 +908,25 @@ class _Segmenter:
         self.opener = next_opener
 
     def _operator(self, *, token: _Token) -> None:
-        if token.text == "`" and self._innermost_group() in _BACKTICK_KINDS:
+        if token.text == "`" and self._innermost_group() == "`":
             self._close_substitution()
             return
         if token.text in _SUBSTITUTION_OPENERS:
+            self.case_pattern = False
             self._open_substitution(opener=token.text, glued=token.glued)
             return
-        self.extendable = False
+        self.glue = _Glue.NONE
         if self.bare_operator is not None:
             self.redirects.append(Redirect(operator=self.bare_operator))
             self.bare_operator = None
-        if token.text == ")" and self._innermost_group() in _PAREN_SUBSTITUTION_KINDS:
+        if token.text == ")" and self._innermost_group() == "$(":
+            self.case_pattern = False
             self._close_substitution()
             return
         # A newline ends a command the way `;` does.
         operator = ";" if token.text == "\n" else token.text
+        self.case_pattern = self._pattern_follows(operator=operator)
+        self.last_operator = operator
         self._flush(next_opener=operator)
         if operator == "(":
             self.open_groups.append(("(", len(self.segments)))
@@ -877,28 +938,55 @@ class _Segmenter:
     def _innermost_group(self) -> str:
         return self.open_groups[-1][0] if self.open_groups else ""
 
+    def _pattern_follows(self, *, operator: str) -> bool:
+        """True when the word after ``operator`` is a case pattern.
+
+        A pattern follows ``;;``, ``;&`` and ``;;&``, the ``|`` of a
+        pattern list, a ``case … in`` header, and the ``(`` that may open
+        a pattern. A blank line between them changes nothing.
+        """
+        nothing_pending = not self.argv and not self.redirects
+        header = self.argv[:1] == ["case"] and self.argv[2:3] == ["in"]
+        if operator == "|":
+            return self.pattern_list or (header and len(self.argv) > 3)
+        if self._innermost_group() != "case":
+            return False
+        if operator == ";;":
+            return True
+        if operator == "&":
+            return nothing_pending and self.last_operator in (";", ";;")
+        if operator in (";", "("):
+            ends_header = header and len(self.argv) == 3
+            return ends_header or (nothing_pending and self.case_pattern)
+        return False
+
     def _open_substitution(self, *, opener: str, glued: bool) -> None:
         """Store the command holding the substitution, then read its body.
 
         The holder is written now, so the body's segments follow it. A
-        substitution right after a bare redirect is that redirect's
-        target (``cat < <(a)``). Anywhere else a process substitution is
-        a file the command reads or writes, kept as a target-less
-        redirect, and a command substitution is a word: it leaves
-        :data:`SUBSTITUTION_WORD` in argv, glued to an adjacent word.
+        substitution right after a redirect operator, or glued to its
+        target, is part of that target (``cat < <(a)``, ``>o$(a)``).
+        Anywhere else a process substitution is a file the command reads
+        or writes, kept as a target-less redirect, and a command
+        substitution is a word (see :func:`_finalized_argv`).
         """
-        is_word = opener in ("$(", "`")
+        glue, self.glue = self.glue, _Glue.NONE
+        after = _Glue.NONE
         if self.bare_operator is not None:
             self.redirects.append(Redirect(operator=self.bare_operator, target=opener))
             self.bare_operator = None
-            is_word = False
+            after = _Glue.TARGET
+        elif glued and glue is _Glue.TARGET:
+            self._extend_target(text=opener)
+            after = _Glue.TARGET
         elif opener in _PROCESS_SUBSTITUTION_REDIRECTS:
             self.redirects.append(Redirect(operator=_PROCESS_SUBSTITUTION_REDIRECTS[opener]))
-        if is_word and glued and self.extendable:
-            self.argv[-1] += SUBSTITUTION_WORD
-        elif is_word:
-            self.argv.append(SUBSTITUTION_WORD)
-        self.extendable = False
+        elif glued and glue is _Glue.WORD:
+            self.argv[-1] += _SUBSTITUTION_MARK
+            after = _Glue.WORD
+        else:
+            self.argv.append(_SUBSTITUTION_MARK)
+            after = _Glue.WORD
         self.closed_group = None
         if self.resumed is None:
             holder = len(self.segments)
@@ -907,12 +995,8 @@ class _Segmenter:
             holder = self.resumed
             self.segments[holder] = self._current()
             self.resumed = None
-        backtick = opener == "`"
-        if is_word:
-            kind = "`" if backtick else "$"
-        else:
-            kind = "`<" if backtick else "<"
-        self.open_groups.append((kind, holder))
+        self.held[holder] = (list(self.argv), after)
+        self.open_groups.append(("`" if opener == "`" else "$(", holder))
         self.argv = []
         self.redirects = []
         self.opener = opener
@@ -922,31 +1006,55 @@ class _Segmenter:
             self.redirects.append(Redirect(operator=self.bare_operator))
             self.bare_operator = None
         self._flush(next_opener="")
-        kind, holder = self.open_groups.pop()
+        _, holder = self.open_groups.pop()
+        self.argv, self.glue = self.held.pop(holder)
         held = self.segments[holder]
-        self.argv = list(held.argv)
         self.redirects = list(held.redirects)
         self.opener = held.opener
         self.resumed = holder
-        self.extendable = kind in _WORD_SUBSTITUTION_KINDS
+
+    def _extend_target(self, *, text: str) -> None:
+        last = self.redirects[-1]
+        self.redirects[-1] = replace(last, target=last.target + text)
 
     def _word(self, *, token: _Token) -> None:
-        extendable, self.extendable = self.extendable, False
+        glue, self.glue = self.glue, _Glue.NONE
+        case_pattern, self.case_pattern = self.case_pattern, False
         if self.bare_operator is not None:
             self.redirects.append(Redirect(operator=self.bare_operator, target=token.text))
             self.bare_operator = None
+            self.glue = _Glue.TARGET
+            return
+        if token.glued and glue is _Glue.TARGET and not token.redirect:
+            self._extend_target(text=token.text)
+            self.glue = _Glue.TARGET
             return
         if token.redirect:
             target = token.text[len(token.redirect) :]
             if target:
                 self.redirects.append(Redirect(operator=token.redirect, target=target))
+                self.glue = _Glue.TARGET
             else:
                 self.bare_operator = token.redirect
             return
         # A reserved word counts only where a command starts: unquoted,
         # first in its segment, and not continuing a command after a
         # substitution (`echo $(date) case` passes `case` to echo).
-        starts_command = not self.argv and not token.quoted and self.resumed is None
+        starts_command = (
+            not self.argv
+            and not token.quoted
+            and self.resumed is None
+            and not (case_pattern and token.text != "esac")
+        )
+        if starts_command and token.text in _COMPOUND_CLOSERS:
+            self.closed_group = _close_group(
+                open_groups=self.open_groups,
+                closers=(_COMPOUND_CLOSERS[token.text],),
+                end=len(self.segments),
+            )
+            return
+        if starts_command and token.text in _COMPOUND_OPENERS:
+            self.open_groups.append((_COMPOUND_OPENERS[token.text], len(self.segments)))
         if starts_command and token.text in SHELL_KEYWORDS:
             if token.text == "{":
                 self.open_groups.append(("{", len(self.segments)))
@@ -955,16 +1063,40 @@ class _Segmenter:
                     open_groups=self.open_groups, closers=("{",), end=len(self.segments)
                 )
             return
-        if starts_command and token.text == "case":
-            self.open_groups.append(("case", len(self.segments)))
-        elif starts_command and token.text == "esac":
-            _close_group(open_groups=self.open_groups, closers=("case",), end=len(self.segments))
         self.closed_group = None
-        if token.glued and extendable:
+        if token.glued and glue is _Glue.WORD:
             self.argv[-1] += token.text
         else:
             self.argv.append(token.text)
-        self.extendable = True
+        self.pattern_list = self.pattern_list or case_pattern
+        self.glue = _Glue.WORD
+
+
+def _finalized_argv(*, argv: list[str]) -> tuple[str, ...]:
+    """``argv`` with each command substitution spelled for a guard.
+
+    A substitution's output is unknown, so a guard is shown the literal
+    text it can still judge. A word that is only substitutions becomes
+    :data:`SUBSTITUTION_WORD` and keeps its slot (``cp $(a) dest`` has two
+    operands). One glued inside a word keeps the marker (``docs/$(a).py``
+    still ends in ``.py``), while one at a word's edge is dropped
+    (``$(a)psql`` runs ``psql``, ``x.py$(a)`` writes ``x.py``). Leading
+    substitution-only words are dropped too, so ``$(a) cp x y`` is judged
+    as the ``cp`` it may well run.
+    """
+    start = 0
+    while start < len(argv) and argv[start] and not argv[start].strip(_SUBSTITUTION_MARK):
+        start += 1
+    return tuple(_finalized_word(word=word) for word in argv[start:])
+
+
+def _finalized_word(*, word: str) -> str:
+    if _SUBSTITUTION_MARK not in word:
+        return word
+    literal = word.strip(_SUBSTITUTION_MARK)
+    if not literal:
+        return SUBSTITUTION_WORD
+    return literal.replace(_SUBSTITUTION_MARK, SUBSTITUTION_WORD)
 
 
 def _close_group(
@@ -1152,7 +1284,23 @@ class ProgramProbe:
         return cls(pattern=re.compile(rf"(?:{program})\b"))
 
     def found_in(self, *, command: str) -> bool:
-        return self.pattern.search(without_shell_quoting(text=command)) is not None
+        if self.pattern.search(without_shell_quoting(text=command)):
+            return True
+        return _has_ansi_c_octal_escape(command=command) and self._found_in_decoded(
+            command=command
+        )
+
+    def _found_in_decoded(self, *, command: str) -> bool:
+        try:
+            segments = command_segments(command=command)
+        except UntokenizableCommandError:
+            return True
+        return any(self.pattern.search(word) for segment in segments for word in segment.argv)
+
+
+def _has_ansi_c_octal_escape(*, command: str) -> bool:
+    start = command.find("$'")
+    return start != -1 and _OCTAL_ESCAPE.search(command, start + 2) is not None
 
 
 _RUNNER_PROBE = ProgramProbe.for_program(program=_RUNNER_NAMES)

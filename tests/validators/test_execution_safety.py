@@ -152,6 +152,20 @@ class TestShellWrites:
             "echo $(a $(b)) > f",
             "echo > >(a) > f",
             "echo $((1+2)) > f",
+            # GH-1876: a compound command carries its redirect inward.
+            "if true; then echo hi; fi > f",
+            "while true; do echo hi; done > f",
+            "until false; do printf x; done >> f",
+            "for x in a b; do echo $x; done > f",
+            "case x in a) echo hi;; esac > f",
+            "for x in a; do if true; then cat; fi; done > f",
+            "case x in a) echo hi;; if) :;; esac > f",
+            "case x in\n  a) ls ;;\n  if) echo hi ;;\nesac > f",
+            "case x in a|if) echo hi;; esac > f",
+            "case x in a) :;& fi) echo hi;; esac > f",
+            "$(true) echo hi > f",
+            "$(:)echo hi > f",
+            "> o$(x) echo hi",
         ],
     )
     def test_blocks_a_write_redirected_on_a_command_group(
@@ -176,6 +190,9 @@ class TestShellWrites:
             "( case x in x) ls;; esac ) > f",
             "echo $(a); { ls; } c > f",
             "ls `cat a` > f",
+            "if true; then ls; fi > f",
+            "for x in a; do ls $x; done > f",
+            "if true; then echo hi; fi; ls > f",
         ],
     )
     def test_allows_a_group_redirect_without_a_write_verb(
@@ -265,6 +282,7 @@ class TestPythonInlineAcrossNamesAndLaunchers:
             "uv run python <<'PY'\nprint(1)\nPY",
             "FOO=1 uv run python -c 'print(1)'",
             "python /tmp/malicious.py",
+            "$'\\160ython3' -c 'import os'",
         ],
     )
     def test_blocks_inline_python(self, validator: ExecutionSafetyValidator, command: str) -> None:
