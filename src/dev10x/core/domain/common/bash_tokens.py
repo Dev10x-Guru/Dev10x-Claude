@@ -436,6 +436,21 @@ def tagged_command_units(*, command: str) -> tuple[NestedCommand, ...]:
 
 
 _PIPE_OPERATORS = frozenset({"|", "|&"})
+# Openers the scanner emits as operator tokens, so the segmenter never
+# guesses a substitution from the word before a `(`. A backtick both
+# opens and closes; the segmenter tells the two apart.
+_SUBSTITUTION_OPENERS = frozenset({"$(", "<(", ">(", "`"})
+_PAREN_SUBSTITUTION_OPENERS = ("$(", "<(", ">(")
+_PROCESS_SUBSTITUTION_REDIRECTS = {"<(": "<", ">(": ">"}
+# A command substitution is a word whose text is unknown until it runs.
+# It keeps its argv slot, so `cp $(a) dest` still has two operands, and
+# the leading `$` tells a path guard the word is unresolved.
+SUBSTITUTION_WORD = "$(...)"
+# Open-group kinds for a substitution: which closer ends it, and whether
+# it left SUBSTITUTION_WORD in the holder's argv.
+_PAREN_SUBSTITUTION_KINDS = frozenset({"$", "<"})
+_BACKTICK_KINDS = frozenset({"`", "`<"})
+_WORD_SUBSTITUTION_KINDS = frozenset({"$", "`"})
 # Characters that start an operator ending one command (GH-1773). An
 # unquoted newline ends a command the way `;` does.
 _OPERATOR_CHARS = ";&|()\n"
@@ -524,6 +539,9 @@ class _Token:
     # Any quote or backslash escape in the word. A quoted word is never a
     # reserved word to the shell: `'}'` is a command, not a group close.
     quoted: bool = False
+    # No blank between this token and the previous one: `a$(b)c` is one
+    # shell word made of three tokens.
+    glued: bool = False
 
 
 class _WordState(Enum):
@@ -554,17 +572,26 @@ class _Scanner:
         tokens: list[_Token] = []
         heredocs: list[tuple[str, bool]] = []
         awaiting_delimiter: bool | None = None
+        previous_end = -1
         while self.index < len(self.source):
             char = self.source[self.index]
+            glued = self.index == previous_end
             if char in _BLANKS:
                 self.index += 1
-            elif char == "\\" and self.source.startswith("\\\n", self.index):
+                continue
+            if char == "\\" and self.source.startswith("\\\n", self.index):
                 self.index += 2
-            elif char == "#":
+                continue
+            if char == "#":
                 self._skip_comment()
+                continue
+            if char == "`" or self.source.startswith(_PAREN_SUBSTITUTION_OPENERS, self.index):
+                opener = "`" if char == "`" else self.source[self.index : self.index + 2]
+                self.index += len(opener)
+                tokens.append(_Token(text=opener, is_operator=True, glued=glued))
             elif char in _OPERATOR_CHARS and not self._is_redirect_ampersand():
                 operator = self._operator()
-                tokens.append(_Token(text=operator, is_operator=True))
+                tokens.append(_Token(text=operator, is_operator=True, glued=glued))
                 if operator == "\n" and heredocs:
                     self._skip_heredoc_bodies(heredocs=heredocs)
                     heredocs = []
@@ -572,7 +599,7 @@ class _Scanner:
                 redirect = _REDIRECT_OPERATOR_RE.match(self.source, self.index)
                 operator = redirect.group() if redirect else ""
                 word, quoted = self._word()
-                tokens.append(_Token(text=word, redirect=operator, quoted=quoted))
+                tokens.append(_Token(text=word, redirect=operator, quoted=quoted, glued=glued))
                 heredoc_operator = operator.lstrip("0123456789")
                 if awaiting_delimiter is not None:
                     heredocs.append((word, awaiting_delimiter))
@@ -584,6 +611,7 @@ class _Scanner:
                         heredocs.append((delimiter, strip_tabs))
                     else:
                         awaiting_delimiter = strip_tabs
+            previous_end = self.index
         return tokens
 
     @staticmethod
@@ -631,7 +659,7 @@ class _Scanner:
         state = _WordState.START
         while self.index < len(self.source):
             char = self.source[self.index]
-            if char in _BLANKS:
+            if char in _BLANKS or char == "`" or self.source.startswith("$(", self.index):
                 break
             if char in _OPERATOR_CHARS:
                 glued = (
@@ -744,10 +772,17 @@ def command_segments(*, command: str) -> tuple[CommandSegment, ...]:
     group (GH-1816): the shell applies it to the group as a whole, and a
     guard judging the verb would otherwise see a program-less trailing
     segment and nothing on ``echo``. The trailing segment stays, so a
-    caller counting segments sees the same shape as before. A redirect
-    on a command that holds a substitution — ``echo $(date) > f``,
-    ``echo $(date) more > f``, ``cat <(a) > f`` — goes to that command,
-    never to the substitution's body. A closer with no matching opener,
+    caller counting segments sees the same shape as before.
+    The scanner emits ``$(``, ``<(``, ``>(`` and backticks as operators
+    (GH-1876). The command holding a substitution is one segment, before
+    the body's: the words and redirects after the substitution continue
+    it, so ``echo $(date) more > f`` is one ``echo`` writing ``f``. A
+    command substitution stays a word in ``argv``, as
+    :data:`SUBSTITUTION_WORD` glued to the text around it
+    (``cp a$(b) dest`` keeps two operands). A process
+    substitution is kept as a target-less redirect (``cat <(a)``), and a
+    substitution after a bare redirect is its target (``cat < <(a)``
+    reads ``<(``). A closer with no matching opener,
     a quoted brace or keyword, and a ``)`` that ends a ``case`` pattern
     attribute nothing.
     Substitution bodies are not unwrapped here; :func:`command_units`
@@ -770,15 +805,17 @@ class _Segmenter:
     opener: str = ""
     bare_operator: str | None = None
     # Open groups, innermost last: the opener and the index of the first
-    # segment inside it. A `$` entry is a substitution (`$(…)`, `<(…)`)
-    # and carries the index of the command that holds it instead. A
-    # `case` entry only tells a `)` apart from a subshell close.
+    # segment inside it. A substitution entry (`$`, or a backtick)
+    # carries the index of the command that holds it instead. A `case`
+    # entry only tells a `)` apart from a subshell close.
     open_groups: list[tuple[str, int]] = field(default_factory=list)
     closed_group: tuple[int, int] | None = None
-    # After `$(…)` closes, the words that follow continue the same
-    # simple command, so a redirect among them still belongs to its
-    # holder: `echo $(date) more > f` writes `f` through `echo`.
-    substitution_holder: int | None = None
+    # The command a closed substitution sits in. The words and redirects
+    # after it continue that command: `echo $(date) more > f` runs `echo`
+    # with `more` and writes `f` through it.
+    resumed: int | None = None
+    # The last argv word can absorb a glued token: `a$(b)c` is one word.
+    extendable: bool = False
 
     def run(self, *, tokens: list[_Token]) -> tuple[CommandSegment, ...]:
         for token in tokens:
@@ -791,57 +828,110 @@ class _Segmenter:
         self._flush(next_opener="")
         return tuple(self.segments)
 
+    def _current(self) -> CommandSegment:
+        return CommandSegment(
+            argv=tuple(self.argv), opener=self.opener, redirects=tuple(self.redirects)
+        )
+
     def _flush(self, *, next_opener: str) -> None:
-        if (
-            self.redirects
-            and self.closed_group is not None
-            and (not self.argv or self.substitution_holder is not None)
-        ):
+        if self.redirects and self.closed_group is not None and not self.argv:
             _attribute_group_redirects(
                 segments=self.segments, group=self.closed_group, redirects=self.redirects
             )
         self.closed_group = None
-        if self.argv or self.redirects:
-            self.segments.append(
-                CommandSegment(
-                    argv=tuple(self.argv), opener=self.opener, redirects=tuple(self.redirects)
-                )
-            )
-            self.argv = []
-            self.redirects = []
-            self.opener = next_opener
-        elif self.opener not in _PIPE_OPERATORS:
-            self.opener = next_opener
+        if self.resumed is not None:
+            self.segments[self.resumed] = self._current()
+            self.resumed = None
+        elif self.argv or self.redirects:
+            self.segments.append(self._current())
+        elif self.opener in _PIPE_OPERATORS:
+            return
+        self.argv = []
+        self.redirects = []
+        self.opener = next_opener
 
     def _operator(self, *, token: _Token) -> None:
-        # A bare redirect right before the `(` is `<(…)` / `>(…)`.
-        substitution = self.bare_operator is not None or _opens_substitution(
-            argv=self.argv, redirects=self.redirects
-        )
+        if token.text == "`" and self._innermost_group() in _BACKTICK_KINDS:
+            self._close_substitution()
+            return
+        if token.text in _SUBSTITUTION_OPENERS:
+            self._open_substitution(opener=token.text, glued=token.glued)
+            return
+        self.extendable = False
         if self.bare_operator is not None:
             self.redirects.append(Redirect(operator=self.bare_operator))
             self.bare_operator = None
+        if token.text == ")" and self._innermost_group() in _PAREN_SUBSTITUTION_KINDS:
+            self._close_substitution()
+            return
         # A newline ends a command the way `;` does.
         operator = ";" if token.text == "\n" else token.text
         self._flush(next_opener=operator)
-        holder = self.substitution_holder
-        self.substitution_holder = None
         if operator == "(":
-            if substitution:
-                start = len(self.segments) - 1 if holder is None else holder
-                self.open_groups.append(("$", start))
-            else:
-                self.open_groups.append(("(", len(self.segments)))
+            self.open_groups.append(("(", len(self.segments)))
         elif operator == ")":
-            closed = _close_group(
-                open_groups=self.open_groups, closers=("(", "$"), end=len(self.segments)
+            self.closed_group = _close_group(
+                open_groups=self.open_groups, closers=("(",), end=len(self.segments)
             )
-            if closed is not None:
-                kind, self.closed_group = closed
-                if kind == "$":
-                    self.substitution_holder = self.closed_group[0]
+
+    def _innermost_group(self) -> str:
+        return self.open_groups[-1][0] if self.open_groups else ""
+
+    def _open_substitution(self, *, opener: str, glued: bool) -> None:
+        """Store the command holding the substitution, then read its body.
+
+        The holder is written now, so the body's segments follow it. A
+        substitution right after a bare redirect is that redirect's
+        target (``cat < <(a)``). Anywhere else a process substitution is
+        a file the command reads or writes, kept as a target-less
+        redirect, and a command substitution is a word: it leaves
+        :data:`SUBSTITUTION_WORD` in argv, glued to an adjacent word.
+        """
+        is_word = opener in ("$(", "`")
+        if self.bare_operator is not None:
+            self.redirects.append(Redirect(operator=self.bare_operator, target=opener))
+            self.bare_operator = None
+            is_word = False
+        elif opener in _PROCESS_SUBSTITUTION_REDIRECTS:
+            self.redirects.append(Redirect(operator=_PROCESS_SUBSTITUTION_REDIRECTS[opener]))
+        if is_word and glued and self.extendable:
+            self.argv[-1] += SUBSTITUTION_WORD
+        elif is_word:
+            self.argv.append(SUBSTITUTION_WORD)
+        self.extendable = False
+        self.closed_group = None
+        if self.resumed is None:
+            holder = len(self.segments)
+            self.segments.append(self._current())
+        else:
+            holder = self.resumed
+            self.segments[holder] = self._current()
+            self.resumed = None
+        backtick = opener == "`"
+        if is_word:
+            kind = "`" if backtick else "$"
+        else:
+            kind = "`<" if backtick else "<"
+        self.open_groups.append((kind, holder))
+        self.argv = []
+        self.redirects = []
+        self.opener = opener
+
+    def _close_substitution(self) -> None:
+        if self.bare_operator is not None:
+            self.redirects.append(Redirect(operator=self.bare_operator))
+            self.bare_operator = None
+        self._flush(next_opener="")
+        kind, holder = self.open_groups.pop()
+        held = self.segments[holder]
+        self.argv = list(held.argv)
+        self.redirects = list(held.redirects)
+        self.opener = held.opener
+        self.resumed = holder
+        self.extendable = kind in _WORD_SUBSTITUTION_KINDS
 
     def _word(self, *, token: _Token) -> None:
+        extendable, self.extendable = self.extendable, False
         if self.bare_operator is not None:
             self.redirects.append(Redirect(operator=self.bare_operator, target=token.text))
             self.bare_operator = None
@@ -856,60 +946,41 @@ class _Segmenter:
         # A reserved word counts only where a command starts: unquoted,
         # first in its segment, and not continuing a command after a
         # substitution (`echo $(date) case` passes `case` to echo).
-        starts_command = not self.argv and not token.quoted and self.substitution_holder is None
+        starts_command = not self.argv and not token.quoted and self.resumed is None
         if starts_command and token.text in SHELL_KEYWORDS:
             if token.text == "{":
                 self.open_groups.append(("{", len(self.segments)))
             elif token.text == "}":
-                closed = _close_group(
+                self.closed_group = _close_group(
                     open_groups=self.open_groups, closers=("{",), end=len(self.segments)
                 )
-                self.closed_group = None if closed is None else closed[1]
             return
         if starts_command and token.text == "case":
             self.open_groups.append(("case", len(self.segments)))
         elif starts_command and token.text == "esac":
             _close_group(open_groups=self.open_groups, closers=("case",), end=len(self.segments))
-        if self.substitution_holder is None:
-            self.closed_group = None
-        self.argv.append(token.text)
-
-
-def _opens_substitution(*, argv: list[str], redirects: list[Redirect]) -> bool:
-    """True when the word before a ``(`` opens a substitution.
-
-    The scanner keeps ``$`` as its own word, as an argument (``echo
-    $(date)``) or as a redirect target (``cat < $(realpath a)``). A
-    redirect whose target is itself ``<`` or ``>`` is a process
-    substitution (``cat < <(a)``), the second operator having been read
-    as the first one's target. A bare ``<`` or ``>`` right before the
-    ``(`` is the same shape and is checked by the caller.
-    """
-    if argv and argv[-1].endswith("$"):
-        return True
-    if not redirects:
-        return False
-    target = redirects[-1].target
-    return target.endswith("$") or target in ("<", ">")
+        self.closed_group = None
+        if token.glued and extendable:
+            self.argv[-1] += token.text
+        else:
+            self.argv.append(token.text)
+        self.extendable = True
 
 
 def _close_group(
     *, open_groups: list[tuple[str, int]], closers: tuple[str, ...], end: int
-) -> tuple[str, tuple[int, int]] | None:
+) -> tuple[int, int] | None:
     """Pop the innermost group when ``closers`` names its opener.
 
-    Returns the opener's kind and the segment range a redirect after the
-    closer applies to: the segments inside a group, or the one segment
-    that holds a substitution. A closer with no matching opener — a
-    stray ``}``, a ``)`` closing a ``{``, or the ``)`` that ends a
-    ``case`` pattern — pops nothing and returns None.
+    Returns the segment range a redirect after the closer applies to. A
+    closer with no matching opener — a stray ``}``, a ``)`` closing a
+    ``{``, or the ``)`` that ends a ``case`` pattern — pops nothing and
+    returns None.
     """
     if not open_groups or open_groups[-1][0] not in closers:
         return None
-    kind, start = open_groups.pop()
-    if kind == "$":
-        return kind, (start, start + 1)
-    return kind, (start, end)
+    _, start = open_groups.pop()
+    return start, end
 
 
 def _attribute_group_redirects(
