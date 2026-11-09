@@ -28,6 +28,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, ClassVar
 
+from dev10x.core.name_boundary import name_pattern
 from dev10x.domain import HookHint, HookInput, HookResult
 from dev10x.domain.documents.friction_yaml import load_checkout_prefs
 from dev10x.domain.documents.yaml_mapping import load_yaml_mapping
@@ -41,6 +42,9 @@ PREFS_KEY = "dx020"
 MODE_DENY = "deny"
 ESCAPE = re.compile(r"^[ \t]*dev10x-ok:[ \t]*\S", re.IGNORECASE | re.MULTILINE)
 MAP_PATH = Path(__file__).parent / "agent-skill-map.yaml"
+_TOKEN = re.compile(r"[\w:./-]+")
+_LEADING_EDGES = ":-"
+_TRAILING_EDGES = ":-./"
 
 _HOOK_DENIAL_RULE = (
     "Tell the subagent to invoke it (or its MCP wrapper), and to stop and "
@@ -48,11 +52,35 @@ _HOOK_DENIAL_RULE = (
 )
 
 
+def name_tokens(*, text: str) -> tuple[str, ...]:
+    """The lowercased name tokens of ``text``.
+
+    A token is a run of word characters, colons, hyphens, dots and
+    slashes, so ``dev10x:git-commit`` and
+    ``mcp__plugin_dev10x_cli__push_safe`` each stay whole, a path such
+    as ``src/dev10x/push_safe.py`` or ``./push_safe`` is one token
+    rather than a mention of ``push_safe``, and ``Skill(test)`` splits
+    into ``skill`` and ``test``. Trailing ``:``, ``-``, ``.`` and ``/``
+    are trimmed so a sentence-final ``push_safe.`` still names it; only
+    ``:`` and ``-`` are trimmed at the start. A slash-joined list such
+    as ``push_safe/pr_ready`` is one token and names neither: DX020
+    then over-reports, which is the safe side of the trade.
+    """
+    trimmed = (
+        token.rstrip(_TRAILING_EDGES).lstrip(_LEADING_EDGES).lower()
+        for token in _TOKEN.findall(text)
+    )
+    return tuple(token for token in trimmed if token)
+
+
+def _is_token_name(*, name: str) -> bool:
+    return name_tokens(text=name) == (name.lower(),)
+
+
 @dataclass(frozen=True)
 class SkillKeyword:
     skill: str
     patterns: tuple[re.Pattern[str], ...]
-    names: re.Pattern[str]
     accept: tuple[str, ...] = ()
 
     def first_match(self, *, brief: str) -> str | None:
@@ -62,8 +90,42 @@ class SkillKeyword:
                 return found.group(0)
         return None
 
+    @functools.cached_property
+    def token_names(self) -> frozenset[str]:
+        """Names that are one name token, compared whole against the brief."""
+        return frozenset(
+            name.lower() for name in (self.skill, *self.accept) if _is_token_name(name=name)
+        )
+
+    @functools.cached_property
+    def literal_names(self) -> tuple[str, ...]:
+        """Names with other characters, such as ``Skill(test)``, matched verbatim."""
+        return tuple(
+            name
+            for name in (self.skill, *self.accept)
+            if name_tokens(text=name) and not _is_token_name(name=name)
+        )
+
+    @functools.cached_property
+    def _literal_pattern(self) -> re.Pattern[str] | None:
+        if not self.literal_names:
+            return None
+        return name_pattern(names=self.literal_names, flags=re.IGNORECASE)
+
     def is_named_in(self, *, brief: str) -> bool:
-        return self.names.search(brief) is not None
+        """Whether the brief names the skill or an alias as a whole name.
+
+        Exact tokens, not a substring search: ``foo__push_safe`` is a
+        different name from ``push_safe``, so an MCP-qualified tool counts
+        only when the map lists its full name as an alias. An alias that is
+        not a single token must appear verbatim, so the prose "skill test"
+        does not stand in for ``Skill(test)``.
+        """
+        if not self.token_names.isdisjoint(name_tokens(text=brief)):
+            return True
+        return (
+            self._literal_pattern is not None and self._literal_pattern.search(brief) is not None
+        )
 
 
 @dataclass(frozen=True)
@@ -89,11 +151,6 @@ def _compile(*, raw: Any, skill: str) -> tuple[re.Pattern[str], ...]:
     return tuple(compiled)
 
 
-def _name_pattern(*, names: tuple[str, ...]) -> re.Pattern[str]:
-    alternatives = "|".join(re.escape(name) for name in names)
-    return re.compile(rf"(?:(?<=__)|(?<![\w-]))(?:{alternatives})(?![\w-])", re.IGNORECASE)
-
-
 def parse_entries(*, raw: Any) -> tuple[SkillKeyword, ...]:
     """Build keyword entries from a YAML list; malformed items are skipped."""
     if not isinstance(raw, list):
@@ -108,14 +165,8 @@ def parse_entries(*, raw: Any) -> tuple[SkillKeyword, ...]:
         patterns = _compile(raw=item.get("patterns"), skill=skill)
         if not patterns:
             continue
-        aliases = _strings(raw=item.get("accept"))
         entries.append(
-            SkillKeyword(
-                skill=skill,
-                patterns=patterns,
-                names=_name_pattern(names=(skill, *aliases)),
-                accept=aliases,
-            )
+            SkillKeyword(skill=skill, patterns=patterns, accept=_strings(raw=item.get("accept")))
         )
     return tuple(entries)
 
