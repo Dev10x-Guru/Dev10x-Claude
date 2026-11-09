@@ -12,11 +12,11 @@ adapted from the implementer/spec-reviewer pattern in
 > quirks are read *together* by every orchestration hub (work-on,
 > fanout, gh-pr-monitor, skill-audit, adr-evaluate), and splitting
 > them would scatter one contract across files that must stay in
-> sync. **Conditional split seam:** if this file grows past 300
-> lines, split the core protocol (statuses, prompt template,
-> delivery channel) from the operational guidance (escalation
-> ladder, non-resumable cases, addressing quirks, adoption
-> checklist).
+> sync. **Split due, tracked in GH-1892.** The file has passed its
+> 300-line trigger. Split the core protocol (statuses, prompt
+> template, delivery channel) from the operational guidance
+> (escalation ladder, non-resumable cases, addressing quirks,
+> adoption checklist).
 
 ## Why a status protocol
 
@@ -41,7 +41,7 @@ with exactly one of:
 | `DONE` | Task complete, all acceptance criteria met | Mark task `completed`, continue pipeline |
 | `DONE_WITH_CONCERNS: <text>` | Task complete but flagged issues | Mark `completed`, surface concerns to user via batched decision queue |
 | `NEEDS_CONTEXT: <what>` | Cannot proceed without more input | Re-dispatch with the requested context, OR escalate via `AskUserQuestion` |
-| `BLOCKED: <reason>` | Permission wall, missing tool, or unrecoverable error | Fall back to main-session execution (GH-901) and surface the reason |
+| `BLOCKED: <reason>` | Permission wall, missing tool, or unrecoverable error | Fall back to main-session execution (GH-901) and surface the reason — **except a hook denial**: any `BLOCKED` line that mentions a hook (canonically `BLOCKED: hook denied <command>`) is surfaced and the denied command is never re-run (see § Hook denials) |
 
 The status MUST be the **last non-empty line** of the agent
 result. Controllers parse the trailing line of the result string
@@ -61,6 +61,8 @@ exactly one of these prefixes:
 - NEEDS_CONTEXT: <what>          — re-dispatch needed
 - BLOCKED: <reason>              — cannot proceed (permission,
                                     missing tool, unrecoverable)
+- BLOCKED: hook denied <command> — a hook refused a command; stop,
+                                    do not try another shape
 
 Do not write anything after the status line.
 ```
@@ -144,8 +146,13 @@ Pseudo-code for the controller side:
 ```
 result = Agent(...)
 status_line = result.strip().splitlines()[-1]
+# both from dev10x.skills.orchestration.subagent_protocol
+parsed = parse_subagent_status(result=result)
 
-if status_line == "DONE":
+if is_hook_denial(parsed=parsed):
+    # any BLOCKED or malformed line that mentions a hook (GH-1874)
+    surface_to_supervisor(reason=status_line)  # never re-run it
+elif status_line == "DONE":
     TaskUpdate(taskId=..., status="completed")
 elif status_line.startswith("DONE_WITH_CONCERNS:"):
     TaskUpdate(taskId=..., status="completed")
@@ -168,7 +175,9 @@ else:
 a swarm agent hits a context limit, permission wall, or turn
 budget before finishing the PR lifecycle, it may terminate
 with free-form prose as its last line. This is NOT `DONE`.
-Orchestrators MUST treat it as `NEEDS_CONTEXT`.
+Orchestrators MUST treat it as `NEEDS_CONTEXT` — unless that last
+line mentions a hook, which the controller checks first and surfaces
+as a hook denial (see § Hook denials, GH-1874).
 
 **Resume-first recovery (GH-462 F1):** Before re-dispatching a
 fresh agent, attempt a **SendMessage resume** of the same agent —
@@ -252,6 +261,35 @@ fallback. Examples:
 - Required MCP tool unavailable
 - Worktree creation failed
 - External service (gh, Linear, Sentry) returned auth error
+
+### Hook denials are surfaced, not re-run (GH-1874)
+
+A subagent that reports `BLOCKED: hook denied <command>` hit a
+PreToolUse guardrail, not a permission gap. The GH-901 fallback would
+have the controller run the same command in the main session, where
+the same hook denies it again — or, worse, where a looser allow rule
+lets it through and the guardrail is bypassed by a change of seat.
+
+1. Surface the denied command to the supervisor through the batched
+   decision queue (`AskUserQuestion` when every task is blocked), the
+   same routing `dev10x:fanout` already uses.
+2. Re-dispatch only with a brief that names the sanctioned tool for
+   that command — the skill or MCP wrapper the hook's message points
+   to. Never re-dispatch the same brief.
+3. Never run the denied command from the main session, and never ask
+   the subagent to find another shape for it.
+
+`BLOCKED: hook denied <command>` is the canonical wording.
+`is_hook_denial()` treats a `BLOCKED` or unreadable (malformed) status
+line as a denial when it contains the word `hook` or `hooks`, in any
+case. It errs toward surfacing: a false match only surfaces a report
+that could have been retried, while a miss re-runs a command a hook
+refused. It reads only that last line, and it does not catch a refusal
+that never uses the word, such as `PreToolUse denied …` or
+`pre_hook …` — which is why subagent briefs ask for the canonical
+wording.
+
+Every other `BLOCKED` reason keeps the main-session fallback above.
 
 ## Relationship to existing fallback patterns
 
