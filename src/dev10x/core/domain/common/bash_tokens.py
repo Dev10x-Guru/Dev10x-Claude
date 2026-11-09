@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import re
 import shlex
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from enum import Enum, auto
 from functools import lru_cache
 
@@ -757,102 +757,122 @@ def command_segments(*, command: str) -> tuple[CommandSegment, ...]:
     Skipping such input silently was the evasion this function replaces,
     so every caller must choose its fallback.
     """
-    segments: list[CommandSegment] = []
-    argv: list[str] = []
-    redirects: list[Redirect] = []
+    return _Segmenter().run(tokens=_Scanner(source=command).tokens())
+
+
+@dataclass
+class _Segmenter:
+    """The state machine behind :func:`command_segments`."""
+
+    segments: list[CommandSegment] = field(default_factory=list)
+    argv: list[str] = field(default_factory=list)
+    redirects: list[Redirect] = field(default_factory=list)
+    opener: str = ""
     bare_operator: str | None = None
-    opener = ""
     # Open groups, innermost last: the opener and the index of the first
     # segment inside it. A `$` entry is a substitution (`$(…)`, `<(…)`)
     # and carries the index of the command that holds it instead. A
     # `case` entry only tells a `)` apart from a subshell close.
-    open_groups: list[tuple[str, int]] = []
+    open_groups: list[tuple[str, int]] = field(default_factory=list)
     closed_group: tuple[int, int] | None = None
     # After `$(…)` closes, the words that follow continue the same
     # simple command, so a redirect among them still belongs to its
     # holder: `echo $(date) more > f` writes `f` through `echo`.
     substitution_holder: int | None = None
 
-    def flush(*, next_opener: str) -> None:
-        nonlocal argv, redirects, opener, closed_group
-        if (
-            redirects
-            and closed_group is not None
-            and (not argv or substitution_holder is not None)
-        ):
-            _attribute_group_redirects(segments=segments, group=closed_group, redirects=redirects)
-        closed_group = None
-        if argv or redirects:
-            segments.append(
-                CommandSegment(argv=tuple(argv), opener=opener, redirects=tuple(redirects))
-            )
-            argv = []
-            redirects = []
-            opener = next_opener
-        elif opener not in _PIPE_OPERATORS:
-            opener = next_opener
+    def run(self, *, tokens: list[_Token]) -> tuple[CommandSegment, ...]:
+        for token in tokens:
+            if token.is_operator:
+                self._operator(token=token)
+            else:
+                self._word(token=token)
+        if self.bare_operator is not None:
+            self.redirects.append(Redirect(operator=self.bare_operator))
+        self._flush(next_opener="")
+        return tuple(self.segments)
 
-    for token in _Scanner(source=command).tokens():
-        if token.is_operator:
-            # A bare redirect right before the `(` is `<(…)` / `>(…)`.
-            substitution = bare_operator is not None or _opens_substitution(
-                argv=argv, redirects=redirects
+    def _flush(self, *, next_opener: str) -> None:
+        if (
+            self.redirects
+            and self.closed_group is not None
+            and (not self.argv or self.substitution_holder is not None)
+        ):
+            _attribute_group_redirects(
+                segments=self.segments, group=self.closed_group, redirects=self.redirects
             )
-            if bare_operator is not None:
-                redirects.append(Redirect(operator=bare_operator))
-                bare_operator = None
-            # A newline ends a command the way `;` does.
-            operator = ";" if token.text == "\n" else token.text
-            flush(next_opener=operator)
-            holder = substitution_holder
-            substitution_holder = None
-            if operator == "(":
-                if substitution:
-                    open_groups.append(("$", len(segments) - 1 if holder is None else holder))
-                else:
-                    open_groups.append(("(", len(segments)))
-            elif operator == ")":
-                closed = _close_group(
-                    open_groups=open_groups, closers=("(", "$"), end=len(segments)
+        self.closed_group = None
+        if self.argv or self.redirects:
+            self.segments.append(
+                CommandSegment(
+                    argv=tuple(self.argv), opener=self.opener, redirects=tuple(self.redirects)
                 )
-                if closed is not None:
-                    kind, closed_group = closed
-                    if kind == "$":
-                        substitution_holder = closed_group[0]
-            continue
-        if bare_operator is not None:
-            redirects.append(Redirect(operator=bare_operator, target=token.text))
-            bare_operator = None
-            continue
+            )
+            self.argv = []
+            self.redirects = []
+            self.opener = next_opener
+        elif self.opener not in _PIPE_OPERATORS:
+            self.opener = next_opener
+
+    def _operator(self, *, token: _Token) -> None:
+        # A bare redirect right before the `(` is `<(…)` / `>(…)`.
+        substitution = self.bare_operator is not None or _opens_substitution(
+            argv=self.argv, redirects=self.redirects
+        )
+        if self.bare_operator is not None:
+            self.redirects.append(Redirect(operator=self.bare_operator))
+            self.bare_operator = None
+        # A newline ends a command the way `;` does.
+        operator = ";" if token.text == "\n" else token.text
+        self._flush(next_opener=operator)
+        holder = self.substitution_holder
+        self.substitution_holder = None
+        if operator == "(":
+            if substitution:
+                start = len(self.segments) - 1 if holder is None else holder
+                self.open_groups.append(("$", start))
+            else:
+                self.open_groups.append(("(", len(self.segments)))
+        elif operator == ")":
+            closed = _close_group(
+                open_groups=self.open_groups, closers=("(", "$"), end=len(self.segments)
+            )
+            if closed is not None:
+                kind, self.closed_group = closed
+                if kind == "$":
+                    self.substitution_holder = self.closed_group[0]
+
+    def _word(self, *, token: _Token) -> None:
+        if self.bare_operator is not None:
+            self.redirects.append(Redirect(operator=self.bare_operator, target=token.text))
+            self.bare_operator = None
+            return
         if token.redirect:
             target = token.text[len(token.redirect) :]
             if target:
-                redirects.append(Redirect(operator=token.redirect, target=target))
+                self.redirects.append(Redirect(operator=token.redirect, target=target))
             else:
-                bare_operator = token.redirect
-            continue
+                self.bare_operator = token.redirect
+            return
         # A reserved word counts only where a command starts: unquoted,
         # first in its segment, and not continuing a command after a
         # substitution (`echo $(date) case` passes `case` to echo).
-        starts_command = not argv and not token.quoted and substitution_holder is None
+        starts_command = not self.argv and not token.quoted and self.substitution_holder is None
         if starts_command and token.text in SHELL_KEYWORDS:
             if token.text == "{":
-                open_groups.append(("{", len(segments)))
+                self.open_groups.append(("{", len(self.segments)))
             elif token.text == "}":
-                closed = _close_group(open_groups=open_groups, closers=("{",), end=len(segments))
-                closed_group = None if closed is None else closed[1]
-            continue
+                closed = _close_group(
+                    open_groups=self.open_groups, closers=("{",), end=len(self.segments)
+                )
+                self.closed_group = None if closed is None else closed[1]
+            return
         if starts_command and token.text == "case":
-            open_groups.append(("case", len(segments)))
+            self.open_groups.append(("case", len(self.segments)))
         elif starts_command and token.text == "esac":
-            _close_group(open_groups=open_groups, closers=("case",), end=len(segments))
-        if substitution_holder is None:
-            closed_group = None
-        argv.append(token.text)
-    if bare_operator is not None:
-        redirects.append(Redirect(operator=bare_operator))
-    flush(next_opener="")
-    return tuple(segments)
+            _close_group(open_groups=self.open_groups, closers=("case",), end=len(self.segments))
+        if self.substitution_holder is None:
+            self.closed_group = None
+        self.argv.append(token.text)
 
 
 def _opens_substitution(*, argv: list[str], redirects: list[Redirect]) -> bool:
