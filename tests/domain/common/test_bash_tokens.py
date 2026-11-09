@@ -110,14 +110,47 @@ class TestCommandSegments:
             ("cp a $(pwd) b", [["cp", "a", "$(...)", "b"], ["pwd"]]),
             ("echo a$(b)c", [["echo", "a$(...)c"], ["b"]]),
             ("ls ./sub/$(date).py", [["ls", "./sub/$(...).py"], ["date"]]),
-            ("echo $(a)$(b) `c`d", [["echo", "$(...)$(...)", "$(...)d"], ["a"], ["b"], ["c"]]),
+            ("echo $(a)$(b) `c`d", [["echo", "$(...)", "d"], ["a"], ["b"], ["c"]]),
             ("echo `date` x", [["echo", "$(...)", "x"], ["date"]]),
             ("echo `a", [["echo", "$(...)"], ["a"]]),
             ("echo \\$(date)", [["echo", "$"], ["date"]]),
-            ("echo '$(date)' \"`a`\"", [["echo", "$(date)", "`a`"]]),
-            ("x=$(cp a b)", [["x=$(...)"], ["cp", "a", "b"]]),
-            ("echo a>f$(b)", [["echo", "a", "$(...)"], ["b"]]),
-            ("if dropdb x; then ruff check; fi", [["dropdb", "x"], ["ruff", "check"], ["fi"]]),
+            ("echo '$(date)' \"`a`\" ''", [["echo", "$(date)", "`a`", ""]]),
+            ("x=$(cp a b)", [["x="], ["cp", "a", "b"]]),
+            # NUL is the segmenter's substitution mark, never word text;
+            # bash ends a `$'…'` word at it.
+            ("echo $'a\\0b' $'\\0'x", [["echo", "a", "x"]]),
+            ("$'rm\\0junk' -rf x", [["rm", "-rf", "x"]]),
+            ("echo $'a\\012b' $'\\101' $'\\0\\'y'z", [["echo", "a\nb", "A", "z"]]),
+            ("r\0m -rf x", [["rm", "-rf", "x"]]),
+            # A real pipe or background `&` in a case arm is no pattern list.
+            (
+                "case x in a) ls | if b; then c; fi;; esac",
+                [["case", "x", "in", "a"], ["ls"], ["b"], ["c"]],
+            ),
+            (
+                "case x in a) sleep 1 & if b; then c; fi;; esac",
+                [["case", "x", "in", "a"], ["sleep", "1"], ["b"], ["c"]],
+            ),
+            # A substitution at a word's edge, or before the program,
+            # never hides the literal text a guard judges.
+            ("$(true) cp x y", [["cp", "x", "y"], ["true"]]),
+            ("$(a) `b` cp x y", [["cp", "x", "y"], ["a"], ["b"]]),
+            ("$(:)psql -c q", [["psql", "-c", "q"], [":"]]),
+            ("cp x docs/y.py$(:)", [["cp", "x", "docs/y.py"], [":"]]),
+            ("cp x $(pwd)docs/y.py", [["cp", "x", "docs/y.py"], ["pwd"]]),
+            ("cp x a$(b)\\\nc", [["cp", "x", "a$(...)c"], ["b"]]),
+            # A substitution glued to a redirect target is part of it.
+            ("echo a>f$(b)", [["echo", "a"], ["b"]]),
+            ("> o$(x) cp a b", [["cp", "a", "b"], ["x"]]),
+            (">o$(x)p cp a b", [["cp", "a", "b"], ["x"]]),
+            ("> `x`p cp a b", [["cp", "a", "b"], ["x"]]),
+            ("if dropdb x; then ruff check; fi", [["dropdb", "x"], ["ruff", "check"]]),
+            (
+                "for f in a; do ruff check $f; done",
+                [["for", "f", "in", "a"], ["ruff", "check", "$f"]],
+            ),
+            ("echo fi done esac 'fi'", [["echo", "fi", "done", "esac", "fi"]]),
+            ("'done'", [["done"]]),
             ("! ruff check", [["ruff", "check"]]),
             ("echo 'a;b|c' \"d&e\"", [["echo", "a;b|c", "d&e"]]),
             ("echo 'line1\nline2'", [["echo", "line1\nline2"]]),
@@ -250,7 +283,6 @@ class TestRedirects:
                     (["echo", "hi"], [(">", "f")]),
                     (["case", "x", "in", "x"], [(">", "f")]),
                     ([":"], [(">", "f")]),
-                    (["esac"], [(">", "f")]),
                     ([], [(">", "f")]),
                 ],
             ),
@@ -261,7 +293,6 @@ class TestRedirects:
                     (["case", "x", "in"], [(">", "f")]),
                     (["x"], [(">", "f")]),
                     ([":"], [(">", "f")]),
-                    (["esac"], [(">", "f")]),
                     ([], [(">", "f")]),
                 ],
             ),
@@ -271,7 +302,6 @@ class TestRedirects:
                     (["echo", "hi"], [(">", "f")]),
                     (["case", "x", "in", "x"], [(">", "f")]),
                     ([":"], [(">", "f")]),
-                    (["esac"], [(">", "f")]),
                     ([], [(">", "f")]),
                 ],
             ),
@@ -282,7 +312,6 @@ class TestRedirects:
                     ([":"], [(">", "f")]),
                     (["b"], [(">", "f")]),
                     ([":"], [(">", "f")]),
-                    (["esac"], [(">", "f")]),
                     ([], [(">", "f")]),
                 ],
             ),
@@ -292,7 +321,6 @@ class TestRedirects:
                     (["case", "x", "in", "a"], [(">", "f")]),
                     (["b"], [(">", "f")]),
                     ([":"], [(">", "f")]),
-                    (["esac"], [(">", "f")]),
                     ([], [(">", "f")]),
                 ],
             ),
@@ -302,7 +330,6 @@ class TestRedirects:
                     (["case", "x", "in"], [(">", "f")]),
                     (["x"], [(">", "f")]),
                     ([":"], [(">", "f")]),
-                    (["esac"], [(">", "f")]),
                     ([], [(">", "f")]),
                 ],
             ),
@@ -310,6 +337,145 @@ class TestRedirects:
                 "(echo hi; 'case') > f",
                 [(["echo", "hi"], [(">", "f")]), (["case"], [(">", "f")]), ([], [(">", "f")])],
             ),
+            # A compound command's redirect reaches every command inside,
+            # its condition or header included (GH-1876).
+            (
+                "if true; then echo hi; fi > f",
+                [(["true"], [(">", "f")]), (["echo", "hi"], [(">", "f")]), ([], [(">", "f")])],
+            ),
+            (
+                "if a; then b; else c; fi 2>/dev/null",
+                [
+                    (["a"], [("2>", "/dev/null")]),
+                    (["b"], [("2>", "/dev/null")]),
+                    (["c"], [("2>", "/dev/null")]),
+                    ([], [("2>", "/dev/null")]),
+                ],
+            ),
+            (
+                "while read l; do echo $l; done > f",
+                [
+                    (["read", "l"], [(">", "f")]),
+                    (["echo", "$l"], [(">", "f")]),
+                    ([], [(">", "f")]),
+                ],
+            ),
+            (
+                "until false; do echo hi; done >> f",
+                [(["false"], [(">>", "f")]), (["echo", "hi"], [(">>", "f")]), ([], [(">>", "f")])],
+            ),
+            (
+                "for x in a b; do echo $x; done > f",
+                [
+                    (["for", "x", "in", "a", "b"], [(">", "f")]),
+                    (["echo", "$x"], [(">", "f")]),
+                    ([], [(">", "f")]),
+                ],
+            ),
+            (
+                "case x in a) echo hi;; esac > f",
+                [
+                    (["case", "x", "in", "a"], [(">", "f")]),
+                    (["echo", "hi"], [(">", "f")]),
+                    ([], [(">", "f")]),
+                ],
+            ),
+            (
+                "for x in a; do if b; then c; fi > g; done > f",
+                [
+                    (["for", "x", "in", "a"], [(">", "f")]),
+                    (["b"], [(">", "g"), (">", "f")]),
+                    (["c"], [(">", "g"), (">", "f")]),
+                    ([], [(">", "g"), (">", "f")]),
+                    ([], [(">", "f")]),
+                ],
+            ),
+            (
+                "echo $(if a; then b; fi) > f",
+                [(["echo", "$(...)"], [(">", "f")]), (["a"], []), (["b"], [])],
+            ),
+            # A reserved word in pattern position names a pattern.
+            (
+                "case x in a) echo hi;; if) :;; esac > f",
+                [
+                    (["case", "x", "in", "a"], [(">", "f")]),
+                    (["echo", "hi"], [(">", "f")]),
+                    (["if"], [(">", "f")]),
+                    ([":"], [(">", "f")]),
+                    ([], [(">", "f")]),
+                ],
+            ),
+            (
+                "case x in\n fi) echo hi;; esac > f",
+                [
+                    (["case", "x", "in"], [(">", "f")]),
+                    (["fi"], [(">", "f")]),
+                    (["echo", "hi"], [(">", "f")]),
+                    ([], [(">", "f")]),
+                ],
+            ),
+            (
+                "case x in (done) echo hi;; esac > f",
+                [
+                    (["case", "x", "in"], [(">", "f")]),
+                    (["done"], [(">", "f")]),
+                    (["echo", "hi"], [(">", "f")]),
+                    ([], [(">", "f")]),
+                ],
+            ),
+            (
+                "case x in a) if b; then c; fi;; esac > f",
+                [
+                    (["case", "x", "in", "a"], [(">", "f")]),
+                    (["b"], [(">", "f")]),
+                    (["c"], [(">", "f")]),
+                    ([], [(">", "f")]),
+                ],
+            ),
+            (
+                "case x in\n\n  a) echo hi ;;\n\n  if) : ;;\nesac > f",
+                [
+                    (["case", "x", "in"], [(">", "f")]),
+                    (["a"], [(">", "f")]),
+                    (["echo", "hi"], [(">", "f")]),
+                    (["if"], [(">", "f")]),
+                    ([":"], [(">", "f")]),
+                    ([], [(">", "f")]),
+                ],
+            ),
+            (
+                "case x in a|if) echo hi;; b) :;; (c|done) :;; esac > f",
+                [
+                    (["case", "x", "in", "a"], [(">", "f")]),
+                    (["if"], [(">", "f")]),
+                    (["echo", "hi"], [(">", "f")]),
+                    (["b"], [(">", "f")]),
+                    ([":"], [(">", "f")]),
+                    (["c"], [(">", "f")]),
+                    (["done"], [(">", "f")]),
+                    ([":"], [(">", "f")]),
+                    ([], [(">", "f")]),
+                ],
+            ),
+            (
+                "case x in a) echo hi;& if) :;;& fi) :;; esac > f",
+                [
+                    (["case", "x", "in", "a"], [(">", "f")]),
+                    (["echo", "hi"], [(">", "f")]),
+                    (["if"], [(">", "f")]),
+                    ([":"], [(">", "f")]),
+                    (["fi"], [(">", "f")]),
+                    ([":"], [(">", "f")]),
+                    ([], [(">", "f")]),
+                ],
+            ),
+            # Only a redirect right after the closer belongs to the group.
+            ("if a; then b; fi; > f", [(["a"], []), (["b"], []), ([], [(">", "f")])]),
+            ("if a; then b; fi; c > f", [(["a"], []), (["b"], []), (["c"], [(">", "f")])]),
+            ("a; fi > f", [(["a"], []), ([], [(">", "f")])]),
+            ("{ a; fi > f", [(["a"], []), ([], [(">", "f")])]),
+            ("while a; do b; esac > f", [(["a"], []), (["b"], []), ([], [(">", "f")])]),
+            ("echo fi > f", [(["echo", "fi"], [(">", "f")])]),
             # A substitution's redirect belongs to the command holding it,
             # and the words after it continue that command (GH-1876).
             ("echo $(date) > f", [(["echo", "$(...)"], [(">", "f")]), (["date"], [])]),
@@ -326,10 +492,11 @@ class TestRedirects:
                 "echo $(a $(b)) c > f",
                 [(["echo", "$(...)", "c"], [(">", "f")]), (["a", "$(...)"], []), (["b"], [])],
             ),
-            ("$(a) b > f", [(["$(...)", "b"], [(">", "f")]), (["a"], [])]),
+            ("$(a) b > f", [(["b"], [(">", "f")]), (["a"], [])]),
             # Arithmetic scans as `$(` then `(`; both closers balance.
             ("echo $((1+2)) > f", [(["echo", "$(...)"], [(">", "f")]), (["1+2"], [])]),
-            ("x=$((a+b)) c > f", [(["x=$(...)", "c"], [(">", "f")]), (["a+b"], [])]),
+            ("x=$((a+b)) c > f", [(["x=", "c"], [(">", "f")]), (["a+b"], [])]),
+            (">o$(x)p cp a b", [(["cp", "a", "b"], [(">", "o$(p")]), (["x"], [])]),
             ("cat <(true) > f", [(["cat"], [("<", ""), (">", "f")]), (["true"], [])]),
             ("cat < $(true) > f", [(["cat"], [("<", "$("), (">", "f")]), (["true"], [])]),
             ("cat < <(a) > f", [(["cat"], [("<", "<("), (">", "f")]), (["a"], [])]),
@@ -343,14 +510,14 @@ class TestRedirects:
                 [(["echo", "$(...)", "$(...)", "c"], [(">", "f")]), (["a"], []), (["b"], [])],
             ),
             ("echo > `a`", [(["echo"], [(">", "`")]), (["a"], [])]),
-            ("echo > `a`b", [(["echo", "b"], [(">", "`")]), (["a"], [])]),
+            ("echo > `a`b", [(["echo"], [(">", "`b")]), (["a"], [])]),
             ("echo `a >` b", [(["echo", "$(...)", "b"], []), (["a"], [(">", "")])]),
             # The holder stops at the next operator.
             (
                 "echo $(a); { b; } c > f",
                 [(["echo", "$(...)"], []), (["a"], []), (["b"], []), (["c"], [(">", "f")])],
             ),
-            ("a | $(b) > f", [(["a"], []), (["$(...)"], [(">", "f")]), (["b"], [])]),
+            ("a | $(b) > f", [(["a"], []), ([], [(">", "f")]), (["b"], [])]),
             # A reserved word after a substitution is an argument.
             (
                 "(echo $(date) case) > f",
@@ -365,7 +532,6 @@ class TestRedirects:
                 "( case x in x) 'esac';; esac ) > f",
                 [
                     (["case", "x", "in", "x"], [(">", "f")]),
-                    (["esac"], [(">", "f")]),
                     (["esac"], [(">", "f")]),
                     ([], [(">", "f")]),
                 ],
@@ -435,12 +601,24 @@ class TestProgramProbe:
 
     @pytest.mark.parametrize(
         "command",
-        ["bq query x", "b''q query", "b\\q query", "su u -c'bq query'", "/opt/bin/bq ls"],
+        [
+            "bq query x",
+            "b''q query",
+            "b\\q query",
+            "su u -c'bq query'",
+            "/opt/bin/bq ls",
+            "$'\\142q' query",
+            "$'\\'' x; $'\\142'q query",
+            "$'\\142q' 'unterminated",
+        ],
     )
     def test_finds_the_program_however_it_is_quoted(self, command: str) -> None:
         assert ProgramProbe.for_program(program="bq").found_in(command=command)
 
-    @pytest.mark.parametrize("command", ["bqtool x", "echo bqx", "git status"])
+    @pytest.mark.parametrize(
+        "command",
+        ["bqtool x", "echo bqx", "git status", "printf $'\\101'; echo x", "$'" * 3000],
+    )
     def test_needs_a_trailing_boundary(self, command: str) -> None:
         assert not ProgramProbe.for_program(program="bq").found_in(command=command)
 
@@ -467,7 +645,10 @@ class TestProgramProbe:
 
         assert openers == ["", ";", "&&", ";"]
 
-    @pytest.mark.parametrize("command", ["echo 'unterminated", 'echo "unterminated'])
+    @pytest.mark.parametrize(
+        "command",
+        ["echo 'unterminated", 'echo "unterminated', "echo $'a\\0b"],
+    )
     def test_raises_on_untokenizable_input(self, command: str) -> None:
         with pytest.raises(UntokenizableCommandError):
             command_segments(command=command)
