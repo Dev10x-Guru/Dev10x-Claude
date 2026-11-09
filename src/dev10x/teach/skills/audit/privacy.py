@@ -36,6 +36,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
+from dev10x.core.name_boundary import NAME_START
 from dev10x.core.paths import skill_script
 
 # ─────────────────────────────────────────────────────────────────────
@@ -65,7 +66,7 @@ _IMPORT_RE = re.compile(
 # ``token`` and is reported back for context.
 SERVICE_PATTERNS: dict[str, list[tuple[str, re.Pattern[str]]]] = {
     "GitHub": [
-        ("cli", re.compile(r"(?<![\w-])gh\s+(api|pr|issue|repo|run|release|workflow|auth)")),
+        ("cli", re.compile(rf"{NAME_START}gh\s+(api|pr|issue|repo|run|release|workflow|auth)")),
         (
             "cli",
             re.compile(
@@ -92,8 +93,8 @@ SERVICE_PATTERNS: dict[str, list[tuple[str, re.Pattern[str]]]] = {
         ("mcp", re.compile(r"\bmcp__(?:[a-z_]+_)?[Ss]entry[a-z_]*__")),
     ],
     "AWS Secrets Manager": [
-        ("cli", re.compile(r"(?<![\w-])aws-vault\b")),
-        ("cli", re.compile(r"(?<![\w-])aws\s+secretsmanager\b")),
+        ("cli", re.compile(rf"{NAME_START}aws-vault\b")),
+        ("cli", re.compile(rf"{NAME_START}aws\s+secretsmanager\b")),
     ],
     "Anthropic API": [
         ("hostname", re.compile(r"\banthropic\.com\b")),
@@ -102,13 +103,13 @@ SERVICE_PATTERNS: dict[str, list[tuple[str, re.Pattern[str]]]] = {
     ],
     "PyPI": [
         ("hostname", re.compile(r"\bpypi\.org\b")),
-        ("cli", re.compile(r"(?<![\w-])twine\s+upload\b")),
+        ("cli", re.compile(rf"{NAME_START}twine\s+upload\b")),
     ],
     "Kubernetes API": [
-        ("cli", re.compile(r"(?<![\w-])kubectl\b")),
+        ("cli", re.compile(rf"{NAME_START}kubectl\b")),
     ],
     "Postgres": [
-        ("cli", re.compile(r"(?<![\w-])psql\b")),
+        ("cli", re.compile(rf"{NAME_START}psql\b")),
     ],
 }
 

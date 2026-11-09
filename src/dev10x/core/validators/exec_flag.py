@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import ClassVar
 
+from dev10x.core.name_boundary import name_pattern
 from dev10x.domain import HookAsk, HookInput
 from dev10x.domain.common.bash_tokens import (
     UntokenizableCommandError,
@@ -38,7 +39,7 @@ from dev10x.validators.base import ValidatorBase
 _SEPARATOR_RE = re.compile(r"&&|\|\||[;|&\n()<>]")
 # Cheap prefilter on the hot path: a listed tool as a whole word, so `rg`
 # inside `merge` or `target` does not wake the tokenizer.
-_TOOL_WORD_RE = re.compile(rf"(?<![\w-])(?:{'|'.join(map(re.escape, EXEC_FLAGS))})(?![\w-])")
+_TOOL_WORD_RE = name_pattern(names=EXEC_FLAGS)
 
 _ASK_MESSAGE = (
     "⚠️  `{tool} {flag}` runs another program — a prefix allow rule for "
