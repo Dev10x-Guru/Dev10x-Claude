@@ -29,9 +29,8 @@ from pathlib import Path
 from typing import Any, ClassVar
 
 from dev10x.domain import HookHint, HookInput, HookResult
-from dev10x.domain.documents.friction_yaml import FrictionYamlDocument
+from dev10x.domain.documents.friction_yaml import load_checkout_prefs
 from dev10x.domain.documents.yaml_mapping import load_yaml_mapping
-from dev10x.domain.linked_worktree import main_checkout
 from dev10x.domain.profile_tier import ProfileTier
 from dev10x.validators.base import ValidatorBase
 
@@ -142,11 +141,7 @@ def effective_entries(*, section: dict[str, Any]) -> tuple[SkillKeyword, ...]:
 def _rule_section(*, cwd: str) -> dict[str, Any]:
     if not cwd:
         return {}
-    tree = Path(cwd)
-    main = main_checkout(tree)
-    fallbacks = (str(main),) if main is not None else ()
-    prefs = FrictionYamlDocument(toplevel=str(tree)).effective(fallback_toplevels=fallbacks)
-    section = prefs.get(PREFS_KEY)
+    section = load_checkout_prefs(checkout=Path(cwd)).get(PREFS_KEY)
     return section if isinstance(section, dict) else {}
 
 

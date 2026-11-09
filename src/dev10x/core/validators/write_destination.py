@@ -71,8 +71,7 @@ from dev10x.domain.common.bash_tokens import (
     command_units,
     split_tokens,
 )
-from dev10x.domain.documents.friction_yaml import FrictionYamlDocument
-from dev10x.domain.linked_worktree import main_checkout
+from dev10x.domain.documents.friction_yaml import load_checkout_prefs
 from dev10x.domain.profile_tier import ProfileTier
 from dev10x.validators.base import ValidatorBase
 
@@ -182,16 +181,10 @@ def _ext_values(*, value: Any) -> frozenset[str]:
 def _durable_prefs(*, tree: PurePosixPath) -> dict[str, Any]:
     """The ``friction.yaml`` prefs governing ``tree`` (GH-1493).
 
-    Probes the worktree first and its main checkout second — the same
-    order ``gate_query._policy_toplevel`` uses (GH-978), because entries
-    are keyed by the repo stem and a linked worktree's own directory
-    name rarely matches them. A matched entry is layered over
-    ``defaults:``, so an entry that says nothing about DX017 does not hide
-    a default that does.
+    A matched entry is layered over ``defaults:``, so an entry that says
+    nothing about DX017 does not hide a default that does.
     """
-    main = main_checkout(Path(tree))
-    fallbacks = (str(main),) if main is not None else ()
-    return FrictionYamlDocument(toplevel=str(tree)).effective(fallback_toplevels=fallbacks)
+    return load_checkout_prefs(checkout=Path(tree))
 
 
 def _durable_extension_overrides(*, tree: PurePosixPath) -> tuple[frozenset[str], frozenset[str]]:

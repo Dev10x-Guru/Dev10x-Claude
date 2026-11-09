@@ -28,6 +28,7 @@ from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.domain.documents.yaml_mapping import load_yaml_mapping
 from dev10x.domain.file_locks import atomic_write_text, file_lock
 from dev10x.domain.gate_policy import SUPERVISOR_REVIEW_REQUIRED
+from dev10x.domain.linked_worktree import main_checkout
 
 # Durable preference keys (ADR-0018). The global ``friction.yaml`` and the
 # legacy per-repo ``config.yaml`` both carry a subset of these; readers
@@ -333,6 +334,19 @@ class FrictionYamlDocument:
         """
         body = yaml.safe_dump(doc or {}, sort_keys=False, default_flow_style=False)
         return FrictionYamlDocument._MIGRATION_HEADER + body
+
+
+def load_checkout_prefs(*, checkout: Path) -> dict[str, Any]:
+    """The prefs governing ``checkout``: its own entry first, its main checkout second.
+
+    Entries are keyed by the repo stem, which a linked worktree's own
+    directory name rarely matches (GH-978), so the main checkout is the
+    fallback probe. File reads only — no git subprocess — which keeps it
+    cheap enough for a PreToolUse hook.
+    """
+    main = main_checkout(checkout)
+    fallbacks = (str(main),) if main is not None else ()
+    return FrictionYamlDocument(toplevel=str(checkout)).effective(fallback_toplevels=fallbacks)
 
 
 class PinScope(StrEnum):

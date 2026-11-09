@@ -44,8 +44,7 @@ from typing import Any, ClassVar
 from dev10x import subprocess_utils
 from dev10x.domain import HookInput, HookResult
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
-from dev10x.domain.documents.friction_yaml import FrictionYamlDocument
-from dev10x.domain.linked_worktree import main_checkout
+from dev10x.domain.documents.friction_yaml import load_checkout_prefs
 from dev10x.domain.profile_tier import ProfileTier
 from dev10x.domain.review_stamp import (
     ReviewStampStore,
@@ -115,10 +114,7 @@ def _checkouts(*, inp: HookInput) -> tuple[Path | None, Path | None]:
 
 
 def _gate_required(*, checkout: Path) -> bool:
-    main = main_checkout(checkout)
-    fallbacks = (str(main),) if main is not None else ()
-    prefs = FrictionYamlDocument(toplevel=str(checkout)).effective(fallback_toplevels=fallbacks)
-    return prefs.get(PREFS_KEY) == REQUIRED
+    return load_checkout_prefs(checkout=checkout).get(PREFS_KEY) == REQUIRED
 
 
 def _pr_head(*, pr_number: int, repo: str | None, checkout: Path) -> PrHead | None:

@@ -1,10 +1,12 @@
-"""FrictionYamlDocument.effective — defaults layered under the first match."""
+"""FrictionYamlDocument.effective and load_checkout_prefs — defaults under the first match."""
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
-from dev10x.domain.documents.friction_yaml import FrictionYamlDocument
+from dev10x.domain.documents.friction_yaml import FrictionYamlDocument, load_checkout_prefs
 
 FRICTION_YAML = (
     "defaults:\n"
@@ -40,3 +42,29 @@ def test_effective_layers_defaults_under_the_first_matching_probe(
     document = FrictionYamlDocument(toplevel=toplevel)
 
     assert document.effective(fallback_toplevels=fallbacks) == expected
+
+
+class TestLoadCheckoutPrefs:
+    @pytest.fixture()
+    def worktree(self, tmp_path: Path) -> Path:
+        main = tmp_path / "repo"
+        (main / ".git" / "worktrees" / "unrelated").mkdir(parents=True)
+        worktree = tmp_path / "wt" / "unrelated"
+        worktree.mkdir(parents=True)
+        (worktree / ".git").write_text(f"gitdir: {main}/.git/worktrees/unrelated\n")
+        return worktree
+
+    def test_linked_worktree_falls_back_to_its_main_checkout(self, worktree: Path) -> None:
+        assert load_checkout_prefs(checkout=worktree) == {"tracker": "github", "ide": "none"}
+
+    def test_checkout_entry_wins_without_a_fallback(self, tmp_path: Path) -> None:
+        checkout = tmp_path / "feature-x"
+        checkout.mkdir()
+
+        assert load_checkout_prefs(checkout=checkout) == {"tracker": "jira", "ide": "none"}
+
+    def test_unmatched_checkout_reads_defaults(self, tmp_path: Path) -> None:
+        checkout = tmp_path / "other"
+        checkout.mkdir()
+
+        assert load_checkout_prefs(checkout=checkout) == {"tracker": "linear", "ide": "none"}
