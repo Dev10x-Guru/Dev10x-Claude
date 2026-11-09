@@ -85,11 +85,6 @@ def extract(*, body: str, repo: str) -> list[str]:
     return found
 
 
-def closes_any(*, body: str) -> bool:
-    """Whether ``body`` carries a reference close-issues would act on."""
-    return bool(extract(body=body, repo=""))
-
-
 def declares_none(*, line: str) -> bool:
     """Whether ``line`` is an attempt at a `Fixes: none` trailer, valid or not."""
     return _DECLARES_NONE.match(line.strip()) is not None
