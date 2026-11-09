@@ -72,6 +72,12 @@ class TestBlocksWritesIntoTheWorkingTree:
             "out=$(cp /tmp/x docs/x.py)",
             'echo "$(tee docs/x.py)"',
             "result=`cp /tmp/x docs/x.py`",
+            # A substitution keeps its operand slot (GH-1876), so the
+            # destination after it is still the last operand.
+            "cp $(find /tmp -name x.py) docs/x.py",
+            "mv `cat /tmp/list` docs/x.py",
+            "install -m $(cat /tmp/mode) /tmp/a.conf docs/a.conf",
+            "cp /tmp/x docs/$(date).py",
             # `..` must be normalised before comparing, or a traversal
             # that lands back inside the tree reads as outside.
             "cp /tmp/x docs/../src/x.py",

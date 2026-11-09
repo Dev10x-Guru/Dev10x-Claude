@@ -145,6 +145,13 @@ class TestShellWrites:
             "echo $(a) $(b) > f",
             "(echo $(date) case) > f",
             "cat < <(a) > f",
+            # GH-1876: the scanner emits substitution openers, backticks
+            # included, so the redirect lands on the command holding them.
+            "echo `date` > f",
+            "echo `a` more > f",
+            "echo $(a $(b)) > f",
+            "echo > >(a) > f",
+            "echo $((1+2)) > f",
         ],
     )
     def test_blocks_a_write_redirected_on_a_command_group(
@@ -168,6 +175,7 @@ class TestShellWrites:
             "ls <(true) > f",
             "( case x in x) ls;; esac ) > f",
             "echo $(a); { ls; } c > f",
+            "ls `cat a` > f",
         ],
     )
     def test_allows_a_group_redirect_without_a_write_verb(

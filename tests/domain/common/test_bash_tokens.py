@@ -104,7 +104,19 @@ class TestCommandSegments:
             ("a|b|&c", [["a"], ["b"], ["c"]]),
             ("a\nb", [["a"], ["b"]]),
             ("(a) ; { b; }", [["a"], ["b"]]),
-            ("echo $(python -c x)", [["echo", "$"], ["python", "-c", "x"]]),
+            ("echo $(python -c x)", [["echo", "$(...)"], ["python", "-c", "x"]]),
+            # GH-1876: a substitution keeps its argv slot, glued to the
+            # text around it, and the words after it continue its command.
+            ("cp a $(pwd) b", [["cp", "a", "$(...)", "b"], ["pwd"]]),
+            ("echo a$(b)c", [["echo", "a$(...)c"], ["b"]]),
+            ("ls ./sub/$(date).py", [["ls", "./sub/$(...).py"], ["date"]]),
+            ("echo $(a)$(b) `c`d", [["echo", "$(...)$(...)", "$(...)d"], ["a"], ["b"], ["c"]]),
+            ("echo `date` x", [["echo", "$(...)", "x"], ["date"]]),
+            ("echo `a", [["echo", "$(...)"], ["a"]]),
+            ("echo \\$(date)", [["echo", "$"], ["date"]]),
+            ("echo '$(date)' \"`a`\"", [["echo", "$(date)", "`a`"]]),
+            ("x=$(cp a b)", [["x=$(...)"], ["cp", "a", "b"]]),
+            ("echo a>f$(b)", [["echo", "a", "$(...)"], ["b"]]),
             ("if dropdb x; then ruff check; fi", [["dropdb", "x"], ["ruff", "check"], ["fi"]]),
             ("! ruff check", [["ruff", "check"]]),
             ("echo 'a;b|c' \"d&e\"", [["echo", "a;b|c", "d&e"]]),
@@ -298,53 +310,53 @@ class TestRedirects:
                 "(echo hi; 'case') > f",
                 [(["echo", "hi"], [(">", "f")]), (["case"], [(">", "f")]), ([], [(">", "f")])],
             ),
-            # A substitution's redirect belongs to the command holding it.
-            (
-                "echo $(date) > f",
-                [(["echo", "$"], [(">", "f")]), (["date"], []), ([], [(">", "f")])],
-            ),
-            (
-                "ls $(cat a) > f",
-                [(["ls", "$"], [(">", "f")]), (["cat", "a"], []), ([], [(">", "f")])],
-            ),
+            # A substitution's redirect belongs to the command holding it,
+            # and the words after it continue that command (GH-1876).
+            ("echo $(date) > f", [(["echo", "$(...)"], [(">", "f")]), (["date"], [])]),
+            ("ls $(cat a) > f", [(["ls", "$(...)"], [(">", "f")]), (["cat", "a"], [])]),
             (
                 "echo $(date) more > f",
-                [(["echo", "$"], [(">", "f")]), (["date"], []), (["more"], [(">", "f")])],
+                [(["echo", "$(...)", "more"], [(">", "f")]), (["date"], [])],
             ),
             (
                 "echo $(a) $(b) > f",
-                [
-                    (["echo", "$"], [(">", "f")]),
-                    (["a"], []),
-                    (["$"], []),
-                    (["b"], []),
-                    ([], [(">", "f")]),
-                ],
+                [(["echo", "$(...)", "$(...)"], [(">", "f")]), (["a"], []), (["b"], [])],
             ),
             (
-                "cat <(true) > f",
-                [(["cat"], [("<", ""), (">", "f")]), (["true"], []), ([], [(">", "f")])],
+                "echo $(a $(b)) c > f",
+                [(["echo", "$(...)", "c"], [(">", "f")]), (["a", "$(...)"], []), (["b"], [])],
             ),
+            ("$(a) b > f", [(["$(...)", "b"], [(">", "f")]), (["a"], [])]),
+            # Arithmetic scans as `$(` then `(`; both closers balance.
+            ("echo $((1+2)) > f", [(["echo", "$(...)"], [(">", "f")]), (["1+2"], [])]),
+            ("x=$((a+b)) c > f", [(["x=$(...)", "c"], [(">", "f")]), (["a+b"], [])]),
+            ("cat <(true) > f", [(["cat"], [("<", ""), (">", "f")]), (["true"], [])]),
+            ("cat < $(true) > f", [(["cat"], [("<", "$("), (">", "f")]), (["true"], [])]),
+            ("cat < <(a) > f", [(["cat"], [("<", "<("), (">", "f")]), (["a"], [])]),
+            ("echo > >(a) > f", [(["echo"], [(">", ">("), (">", "f")]), (["a"], [])]),
+            ("echo >$(a)", [(["echo"], [(">", "$(")]), (["a"], [])]),
+            ("echo $(a >) b", [(["echo", "$(...)", "b"], []), (["a"], [(">", "")])]),
+            # Backticks are a substitution too.
+            ("echo `date` > f", [(["echo", "$(...)"], [(">", "f")]), (["date"], [])]),
             (
-                "cat < $(true) > f",
-                [(["cat"], [("<", "$"), (">", "f")]), (["true"], []), ([], [(">", "f")])],
+                "echo `a` `b` c > f",
+                [(["echo", "$(...)", "$(...)", "c"], [(">", "f")]), (["a"], []), (["b"], [])],
             ),
-            (
-                "cat < <(a) > f",
-                [(["cat"], [("<", "<"), (">", "f")]), (["a"], []), ([], [(">", "f")])],
-            ),
+            ("echo > `a`", [(["echo"], [(">", "`")]), (["a"], [])]),
+            ("echo > `a`b", [(["echo", "b"], [(">", "`")]), (["a"], [])]),
+            ("echo `a >` b", [(["echo", "$(...)", "b"], []), (["a"], [(">", "")])]),
             # The holder stops at the next operator.
             (
                 "echo $(a); { b; } c > f",
-                [(["echo", "$"], []), (["a"], []), (["b"], []), (["c"], [(">", "f")])],
+                [(["echo", "$(...)"], []), (["a"], []), (["b"], []), (["c"], [(">", "f")])],
             ),
+            ("a | $(b) > f", [(["a"], []), (["$(...)"], [(">", "f")]), (["b"], [])]),
             # A reserved word after a substitution is an argument.
             (
                 "(echo $(date) case) > f",
                 [
-                    (["echo", "$"], [(">", "f")]),
+                    (["echo", "$(...)", "case"], [(">", "f")]),
                     (["date"], [(">", "f")]),
-                    (["case"], [(">", "f")]),
                     ([], [(">", "f")]),
                 ],
             ),
