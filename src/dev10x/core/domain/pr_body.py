@@ -8,12 +8,7 @@ bold markers, and `Fixes:` must be the literal last line.
 import re
 from dataclasses import dataclass
 
-from dev10x.core.fixes_trailer import (
-    NONE_TRAILER_HINT,
-    closes_any,
-    declares_none,
-    explicit_none_reason,
-)
+from dev10x.core.fixes_trailer import EXIT_MISSING, NONE_TRAILER_HINT, declares_none, verdict
 
 WHEN_MARKER = "**When**"
 WANTS_MARKER = "**<actor> wants**"
@@ -151,9 +146,10 @@ def fixes_references(
 def none_trailer_error(*, body: str) -> str | None:
     """Refuse a `Fixes: none` trailer that close-issues would fail on (GH-1873).
 
-    Only the none-declaration is checked: whether a reference trailer
-    closes anything depends on the repo's tracker, which create_pr does
-    not know.
+    Only a body whose trailer declares `none` is judged, and then by the
+    same verdict() close-issues runs. A reference-only trailer is left
+    alone: whether it closes anything depends on the repo's tracker,
+    which create_pr does not know.
     """
     lines = body.rstrip().split("\n")
     start = _fixes_block_start(lines=lines)
@@ -162,7 +158,8 @@ def none_trailer_error(*, body: str) -> str | None:
     block = lines[start : _fixes_block_end(lines=lines, start=start) + 1]
     if not any(declares_none(line=line) for line in block):
         return None
-    if closes_any(body=body) or explicit_none_reason(body=body) is not None:
+    code, _ = verdict(body=body, repo="")
+    if code != EXIT_MISSING:
         return None
     return f"Fixes: trailer is malformed — {NONE_TRAILER_HINT}"
 
