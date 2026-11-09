@@ -13,7 +13,7 @@ from unittest.mock import patch
 
 import pytest
 from dev10x.domain.session_document import state_path_for_toplevel, write_state
-from dev10x.session.service import SessionService
+from dev10x.session.service import SessionService, marked_preamble
 
 
 def _write_state(*, toplevel: str, session_id: str) -> Path:
@@ -176,22 +176,66 @@ class TestBuildBackgroundPreambleContext:
         svc = SessionService(plugin_root=tmp_path)
         assert svc.build_background_preamble_context() == ""
 
-    def test_returns_file_contents_when_present(self, tmp_path: Path) -> None:
+    def test_missing_file_is_logged(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        SessionService(plugin_root=tmp_path).build_background_preamble_context()
+
+        assert "background preamble document missing" in caplog.text
+
+    @pytest.fixture()
+    def unmarked_root(self, tmp_path: Path) -> Path:
+        orchestration_dir = tmp_path / "references" / "orchestration"
+        orchestration_dir.mkdir(parents=True)
+        (orchestration_dir / "background-preamble.md").write_text("# No markers here\n")
+        return tmp_path
+
+    def test_unmarked_document_yields_nothing(self, unmarked_root: Path) -> None:
+        result = SessionService(plugin_root=unmarked_root).build_background_preamble_context()
+
+        assert result == ""
+
+    def test_unmarked_document_is_logged(
+        self, unmarked_root: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        SessionService(plugin_root=unmarked_root).build_background_preamble_context()
+
+        assert "block missing or empty" in caplog.text
+
+    def test_returns_only_the_marked_block(self, tmp_path: Path) -> None:
         orchestration_dir = tmp_path / "references" / "orchestration"
         orchestration_dir.mkdir(parents=True)
         preamble = orchestration_dir / "background-preamble.md"
-        preamble.write_text("# Background Friction Preamble\nNo cd && chaining.")
+        preamble.write_text(
+            "# Background Friction Preamble\n\nWhy this exists.\n\n"
+            "<!-- BEGIN PREAMBLE -->\nNo cd && chaining.\n<!-- END PREAMBLE -->\n\n"
+            "## Pre-seed\nMaintainer notes.\n"
+        )
 
         svc = SessionService(plugin_root=tmp_path)
-        result = svc.build_background_preamble_context()
 
-        assert "Background Friction Preamble" in result
-        assert "No cd && chaining" in result
+        assert svc.build_background_preamble_context() == "No cd && chaining."
 
-    def test_real_plugin_root_has_preamble_file(self) -> None:
-        svc = SessionService()
-        result = svc.build_background_preamble_context()
-        assert len(result) > 0
+    def test_real_plugin_root_serves_the_subagent_block(self) -> None:
+        result = SessionService().build_background_preamble_context()
+
+        assert result.startswith("You are a background subagent.")
+        assert "## Why this exists" not in result
+        assert "PREAMBLE" not in result
+
+
+class TestMarkedPreamble:
+    @pytest.mark.parametrize(
+        "document",
+        [
+            "no markers at all",
+            "<!-- BEGIN PREAMBLE -->\nunterminated",
+            "trailing only\n<!-- END PREAMBLE -->",
+            "<!-- END PREAMBLE -->\nreversed\n<!-- BEGIN PREAMBLE -->",
+        ],
+    )
+    def test_missing_or_misordered_marker_yields_empty(self, document: str) -> None:
+        assert marked_preamble(document=document) == ""
 
 
 class TestBuildInstallCheckContext:

@@ -30,6 +30,21 @@ log = logging.getLogger(__name__)
 # for both "not provided" and "absent".
 _UNSET: Final = object()
 
+PREAMBLE_BEGIN: Final = "<!-- BEGIN PREAMBLE -->"
+PREAMBLE_END: Final = "<!-- END PREAMBLE -->"
+
+
+def marked_preamble(*, document: str) -> str:
+    """The text between the PREAMBLE markers, or ``""`` when either is missing."""
+    start = document.find(PREAMBLE_BEGIN)
+    if start == -1:
+        return ""
+    body_start = start + len(PREAMBLE_BEGIN)
+    end = document.find(PREAMBLE_END, body_start)
+    if end == -1:
+        return ""
+    return document[body_start:end].strip()
+
 
 class SessionServiceError(Exception):
     """Raised when a session service operation cannot proceed."""
@@ -104,13 +119,26 @@ class SessionService:
         a fresh system prompt and never receive the SessionStart friction
         briefing. Dispatchers prepend this text to each subagent prompt so it
         avoids hook-tripping command shapes and stays on the pre-approved
-        tool surface. Returns the canonical preamble document contents, or an
-        empty string when the document is missing.
+        tool surface. Returns only the block between the PREAMBLE markers —
+        the document around it is maintainer prose a subagent must not
+        receive (GH-1874) — or an empty string when the document or a
+        marker is missing.
         """
         preamble_file = (
             self._plugin_root / "references" / "orchestration" / "background-preamble.md"
         )
-        return preamble_file.read_text() if preamble_file.exists() else ""
+        if not preamble_file.exists():
+            log.warning("background preamble document missing: %s", preamble_file)
+            return ""
+        preamble = marked_preamble(document=preamble_file.read_text())
+        if not preamble:
+            log.warning(
+                "background preamble block missing or empty between %s and %s in %s",
+                PREAMBLE_BEGIN,
+                PREAMBLE_END,
+                preamble_file,
+            )
+        return preamble
 
     def build_autonomy_reassurance_context(self, *, toplevel: str | None = _UNSET) -> str:  # type: ignore[assignment]
         """Return a reassurance block for adaptive + solo-maintainer sessions (GH-261).
