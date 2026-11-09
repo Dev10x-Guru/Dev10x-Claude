@@ -17,7 +17,10 @@
 # Keep `exempt` honest: over-firing is what turns a Stop gate into
 # noise. A promise conditioned on the supervisor ("once you approve,
 # I'll merge"), a wait, or work explicitly deferred past this session is
-# not an action this turn skipped.
+# not an action this turn skipped. Keep it narrow too: an exemption
+# that matches ordinary hedging ("let me know if you disagree") lets an
+# unconditional promise through (GH-1869), and a colon lead-in carries
+# its exemption into every list item under it.
 
 languages:
   en:
@@ -44,7 +47,32 @@ languages:
       # Conditioned on the supervisor speaking first. GH-1339 ruled that
       # a prose deferral ("say go and I'll push it") is not this gate's
       # business, so a promise waiting on their word stays quiet here.
-      - "\\b(?:if|once|when|after)\\s+you\\b"
+      #
+      # A bare "if you" anywhere is not such a condition (GH-1869): "Let
+      # me know if you disagree, I'll run the tests now" hedges, and
+      # nothing in it waits on the supervisor. So "if/when you" exempts
+      # in two shapes only: opening the sentence, where it conditions
+      # the clause that follows ("If you see failures, I'll fix them"),
+      # or later in it when a phrase below gates the promise on the
+      # supervisor ("I'll rebase it if you'd like"). A list bullet,
+      # number, quote, bracket, Markdown emphasis or a connective
+      # ("So if you…", "Otherwise, if you…") may precede the opening one.
+      # A list item is judged after its colon lead-in ("Here is the
+      # plan: - If you see failures, …"), so the opening shape may also
+      # follow a colon and a list marker, but never a bare colon: "Let
+      # me know: if you disagree, I'll run the tests now" still hedges.
+      # "Once/after you" is a wait wherever it sits ("I'll push it once
+      # you've fixed the tests"), so it needs no gate phrase.
+      #
+      # A gate phrase exempts wherever it sits, so a hedge built from one
+      # ("Let me know if you'd like, I'll run the tests now") still gets
+      # through: one sentence of regex cannot tell it from "Ping me once
+      # you approve, I'll merge it". GH-1894 tracks a clause-aware check.
+      - "(?:^[\\s*_>+•(\"'`\\[-]*(?:\\d+[.)]\\s*)?|:\\s+(?:[-*+•]|\\d+[.)])\\s+[*_]*)(?:(?:and|but|so|otherwise|also|or|then|okay|ok)\\b,?\\s+)?(?:if|once|when|after)\\s+you\\b"
+      - "\\b(?:once|after)\\s+you\\b"
+      - "\\bwhen\\s+you(?:'ve|\\s+have)?\\s+(?:accept(?:s|ed)?|read|tell\\s+me|let\\s+me\\s+know|approve[sd]?|agree[sd]?|confirm(?:s|ed)?|decide[sd]?|pick(?:s|ed)?|choose[sn]?|chosen|chose|give[sn]?|gave|sign(?:s|ed)?|says?|said|review(?:s|ed)?|ok(?:ay)?(?:s|ed|'d)?|repl(?:y|ies|ied)|respond(?:s|ed)?|answer(?:s|ed)?|(?:approv|agree|confirm|decid|pick|choos|giv|sign|say|review|okay|reply|respond|answer)ing)\\b"
+      - "\\b(?:if|when)\\s+you(?:'re|\\s+are)\\s+(?:ready|happy|done|ok|okay|fine|good|sure)\\b"
+      - "\\b(?:if|when)\\s+you(?:'d|\\s+would)?\\s+(?:approve|accept|agree|decide|choose|pick|want|wish|prefer|rather|like|ask|confirm|say|give|ok|okay|need\\s+me\\s+to)\\b"
       - "\\b(?:say|give\\s+me)\\s+(?:go|the\\s+word|the\\s+go-ahead)\\b"
       - "\\bwith\\s+your\\s+(?:ok|okay|approval|go-ahead)\\b"
       # Deferred past this turn on purpose

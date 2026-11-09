@@ -245,7 +245,13 @@ Three constraints came out of building the first one:
    language. A broken `exempt` pattern disarms the gate, since losing
    an exemption would mean more blocks. An exemption covers only the
    sentence it sits in (GH-1854), so a conditional promise cannot
-   excuse an unconditional one in the same paragraph.
+   excuse an unconditional one in the same paragraph. "If/when you"
+   exempts only when it opens the sentence or gates the promise on the
+   supervisor through a phrase in the YAML's `exempt` list ("if you'd
+   like"), while "once/after you" is a wait wherever it sits (GH-1869),
+   so "let me know if you disagree, I'll run the tests now" blocks. A hedge built from a gate
+   phrase ("let me know if you'd like, …") still exempts; GH-1894
+   tracks a clause-aware check.
 
 **Keep the decision out of the hook.** `dev10x.core.hooks.stop_verdict`
 holds the rule and is a pure function over `(payload, plan)`;
