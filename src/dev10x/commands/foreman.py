@@ -235,6 +235,7 @@ def watch(
             escalation_lines=escalations,
             retired=watch_skill.retired_heartbeats(scratchpad=scratchpad),
             handled_prs=watch_skill.handled_merge_prs(scratchpad=scratchpad),
+            blocked=watch_skill.blocked_heartbeats(scratchpad=scratchpad),
         )
         for event in events:
             click.echo(event)

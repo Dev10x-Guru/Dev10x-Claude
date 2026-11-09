@@ -17,8 +17,8 @@ import logging
 import re
 import time
 from collections import Counter
-from collections.abc import Sequence
-from dataclasses import dataclass, field
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from dev10x import subprocess_utils
@@ -37,6 +37,9 @@ RETIRED_FILE = "retired"
 # leading token is present it must be a timestamp, so "NOT DONE" and
 # "DONENESS" never read as a finished worker.
 DONE_LINE = re.compile(r"^[-*\s]*(?:\d{4}-\d{2}-\d{2}T\S+\s+)?DONE\b")
+# Same shape for a worker that stopped on a hook denial or another wall:
+# `- <ISO timestamp> BLOCKED: hook denied <command>` (GH-1874).
+BLOCKED_LINE = re.compile(r"^[-*\s]*(?:\d{4}-\d{2}-\d{2}T\S+\s+)?BLOCKED\b")
 SHA_PREFIX_MIN = 7
 DEFAULT_CHUNK_MIN = 45
 ESCALATION_PREFIXES = ("MERGE REQUEST", "ESCALATION")
@@ -88,6 +91,26 @@ def heartbeat_file_name(*, chunk: str) -> str:
 def is_done_line(*, line: str) -> bool:
     """Whether a heartbeat line is a worker's final ``DONE`` report (GH-1577)."""
     return DONE_LINE.match(line) is not None
+
+
+def is_blocked_line(*, line: str) -> bool:
+    """Whether a heartbeat line is a worker's ``BLOCKED`` report (GH-1874)."""
+    return BLOCKED_LINE.match(line) is not None
+
+
+def blocked_heartbeats(*, scratchpad: Path) -> dict[str, str]:
+    """Heartbeat files whose last line is a ``BLOCKED`` report, with that line.
+
+    A worker that stops on a hook denial writes ``BLOCKED`` and goes
+    silent. Before GH-1874 the watcher knew only ``DONE``, so the overseer
+    heard about it through the stall alarm, a full stall window later.
+    """
+    blocked: dict[str, str] = {}
+    for status in sorted(scratchpad.glob(HEARTBEAT_GLOB)):
+        last = _last_line(path=status)
+        if is_blocked_line(line=last):
+            blocked[status.name] = last
+    return blocked
 
 
 def _last_line(*, path: Path) -> str:
@@ -417,8 +440,11 @@ def heartbeat_lines(*, scratchpad: Path, now: float) -> list[str]:
         if age_min is None:
             continue
         last = _last_line(path=status)
-        retired = status.name in listed or is_done_line(line=last)
-        label = f"{status.name} retired" if retired else status.name
+        label = status.name
+        if status.name in listed or is_done_line(line=last):
+            label = f"{status.name} retired"
+        elif is_blocked_line(line=last):
+            label = f"{status.name} blocked"
         lines.append(f"heartbeat: {label} age={age_min}min last={last or '(empty)'}")
     return lines
 
@@ -454,6 +480,15 @@ def probe_lines(
     return lines
 
 
+@dataclass(frozen=True)
+class BlockedAlert:
+    """The BLOCKED line last reported for a file, when it began and was last reported."""
+
+    line: str
+    since: float
+    last: float
+
+
 @dataclass
 class WatchState:
     """Pure event derivation for one observation round of the night loop."""
@@ -472,6 +507,7 @@ class WatchState:
     chunk_min: int = field(default=DEFAULT_CHUNK_MIN)
     quota_ceiling_tokens: int = field(default=0)
     quota_low_alerted_block: str = field(default="")
+    blocked_alerts: dict[str, BlockedAlert] = field(default_factory=dict)
 
     def observe(
         self,
@@ -485,7 +521,11 @@ class WatchState:
         escalation_lines: Sequence[str] = (),
         retired: set[str] | frozenset[str] = frozenset(),
         handled_prs: set[int] | frozenset[int] = frozenset(),
+        blocked: Mapping[str, str] | None = None,
     ) -> list[str]:
+        live_blocked = {
+            name: line for name, line in (blocked or {}).items() if name not in retired
+        }
         events: list[str] = []
         events.extend(self._park_events(now=now, block=block, parked=parked))
         events.extend(
@@ -495,9 +535,14 @@ class WatchState:
                 handled_prs=handled_prs,
             )
         )
+        if blocked is not None:
+            events.extend(self._blocked_events(now=now, blocked=live_blocked, parked=parked))
         events.extend(
             self._stall_events(
-                now=now, heartbeat_ages=heartbeat_ages, parked=parked, retired=retired
+                now=now,
+                heartbeat_ages=heartbeat_ages,
+                parked=parked,
+                retired=frozenset(retired) | frozenset(live_blocked),
             )
         )
         events.extend(self._base_events(sha=sha, merged_shas=merged_shas))
@@ -549,6 +594,37 @@ class WatchState:
                 log.info("dropped already-merged escalation: %s", entry)
                 continue
             events.append(entry)
+        return events
+
+    def _blocked_events(
+        self, *, now: float, blocked: Mapping[str, str], parked: bool
+    ) -> list[str]:
+        """Report a ``BLOCKED`` heartbeat at once, then once per stall window (GH-1874).
+
+        A blocked worker is waiting on a decision, not stalled, so it is
+        reported immediately and kept out of the stall alarm. The report
+        repeats every stall window while the line stands, so a missed
+        event or a worker that died while blocked still resurfaces; a
+        parked queue holds the repeats, as it holds stall alarms.
+        """
+        self.blocked_alerts = {
+            name: alert for name, alert in self.blocked_alerts.items() if name in blocked
+        }
+        events: list[str] = []
+        for name in sorted(blocked):
+            line = blocked[name]
+            previous = self.blocked_alerts.get(name)
+            if previous is None or previous.line != line:
+                self.blocked_alerts[name] = BlockedAlert(line=line, since=now, last=now)
+                events.append(f"BLOCKED {name}: {line.lstrip('-* ').strip()}")
+                continue
+            if parked or now - previous.last < self.stall_min * 60:
+                continue
+            self.blocked_alerts[name] = replace(previous, last=now)
+            minutes = int((now - previous.since) / 60)
+            events.append(
+                f"BLOCKED {name}: still waiting after {minutes} min: {line.lstrip('-* ').strip()}"
+            )
         return events
 
     def _stall_events(
