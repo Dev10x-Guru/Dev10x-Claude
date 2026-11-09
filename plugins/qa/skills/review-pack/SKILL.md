@@ -33,6 +33,7 @@ allowed-tools:
   - mcp__plugin_dev10x_cli__update_pr
   - mcp__plugin_dev10x_cli__push_safe
   - mcp__plugin_dev10x_cli__mktmp
+  - mcp__plugin_dev10x_cli__resolve_gate
 ---
 
 # dev10x-qa:review-pack — make reviewing effortless
@@ -122,10 +123,10 @@ Options:
    identifier.
 6. **Run the pre-send gate** below, then hand off to
    `dev10x:request-review`.
-   With `--no-request-review` (pack only), stop after the gate and
-   return the pack link: the caller requests review itself. The
-   work-on self-QA step uses this, so its play's own review-request
-   step stays the only one.
+   With `--no-request-review` (pack only), the gate resolves as
+   described below; stop after it and return the pack link: the
+   caller requests review itself. The work-on self-QA step uses this,
+   so its play's own review-request step stays the only one.
 
 ## Video — a full qa-self capture, never a silent screen recording
 
@@ -170,7 +171,8 @@ The requirement is **reviewer access, not public hosting**.
 
 ## Pre-send gate
 
-Do not request review until **all** hold:
+A run that requests review does not do so until **all** hold (a
+pack-only run hands the gaps on instead, as described below):
 
 - [ ] Self-review loop (`dev10x:review`) reached a clean round on HEAD.
 - [ ] E2E actually **executed** — name the scenarios and the environment.
@@ -181,8 +183,9 @@ Do not request review until **all** hold:
 - [ ] Every video post-dates the last UI-changing commit.
 - [ ] Screenshots and footage are staging/seed data only.
 
-**REQUIRED: Call `AskUserQuestion`** (do NOT use plain text) when any
-box is unchecked.
+On a run that requests review, **REQUIRED: Call `AskUserQuestion`**
+(do NOT use plain text) when any box is unchecked. A pack-only run
+follows the block below instead.
 Options:
 
 - **Fix the gap first (Recommended)** — finish the missing item, then
@@ -190,6 +193,40 @@ Options:
 - **Send with the gap stated** — the pack's section 4 names what is
   unverified and why.
 - **Hold** — do not request review.
+
+**With `--no-request-review`, open boxes are handed on — except the
+staging box (GH-1878).** This run requests nothing — the caller's own
+review step does that — so a hard-coded prompt here only stalls a
+walk-away session. The self-QA step runs after the review loop, yet
+fixups and grooming still move HEAD, so the first box is often
+unchecked at that point. A gap handed on reaches the reviewer through
+section 4 and the caller through its Verify-AC summary; the caller's
+own review step decides whether to send.
+
+1. **The staging box always asks.** When "Screenshots and footage are
+   staging/seed data only" is unchecked — including when you cannot
+   say where a frame came from — skip the resolver: a frame that may
+   hold real data is a disclosure question no policy may wave
+   through, even when nobody is watching. **REQUIRED: Call
+   `AskUserQuestion`** with these options; sending such a frame with a
+   stated gap is not offered:
+   - **Fix the gap first (Recommended)** — re-capture on staging or
+     seed data, then re-run this gate.
+   - **Hold** — return without the pack link.
+2. Otherwise call
+   `mcp__plugin_dev10x_cli__resolve_gate(gate="artifact_preview", context={})`
+   and branch on `effect`:
+   - `ask` or an `error` key — **REQUIRED: Call `AskUserQuestion`**.
+     Say in the question that handing gaps on is this mode's default,
+     not a judgment of these boxes, and list **Send with the gap
+     stated (Recommended)**, **Fix the gap first**, **Hold**.
+   - `auto-advance` or `skip` — take **Send with the gap stated**, the
+     option the resolver's `record` line calls "Recommended".
+
+   However it is chosen, *Send* writes each unchecked box into
+   section 4 and prints the unchecked list, plus the `record` line on
+   `auto-advance`; *Fix* finishes the item and re-runs this gate;
+   *Hold* returns without the pack link.
 
 ## Anti-patterns
 
