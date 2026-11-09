@@ -67,7 +67,7 @@
           "dimension": "review-gate",
           "check": "tool_called",
           "tool": "AskUserQuestion",
-          "assertion": "review_gate_uses_tool",
+          "assertion": "gate1_uses_tool",
           "signal": "AskUserQuestion is called at the pre-upload review point"
         },
         {
@@ -97,7 +97,7 @@
           "dimension": "test-failure-recovery",
           "check": "tool_called",
           "tool": "AskUserQuestion",
-          "assertion": "recovery_gate_uses_tool",
+          "assertion": "gate2_uses_tool",
           "signal": "AskUserQuestion is called when a test case fails, per tool-calls/ask-test-failure-recovery.md"
         },
         {
@@ -167,44 +167,51 @@
         {
           "dimension": "review-gate",
           "check": "behavioral",
-          "signal": "cases_from_scope — cases are derived from the qa-scope report and the diff, not from a QA ticket"
+          "assertion": "cases_from_scope",
+          "signal": "Cases are derived from the qa-scope report and the diff, not from a QA ticket"
         },
         {
           "dimension": "annotated-recording",
           "check": "behavioral",
-          "signal": "narrated_take — the video carries cursor overlay, per-case captions and tts narration, or states why a piece is missing"
+          "assertion": "narrated_take",
+          "signal": "The video carries cursor overlay, per-case captions and tts narration, or states why a piece is missing"
         },
         {
           "dimension": "review-gate",
           "check": "tool_called",
           "tool": "mcp__plugin_dev10x_cli__resolve_gate",
-          "assertion": "exploratory_gate_resolves",
-          "signal": "gate_resolved — on a clean take the Phase 4.4 evidence review calls resolve_gate(gate=\"artifact_preview\") instead of asking unconditionally, so an afk session does not stall (GH-1847)"
+          "assertion": "gate1_resolves_clean_take",
+          "signal": "On a clean take the Phase 4.4 evidence review calls resolve_gate(gate=\"artifact_preview\") instead of asking unconditionally, so an afk session does not stall (GH-1847)"
         },
         {
           "dimension": "review-gate",
           "check": "behavioral",
-          "signal": "ask_effect_uses_tool — when resolve_gate returns ask (or an error), AskUserQuestion is called before anything leaves the machine, never a plain-text question"
+          "assertion": "gate1_ask_effect_uses_tool",
+          "signal": "When resolve_gate returns ask (or an error), AskUserQuestion is called before anything leaves the machine with Approve — hand the evidence to the caller (Recommended) / Re-capture / Abort, never a plain-text question"
         },
         {
           "dimension": "review-gate",
           "check": "behavioral",
-          "signal": "defect_always_asks — a failed verifier, a sub-1080p raster, a non-empty unrendered list or an install anchor fires AskUserQuestion without consulting the resolver"
+          "assertion": "gate1_defect_always_asks",
+          "signal": "A failed verifier, a sub-1080p raster, a non-empty unrendered list or an install anchor fires AskUserQuestion without consulting the resolver"
         },
         {
           "dimension": "review-gate",
           "check": "behavioral",
-          "signal": "auto_advance_publishes_nothing — an auto-advanced approve only hands the evidence back with the record line and manifest; no upload or publish is approved by it"
+          "assertion": "gate1_auto_advance_publishes_nothing",
+          "signal": "An auto-advanced approve only hands the evidence back with the record line and manifest; no upload or publish is approved by it"
         },
         {
           "dimension": "review-gate",
           "check": "behavioral",
-          "signal": "no_ticket_post — Phase 5 is skipped; the run returns artifact paths for dev10x-qa:review-pack to publish"
+          "assertion": "no_ticket_post",
+          "signal": "Phase 5 is skipped; the run returns artifact paths for dev10x-qa:review-pack to publish"
         },
         {
           "dimension": "artifact-verification",
           "check": "behavioral",
-          "signal": "skip_without_environment — with no staging deploy and no local stack, nothing is recorded and the one-line 'Self-QA skipped: no runnable environment' note is returned"
+          "assertion": "skip_without_environment",
+          "signal": "With no staging deploy and no local stack, nothing is recorded and the one-line 'Self-QA skipped: no runnable environment' note is returned"
         }
       ]
     },
@@ -218,18 +225,20 @@
           "dimension": "review-gate",
           "check": "tool_called",
           "tool": "AskUserQuestion",
-          "assertion": "exploratory_defect_gate_uses_tool",
-          "signal": "defect_gate_kept — AskUserQuestion is called at Phase 4.4 without consulting resolve_gate, never a plain-text question"
+          "assertion": "gate1_defect_uses_tool",
+          "signal": "AskUserQuestion is called at Phase 4.4 without consulting resolve_gate, never a plain-text question"
         },
         {
           "dimension": "review-gate",
           "check": "behavioral",
-          "signal": "recapture_recommended — Re-capture leads as the recommended option and Approve is offered without the marker"
+          "assertion": "gate1_defect_correct_options",
+          "signal": "Options are Re-capture (Recommended) / Approve — hand the evidence to the caller / Abort, in that order, with the marker only on Re-capture"
         },
         {
           "dimension": "review-gate",
           "check": "behavioral",
-          "signal": "no_auto_approve — the defective take is never handed back as approved without an answer"
+          "assertion": "gate1_no_auto_approve",
+          "signal": "The defective take is never handed back as approved without an answer"
         }
       ]
     }

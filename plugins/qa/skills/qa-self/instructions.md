@@ -1134,24 +1134,27 @@ Only on *Approve* proceed to 4.5. Never upload first and ask after.
 `dev10x-qa:yt-upload` each keep their own publish gate. So the session
 policy, not a hard-coded prompt, decides whether a clean take needs a
 human look: the gate follows the resolver, which auto-advances it under
-the adaptive baseline and asks where a project pin or overlay says so.
-That is what keeps a walk-away session from stalling here. Report steps
-1–2 exactly as above, then:
+the adaptive baseline and asks only where a project pin, overlay or
+override sets `artifact_preview: ask` (a `skip` value approves without
+asking, as `auto-advance` does). That is what keeps a walk-away session
+from stalling here. Report steps 1–2 exactly as above, then:
 
 1. **A defect always asks.** When any of these holds, skip the
    resolver and **REQUIRED: Call `AskUserQuestion`** (do NOT use plain
    text): the 4.1 verifier did not pass, the raster is below
    `1920,1080`, `unrendered` is non-empty, or `anchor` is `install`.
-   **Re-capture** leads as the recommended option and *Approve — hand
-   the evidence to the caller* is offered without the marker, whichever
-   defect it is — a defective take is the one this gate exists to stop.
+   Whichever defect it is, offer the full step 3 set in this order —
+   a defective take is the one this gate exists to stop:
+   - **Re-capture (Recommended)** — return to Phase 2/3 and shoot again
+   - **Approve — hand the evidence to the caller** — no marker
+   - **Abort** — stop without handing anything back
 2. Otherwise the take is clean. Call
    `mcp__plugin_dev10x_cli__resolve_gate(gate="artifact_preview", context={})`
    and branch on `effect`:
-   - `ask` — **REQUIRED: Call `AskUserQuestion`** with the step 3
-     options, *Approve — hand the evidence to the caller* in place of
-     the Linear upload option. It leads as the recommended option,
-     because the take passed every check above.
+   - `ask` — **REQUIRED: Call `AskUserQuestion`** with the full step 3
+     set in this order, because the take passed every check above:
+     **Approve — hand the evidence to the caller (Recommended)**, in
+     place of the Linear upload option; **Re-capture**; **Abort**.
    - `auto-advance` or `skip` — take *Approve*. Print the returned
      `record` line (on `auto-advance`) and the screenshot manifest, so
      the caller's Verify-AC summary can name what was approved.
