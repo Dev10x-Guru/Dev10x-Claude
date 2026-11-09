@@ -16,6 +16,7 @@ from datetime import datetime
 from pathlib import Path
 
 from dev10x.comm.skills.bus.maildir import read_message
+from dev10x.core.name_boundary import name_pattern
 
 REGISTRY_MAILBOX = "registry"
 HELLO_SUBJECT = "hello"
@@ -96,8 +97,7 @@ def read_registry(root: Path) -> dict[str, Hello]:
 
 
 def _mentions(*, text: str, term: str) -> bool:
-    pattern = rf"(?<![\w-]){re.escape(term)}(?![\w-])"
-    return re.search(pattern, text, flags=re.IGNORECASE) is not None
+    return name_pattern(names=(term,), flags=re.IGNORECASE).search(text) is not None
 
 
 def _explicit_roles(*, text: str, roles: Iterable[str]) -> list[str]:

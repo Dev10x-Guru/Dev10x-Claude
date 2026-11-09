@@ -2,17 +2,47 @@
 
 from __future__ import annotations
 
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 
 from dev10x.skills.audit import privacy
 
+REPO_ROOT = Path(__file__).resolve().parents[3]
+_IMPORT_PROBE = (
+    "import sys\n"
+    f"sys.path.insert(0, {str(REPO_ROOT / 'src')!r})\n"
+    "before = 'yaml' in sys.modules\n"
+    "from dev10x.skills.audit import privacy\n"
+    "print(before, 'yaml' in sys.modules)\n"
+)
+
 
 def _write(path: Path, body: str) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(body)
     return path
+
+
+class TestScriptImportFootprint:
+    """bin/check-privacy-policy.py declares no dependencies (GH-1874)."""
+
+    @pytest.fixture()
+    def probe(self) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [sys.executable, "-I", "-c", _IMPORT_PROBE],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=60,
+        )
+
+    def test_importing_the_scanner_does_not_need_yaml(
+        self, probe: subprocess.CompletedProcess[str]
+    ) -> None:
+        assert (probe.returncode, probe.stdout.split()) == (0, ["False", "False"]), probe.stderr
 
 
 # ─────────────────────────────────────────────────────────────────────
