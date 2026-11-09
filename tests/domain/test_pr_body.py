@@ -5,9 +5,11 @@ from dev10x.domain.pr_body import (
     SO_CAN_MARKER,
     WANTS_MARKER,
     WHEN_MARKER,
+    fixes_trailer_error,
     has_fixes_trailer,
     job_story_error,
     missing_job_story_markers,
+    none_trailer_error,
     normalize_pr_body,
 )
 
@@ -198,3 +200,56 @@ def test_self_motivated_fixes_trailer_is_detected():
 
 def test_missing_fixes_trailer_is_detected():
     assert not has_fixes_trailer(body="Story\n\n---")
+
+
+def test_missing_fixes_trailer_is_named():
+    assert fixes_trailer_error(body="Story\n\n---") == "body carries no Fixes: trailer"
+
+
+@pytest.mark.parametrize(
+    "trailer",
+    [
+        "Fixes: none",
+        "Fixes: none —",
+        "Fixes: none — —",
+        "Fixes: none — <reason>",
+        "Fixes: none of the above",
+        "Fixes: LIN-42\nFixes: none",
+    ],
+    ids=[
+        "bare",
+        "dash-only",
+        "punctuation-only",
+        "placeholder",
+        "no-dash",
+        "bare-none-beside-a-non-github-reference",
+    ],
+)
+def test_a_none_trailer_close_issues_would_fail_is_refused(trailer: str):
+    error = none_trailer_error(body=f"Story\n\n{trailer}")
+
+    assert error is not None
+    assert "Fixes: none — part of #123" in error
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "Story\n\nFixes: none — self-motivated",
+        f"Story\n\nFixes: {FIXES_URL}",
+        "Story\n\nFixes: LIN-42",
+        "Story\n\n---",
+        "Story\n\nFixes: GH-7\nFixes: none",
+        "Story\n\nFixes: #7\n\nFixes: none",
+    ],
+    ids=[
+        "usable-reason",
+        "reference-trailer",
+        "non-github-reference",
+        "no-trailer",
+        "reference-beside-bare-none",
+        "reference-above-a-separate-bare-none",
+    ],
+)
+def test_only_a_malformed_none_trailer_is_a_none_trailer_error(body: str):
+    assert none_trailer_error(body=body) is None

@@ -159,6 +159,63 @@ class TestCreatePrFixesTrailerReadback:
         assert result.value["fixes_trailer_verified"] is False
         assert "connection reset" in result.value["warning"]
 
+    @pytest.mark.asyncio
+    @patch("dev10x.github.pulls.pr_get", new_callable=AsyncMock)
+    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
+    async def test_a_landed_bare_none_trailer_is_named_as_malformed(
+        self, mock_run: AsyncMock, mock_pr_get: AsyncMock
+    ) -> None:
+        mock_run.return_value = _created()
+        mock_pr_get.return_value = ok({"body": "Story\n\nFixes: none"})
+
+        result = await gh.create_pr(title="t", job_story=_JOB_STORY, issue_id="GH-1")
+
+        assert isinstance(result, ErrorResult)
+        assert "malformed" in result.error
+
+
+@pytest.mark.usefixtures("stub_feature_branch")
+class TestCreatePrRefusesUnclosableNoneTrailer:
+    """GH-1873: refuse before the PR exists, not when close-issues fails."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "kwargs",
+        [
+            {"body": f"{_JOB_STORY}\n\nFixes: none"},
+            {"body": f"{_JOB_STORY}\n\nFixes: none — <reason>"},
+            {"job_story": _JOB_STORY, "fixes_url": "none"},
+            {"job_story": _JOB_STORY, "fixes_url": "none — —"},
+        ],
+        ids=["body-bare", "body-placeholder", "fixes-url-bare", "fixes-url-punctuation"],
+    )
+    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
+    async def test_no_pr_is_opened(self, mock_run: AsyncMock, kwargs: dict[str, str]) -> None:
+        result = await gh.create_pr(title="t", issue_id="GH-1", **kwargs)
+
+        assert isinstance(result, ErrorResult)
+        assert result.error.startswith("create_pr: Fixes: trailer is malformed")
+        mock_run.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github.pulls.pr_get", new_callable=AsyncMock)
+    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
+    async def test_a_reasoned_none_trailer_is_opened(
+        self, mock_run: AsyncMock, mock_pr_get: AsyncMock
+    ) -> None:
+        mock_run.return_value = _created()
+        mock_pr_get.return_value = ok({"body": "Story\n\nFixes: none — part of #909"})
+
+        result = await gh.create_pr(
+            title="t",
+            job_story=_JOB_STORY,
+            issue_id="GH-1",
+            fixes_url="none — part of #909",
+        )
+
+        assert isinstance(result, SuccessResult)
+        assert result.value["fixes_trailer_verified"] is True
+
 
 class TestPostMergeLinkClosure:
     """Did the trailer actually close anything (GH-1274)?
