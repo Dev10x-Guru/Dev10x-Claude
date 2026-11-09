@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from dev10x.domain.pr_body import has_fixes_trailer
 
-from dev10x.core.fixes_trailer import explicit_none_reason
+from dev10x.core.fixes_trailer import EXIT_MISSING, verdict
 
 _SRC_ROOT = Path(__file__).resolve().parents[2] / "src"
 _PROBE_TIMEOUT_SECONDS = 30
@@ -42,26 +42,44 @@ class TestStdlibOnly:
         assert third_party_imports == []
 
 
+_REPO = "Dev10x-Guru/Dev10x-Claude"
 _NONE_TRAILERS = {
-    "em-dash-reason": "Fixes: none — part of #909",
-    "hyphen-reason": "Fixes: none - self-motivated",
-    "uppercase": "FIXES: NONE — self-motivated",
-    "bare": "Fixes: none",
-    "dash-only": "Fixes: none —",
-    "punctuation-only": "Fixes: none — —",
-    "placeholder": "Fixes: none — <reason>",
-    "no-dash": "Fixes: none of the above",
-    "fenced-example-then-bare": "```\nFixes: none — part of #909\n```\nFixes: none",
-    "commented-example-then-bare": "<!-- Fixes: none — part of #909 -->\nFixes: none",
-    "unclosed-fence": "```\nFixes: none — part of #909",
+    "em-dash-reason": ("Fixes: none — part of #909", True),
+    "hyphen-reason": ("Fixes: none - self-motivated", True),
+    "uppercase": ("FIXES: NONE — self-motivated", True),
+    "crlf-reason": ("Fixes: none — part of #909\r\n", True),
+    "reference-beside-bare": ("Fixes: GH-7\nFixes: none", True),
+    "reference-above-separate-bare": ("Fixes: #7\n\nFixes: none", True),
+    "bare": ("Fixes: none", False),
+    "dash-only": ("Fixes: none —", False),
+    "punctuation-only": ("Fixes: none — —", False),
+    "underscore-only": ("Fixes: none — _", False),
+    "placeholder": ("Fixes: none — <reason>", False),
+    "no-dash": ("Fixes: none of the above", False),
+    "fenced-example-then-bare": ("```\nFixes: none — part of #909\n```\nFixes: none", False),
+    "commented-example-then-bare": ("<!-- Fixes: none — part of #909 -->\nFixes: none", False),
+    "unclosed-fence": ("```\nFixes: none — part of #909", False),
 }
 
 
 class TestCreationAndMergeAgree:
     """GH-1873: a none trailer create_pr accepts is one close-issues accepts."""
 
-    @pytest.mark.parametrize("trailer", _NONE_TRAILERS.values(), ids=_NONE_TRAILERS.keys())
-    def test_both_ends_reach_the_same_verdict(self, trailer: str) -> None:
-        body = f"**When** a slice lands, **a maintainer wants** it.\n\n{trailer}"
+    @pytest.fixture(params=_NONE_TRAILERS.values(), ids=list(_NONE_TRAILERS))
+    def case(self, request: pytest.FixtureRequest) -> tuple[str, bool]:
+        trailer, expected = request.param
+        return f"**When** a slice lands, **a maintainer wants** it.\n\n{trailer}", expected
 
-        assert has_fixes_trailer(body=body) == (explicit_none_reason(body=body) is not None)
+    def test_create_pr_accepts_exactly_the_expected_bodies(self, case: tuple[str, bool]) -> None:
+        body, expected = case
+
+        assert has_fixes_trailer(body=body) is expected
+
+    def test_close_issues_passes_exactly_the_expected_bodies(
+        self,
+        case: tuple[str, bool],
+    ) -> None:
+        body, expected = case
+        code, _ = verdict(body=body, repo=_REPO)
+
+        assert (code != EXIT_MISSING) is expected

@@ -24,6 +24,11 @@ _spec.loader.exec_module(extract_linked_issues)
 
 extract = extract_linked_issues.extract
 explicit_none_reason = extract_linked_issues.explicit_none_reason
+verdict = extract_linked_issues.verdict
+workflow_data = extract_linked_issues.workflow_data
+EXIT_REFS = extract_linked_issues.EXIT_REFS
+EXIT_MISSING = extract_linked_issues.EXIT_MISSING
+EXIT_DECLARED_NONE = extract_linked_issues.EXIT_DECLARED_NONE
 
 REPO = "Dev10x-Guru/Dev10x-Claude"
 _WORKFLOW = _REPO_ROOT / ".github" / "workflows" / "close-issues.yml"
@@ -223,64 +228,150 @@ class TestExplicitNone:
         assert extract(body=_PARTIAL_DELIVERY_BODY, repo=REPO) == []
 
 
+class TestVerdict:
+    """GH-1873: one call decides refs / declared-none / missing."""
+
+    def test_references_win_over_a_none_trailer(self) -> None:
+        body = "Fixes: GH-7\nFixes: none — part of #909"
+
+        assert verdict(body=body, repo=REPO) == (EXIT_REFS, [f"{REPO}#7"])
+
+    def test_declared_none_is_a_notice(self) -> None:
+        assert verdict(body=_PARTIAL_DELIVERY_BODY, repo=REPO) == (
+            EXIT_DECLARED_NONE,
+            ["::notice::PR declares 'Fixes: none' (part of #909); nothing to close."],
+        )
+
+    @pytest.mark.parametrize(
+        ("body", "expected_errors"),
+        [
+            ("Just a story.", 1),
+            ("Story.\n\nFixes: none", 2),
+            ("Story.\n\nFixes: none — <reason>", 2),
+        ],
+        ids=["no-trailer", "bare-none", "placeholder-none"],
+    )
+    def test_missing_fails_and_names_a_malformed_none_trailer(
+        self,
+        body: str,
+        expected_errors: int,
+    ) -> None:
+        code, lines = verdict(body=body, repo=REPO)
+
+        assert code == EXIT_MISSING
+        assert sum(line.startswith("::error::") for line in lines) == expected_errors
+
+    @pytest.mark.parametrize(
+        "shape",
+        extract_linked_issues.RECOGNIZED_SHAPES,
+        ids=extract_linked_issues.RECOGNIZED_SHAPES,
+    )
+    def test_every_advertised_shape_is_one_the_extractor_closes(self, shape: str) -> None:
+        body = shape.replace("<owner>/<repo>", "owner/repo")
+
+        assert extract(body=body, repo=REPO) != []
+
+    def test_the_hint_lists_every_advertised_shape(self) -> None:
+        _, lines = verdict(body="Just a story.", repo=REPO)
+        hint = next(line for line in lines if line.startswith("Recognized shapes:"))
+
+        assert all(f"'{shape}'" in hint for shape in extract_linked_issues.RECOGNIZED_SHAPES)
+
+
+class TestWorkflowData:
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            ("part of #909", "part of #909"),
+            ("100%0A::error::forged", "100%250A::error::forged"),
+            ("tab\there\x1b[31m", "tabhere[31m"),
+        ],
+        ids=["plain", "runner-escape", "control-characters"],
+    )
+    def test_author_text_cannot_steer_the_runner(self, text: str, expected: str) -> None:
+        assert workflow_data(text=text) == expected
+
+    def test_a_reason_is_escaped_inside_the_notice(self) -> None:
+        _, lines = verdict(body="Fixes: none — 50%0A done", repo=REPO)
+
+        assert lines == ["::notice::PR declares 'Fixes: none' (50%250A done); nothing to close."]
+
+
 class TestCli:
     @pytest.mark.parametrize(
-        ("argv", "body", "expected"),
+        ("body", "expected_code", "expected_out"),
         [
-            (["--repo", REPO], "Fixes: GH-7\n", f"{REPO}#7\n"),
-            (["--repo", REPO], _PARTIAL_DELIVERY_BODY, ""),
-            (["--explicit-none"], _PARTIAL_DELIVERY_BODY, "part of #909\n"),
-            (["--explicit-none"], "Fixes: GH-7\n", ""),
+            ("Fixes: GH-7\n", EXIT_REFS, f"{REPO}#7\n"),
+            (
+                _PARTIAL_DELIVERY_BODY,
+                EXIT_DECLARED_NONE,
+                "::notice::PR declares 'Fixes: none' (part of #909); nothing to close.\n",
+            ),
         ],
+        ids=["refs", "declared-none"],
     )
-    def test_main_prints_one_mode_per_flag(
+    def test_main_prints_exactly_the_verdict_and_exits_with_its_code(
         self,
-        argv: list[str],
         body: str,
-        expected: str,
+        expected_code: int,
+        expected_out: str,
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        monkeypatch.setattr("sys.argv", ["extract-linked-issues.py", *argv])
+        monkeypatch.setattr("sys.argv", ["extract-linked-issues.py", "--repo", REPO])
         monkeypatch.setattr("sys.stdin", io.StringIO(body))
 
-        assert extract_linked_issues.main() == 0
-        assert capsys.readouterr().out == expected
+        assert extract_linked_issues.main() == expected_code
+        assert capsys.readouterr().out == expected_out
 
-    def test_main_requires_repo_unless_explicit_none(
+    def test_main_fails_a_bare_none_with_the_verdict_errors(
         self,
         monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
     ) -> None:
+        monkeypatch.setattr("sys.argv", ["extract-linked-issues.py", "--repo", REPO])
+        monkeypatch.setattr("sys.stdin", io.StringIO("Fixes: none\n"))
+        _, expected_lines = verdict(body="Fixes: none\n", repo=REPO)
+
+        assert extract_linked_issues.main() == EXIT_MISSING
+        assert capsys.readouterr().out.splitlines() == expected_lines
+
+    def test_main_requires_repo(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr("sys.argv", ["extract-linked-issues.py"])
         monkeypatch.setattr("sys.stdin", io.StringIO("Fixes: GH-7\n"))
 
-        with pytest.raises(SystemExit):
+        with pytest.raises(SystemExit) as raised:
             extract_linked_issues.main()
+
+        assert raised.value.code == 2
 
 
 class TestWorkflowWiring:
-    """The workflow must consult the explicit-none mode before failing."""
+    """close-issues.yml makes one call and branches only on its exit code."""
 
     @pytest.fixture
-    def empty_refs_block(self) -> str:
-        text = _WORKFLOW.read_text(encoding="utf-8")
-        start = text.index('if [ -z "$refs" ]; then')
-        end = text.index("\n          fi\n", start)
-        return text[start:end]
+    def workflow_text(self) -> str:
+        return _WORKFLOW.read_text(encoding="utf-8")
 
-    def test_only_a_declared_reason_exits_green_before_the_loud_failure(
-        self,
-        empty_refs_block: str,
-    ) -> None:
-        markers = [
-            "--explicit-none",
-            'if [ -n "$reason" ]; then',
-            "exit 0",
-            "\n            fi\n",
-            "::error::",
-            "exit 1",
-        ]
+    def test_the_extractor_is_called_once(self, workflow_text: str) -> None:
+        assert workflow_text.count("./bin/extract-linked-issues.py") == 1
 
-        positions = [empty_refs_block.index(marker) for marker in markers]
+    def test_exit_three_reaches_the_case_under_set_e(self, workflow_text: str) -> None:
+        wrapped = workflow_text[workflow_text.index("set +e") :]
+        markers = ["set +e", "verdict=$(", "status=$?", "set -e\n", 'case "$status" in']
+
+        positions = [wrapped.index(marker) for marker in markers]
 
         assert positions == sorted(positions)
+
+    @pytest.mark.parametrize(
+        "arm",
+        [
+            f"{EXIT_REFS}) refs=$verdict ;;",
+            f"{EXIT_DECLARED_NONE}) printf '%s\\n' \"$verdict\"; exit 0 ;;",
+            "*) printf '%s\\n' \"$verdict\"; exit 1 ;;",
+        ],
+        ids=["refs", "declared-none", "anything-else-fails"],
+    )
+    def test_each_exit_code_maps_to_its_outcome(self, workflow_text: str, arm: str) -> None:
+        assert arm in workflow_text

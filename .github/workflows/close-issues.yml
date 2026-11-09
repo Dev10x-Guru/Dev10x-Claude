@@ -30,33 +30,19 @@ jobs:
         run: |
           set -euo pipefail
 
-          refs=$(printf '%s' "$PR_BODY" \
+          # GH-1196, GH-1819, GH-1873: the extractor owns the whole
+          # decision, so it is covered by tests/bin rather than by a merge.
+          # 0 = references to close, 3 = declared `Fixes: none`, else fail.
+          set +e
+          verdict=$(printf '%s' "$PR_BODY" \
             | ./bin/extract-linked-issues.py --repo "$PR_REPO")
-
-          # GH-1196: a merged PR whose body yields zero closable references
-          # is far more often a body-format problem than a genuine no-op.
-          # This job is the ONLY thing that closes a bundle PR's
-          # constituents -- GitHub's native auto-close fires on a merge to
-          # the *default* branch, and this repo merges to `develop`. So
-          # "found nothing" must be loud, not a green check.
-          #
-          # GH-1819: the exception is a body that SAYS it closes nothing.
-          # `Fixes: none — part of #N` is the sanctioned partial-delivery
-          # trailer; failing it turned every correctly scoped partial PR
-          # red. A body with no `Fixes:` line at all still fails below.
-          if [ -z "$refs" ]; then
-            reason=$(printf '%s' "$PR_BODY" \
-              | ./bin/extract-linked-issues.py --explicit-none)
-            if [ -n "$reason" ]; then
-              echo "::notice::PR declares 'Fixes: none' ($reason); nothing to close."
-              exit 0
-            fi
-            echo "::error::No closable issue references found in the PR body."
-            echo "Recognised shapes: 'Fixes: GH-123', 'Fixes: #123',"
-            echo "'Closes #123', 'Resolves #123', and full issue URLs."
-            echo "A PR that closes nothing declares 'Fixes: none — <reason>'."
-            exit 1
-          fi
+          status=$?
+          set -e
+          case "$status" in
+            0) refs=$verdict ;;
+            3) printf '%s\n' "$verdict"; exit 0 ;;
+            *) printf '%s\n' "$verdict"; exit 1 ;;
+          esac
 
           failed=0
           while read -r ref; do
