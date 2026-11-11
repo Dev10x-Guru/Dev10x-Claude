@@ -16,7 +16,6 @@ import pytest
 from dev10x.core.domain.common.result import ErrorResult, SuccessResult
 from dev10x.core.domain.deprecations import REGISTER
 from dev10x.core.domain.file_locks import LockTimeoutError
-from dev10x.core.plugin_map import load_plugin_map
 from dev10x.core.skills.upgrade_cleanup import skill_names
 from dev10x.core.skills.upgrade_cleanup.skill_names import (
     SKILL_NAME_ALIASES,
@@ -164,37 +163,34 @@ class TestAliasResolution:
         assert resolve_skill_alias(name="dev10x:gog") == "dev10x:gog"
 
 
+RETIRED_IN_GH_1865 = (
+    "dev10x:aws-vault",
+    "dev10x:db",
+    "dev10x:db-psql",
+    "dev10x:k8s",
+    "dev10x:playwright",
+    "dev10x:qa-publish",
+    "dev10x:qa-self",
+    "dev10x:review-pack",
+    "dev10x:sql-handoff",
+    "dev10x:tts",
+    "dev10x:yt-upload",
+)
+
+
 class TestRegister:
+    @pytest.mark.parametrize("old", RETIRED_IN_GH_1865)
+    def test_retired_extraction_name_is_no_longer_rewritten(self, old: str) -> None:
+        assert resolve_skill_alias(name=old) == old
+
     @pytest.fixture
-    def entry_removed_in(self) -> str:
-        return {entry.name: entry for entry in REGISTER}["SKILL_NAME_ALIASES"].removed_in
+    def register_limit(self) -> str:
+        removed_in = {entry.name: entry.removed_in for entry in REGISTER}
+        no_entry_means_every_row_is_overdue = "0.0.0"
+        return removed_in.get("SKILL_NAME_ALIASES", no_entry_means_every_row_is_overdue)
 
-    @pytest.mark.parametrize(
-        ("old", "new"),
-        [
-            ("dev10x:qa-self", "dev10x-qa:qa-self"),
-            ("dev10x:k8s", "dev10x-infra:k8s"),
-            ("dev10x:db-psql", "dev10x-db:db-psql"),
-        ],
-    )
-    def test_shipped_aliases_rewrite_a_moved_name(self, old: str, new: str) -> None:
-        assert migrate_text(text=f"steps:\n  - skill: {old}\n", aliases=SKILL_NAME_ALIASES) == (
-            f"steps:\n  - skill: {new}\n",
-            1,
-        )
-
-    def test_every_extracted_skill_keeps_its_old_name_as_an_alias(self) -> None:
-        plugin_map = load_plugin_map()
-        expected = {
-            (f"dev10x:{skill}", f"{plugin_map.plugin_name(key=key)}:{skill}")
-            for key in plugin_map.extracted
-            for skill in plugin_map.plugins[key]
-        }
-
-        assert {(alias.old, alias.new) for alias in SKILL_NAME_ALIASES} == expected
-
-    def test_no_shipped_alias_outlives_the_register_entry(self, entry_removed_in: str) -> None:
-        assert aliases_outliving(aliases=SKILL_NAME_ALIASES, removed_in=entry_removed_in) == []
+    def test_no_shipped_alias_outlives_its_register_entry(self, register_limit: str) -> None:
+        assert aliases_outliving(aliases=SKILL_NAME_ALIASES, removed_in=register_limit) == []
 
     def test_flags_an_alias_that_outlives_the_entry(self) -> None:
         late = SkillNameAlias(old="dev10x:tts", new="dev10x-qa:tts", removed_in="0.120.0")
