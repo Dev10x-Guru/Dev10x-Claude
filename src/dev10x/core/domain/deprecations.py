@@ -75,17 +75,7 @@ class Deprecation:
         return parse_release(version) >= parse_release(self.removed_in)
 
 
-REGISTER: tuple[Deprecation, ...] = (
-    Deprecation(
-        name="SKILL_NAME_ALIASES",
-        audience=Audience.CONFIG,
-        since="0.108.0",
-        removed_in="0.116.0",
-        replacement="dev10x-<area>:<skill>",
-        issue="GH-1559",
-        locations=("src/dev10x/core/skills/upgrade_cleanup/skill_names.py",),
-    ),
-)
+REGISTER: tuple[Deprecation, ...] = ()
 
 
 def due(*, version: str) -> list[Deprecation]:

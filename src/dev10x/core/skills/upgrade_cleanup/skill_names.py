@@ -3,16 +3,15 @@
 When a Stage B step moves a skill from ``dev10x:<skill>`` to
 ``dev10x-<area>:<skill>``, it appends one row to ``SKILL_NAME_ALIASES``.
 ``dev10x config migrate-skill-names`` then rewrites the old name in the
-user's hand-edited files, and :func:`resolve_skill_alias` keeps the old
-name readable as a deprecated alias until the row's ``removed_in``. The
-register entry for ``SKILL_NAME_ALIASES`` in
+user's hand-edited files, and :func:`resolve_skill_alias` maps the old
+name to the new one until the row's ``removed_in``. While the table holds
+rows, a ``SKILL_NAME_ALIASES`` entry in
 :mod:`dev10x.core.domain.deprecations` must outlive every row.
 
-B1 (GH-1564) adds the six QA skills that moved to ``dev10x-qa``, B2
-(GH-1565) the two infrastructure skills that moved to ``dev10x-infra``,
-and B3 (GH-1566) the three database skills that moved to ``dev10x-db``.
-Every write takes the file's lock and lands atomically, and a second run
-finds nothing left to rewrite.
+The table is empty between extractions. The B1–B3 rows (``dev10x-qa``,
+``dev10x-infra``, ``dev10x-db``) shipped in 0.114.0 and 0.115.0 and were
+retired at 0.116.0 (GH-1865). Every write takes the file's lock and lands
+atomically, and a second run finds nothing left to rewrite.
 """
 
 from __future__ import annotations
@@ -41,23 +40,7 @@ class SkillNameAlias:
         return _invocation(text=self.old), _invocation(text=self.new)
 
 
-FIRST_EXTRACTION_ALIAS_REMOVED_IN = "0.116.0"
-
-_MOVED_IN_FIRST_EXTRACTION_RELEASE: dict[str, tuple[str, ...]] = {
-    "dev10x-qa": ("playwright", "qa-publish", "qa-self", "review-pack", "tts", "yt-upload"),
-    "dev10x-infra": ("aws-vault", "k8s"),
-    "dev10x-db": ("db", "db-psql", "sql-handoff"),
-}
-
-SKILL_NAME_ALIASES: tuple[SkillNameAlias, ...] = tuple(
-    SkillNameAlias(
-        old=f"dev10x:{skill}",
-        new=f"{plugin}:{skill}",
-        removed_in=FIRST_EXTRACTION_ALIAS_REMOVED_IN,
-    )
-    for plugin, skills in _MOVED_IN_FIRST_EXTRACTION_RELEASE.items()
-    for skill in skills
-)
+SKILL_NAME_ALIASES: tuple[SkillNameAlias, ...] = ()
 
 
 @dataclass(frozen=True)

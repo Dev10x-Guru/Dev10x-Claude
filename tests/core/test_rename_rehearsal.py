@@ -18,7 +18,6 @@ from pathlib import Path
 import pytest
 
 from dev10x.core.domain.common.result import SuccessResult
-from dev10x.core.domain.deprecations import REGISTER
 from dev10x.core.plugin_map import load_plugin_map
 from dev10x.core.skill_references import (
     SCANNED_DIRS,
@@ -38,6 +37,7 @@ from dev10x.subprocess_utils import get_plugin_root
 INVENTORY_PATH = Path(__file__).parents[1] / "fixtures" / "skill_reference_inventory.json"
 OLD = "dev10x:gog"
 NEW = "dev10x-comm:gog"
+REHEARSAL_REMOVED_IN = "0.120.0"
 USER_FRICTION = "defaults:\n  notify_skill: dev10x:gog\n"
 
 
@@ -94,8 +94,7 @@ def rehearsal(tmp_path_factory: pytest.TempPathFactory) -> Rehearsal:
 
     config_home = tmp_path_factory.mktemp("rehearsal-config-home")
     (config_home / "friction.yaml").write_text(USER_FRICTION)
-    removed_in = {entry.name: entry for entry in REGISTER}["SKILL_NAME_ALIASES"].removed_in
-    aliases = (SkillNameAlias(old=OLD, new=NEW, removed_in=removed_in),)
+    aliases = (SkillNameAlias(old=OLD, new=NEW, removed_in=REHEARSAL_REMOVED_IN),)
     migrate_user_configs(config_home=config_home, aliases=aliases, dry_run=False)
     second = migrate_user_configs(config_home=config_home, aliases=aliases, dry_run=False)
     assert isinstance(second, SuccessResult)
