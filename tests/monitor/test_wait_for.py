@@ -190,9 +190,9 @@ class TestRegex:
         assert "invalid regex" in result.error
 
 
-def _socket_to(*, peer: str) -> MagicMock:
+def _socket_to(*, peer: tuple[Any, ...]) -> MagicMock:
     sock = MagicMock()
-    sock.getpeername.return_value = (peer, 80)
+    sock.getpeername.return_value = peer
     return sock
 
 
@@ -232,8 +232,7 @@ class TestRealOpener:
     def test_refuses_a_link_local_peer_through_urllib(
         self, url: str, peer: tuple[Any, ...]
     ) -> None:
-        sock = MagicMock()
-        sock.getpeername.return_value = peer
+        sock = _socket_to(peer=peer)
         with (
             patch.object(wait_for_module.socket, "create_connection", return_value=sock),
             pytest.raises(wait_for_module._LinkLocalRefused, match=str(peer[0])),
@@ -246,58 +245,22 @@ class TestRealOpener:
     def test_reports_a_loopback_redirect_without_following_it(self, loopback_url: str) -> None:
         assert wait_for_module._http_status(url=loopback_url) == (302, None)
 
-
-class TestGuardedConnection:
-    def test_refuses_a_link_local_peer_before_any_request(self) -> None:
-        sock = _socket_to(peer="169.254.169.254")
-        with (
-            patch.object(wait_for_module.socket, "create_connection", return_value=sock),
-            pytest.raises(wait_for_module._LinkLocalRefused, match="169.254.169.254"),
-        ):
-            wait_for_module._guarded_create_connection(("metadata.internal", 80))
-
-        sock.close.assert_called_once_with()
-        sock.sendall.assert_not_called()
-
-    def test_hands_back_a_loopback_socket(self) -> None:
-        sock = _socket_to(peer="127.0.0.1")
+    def test_the_guard_hands_back_a_loopback_socket(self) -> None:
+        sock = _socket_to(peer=("127.0.0.1", 8000))
         with patch.object(wait_for_module.socket, "create_connection", return_value=sock):
             assert wait_for_module._guarded_create_connection(("localhost", 8000)) is sock
 
         sock.close.assert_not_called()
 
-    @pytest.mark.parametrize(
-        "connection",
-        ["_GuardedHTTPConnection", "_GuardedHTTPSConnection"],
-    )
-    def test_connections_open_sockets_through_the_guard(self, connection: str) -> None:
-        conn = getattr(wait_for_module, connection)("example.test")
-
-        assert conn._create_connection is wait_for_module._guarded_create_connection
-
-    @pytest.mark.parametrize(
-        ("handler", "method", "connection"),
-        [
-            ("_GuardedHTTPHandler", "http_open", "_GuardedHTTPConnection"),
-            ("_GuardedHTTPSHandler", "https_open", "_GuardedHTTPSConnection"),
-        ],
-    )
-    def test_handlers_open_guarded_connections(
-        self, handler: str, method: str, connection: str
+    def test_the_probe_opener_ignores_proxy_settings(
+        self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        instance = getattr(wait_for_module, handler)()
-        with patch.object(instance, "do_open") as do_open:
-            getattr(instance, method)(MagicMock())
+        monkeypatch.setenv("http_proxy", "http://proxy.test:3128")
+        monkeypatch.setenv("https_proxy", "http://proxy.test:3128")
 
-        assert do_open.call_args.args[0] is getattr(wait_for_module, connection)
+        opener = wait_for_module._build_opener()
 
-    def test_http_status_lets_the_refusal_through(self) -> None:
-        refused = wait_for_module._LinkLocalRefused("refused")
-        with (
-            patch.object(wait_for_module, "_open", side_effect=refused),
-            pytest.raises(wait_for_module._LinkLocalRefused),
-        ):
-            wait_for_module._http_status(url="http://metadata.internal/")
+        assert urllib.request.ProxyHandler not in [type(h) for h in opener.handlers]
 
 
 class TestHttp:
@@ -370,49 +333,15 @@ class TestHttp:
     def test_is_link_local(self, address: str, link_local: bool) -> None:
         assert wait_for_module._is_link_local(address=address) is link_local
 
-    def test_a_redirect_is_reported_not_followed(self) -> None:
-        handler = wait_for_module._NoRedirect()
-
-        assert handler.redirect_request(MagicMock(), None, 302, "Found", {}, "http://x") is None
-
-    @pytest.mark.parametrize(
-        ("installed", "replaced"),
-        [
-            ("_NoRedirect", urllib.request.HTTPRedirectHandler),
-            ("_GuardedHTTPHandler", urllib.request.HTTPHandler),
-            ("_GuardedHTTPSHandler", urllib.request.HTTPSHandler),
-        ],
-    )
-    def test_the_probe_opener_replaces_the_stock_handler(
-        self, installed: str, replaced: type
-    ) -> None:
-        handler_types = [type(h) for h in wait_for_module._OPENER.handlers]
-
-        assert getattr(wait_for_module, installed) in handler_types
-        assert replaced not in handler_types
-
-    def test_the_probe_opener_ignores_proxy_settings(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.setenv("http_proxy", "http://proxy.test:3128")
-        monkeypatch.setenv("https_proxy", "http://proxy.test:3128")
-
-        opener = wait_for_module._build_opener()
-
-        assert urllib.request.ProxyHandler not in [type(h) for h in opener.handlers]
-
-    def test_http_status_opens_through_the_probe_opener(self) -> None:
-        assert wait_for_module._open == wait_for_module._OPENER.open
-
     def test_http_status_reads_response(self) -> None:
         response = MagicMock(status=204)
         response.__enter__.return_value = response
-        with patch.object(wait_for_module, "_open", return_value=response):
+        with patch.object(wait_for_module._OPENER, "open", return_value=response):
             assert wait_for_module._http_status(url="http://x") == (204, None)
 
     def test_http_status_reads_error_code(self) -> None:
         error = urllib.error.HTTPError("http://x", 500, "boom", {}, None)  # type: ignore[arg-type]
-        with patch.object(wait_for_module, "_open", side_effect=error):
+        with patch.object(wait_for_module._OPENER, "open", side_effect=error):
             assert wait_for_module._http_status(url="http://x") == (500, None)
 
     @pytest.mark.parametrize(
@@ -424,7 +353,7 @@ class TestHttp:
         ],
     )
     def test_http_status_reports_probe_failure(self, raised: Exception, fragment: str) -> None:
-        with patch.object(wait_for_module, "_open", side_effect=raised):
+        with patch.object(wait_for_module._OPENER, "open", side_effect=raised):
             status, error = wait_for_module._http_status(url="http://x")
 
         assert status is None

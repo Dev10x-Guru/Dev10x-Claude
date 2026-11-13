@@ -163,10 +163,8 @@ class _GuardedHTTPConnection(http.client.HTTPConnection):
         self._create_connection = _guarded_create_connection
 
 
-class _GuardedHTTPSConnection(http.client.HTTPSConnection):
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        super().__init__(*args, **kwargs)
-        self._create_connection = _guarded_create_connection
+class _GuardedHTTPSConnection(_GuardedHTTPConnection, http.client.HTTPSConnection):
+    pass
 
 
 class _GuardedHTTPHandler(urllib.request.HTTPHandler):
@@ -199,13 +197,12 @@ def _build_opener() -> urllib.request.OpenerDirector:
 
 
 _OPENER = _build_opener()
-_open = _OPENER.open
 
 
 def _http_status(*, url: str) -> tuple[int | None, str | None]:
     request = urllib.request.Request(url, method="GET")
     try:
-        with _open(request, timeout=_PROBE_TIMEOUT_SECONDS) as response:
+        with _OPENER.open(request, timeout=_PROBE_TIMEOUT_SECONDS) as response:
             return int(response.status), None
     except urllib.error.HTTPError as exc:
         return int(exc.code), None
