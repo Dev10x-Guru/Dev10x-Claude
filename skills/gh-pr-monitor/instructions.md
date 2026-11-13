@@ -969,9 +969,20 @@ If user approves, execute two delegated steps in sequence:
 
 **Step 3a: Request review (GitHub + Slack)**
 
-```
-Skill(skill="dev10x:request-review", args="--pr {pr_number} --repo {repo}")
-```
+Pass the monitor's own mode through, as
+[`references/review-readiness.md`](../../references/review-readiness.md)
+defines it: this run is **unattended** when it was invoked with
+`--unattended`, or through `Skill()` while an orchestrator executes a
+plan step with an active task list. Anything else is attended. Without
+the flag, `dev10x:request-review` treats the call as attended and may
+fire its readiness widget inside a run nobody is watching.
+
+1. Unattended run: `Skill(skill="dev10x:request-review", args="--pr {pr_number} --repo {repo} --unattended")`
+2. Otherwise (attended): `Skill(skill="dev10x:request-review", args="--pr {pr_number} --repo {repo}")`
+
+When its output has a line containing `Readiness: stopped —` (the bare
+Step 1.6 marker or the Step 4 summary bullet), nobody was asked to
+review: skip Step 3b and report the reasons.
 
 The dev10x:request-review skill will:
 - Assign GitHub reviewers from project config

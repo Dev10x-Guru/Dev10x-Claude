@@ -30,8 +30,8 @@
   "gh-pr-doctor": 11,
   "gh-pr-fixup": 67,
   "gh-pr-merge": 80,
-  "gh-pr-monitor": 142,
-  "gh-pr-request-review": 65,
+  "gh-pr-monitor": 145,
+  "gh-pr-request-review": 78,
   "gh-pr-respond": 103,
   "gh-pr-review": 39,
   "gh-pr-triage": 51,
@@ -81,7 +81,7 @@
   "reasons-canvas": 2,
   "reflect": 28,
   "release-notes": 18,
-  "request-review": 47,
+  "request-review": 58,
   "review": 104,
   "review-fix": 69,
   "reviewer-celery": 1,
@@ -117,5 +117,5 @@
   "upgrade-cleanup": 30,
   "verify-acc-dod": 61,
   "voice-channel": 9,
-  "work-on": 174
+  "work-on": 180
 }

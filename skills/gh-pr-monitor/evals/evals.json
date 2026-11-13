@@ -185,6 +185,38 @@
           "signal": "mcp__plugin_dev10x_cli__merge_pr is NOT called and no raw 'gh pr merge' Bash command is invoked"
         }
       ]
+    },
+    {
+      "id": "unattended-monitor-passes-unattended",
+      "name": "An unattended monitor passes --unattended to request-review",
+      "description": "GH-1890: dev10x:work-on runs the monitor as its 'Monitor CI' plan step with an active task list, which references/review-readiness.md counts as unattended. Phase 3 Step 3a must call dev10x:request-review with --unattended; without it request-review treats the call as attended and may fire its readiness widget.",
+      "input": "Skill(skill=\"dev10x:gh-pr-monitor\") — called by dev10x:work-on while executing its 'Monitor CI' plan step with an active task list",
+      "assertions": [
+        {
+          "dimension": "notify-gate-escalation",
+          "check": "tool_called",
+          "tool": "Skill",
+          "signal": "dev10x:request-review is invoked with args containing --unattended"
+        },
+        {
+          "dimension": "notify-gate-escalation",
+          "check": "behavioral",
+          "signal": "the literal '[--unattended]' bracket notation never appears in the args"
+        }
+      ]
+    },
+    {
+      "id": "attended-monitor-omits-unattended",
+      "name": "An attended monitor calls request-review without the flag",
+      "description": "GH-1890: the supervisor invoked /dev10x:gh-pr-monitor directly, with no --unattended flag and no orchestrator plan step, so the run is attended. Step 3a calls dev10x:request-review without --unattended, leaving its readiness widget free to fire.",
+      "input": "/dev10x:gh-pr-monitor",
+      "assertions": [
+        {
+          "dimension": "notify-gate-escalation",
+          "check": "behavioral",
+          "signal": "dev10x:request-review is invoked with '--pr {n} --repo {repo}' and no --unattended"
+        }
+      ]
     }
   ],
   "trigger_evals": {

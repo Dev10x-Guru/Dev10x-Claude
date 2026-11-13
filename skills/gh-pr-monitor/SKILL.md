@@ -54,6 +54,14 @@ When this skill is invoked, Read `instructions.md` now and
 follow it end-to-end. `TaskCreate` and `AskUserQuestion` calls
 documented there are REQUIRED.
 
+**End-to-end read enforcement (GH-166, GH-1890): `instructions.md`
+may NOT fit in one `Read`.** A truncated result carries a
+`PARTIAL view` header; keep issuing `Read(offset=…)` until you
+reach its final line. Do NOT substitute `Grep` for the missing
+pages: Phase 3 (the review request and its `--unattended`
+pass-through) and Phase 4 (acceptance verification) sit at the
+tail.
+
 ## Mandatory Invocation After PR Creation (GH-162)
 
 Audit GH-162 caught a session where work-on task 4.9
