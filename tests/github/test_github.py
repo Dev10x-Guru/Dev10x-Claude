@@ -27,6 +27,7 @@ from dev10x.domain.common.result import ErrorResult, SuccessResult, ok
 from tests.fakers.process import completed as _completed
 
 gh = pytest.importorskip("dev10x.github", reason="dev10x not installed")
+_gateway = pytest.importorskip("dev10x.github._gateway", reason="dev10x not installed")
 
 # create_pr rejects a Job Story missing any JTBD marker (GH-945), so
 # every create_pr test that expects the script to run passes this one.
@@ -38,7 +39,7 @@ _JOB_STORY = (
 @pytest.fixture
 def mock_resolve_repo():
     with patch.object(
-        gh._gateway,
+        _gateway,
         "_resolve_repo",
         new_callable=AsyncMock,
         return_value=ok(RepositoryRef(owner="owner", name="repo")),
@@ -48,7 +49,7 @@ def mock_resolve_repo():
 
 @pytest.fixture
 def no_prefix_registry():
-    with patch.object(gh._gateway, "_milestone_prefix_registry", return_value=None) as mock:
+    with patch.object(_gateway, "_milestone_prefix_registry", return_value=None) as mock:
         yield mock
 
 
@@ -871,7 +872,7 @@ class TestResolveRepo:
     @pytest.mark.asyncio
     async def test_returns_repository_ref(self) -> None:
         with patch.object(
-            gh._gateway, "_detect_repo", new_callable=AsyncMock, return_value="owner/repo"
+            _gateway, "_detect_repo", new_callable=AsyncMock, return_value="owner/repo"
         ):
             result = await gh._resolve_repo(None)
 
@@ -1330,7 +1331,7 @@ class TestPrCommentsStrategyDispatch:
 
     @pytest.mark.asyncio
     async def test_returns_error_when_no_repo(self) -> None:
-        with patch.object(gh._gateway, "_detect_repo", new_callable=AsyncMock, return_value=None):
+        with patch.object(_gateway, "_detect_repo", new_callable=AsyncMock, return_value=None):
             result = await gh._resolve_repo(None)
 
         assert isinstance(result, ErrorResult)
@@ -1373,7 +1374,7 @@ class TestMilestoneClose:
         self,
         mock_api: AsyncMock,
     ) -> None:
-        with patch.object(gh._gateway, "_detect_repo", new_callable=AsyncMock, return_value=None):
+        with patch.object(_gateway, "_detect_repo", new_callable=AsyncMock, return_value=None):
             result = await gh.milestone_close(number=1)
 
         assert isinstance(result, ErrorResult)
@@ -1442,7 +1443,7 @@ class TestMilestonePrefixGuard:
     @pytest.fixture
     def registry(self):
         with patch.object(
-            gh._gateway, "_milestone_prefix_registry", return_value=frozenset({"ARCH", "DX"})
+            _gateway, "_milestone_prefix_registry", return_value=frozenset({"ARCH", "DX"})
         ):
             yield
 
@@ -1481,7 +1482,7 @@ class TestMilestonePrefixGuard:
         async def resolve(repo: str | None) -> object:
             return ok(refs[repo])
 
-        with patch.object(gh._gateway, "_resolve_repo", side_effect=resolve):
+        with patch.object(_gateway, "_resolve_repo", side_effect=resolve):
             yield
 
     @pytest.mark.asyncio
@@ -1555,7 +1556,7 @@ class TestMilestoneReopen:
         self,
         mock_api: AsyncMock,
     ) -> None:
-        with patch.object(gh._gateway, "_detect_repo", new_callable=AsyncMock, return_value=None):
+        with patch.object(_gateway, "_detect_repo", new_callable=AsyncMock, return_value=None):
             result = await gh.milestone_reopen(number=1)
 
         assert isinstance(result, ErrorResult)
@@ -1655,7 +1656,7 @@ class TestMilestoneEdit:
         self,
         mock_api: AsyncMock,
     ) -> None:
-        with patch.object(gh._gateway, "_detect_repo", new_callable=AsyncMock, return_value=None):
+        with patch.object(_gateway, "_detect_repo", new_callable=AsyncMock, return_value=None):
             result = await gh.milestone_edit(number=1, title="x")
 
         assert isinstance(result, ErrorResult)
@@ -1887,7 +1888,7 @@ class TestIssueCommentEdit:
         mock_run: AsyncMock,
     ) -> None:
         with patch.object(
-            gh._gateway,
+            _gateway,
             "_resolve_repo",
             new_callable=AsyncMock,
             return_value=ErrorResult(error="no repo"),
@@ -1957,7 +1958,7 @@ class TestIssueCommentDelete:
         mock_run: AsyncMock,
     ) -> None:
         with patch.object(
-            gh._gateway,
+            _gateway,
             "_resolve_repo",
             new_callable=AsyncMock,
             return_value=ErrorResult(error="no repo"),
@@ -2205,7 +2206,7 @@ class TestUpdatePr:
         self,
         mock_api: AsyncMock,
     ) -> None:
-        with patch.object(gh._gateway, "_detect_repo", new_callable=AsyncMock, return_value=None):
+        with patch.object(_gateway, "_detect_repo", new_callable=AsyncMock, return_value=None):
             result = await gh.update_pr(pr_number=1, body="x")
 
         assert isinstance(result, ErrorResult)
@@ -2927,7 +2928,7 @@ class TestCreatePrMilestone:
     ) -> None:
         mock_run.return_value = _completed(stdout="https://github.com/o/r/pull/8\n8")
 
-        with patch.object(gh._gateway, "_detect_repo", new_callable=AsyncMock, return_value=None):
+        with patch.object(_gateway, "_detect_repo", new_callable=AsyncMock, return_value=None):
             result = await gh.create_pr(
                 title="t",
                 job_story=_JOB_STORY,
@@ -2951,7 +2952,7 @@ class TestMergePr:
 
         # Pin the bot preference off (GH-1272) so the assertion does not
         # depend on the developer's own ~/.config/Dev10x/github-app.yaml.
-        with patch.object(gh._gateway.AppConfig, "load", return_value=None):
+        with patch.object(_gateway.AppConfig, "load", return_value=None):
             result = await gh.merge_pr(pr_number=42)
 
         assert isinstance(result, SuccessResult)
