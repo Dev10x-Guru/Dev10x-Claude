@@ -268,7 +268,7 @@ async def _pr_comment_resolve(
         "} }"
         for i, cid in enumerate(ids_to_resolve)
     )
-    looked_up = await _gateway._graphql(f"{{ {node_fragments} }}", partial_ok=True)
+    looked_up = await _gateway._graphql(f"{{ {node_fragments} }}", tolerate_not_found=True)
     if isinstance(looked_up, ErrorResult):
         return looked_up
 

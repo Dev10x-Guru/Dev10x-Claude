@@ -216,14 +216,14 @@ async def _gh_api_paginated(
     return ok(Listing(items=tuple(items), truncated=True))
 
 
-async def _graphql(query: str, *, partial_ok: bool = False) -> Result[dict[str, Any]]:
+async def _graphql(query: str, *, tolerate_not_found: bool = False) -> Result[dict[str, Any]]:
     """Run a GraphQL query and return its ``data`` object (GH-1857).
 
     Every caller repeated the same three checks — exit code, JSON, the
     ``errors`` array — and they had drifted: one ignored ``errors``
     entirely, so a query GitHub rejected read as an empty result.
 
-    ``partial_ok`` keeps the ``data`` a response carries alongside
+    ``tolerate_not_found`` keeps the ``data`` a response carries alongside
     NOT_FOUND ``errors``: aliased ``node(id:)`` lookups come back with a
     null node and a NOT_FOUND error per unknown ID, and the caller
     reports those per ID. Any other error type — FORBIDDEN, rate limits,
@@ -243,7 +243,7 @@ async def _graphql(query: str, *, partial_ok: bool = False) -> Result[dict[str, 
     data = payload.get("data")
     errors = payload.get("errors") or []
     entries = errors if isinstance(errors, list) else [errors]
-    tolerated = partial_ok and isinstance(data, dict)
+    tolerated = tolerate_not_found and isinstance(data, dict)
     failing = [entry for entry in entries if not (tolerated and _is_not_found(entry))]
     if failing:
         first = failing[0]
