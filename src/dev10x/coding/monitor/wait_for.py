@@ -14,9 +14,12 @@ from __future__ import annotations
 
 import asyncio
 import http.client
+import ipaddress
 import math
 import os
 import re
+import socket
+import ssl
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -25,8 +28,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from dev10x.core.domain import polling
 from dev10x.core.mcp.daemon import is_pid_alive
-from dev10x.domain import polling
 from dev10x.domain.common.result import Result, err, ok
 from dev10x.domain.transport_budget import clamp_tool_timeout
 from dev10x.subprocess_utils import async_run, effective_cwd
@@ -108,10 +111,101 @@ def _probe_text(*, target: str, pattern: str, compiled: re.Pattern[str] | None) 
     return Probe(met=match is not None, observed=observed)
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Report a redirect's own status instead of following it (GH-1885).
+
+    A 3xx already means "the server is up", and following it would let
+    a local endpoint bounce the probe to a host the caller never named.
+    """
+
+    def redirect_request(self, *args: Any, **kwargs: Any) -> None:
+        return None
+
+
+def _is_link_local(*, address: str) -> bool:
+    try:
+        ip = ipaddress.ip_address(address.split("%", 1)[0])
+    except ValueError:
+        return False
+    mapped = getattr(ip, "ipv4_mapped", None)
+    return (mapped or ip).is_link_local
+
+
+class _LinkLocalRefused(Exception):
+    """The probe connected to a link-local address and sent no request.
+
+    Not an ``OSError``, so urllib does not fold it into the ordinary
+    connection failures that keep a wait polling.
+    """
+
+
+def _guarded_create_connection(address: Any, *args: Any, **kwargs: Any) -> socket.socket:
+    """Open the socket, then refuse it if the peer is link-local (GH-1885).
+
+    169.254.0.0/16 holds the instance-metadata address most clouds use,
+    which an agent-driven probe has no reason to reach. Checking the
+    address the socket actually connected to, rather than a separate DNS
+    lookup, leaves no window for a name to resolve differently between
+    the check and the request. Loopback and private ranges stay allowed:
+    waiting for a local server to start is what ``http`` is for.
+    """
+    sock = socket.create_connection(address, *args, **kwargs)
+    peer = str(sock.getpeername()[0])
+    if _is_link_local(address=peer):
+        sock.close()
+        raise _LinkLocalRefused(f"refused: connected to link-local address {peer}")
+    return sock
+
+
+class _GuardedHTTPConnection(http.client.HTTPConnection):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._create_connection = _guarded_create_connection
+
+
+class _GuardedHTTPSConnection(http.client.HTTPSConnection):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._create_connection = _guarded_create_connection
+
+
+class _GuardedHTTPHandler(urllib.request.HTTPHandler):
+    def http_open(self, req: urllib.request.Request) -> http.client.HTTPResponse:
+        return self.do_open(_GuardedHTTPConnection, req)
+
+
+class _GuardedHTTPSHandler(urllib.request.HTTPSHandler):
+    def __init__(self) -> None:
+        self._tls = ssl.create_default_context()
+        super().__init__(context=self._tls)
+
+    def https_open(self, req: urllib.request.Request) -> http.client.HTTPResponse:
+        return self.do_open(_GuardedHTTPSConnection, req, context=self._tls)
+
+
+def _build_opener() -> urllib.request.OpenerDirector:
+    """An opener that connects directly, guarded, without redirects.
+
+    An empty ``ProxyHandler`` stands in for the default one, which would
+    read ``HTTP_PROXY`` and send the request through a proxy whose own
+    address is all the guard would see.
+    """
+    return urllib.request.build_opener(
+        urllib.request.ProxyHandler({}),
+        _NoRedirect,
+        _GuardedHTTPHandler,
+        _GuardedHTTPSHandler,
+    )
+
+
+_OPENER = _build_opener()
+_open = _OPENER.open
+
+
 def _http_status(*, url: str) -> tuple[int | None, str | None]:
     request = urllib.request.Request(url, method="GET")
     try:
-        with urllib.request.urlopen(request, timeout=_PROBE_TIMEOUT_SECONDS) as response:  # noqa: S310
+        with _open(request, timeout=_PROBE_TIMEOUT_SECONDS) as response:
             return int(response.status), None
     except urllib.error.HTTPError as exc:
         return int(exc.code), None
@@ -120,7 +214,14 @@ def _http_status(*, url: str) -> tuple[int | None, str | None]:
 
 
 async def _probe_http(*, target: str, expect_status: int | None) -> Probe:
-    status, error = await asyncio.to_thread(_http_status, url=target)
+    try:
+        status, error = await asyncio.to_thread(_http_status, url=target)
+    except _LinkLocalRefused as exc:
+        return Probe(
+            met=False,
+            observed={"url": target, "status": None, "error": str(exc)},
+            unreachable=True,
+        )
     if status is None:
         met = False
     elif expect_status is not None:
@@ -200,6 +301,8 @@ def _validate(
         return f"kind={kind!r} needs a 'pattern'"
     if kind == "http" and not _is_http_url(target=target):
         return f"kind='http' needs an http(s) URL with a host, got {target!r}"
+    if kind == "http" and _is_link_local(address=urllib.parse.urlsplit(target).hostname or ""):
+        return f"kind='http' refuses a link-local host, got {target!r}"
     if kind == "time" and _parse_moment(target=target) is None:
         return f"kind='time' needs an ISO-8601 timestamp, got {target!r}"
     return None

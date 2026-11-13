@@ -95,6 +95,18 @@ addressed — `bot_review_status`'s `ready` and `reasons` do that.
   file; `file` only checks that the path exists.
 - Each `http` probe has its own 10s socket timeout; a refused connection
   is `status: null` with the reason in `error`, and polling continues.
+- `http` never follows a redirect: a 3xx is reported as its own status,
+  and counts as met when no `expect_status` is set (GH-1885).
+- `http` refuses link-local addresses (169.254.0.0/16, fe80::/10), home
+  of the 169.254.169.254 metadata address most clouds use.
+  A literal link-local host is a rejected argument.
+  For a name, the address the socket actually connected to is checked,
+  and a link-local one is closed before any request is written.
+  That ends the wait `unreachable` however the name resolved earlier.
+  Loopback and private addresses stay allowed, and so do metadata
+  addresses outside link-local such as AWS's IPv6 `fd00:ec2::254`.
+  `HTTP_PROXY` / `HTTPS_PROXY` are ignored: the probe always connects
+  directly, so the checked address is the target's, never a proxy's.
 - `process_gone` with a pattern needs `pgrep` on the host.
   A missing `pgrep`, or a `pgrep` failure other than "no match", is
   reported in `observed.error` and does not count as gone.
