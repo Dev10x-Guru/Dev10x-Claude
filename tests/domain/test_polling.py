@@ -9,20 +9,9 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from dev10x.domain.transport_budget import MAX_TOOL_CALL_SECONDS
 
+from tests.fakers.clock import FakeClock
+
 polling = importlib.import_module("dev10x.core.domain.polling")
-
-
-class FakeClock:
-    def __init__(self) -> None:
-        self.now = 0.0
-        self.sleeps: list[float] = []
-
-    def __call__(self) -> float:
-        return self.now
-
-    async def sleep(self, seconds: float) -> None:
-        self.sleeps.append(seconds)
-        self.now += seconds
 
 
 @pytest.fixture(autouse=True)

@@ -18,6 +18,7 @@ from dev10x.domain.transport_budget import MAX_TOOL_CALL_SECONDS
 
 from dev10x.mcp import server_cli as cli_server
 from dev10x.subprocess_utils import use_cwd
+from tests.fakers.clock import FakeClock
 from tests.fakers.process import completed as _completed
 
 wait_for_module = importlib.import_module("dev10x.coding.monitor.wait_for")
@@ -26,22 +27,9 @@ polling_module = importlib.import_module("dev10x.core.domain.polling")
 NOW = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
 
 
-class FakeClock:
-    def __init__(self) -> None:
-        self.now = 100.0
-        self.sleeps: list[float] = []
-
-    def __call__(self) -> float:
-        return self.now
-
-    async def sleep(self, seconds: float) -> None:
-        self.sleeps.append(seconds)
-        self.now += seconds
-
-
 @pytest.fixture(autouse=True)
 def clock() -> Iterator[FakeClock]:
-    fake = FakeClock()
+    fake = FakeClock(start=100.0)
     with (
         patch.object(polling_module, "_clock", new=fake),
         patch.object(polling_module, "_sleep", new=fake.sleep),

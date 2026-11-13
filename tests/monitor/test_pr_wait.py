@@ -11,10 +11,11 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from dev10x.domain.common.repository_ref import RepositoryRef
 from dev10x.domain.common.result import ErrorResult, SuccessResult, err, ok
-from dev10x.domain.transport_budget import MAX_TOOL_CALL_SECONDS
+from dev10x.domain.transport_budget import tool_call_room
 
 from dev10x.core.github import _gateway
 from dev10x.mcp import server_cli as cli_server
+from tests.fakers.clock import FakeClock
 from tests.fakers.process import completed as _completed
 
 pr_wait_module = importlib.import_module("dev10x.coding.monitor.pr_wait")
@@ -105,10 +106,32 @@ def mock_resolve_repo() -> Iterator[AsyncMock]:
         yield mock
 
 
+class SlowResponder(Responder):
+    """A responder whose PR reads take ``probe_seconds`` of fake time each."""
+
+    def __init__(self, *, clock: FakeClock, probe_seconds: list[float], **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.clock = clock
+        self.probe_seconds = list(probe_seconds)
+
+    async def __call__(self, endpoint: str, **kwargs: Any) -> Any:
+        self.clock.advance(self.probe_seconds.pop(0))
+        return await super().__call__(endpoint, **kwargs)
+
+
 @pytest.fixture(autouse=True)
-def mock_sleep() -> Iterator[AsyncMock]:
-    with patch.object(polling_module, "_sleep", new_callable=AsyncMock) as mock:
-        yield mock
+def clock() -> Iterator[FakeClock]:
+    fake = FakeClock()
+    with (
+        patch.object(polling_module, "_clock", new=fake),
+        patch.object(polling_module, "_sleep", new=fake.sleep),
+    ):
+        yield fake
+
+
+@pytest.fixture
+def room() -> float:
+    return tool_call_room(overhead=pr_wait_module._OVERHEAD_SECONDS)
 
 
 async def _wait(*, responder: Responder, **kwargs: Any) -> Any:
@@ -150,15 +173,14 @@ class TestStateConditions:
         assert result.value["polls"] == 1
 
     @pytest.mark.asyncio
-    async def test_keeps_polling_until_merge_lands(self, mock_sleep: AsyncMock) -> None:
+    async def test_keeps_polling_until_merge_lands(self, clock: FakeClock) -> None:
         responder = Responder(pulls=[_pull(), _pull(), _pull(state="closed", merged=True)])
 
         result = await _wait(responder=responder, until="merged", poll_interval=10)
 
         assert result.value["met"] is True
         assert result.value["polls"] == 3
-        assert mock_sleep.await_count == 2
-        mock_sleep.assert_awaited_with(10)
+        assert clock.sleeps == [10, 10]
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("until", ["merged", "closed", "merged_or_closed"])
@@ -342,28 +364,32 @@ class TestBudget:
         assert result.value["budget_clamped"] is True
 
     @pytest.mark.asyncio
-    async def test_slow_polls_stop_at_the_wall_clock_deadline(self, mock_sleep: AsyncMock) -> None:
-        ticks = iter([0.0, 0.0, MAX_TOOL_CALL_SECONDS])
-        with patch.object(polling_module, "_clock", side_effect=lambda: next(ticks)):
-            result = await _wait(responder=Responder(pulls=[_pull()]), until="merged")
+    async def test_slow_polls_stop_at_the_wall_clock_deadline(
+        self, clock: FakeClock, room: float
+    ) -> None:
+        responder = SlowResponder(clock=clock, probe_seconds=[room / 2, room / 2], pulls=[_pull()])
+
+        result = await _wait(responder=responder, until="merged")
 
         assert result.value["timed_out"] is True
         assert result.value["polls"] == 2
-        assert mock_sleep.await_count == 1
+        assert clock.sleeps == [30]
 
     @pytest.mark.asyncio
-    async def test_sleep_never_overshoots_the_deadline(self, mock_sleep: AsyncMock) -> None:
-        ticks = iter([0.0, MAX_TOOL_CALL_SECONDS - 70.0, MAX_TOOL_CALL_SECONDS])
-        with patch.object(polling_module, "_clock", side_effect=lambda: next(ticks)):
-            await _wait(responder=Responder(pulls=[_pull()]), until="merged")
+    async def test_sleep_never_overshoots_the_deadline(
+        self, clock: FakeClock, room: float
+    ) -> None:
+        responder = SlowResponder(clock=clock, probe_seconds=[room - 10.0, 0.0], pulls=[_pull()])
 
-        mock_sleep.assert_awaited_once_with(10.0)
+        await _wait(responder=responder, until="merged")
+
+        assert clock.sleeps == [10.0]
 
     @pytest.mark.asyncio
-    async def test_poll_interval_has_a_floor(self, mock_sleep: AsyncMock) -> None:
+    async def test_poll_interval_has_a_floor(self, clock: FakeClock) -> None:
         await _wait(responder=Responder(pulls=[_pull()]), until="merged", poll_interval=0)
 
-        mock_sleep.assert_awaited_with(5)
+        assert set(clock.sleeps) == {5}
 
     @pytest.mark.asyncio
     async def test_reviews_are_fetched_only_when_needed(self) -> None:
