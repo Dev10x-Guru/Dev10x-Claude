@@ -14,11 +14,13 @@ from dev10x.core.github import _gateway
 from tests.fakers.process import completed as _completed
 
 
-async def _run(*, response: Any) -> Any:
+async def _run(*, response: Any, tolerate_not_found: bool = False) -> Any:
     with patch.object(
         _gateway, "_gh_api_raw", new_callable=AsyncMock, return_value=response
     ) as raw:
-        result = await _gateway._graphql("query { viewer { login } }")
+        result = await _gateway._graphql(
+            "query { viewer { login } }", tolerate_not_found=tolerate_not_found
+        )
     raw.assert_awaited_once_with("graphql", fields={"query": "query { viewer { login } }"})
     return result
 
@@ -69,13 +71,7 @@ class TestGraphql:
 
 
 async def _partial(*, payload: dict[str, Any]) -> Any:
-    with patch.object(
-        _gateway,
-        "_gh_api_raw",
-        new_callable=AsyncMock,
-        return_value=_completed(stdout=json.dumps(payload)),
-    ):
-        return await _gateway._graphql("query { }", partial_ok=True)
+    return await _run(response=_completed(stdout=json.dumps(payload)), tolerate_not_found=True)
 
 
 _NOT_FOUND = {"type": "NOT_FOUND", "message": "Could not resolve to a node"}
