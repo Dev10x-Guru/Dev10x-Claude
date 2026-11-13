@@ -54,6 +54,7 @@ class PrSnapshot:
     head_sha: str
     reviews: tuple[dict[str, Any], ...] = ()
     bots: tuple[dict[str, Any], ...] = ()
+    bots_truncated: tuple[str, ...] = ()
 
     @property
     def is_open(self) -> bool:
@@ -128,19 +129,28 @@ async def _fetch_reviews(*, repo: str, pr_number: int) -> Result[tuple[dict[str,
     return ok(listed.value.items)
 
 
-async def _fetch_bots(*, repo: str, pr_number: int, bot: str | None) -> Result[tuple[dict, ...]]:
+@dataclass(frozen=True)
+class _BotRows:
+    rows: tuple[dict[str, Any], ...]
+    truncated: tuple[str, ...]
+
+
+async def _fetch_bots(*, repo: str, pr_number: int, bot: str | None) -> Result[_BotRows]:
     """``bot_review_status``'s per-bot rows, narrowed to ``bot`` when named.
 
     One definition of "a bot reviewed the head" (GH-1857): a bot that
     only comments counts on the timestamp basis, and bot-ness comes from
-    the GraphQL account type rather than a login suffix.
+    the GraphQL account type rather than a login suffix. The connections
+    that ran past their 100-item window come back too, so a bot outside
+    it reads as "not seen", not as "not reviewed yet" (GH-1885).
     """
     node = await bot_reviews.fetch_pull_request(ref=RepositoryRef.parse(repo), pr_number=pr_number)
     if not isinstance(node, SuccessResult):
         return node
     globs = (bot_review_config.normalize_login(bot),) if bot else ()
-    rows = bot_reviews.summarize(pr=node.value, blocking_globs=globs)["bots"]
-    return ok(tuple(row for row in rows if not bot or row["blocking"]))
+    report = bot_reviews.summarize(pr=node.value, blocking_globs=globs)
+    rows = tuple(row for row in report["bots"] if not bot or row["blocking"])
+    return ok(_BotRows(rows=rows, truncated=tuple(report["truncated"])))
 
 
 async def _fetch_snapshot(
@@ -165,7 +175,7 @@ async def _fetch_snapshot(
         if isinstance(listed, ErrorResult):
             return listed
         reviews = listed.value
-    bots: tuple[dict[str, Any], ...] = ()
+    bots = _BotRows(rows=(), truncated=())
     if until == "bot_at_head":
         fetched = await _fetch_bots(repo=repo, pr_number=pr_number, bot=bot)
         if isinstance(fetched, ErrorResult):
@@ -177,7 +187,8 @@ async def _fetch_snapshot(
             merged=bool(payload.get("merged")),
             head_sha=str((payload.get("head") or {}).get("sha") or ""),
             reviews=reviews,
-            bots=bots,
+            bots=bots.rows,
+            bots_truncated=bots.truncated,
         )
     )
 
@@ -212,6 +223,7 @@ def _observed(
             }
         )
         observed["bots"] = [row["login"] for row in snapshot.bots]
+        observed["truncated"] = list(snapshot.bots_truncated)
     return observed
 
 

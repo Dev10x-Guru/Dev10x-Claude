@@ -59,14 +59,22 @@ def _gql_comment(*, login: str, at: str, kind: str = "Bot") -> dict:
     return {"author": {"__typename": kind, "login": login}, "createdAt": at}
 
 
-def _graphql(*, reviews: tuple[dict, ...] = (), comments: tuple[dict, ...] = ()) -> Any:
+def _graphql(
+    *,
+    reviews: tuple[dict, ...] = (),
+    comments: tuple[dict, ...] = (),
+    older_comments: bool = False,
+) -> Any:
     node = {
         "isDraft": False,
         "headRefOid": HEAD,
         "commits": {"nodes": [{"commit": {"oid": HEAD, "committedDate": "2026-01-01T00:00:00Z"}}]},
         "reviews": {"nodes": list(reviews)},
         "reviewThreads": {"nodes": []},
-        "comments": {"nodes": list(comments)},
+        "comments": {
+            "pageInfo": {"hasPreviousPage": older_comments},
+            "nodes": list(comments),
+        },
     }
     return _completed(stdout=json.dumps({"data": {"repository": {"pullRequest": node}}}))
 
@@ -335,6 +343,17 @@ class TestBotAtHead:
         )
 
         assert result.value["observed"]["bot_review"] is None
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(("older_comments", "truncated"), [(True, ["comments"]), (False, [])])
+    async def test_reports_windows_that_ran_past_their_page(
+        self, older_comments: bool, truncated: list[str]
+    ) -> None:
+        responder = Responder(pulls=[_pull()], graphql=_graphql(older_comments=older_comments))
+
+        result = await _wait(responder=responder, until="bot_at_head", max_polls=1)
+
+        assert result.value["observed"]["truncated"] == truncated
 
     @pytest.mark.asyncio
     async def test_a_graphql_failure_is_a_probe_error(self) -> None:
