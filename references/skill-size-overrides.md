@@ -127,11 +127,13 @@ most of it — to `skills/foreman/references/` and leave a pointer.
   `references/spec-gate.md` and `references/domain-dispatch.md`.
   Split plan: move § Step 5's confidence-threshold destination note and
   § Design Note (`--post-to-pr`) to `references/` first
-- `review-pack` (~239 lines, GH-1878) — the pre-send gate and its
+- `review-pack` (~245 lines, GH-1878, GH-1899) — the pre-send gate and its
   pack-only resolver branch are execution-gating and stay inline.
   Split plan: move § Video and the hosting prose of § Where the pack
-  lives to `references/` first, keeping its Verify-before-sending
-  bullet inline — it backs the gate's fourth box
+  lives to `references/` first, keeping inline the bullets the gate
+  checks — Verify-before-sending backs the fourth box, § Video's
+  evidence-expiry bullet the fifth and its staging-only bullet the
+  sixth
 - `ddd` (~299 lines) — workshop orchestration hub: 4 session
   modes, 7-layer event storming flow, solo AI-cast facilitation
   (incl. the GH-789 discussion-agent model-tier gate), and
