@@ -4,7 +4,7 @@ description: >
   Build the review pack a human reviewer opens before the diff — the
   change shown in screenshots, video or before/after API evidence, a
   60-second test recipe, what is already verified, and the open
-  judgement calls — so a reviewer understands, sees and can test the
+  judgment calls — so a reviewer understands, sees and can test the
   change without checking out the branch.
   TRIGGER when: requesting human review, flipping a PR out of draft,
   or asked to make a change "easy to review".
@@ -109,7 +109,7 @@ Options:
       "Set up the local stack" fails this section.
    4. *Already verified — don't redo this* — what tests **prove**, not
       how many ("deleting the fix turns 9 red"), plus named gaps.
-   5. *Where I need your judgement* — the 1–3 real questions.
+   5. *Where I need your judgment* — the 1–3 real questions.
 3. **Produce the evidence** per
    [`references/evidence.md`](references/evidence.md): screenshots,
    backend forms (API pairs, data tables, mermaid, query plans, caller
@@ -216,12 +216,18 @@ own review step decides whether to send.
 2. Otherwise call
    `mcp__plugin_dev10x_cli__resolve_gate(gate="artifact_preview", context={})`
    and branch on `effect`:
-   - `ask` or an `error` key — **REQUIRED: Call `AskUserQuestion`**.
+   - `ask` — **REQUIRED: Call `AskUserQuestion`**.
      Say in the question that handing gaps on is this mode's default,
      not a judgment of these boxes, and list **Send with the gap
      stated (Recommended)**, **Fix the gap first**, **Hold**.
-   - `auto-advance` or `skip` — take **Send with the gap stated**, the
-     option the resolver's `record` line calls "Recommended".
+   - an `error` key — **REQUIRED: Call `AskUserQuestion`** with the
+     same three options in the same order. Say in the question that
+     the resolver failed, so this mode's default could not be
+     resolved; Send leads only because a pack-only run hands gaps on.
+   - `auto-advance` — take **Send with the gap stated**, the option
+     the resolver's `record` line calls "Recommended".
+   - `skip` — take **Send with the gap stated** without a prompt.
+     `skip` returns no `record` line, so there is none to cite.
 
    However it is chosen, *Send* writes each unchecked box into
    section 4 and prints the unchecked list, plus the `record` line on
