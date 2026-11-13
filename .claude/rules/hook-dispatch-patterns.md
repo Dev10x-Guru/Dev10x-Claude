@@ -240,13 +240,20 @@ Three constraints came out of building the first one:
    language. A broken `exempt` pattern disarms the gate, since losing
    an exemption would mean more blocks. An exemption covers only the
    sentence it sits in (GH-1854), so a conditional promise cannot
-   excuse an unconditional one in the same paragraph. "If/when you"
-   exempts only when it opens the sentence or gates the promise on the
-   supervisor through a phrase in the YAML's `exempt` list ("if you'd
-   like"), while "once/after you" is a wait wherever it sits (GH-1869),
-   so "let me know if you disagree, I'll run the tests now" blocks. A hedge built from a gate
-   phrase ("let me know if you'd like, …") still exempts; GH-1894
-   tracks a clause-aware check.
+   excuse an unconditional one in the same paragraph. Inside the
+   sentence the clause decides (GH-1894); clauses are cut at `,` `;`
+   `:` and an em dash. A wait or a decision gate (`exempt`: "once you
+   approve") excuses a promise from anywhere in the sentence, and so
+   does a clause-opening "if/when/once/after you" `condition` that is
+   not a preference and opens the sentence or a list item, up to the
+   promise's own clause. A `preference` ("if you'd like") anywhere,
+   or any other condition up to the promise's clause, excuses it only
+   when the promise's own clauses carry no `immediate` marker (`now`,
+   `right away`, `immediately`, `straight away`), comma or not. A
+   condition never reaches back (GH-1869), so "let me know if you
+   disagree, I'll run the tests now", "let me know if you'd like,
+   I'll run the tests now" and "I'll run the tests, if you don't
+   mind" all block.
 
 **Keep the decision out of the hook.** `dev10x.core.hooks.stop_verdict`
 holds the rule and is a pure function over `(payload, plan)`;

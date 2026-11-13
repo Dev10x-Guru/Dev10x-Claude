@@ -826,10 +826,21 @@ INTENT_PATTERNS_PATH = Path(__file__).with_name("stop_intent_patterns.yaml")
 
 @dataclass(frozen=True)
 class IntentPatterns:
-    """The phrases that declare an imminent action, and their exemptions."""
+    """The phrases that declare an imminent action, and what excuses one.
+
+    ``exempt`` names a wait, a gate on the supervisor's decision or a
+    deferral, wherever it sits in the sentence. ``preference`` names a
+    gate on what the supervisor would like, which a hedge is built
+    from. ``condition`` opens a clause that conditions it and the
+    clauses after it. ``immediate`` marks a promise as not waiting on
+    anything, which only a weak excuse in another clause gives way to.
+    """
 
     intent: tuple[re.Pattern[str], ...] = ()
     exempt: tuple[re.Pattern[str], ...] = ()
+    preference: tuple[re.Pattern[str], ...] = ()
+    condition: tuple[re.Pattern[str], ...] = ()
+    immediate: tuple[re.Pattern[str], ...] = ()
 
 
 def _compile_patterns(*, label: str, raw: object) -> tuple[list[re.Pattern[str]], bool]:
@@ -862,6 +873,11 @@ def _compile_patterns(*, label: str, raw: object) -> tuple[list[re.Pattern[str]]
     return compiled, failed
 
 
+_PATTERN_KEYS = ("intent", "exempt", "preference", "condition", "immediate")
+
+_EXCUSING_KEYS = frozenset({"exempt", "preference", "condition"})
+
+
 def parse_intent_patterns(*, data: object) -> IntentPatterns:
     """Merge every language's lists from the parsed data file (GH-1829).
 
@@ -870,30 +886,29 @@ def parse_intent_patterns(*, data: object) -> IntentPatterns:
     diagnostic rather than failing the hook: a pattern that cannot run
     is not evidence that a turn broke its word.
 
-    The two lists fail in opposite directions, so they are not dropped
-    alike. A lost ``intent`` pattern means fewer blocks, which is the
-    direction every degradation here takes. A lost ``exempt`` pattern
-    means *more* blocks — a promise that should have been exempt starts
-    firing — so any broken exemption disarms the gate entirely.
+    The lists fail in opposite directions, so they are not dropped
+    alike. A lost ``intent`` or ``immediate`` pattern means fewer
+    blocks, which is the direction every degradation here takes. A lost
+    ``exempt``, ``preference`` or ``condition`` pattern means *more*
+    blocks — a promise that should have been excused starts firing — so
+    any broken one of those disarms the gate entirely.
     """
     languages = data.get("languages") if isinstance(data, dict) else None
     if not isinstance(languages, dict):
         _diagnose(what="reading the intent patterns", error=ValueError("no 'languages' mapping"))
         return IntentPatterns()
 
-    intent: list[re.Pattern[str]] = []
-    exempt: list[re.Pattern[str]] = []
+    lists: dict[str, list[re.Pattern[str]]] = {key: [] for key in _PATTERN_KEYS}
     for name, language in languages.items():
         if not isinstance(language, dict):
             _diagnose(what=f"reading intent language {name!r}", error=ValueError("not a mapping"))
             continue
-        compiled, _ = _compile_patterns(label=f"{name} intent", raw=language.get("intent"))
-        intent.extend(compiled)
-        compiled, failed = _compile_patterns(label=f"{name} exempt", raw=language.get("exempt"))
-        if failed:
-            return IntentPatterns()
-        exempt.extend(compiled)
-    return IntentPatterns(intent=tuple(intent), exempt=tuple(exempt))
+        for key in _PATTERN_KEYS:
+            compiled, failed = _compile_patterns(label=f"{name} {key}", raw=language.get(key))
+            if failed and key in _EXCUSING_KEYS:
+                return IntentPatterns()
+            lists[key].extend(compiled)
+    return IntentPatterns(**{key: tuple(patterns) for key, patterns in lists.items()})
 
 
 @lru_cache(maxsize=1)
@@ -1002,9 +1017,99 @@ def _sentences(*, text: str) -> list[str]:
     return judged
 
 
+_CLAUSE_BREAK = re.compile(r"[,;:—]")
+
+
+def _clause_spans(*, sentence: str) -> list[tuple[int, int]]:
+    """Where each clause of the sentence starts and ends."""
+    starts = [0, *(match.end() for match in _CLAUSE_BREAK.finditer(sentence))]
+    ends = [*(start - 1 for start in starts[1:]), len(sentence)]
+    return list(zip(starts, ends, strict=True))
+
+
+def _clause_at(*, spans: list[tuple[int, int]], offset: int) -> int:
+    return next(index for index, (_, end) in enumerate(spans) if offset <= end)
+
+
+@dataclass(frozen=True)
+class _Clauses:
+    """One sentence's clauses, and which excuse each one carries."""
+
+    spans: list[tuple[int, int]]
+    waits: list[bool]
+    preferences: list[bool]
+    conditioned: list[bool]
+    opening: list[bool]
+
+
+def _read_clauses(*, sentence: str, patterns: IntentPatterns) -> _Clauses:
+    """Judge every clause once, whatever number of promises it holds."""
+    spans = _clause_spans(sentence=sentence)
+    clauses = [sentence[start:end] for start, end in spans]
+    waits = [any(pattern.search(clause) for pattern in patterns.exempt) for clause in clauses]
+    preferences = [
+        any(pattern.search(clause) for pattern in patterns.preference) for clause in clauses
+    ]
+    conditioned = [
+        any(pattern.search(clause.strip()) for pattern in patterns.condition) for clause in clauses
+    ]
+    opening = [
+        conditioned[index]
+        and not preferences[index]
+        and (index == 0 or bool(_LIST_ITEM.match(clause.strip())))
+        for index, clause in enumerate(clauses)
+    ]
+    return _Clauses(
+        spans=spans,
+        waits=waits,
+        preferences=preferences,
+        conditioned=conditioned,
+        opening=opening,
+    )
+
+
+def _promise_is_excused(
+    *,
+    sentence: str,
+    clauses: _Clauses,
+    promise: re.Match[str],
+    patterns: IntentPatterns,
+) -> bool:
+    """Whether an excuse in the sentence governs this one promise (GH-1894).
+
+    "Let me know if you'd like, I'll run the tests now" hedges with a
+    preference; "Once you approve, I'll merge it now" waits on the
+    supervisor. So an excuse is strong or weak, and where it sits
+    decides. A wait (``exempt``) governs the promise from anywhere in
+    the sentence, and so does a condition that opens the sentence or a
+    list item up to the promise's own clause, unless that condition is
+    only a preference. A preference anywhere, or any other condition up
+    to the promise's clause, governs it only when the promise does not
+    say it is happening now, with or without a comma between them. A
+    condition never reaches back: "I'll run the tests, if you don't
+    mind" asks nothing of the supervisor.
+    """
+    spans = clauses.spans
+    first = _clause_at(spans=spans, offset=promise.start())
+    last = _clause_at(spans=spans, offset=max(promise.end() - 1, promise.start()))
+    if any(clauses.waits) or any(clauses.opening[: last + 1]):
+        return True
+    promise_text = sentence[spans[first][0] : spans[last][1]]
+    if any(pattern.search(promise_text) for pattern in patterns.immediate):
+        return False
+    return any(clauses.preferences) or any(clauses.conditioned[: last + 1])
+
+
 def _breaks_its_word(*, sentence: str, patterns: IntentPatterns) -> bool:
-    return any(pattern.search(sentence) for pattern in patterns.intent) and not any(
-        pattern.search(sentence) for pattern in patterns.exempt
+    promises = [promise for pattern in patterns.intent for promise in pattern.finditer(sentence)]
+    if not promises:
+        return False
+    clauses = _read_clauses(sentence=sentence, patterns=patterns)
+    return any(
+        not _promise_is_excused(
+            sentence=sentence, clauses=clauses, promise=promise, patterns=patterns
+        )
+        for promise in promises
     )
 
 
