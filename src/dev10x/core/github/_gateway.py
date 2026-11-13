@@ -216,12 +216,20 @@ async def _gh_api_paginated(
     return ok(Listing(items=tuple(items), truncated=True))
 
 
-async def _graphql(query: str) -> Result[dict[str, Any]]:
+async def _graphql(query: str, *, partial_ok: bool = False) -> Result[dict[str, Any]]:
     """Run a GraphQL query and return its ``data`` object (GH-1857).
 
     Every caller repeated the same three checks — exit code, JSON, the
     ``errors`` array — and they had drifted: one ignored ``errors``
     entirely, so a query GitHub rejected read as an empty result.
+
+    ``partial_ok`` keeps the ``data`` a response carries alongside
+    NOT_FOUND ``errors``: aliased ``node(id:)`` lookups come back with a
+    null node and a NOT_FOUND error per unknown ID, and the caller
+    reports those per ID. Any other error type — FORBIDDEN, rate limits,
+    timeouts — also nulls a node, so it still fails the call rather than
+    reading as "not found". A query GitHub rejected outright carries no
+    ``data`` and is an error too (GH-1885).
     """
     result = await _gh_api_raw("graphql", fields={"query": query})
     if result.returncode != 0:
@@ -232,13 +240,20 @@ async def _graphql(query: str) -> Result[dict[str, Any]]:
         return err(f"Invalid JSON from GitHub API: {result.stdout[:200]}")
     if not isinstance(payload, dict):
         return err(f"Unexpected GitHub API payload (not an object): {result.stdout[:200]}")
-    errors = payload.get("errors")
-    if errors:
-        first = errors[0] if isinstance(errors, list) else errors
+    data = payload.get("data")
+    errors = payload.get("errors") or []
+    entries = errors if isinstance(errors, list) else [errors]
+    tolerated = partial_ok and isinstance(data, dict)
+    failing = [entry for entry in entries if not (tolerated and _is_not_found(entry))]
+    if failing:
+        first = failing[0]
         message = first.get("message", first) if isinstance(first, dict) else first
         return err(f"GitHub GraphQL error: {message}")
-    data = payload.get("data")
     return ok(data if isinstance(data, dict) else {})
+
+
+def _is_not_found(entry: Any) -> bool:
+    return isinstance(entry, dict) and entry.get("type") == "NOT_FOUND"
 
 
 async def _graphql_pull_request(
@@ -251,7 +266,9 @@ async def _graphql_pull_request(
 
     An unknown PR comes back as ``pullRequest: null``; reading that as an
     empty node turned "no such PR" into "no unresolved threads" (GH-1857),
-    so every pullRequest query takes the same guard.
+    so every ``repository.pullRequest`` query takes this guard. A
+    ``node(id:)`` lookup that reaches a PR through a comment guards its
+    own null ``pullRequest`` (``reviews._pr_comment_resolve``).
     """
     data = await _graphql(query)
     if not isinstance(data, SuccessResult):

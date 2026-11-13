@@ -437,6 +437,106 @@ class TestPrCommentsResolveErrors:
         assert isinstance(result, ErrorResult)
         assert result.error == "Mutation failed"
 
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    async def test_rejected_query_reports_the_graphql_error(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.return_value = _completed(
+            stdout=json.dumps({"errors": [{"message": "Field 'nodeX' doesn't exist"}]})
+        )
+
+        result = await gh.pr_comments(action="resolve", comment_id="PRRC_abc")
+
+        assert isinstance(result, ErrorResult)
+        assert result.error == "GitHub GraphQL error: Field 'nodeX' doesn't exist"
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    async def test_null_pull_request_reads_as_thread_not_found(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.return_value = _completed(
+            stdout=json.dumps({"data": {"n0": {"databaseId": 7, "pullRequest": None}}})
+        )
+
+        result = await gh.pr_comments(action="resolve", comment_id="PRRC_abc")
+
+        assert isinstance(result, ErrorResult)
+        assert "Could not find thread for comment PRRC_abc" in result.error
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    async def test_unknown_node_alongside_a_known_one_is_a_warning(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        lookup = _thread_lookup_response("n0", db_id=55, thread_id="PRRT_good")
+        lookup["data"]["n1"] = None
+        lookup["errors"] = [{"type": "NOT_FOUND", "message": "Could not resolve to a node"}]
+        mock_api.side_effect = [
+            _completed(stdout=json.dumps(lookup)),
+            _completed(
+                stdout=json.dumps(
+                    {"data": {"r0": {"thread": {"id": "PRRT_good", "isResolved": True}}}}
+                )
+            ),
+        ]
+
+        result = await gh.pr_comments(action="resolve", comment_ids=["PRRC_good", "123"])
+
+        assert isinstance(result, SuccessResult)
+        assert result.value["data"]["r0"]["thread"]["isResolved"] is True
+        assert result.value["warnings"] == [
+            "Could not find thread for comment 123. The resolve action requires a GraphQL "
+            "node_id, not a REST integer ID. Use the node_id field from a comment response."
+        ]
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    async def test_forbidden_node_lookup_reports_the_graphql_error(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.return_value = _completed(
+            stdout=json.dumps(
+                {
+                    "data": {"n0": None},
+                    "errors": [{"type": "FORBIDDEN", "message": "Resource protected by SAML"}],
+                }
+            )
+        )
+
+        result = await gh.pr_comments(action="resolve", comment_id="PRRC_abc")
+
+        assert isinstance(result, ErrorResult)
+        assert result.error == "GitHub GraphQL error: Resource protected by SAML"
+
+    @pytest.mark.asyncio
+    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    async def test_mutation_graphql_error_is_an_error(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        mock_api.side_effect = [
+            _completed(
+                stdout=json.dumps(_thread_lookup_response("n0", db_id=77, thread_id="PRRT_t1"))
+            ),
+            _completed(stdout=json.dumps({"errors": [{"message": "Resource not accessible"}]})),
+        ]
+
+        result = await gh.pr_comments(action="resolve", comment_id="PRRC_abc")
+
+        assert isinstance(result, ErrorResult)
+        assert result.error == "GitHub GraphQL error: Resource not accessible"
+
 
 class TestResolveReviewThreadDirect:
     @pytest.mark.asyncio
