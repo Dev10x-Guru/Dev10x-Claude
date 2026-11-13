@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import http.client
+import http.server
 import importlib
 import os
+import threading
 import urllib.error
+import urllib.request
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -187,6 +190,116 @@ class TestRegex:
         assert "invalid regex" in result.error
 
 
+def _socket_to(*, peer: str) -> MagicMock:
+    sock = MagicMock()
+    sock.getpeername.return_value = (peer, 80)
+    return sock
+
+
+class _RedirectToMetadata(http.server.BaseHTTPRequestHandler):
+    def do_GET(self) -> None:
+        self.send_response(302)
+        self.send_header("Location", "http://169.254.169.254/latest/meta-data/")
+        self.end_headers()
+
+    def log_message(self, format: str, *args: Any) -> None:
+        return None
+
+
+@pytest.fixture
+def loopback_url() -> Iterator[str]:
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _RedirectToMetadata)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    yield f"http://127.0.0.1:{server.server_address[1]}/health"
+    server.shutdown()
+    server.server_close()
+    thread.join(timeout=5)
+
+
+class TestRealOpener:
+    """Drive urllib's own open path; only the socket or the peer is real."""
+
+    @pytest.mark.parametrize(
+        ("url", "peer"),
+        [
+            ("http://metadata.internal/", ("169.254.169.254", 80)),
+            ("https://metadata.internal/", ("169.254.169.254", 443)),
+            ("http://router.internal/", ("fe80::1", 80, 0, 2)),
+        ],
+        ids=["http", "https", "ipv6"],
+    )
+    def test_refuses_a_link_local_peer_through_urllib(
+        self, url: str, peer: tuple[Any, ...]
+    ) -> None:
+        sock = MagicMock()
+        sock.getpeername.return_value = peer
+        with (
+            patch.object(wait_for_module.socket, "create_connection", return_value=sock),
+            pytest.raises(wait_for_module._LinkLocalRefused, match=str(peer[0])),
+        ):
+            wait_for_module._http_status(url=url)
+
+        sock.close.assert_called_once_with()
+        sock.sendall.assert_not_called()
+
+    def test_reports_a_loopback_redirect_without_following_it(self, loopback_url: str) -> None:
+        assert wait_for_module._http_status(url=loopback_url) == (302, None)
+
+
+class TestGuardedConnection:
+    def test_refuses_a_link_local_peer_before_any_request(self) -> None:
+        sock = _socket_to(peer="169.254.169.254")
+        with (
+            patch.object(wait_for_module.socket, "create_connection", return_value=sock),
+            pytest.raises(wait_for_module._LinkLocalRefused, match="169.254.169.254"),
+        ):
+            wait_for_module._guarded_create_connection(("metadata.internal", 80))
+
+        sock.close.assert_called_once_with()
+        sock.sendall.assert_not_called()
+
+    def test_hands_back_a_loopback_socket(self) -> None:
+        sock = _socket_to(peer="127.0.0.1")
+        with patch.object(wait_for_module.socket, "create_connection", return_value=sock):
+            assert wait_for_module._guarded_create_connection(("localhost", 8000)) is sock
+
+        sock.close.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "connection",
+        ["_GuardedHTTPConnection", "_GuardedHTTPSConnection"],
+    )
+    def test_connections_open_sockets_through_the_guard(self, connection: str) -> None:
+        conn = getattr(wait_for_module, connection)("example.test")
+
+        assert conn._create_connection is wait_for_module._guarded_create_connection
+
+    @pytest.mark.parametrize(
+        ("handler", "method", "connection"),
+        [
+            ("_GuardedHTTPHandler", "http_open", "_GuardedHTTPConnection"),
+            ("_GuardedHTTPSHandler", "https_open", "_GuardedHTTPSConnection"),
+        ],
+    )
+    def test_handlers_open_guarded_connections(
+        self, handler: str, method: str, connection: str
+    ) -> None:
+        instance = getattr(wait_for_module, handler)()
+        with patch.object(instance, "do_open") as do_open:
+            getattr(instance, method)(MagicMock())
+
+        assert do_open.call_args.args[0] is getattr(wait_for_module, connection)
+
+    def test_http_status_lets_the_refusal_through(self) -> None:
+        refused = wait_for_module._LinkLocalRefused("refused")
+        with (
+            patch.object(wait_for_module, "_open", side_effect=refused),
+            pytest.raises(wait_for_module._LinkLocalRefused),
+        ):
+            wait_for_module._http_status(url="http://metadata.internal/")
+
+
 class TestHttp:
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
@@ -223,15 +336,83 @@ class TestHttp:
 
         assert (result.value["unreachable"], result.value["timed_out"]) == (False, True)
 
+    @pytest.mark.asyncio
+    async def test_a_link_local_connection_ends_the_wait(self) -> None:
+        refused = wait_for_module._LinkLocalRefused(
+            "refused: connected to link-local address 169.254.169.254"
+        )
+        with patch.object(wait_for_module, "_http_status", side_effect=refused):
+            result = await wait_for_module.wait_for(
+                kind="http", target="http://metadata.internal/latest", timeout=10
+            )
+
+        assert (result.value["unreachable"], result.value["met"], result.value["polls"]) == (
+            True,
+            False,
+            1,
+        )
+        assert result.value["observed"]["error"] == (
+            "refused: connected to link-local address 169.254.169.254"
+        )
+
+    @pytest.mark.parametrize(
+        ("address", "link_local"),
+        [
+            ("169.254.169.254", True),
+            ("fe80::1%eth0", True),
+            ("::ffff:169.254.169.254", True),
+            ("127.0.0.1", False),
+            ("10.0.0.5", False),
+            ("::1", False),
+            ("localhost", False),
+        ],
+    )
+    def test_is_link_local(self, address: str, link_local: bool) -> None:
+        assert wait_for_module._is_link_local(address=address) is link_local
+
+    def test_a_redirect_is_reported_not_followed(self) -> None:
+        handler = wait_for_module._NoRedirect()
+
+        assert handler.redirect_request(MagicMock(), None, 302, "Found", {}, "http://x") is None
+
+    @pytest.mark.parametrize(
+        ("installed", "replaced"),
+        [
+            ("_NoRedirect", urllib.request.HTTPRedirectHandler),
+            ("_GuardedHTTPHandler", urllib.request.HTTPHandler),
+            ("_GuardedHTTPSHandler", urllib.request.HTTPSHandler),
+        ],
+    )
+    def test_the_probe_opener_replaces_the_stock_handler(
+        self, installed: str, replaced: type
+    ) -> None:
+        handler_types = [type(h) for h in wait_for_module._OPENER.handlers]
+
+        assert getattr(wait_for_module, installed) in handler_types
+        assert replaced not in handler_types
+
+    def test_the_probe_opener_ignores_proxy_settings(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("http_proxy", "http://proxy.test:3128")
+        monkeypatch.setenv("https_proxy", "http://proxy.test:3128")
+
+        opener = wait_for_module._build_opener()
+
+        assert urllib.request.ProxyHandler not in [type(h) for h in opener.handlers]
+
+    def test_http_status_opens_through_the_probe_opener(self) -> None:
+        assert wait_for_module._open == wait_for_module._OPENER.open
+
     def test_http_status_reads_response(self) -> None:
         response = MagicMock(status=204)
         response.__enter__.return_value = response
-        with patch.object(wait_for_module.urllib.request, "urlopen", return_value=response):
+        with patch.object(wait_for_module, "_open", return_value=response):
             assert wait_for_module._http_status(url="http://x") == (204, None)
 
     def test_http_status_reads_error_code(self) -> None:
         error = urllib.error.HTTPError("http://x", 500, "boom", {}, None)  # type: ignore[arg-type]
-        with patch.object(wait_for_module.urllib.request, "urlopen", side_effect=error):
+        with patch.object(wait_for_module, "_open", side_effect=error):
             assert wait_for_module._http_status(url="http://x") == (500, None)
 
     @pytest.mark.parametrize(
@@ -243,7 +424,7 @@ class TestHttp:
         ],
     )
     def test_http_status_reports_probe_failure(self, raised: Exception, fragment: str) -> None:
-        with patch.object(wait_for_module.urllib.request, "urlopen", side_effect=raised):
+        with patch.object(wait_for_module, "_open", side_effect=raised):
             status, error = wait_for_module._http_status(url="http://x")
 
         assert status is None
@@ -400,6 +581,8 @@ class TestValidation:
             ({"kind": "http", "target": "file:///etc/passwd"}, "needs an http(s) URL"),
             ({"kind": "http", "target": "http://localhost:port/"}, "needs an http(s) URL"),
             ({"kind": "http", "target": "http:///health"}, "needs an http(s) URL"),
+            ({"kind": "http", "target": "http://169.254.169.254/"}, "refuses a link-local"),
+            ({"kind": "http", "target": "http://[fe80::1]:8080/"}, "refuses a link-local"),
             ({"kind": "time", "target": "tomorrow"}, "needs an ISO-8601"),
         ],
     )
