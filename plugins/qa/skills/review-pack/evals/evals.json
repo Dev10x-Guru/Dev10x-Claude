@@ -9,7 +9,7 @@
     {
       "id": "pack-structure",
       "name": "Five Sections In Order",
-      "description": "The pack carries what changed, every surface, a 60-second test recipe, what is verified, and the judgement calls"
+      "description": "The pack carries what changed, every surface, a 60-second test recipe, what is verified, and the judgment calls"
     },
     {
       "id": "hosting",
@@ -124,6 +124,28 @@
       ]
     },
     {
+      "id": "pack-only-resolver-error-asks",
+      "name": "A resolver error turns the pack-only gate into a question that claims no default",
+      "description": "A pack-only run finds the self-review box unchecked and resolve_gate returns an error key (GH-1899)",
+      "input": "Skill(dev10x-qa:review-pack, args=\"--no-request-review 1234\") where resolve_gate(gate=\"artifact_preview\") returns {\"error\": ...}; footage is staging-only",
+      "assertions": [
+        {
+          "dimension": "gate-enforcement",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "assertion": "gate2_error_uses_tool",
+          "signal": "AskUserQuestion is called rather than taking Send silently"
+        },
+        {
+          "dimension": "gate-enforcement",
+          "check": "tool_parameters",
+          "tool": "AskUserQuestion",
+          "assertion": "gate2_error_states_default_unresolved",
+          "signal": "Options are Send with the gap stated (Recommended) / Fix the gap first / Hold; the question says the resolver failed so this mode's default could not be resolved, and gives the pack-only hand-on as the only reason Send leads"
+        }
+      ]
+    },
+    {
       "id": "pack-only-unknown-frame-source-asks",
       "name": "A frame whose source cannot be named asks even on a pack-only run",
       "description": "A pack-only run in an afk session cannot say where one screenshot came from, so the staging box stays unchecked (GH-1878)",
@@ -187,8 +209,8 @@
         {
           "dimension": "pack-structure",
           "check": "output_contains",
-          "value": "Where I need your judgement",
-          "signal": "The judgement-calls section is present"
+          "value": "Where I need your judgment",
+          "signal": "The judgment-calls section is present"
         },
         {
           "dimension": "hosting",

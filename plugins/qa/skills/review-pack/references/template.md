@@ -74,7 +74,7 @@ what goes wrong>
 - **Not verified / known gaps:** <name them — an honest gap beats
   confident silence>
 
-## 5 · Where I need your judgement
+## 5 · Where I need your judgment
 
 <!-- The 1-3 real questions: product calls, trade-offs taken, things
      deliberately not done. Everything above exists so the reviewer can
