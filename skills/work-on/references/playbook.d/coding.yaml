@@ -116,16 +116,31 @@ fragments:
     - subject: Request review
       type: detailed
       prompt: >
-        Assign reviewers and post Slack notification per project
-        config. Auto-assign from CODEOWNERS — no AskUserQuestion
-        for reviewer selection.
+        When the self-QA review pack sent with gaps stated, its
+        section 4 lists them; when self-QA was skipped or held there
+        is no list to read. Before requesting review, close what can
+        be closed now — e.g. fix a non-UI defect (dev10x:git-commit,
+        push via dev10x:git). After all fixes, run dev10x:review
+        --unattended --loop once on the new HEAD, then re-run
+        dev10x-qa:review-pack --no-request-review once so section 4
+        matches that HEAD; skip both when nothing was fixed. A
+        UI-changing fix makes the pack's video stale, so list that
+        gap instead of fixing it here. Record in the Verify-AC summary
+        which gaps were closed and which remain, so the reviewer does
+        not learn of them from the pack alone. Then request review
+        with the remaining gaps stated: assign reviewers and post
+        Slack notification per project config. Auto-assign from
+        CODEOWNERS — no AskUserQuestion for reviewer selection.
       skills: [dev10x:gh-pr-request-review]
       modes:
         solo-maintainer:
           subject: Mark PR ready for review
           prompt: >
-            Mark ready via the `pr_ready` MCP wrapper (GH-779) — not
-            raw `gh pr ready`. No reviewers, no Slack.
+            When the self-QA review pack sent with gaps stated, list
+            each open gap in the Verify-AC summary; when self-QA was
+            skipped or held there is no list to read. Mark ready via
+            the `pr_ready` MCP wrapper (GH-779) — not raw `gh pr
+            ready`. No reviewers, no Slack.
     - subject: Merge PR
       type: detailed
       prompt: >

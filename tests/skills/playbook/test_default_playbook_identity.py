@@ -25,7 +25,7 @@ import pytest
 from dev10x.skills.playbook import load_plugin_default
 from dev10x.subprocess_utils import get_plugin_root
 
-RESOLVED_SHA256 = "df8862b3d603d49bf78067a91915937ba114a577f9e558e4542c93da851e536f"
+RESOLVED_SHA256 = "257903b78ea04bfd967b733109aa0c9073186cb9796abf8bf94352d78f00c20e"
 VERSION_KEY = "version"
 
 DELTA_PLAY = "structured-spec"
