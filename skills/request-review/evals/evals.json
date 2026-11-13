@@ -408,6 +408,187 @@
           ]
         }
       ]
+    },
+    {
+      "id": 11,
+      "name": "plan-step-call-refuses-with-stop-marker",
+      "prompt": "Skill(skill=\"dev10x:request-review\", args=\"--pr 42 --repo org/repo\") — called by dev10x:work-on while executing its 'Request review' plan step",
+      "description": "GH-1890: no --unattended flag, but an orchestrator calls the skill while executing a plan step with an active task list, which the canonical definition counts as unattended. CI is red, so Step 1.6 refuses without a widget and prints the parseable stop marker.",
+      "setup": {
+        "ci_verdict": "failing",
+        "unresolved_threads": 0,
+        "bots_ready": true,
+        "is_draft": false,
+        "caller": "dev10x:work-on plan step",
+        "task_list_open": true
+      },
+      "dimensions": [
+        "readiness-gate"
+      ],
+      "assertions": [
+        {
+          "id": "no-readiness-widget",
+          "text": "Does NOT call AskUserQuestion — a plan-step call is unattended",
+          "check": "command_absent",
+          "signals": [
+            "AskUserQuestion"
+          ]
+        },
+        {
+          "id": "does-not-delegate",
+          "text": "Does NOT invoke dev10x:gh-pr-request-review",
+          "check": "command_absent",
+          "signals": [
+            "dev10x:gh-pr-request-review"
+          ]
+        },
+        {
+          "id": "prints-stop-marker",
+          "text": "Ends the output with the readiness stop marker",
+          "check": "output_contains",
+          "signals": [
+            "Readiness: stopped —"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "name": "task-list-without-plan-step-is-attended",
+      "prompt": "/dev10x:request-review --pr 42 --repo org/repo",
+      "description": "GH-1890: the supervisor types the command in a session whose task list happens to be open, but no orchestrator is executing a plan step. An active task list alone does not make a run unattended, so the readiness widget fires.",
+      "setup": {
+        "ci_verdict": "failing",
+        "unresolved_threads": 0,
+        "bots_ready": true,
+        "is_draft": false,
+        "task_list_open": true
+      },
+      "dimensions": [
+        "readiness-gate"
+      ],
+      "assertions": [
+        {
+          "id": "fires-readiness-widget",
+          "text": "Calls AskUserQuestion with header Readiness before Step 2",
+          "check": "tool_called",
+          "signals": [
+            "AskUserQuestion",
+            "Readiness"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "name": "attended-stop-prints-stop-marker",
+      "prompt": "/dev10x:request-review --pr 42 --repo org/repo",
+      "description": "GH-1890: CI is red and the supervisor answers 'Stop — fix it first'. The run ends at Step 1.6 and still prints the same stop marker the sibling prints, so a caller can parse it either way.",
+      "setup": {
+        "ci_verdict": "failing",
+        "unresolved_threads": 0,
+        "bots_ready": true,
+        "is_draft": false,
+        "readiness_answer": "Stop — fix it first"
+      },
+      "dimensions": [
+        "readiness-gate"
+      ],
+      "assertions": [
+        {
+          "id": "fires-readiness-widget",
+          "text": "Calls AskUserQuestion with header Readiness before stopping",
+          "check": "tool_called",
+          "signals": [
+            "AskUserQuestion",
+            "Readiness"
+          ]
+        },
+        {
+          "id": "does-not-delegate",
+          "text": "Does NOT invoke dev10x:gh-pr-request-review after the stop answer",
+          "check": "command_absent",
+          "signals": [
+            "dev10x:gh-pr-request-review"
+          ]
+        },
+        {
+          "id": "prints-stop-marker",
+          "text": "Ends the output with the readiness stop marker",
+          "check": "output_contains",
+          "signals": [
+            "Readiness: stopped —"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "name": "unattended-delegation-passes-the-flag-verbatim",
+      "prompt": "/dev10x:request-review --pr 42 --repo org/repo --unattended",
+      "description": "GH-1890: the PR is ready and the run is unattended. Step 2 uses the unattended form: the args carry a bare --unattended, never the bracketed notation.",
+      "setup": {
+        "ci_verdict": "green",
+        "unresolved_threads": 0,
+        "bots_ready": true,
+        "is_draft": false
+      },
+      "dimensions": [
+        "delegation"
+      ],
+      "assertions": [
+        {
+          "id": "passes-unattended",
+          "text": "Invokes dev10x:gh-pr-request-review with --readiness-checked --unattended",
+          "check": "tool_called",
+          "signals": [
+            "dev10x:gh-pr-request-review",
+            "--readiness-checked --unattended"
+          ]
+        },
+        {
+          "id": "no-bracket-notation",
+          "text": "Does NOT pass the literal [--unattended]",
+          "check": "command_absent",
+          "signals": [
+            "[--unattended]"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "name": "attended-delegation-omits-the-flag",
+      "prompt": "/dev10x:request-review --pr 42 --repo org/repo",
+      "description": "GH-1890: the PR is ready and the supervisor invoked the skill directly. Step 2 uses the attended form, so the sibling may still ask its own questions.",
+      "setup": {
+        "ci_verdict": "green",
+        "unresolved_threads": 0,
+        "bots_ready": true,
+        "is_draft": false
+      },
+      "dimensions": [
+        "delegation"
+      ],
+      "assertions": [
+        {
+          "id": "delegates",
+          "text": "Invokes dev10x:gh-pr-request-review with --readiness-checked",
+          "check": "tool_called",
+          "signals": [
+            "dev10x:gh-pr-request-review",
+            "--readiness-checked"
+          ]
+        },
+        {
+          "id": "omits-unattended",
+          "text": "Does NOT pass --unattended in any spelling",
+          "check": "command_absent",
+          "signals": [
+            "--unattended"
+          ]
+        }
+      ]
     }
   ],
   "trigger_evals": {

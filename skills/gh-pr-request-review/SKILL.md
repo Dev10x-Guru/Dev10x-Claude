@@ -246,9 +246,10 @@ NOT notify the requested reviewers — the request is lost.
    the caller passed `--readiness-checked` (`dev10x:request-review`
    already ran it). When a condition fails: unattended (as that file
    defines it — `--unattended`, or a `Skill()` call from an
-   orchestrator with an active task list, e.g. the work-on "Request
-   review" step; a call from `dev10x:request-review` is attended unless
-   it passes `--unattended`), refuse and stop; attended, **REQUIRED: Call
+   orchestrator while executing a plan step with an active task list,
+   e.g. the work-on "Request review" step; a call from
+   `dev10x:request-review` is attended unless it passes
+   `--unattended`), refuse and stop; attended, **REQUIRED: Call
    `AskUserQuestion`** (do NOT use plain text) with **Stop — fix it
    first (Recommended)** and **Request review anyway**, header
    `Readiness`. When the run stops here after this run flipped a
