@@ -7,20 +7,37 @@
 # tests" as work in progress and come back to an idle session.
 #
 # Patterns are Python regular expressions, matched case-insensitively
-# against each sentence of the closing paragraph after curly apostrophes
-# are normalized to "'". An `exempt` match covers only its own sentence
-# (GH-1854), so "If you see failures, I'll fix them." cannot excuse an
-# unconditional "Now I'll run the tests." beside it. Every language's
-# lists are merged, so a new language is a new key under `languages:`
-# and nothing else.
+# after curly apostrophes are normalized to "'". `intent` is matched
+# against each sentence of the closing paragraph; the other lists
+# against each clause of it, cut at `,` `;` `:` and an em dash
+# (GH-1894). An excuse covers only its own sentence (GH-1854), so "If
+# you see failures, I'll fix them." cannot excuse an unconditional "Now
+# I'll run the tests." beside it. Every language's lists are merged, so
+# a new language is a new key under `languages:` and nothing else.
 #
-# Keep `exempt` honest: over-firing is what turns a Stop gate into
-# noise. A promise conditioned on the supervisor ("once you approve,
-# I'll merge"), a wait, or work explicitly deferred past this session is
-# not an action this turn skipped. Keep it narrow too: an exemption
-# that matches ordinary hedging ("let me know if you disagree") lets an
-# unconditional promise through (GH-1869), and a colon lead-in carries
-# its exemption into every list item under it.
+# An excuse is strong or weak, in the promise's own clause as anywhere
+# else in the sentence:
+# - `exempt` is strong anywhere: a wait, a gate on the supervisor's
+#   decision, a deferral past this session ("Ping me once you approve,
+#   I'll merge it now").
+# - `condition` opens a clause ("If you see failures") and reaches only
+#   the clauses after it: "I'll run the tests, if you don't mind" asks
+#   nothing. It is strong when it opens the sentence or a list item and
+#   is not a preference, weak otherwise.
+# - `preference` names what the supervisor would like, and is weak.
+# - `immediate` says a promise is not waiting, which defeats a weak
+#   excuse: "Let me know if you'd like, I'll run the tests now" is a
+#   hedge built from a gate phrase, and so is "I'll run the tests now if
+#   you'd like" with no comma. Only the promise's own clauses are read
+#   for it, so "…, I'll merge it; CI is green now" is still excused.
+#
+# Keep the excusing lists honest: over-firing is what turns a Stop
+# gate into noise. A promise conditioned on the supervisor ("once you
+# approve, I'll merge"), a wait, or work explicitly deferred past this
+# session is not an action this turn skipped. Keep them narrow too: an
+# exemption that matches ordinary hedging ("let me know if you
+# disagree") lets an unconditional promise through (GH-1869), and a
+# colon lead-in carries its exemption into every list item under it.
 
 languages:
   en:
@@ -48,32 +65,40 @@ languages:
       # a prose deferral ("say go and I'll push it") is not this gate's
       # business, so a promise waiting on their word stays quiet here.
       #
-      # A bare "if you" anywhere is not such a condition (GH-1869): "Let
-      # me know if you disagree, I'll run the tests now" hedges, and
-      # nothing in it waits on the supervisor. So "if/when you" exempts
-      # in two shapes only: opening the sentence, where it conditions
-      # the clause that follows ("If you see failures, I'll fix them"),
-      # or later in it when a phrase below gates the promise on the
-      # supervisor ("I'll rebase it if you'd like"). A list bullet,
-      # number, quote, bracket, Markdown emphasis or a connective
-      # ("So if you…", "Otherwise, if you…") may precede the opening one.
-      # A list item is judged after its colon lead-in ("Here is the
-      # plan: - If you see failures, …"), so the opening shape may also
-      # follow a colon and a list marker, but never a bare colon: "Let
-      # me know: if you disagree, I'll run the tests now" still hedges.
-      # "Once/after you" is a wait wherever it sits ("I'll push it once
-      # you've fixed the tests"), so it needs no gate phrase.
-      #
-      # A gate phrase exempts wherever it sits, so a hedge built from one
-      # ("Let me know if you'd like, I'll run the tests now") still gets
-      # through: one sentence of regex cannot tell it from "Ping me once
-      # you approve, I'll merge it". GH-1894 tracks a clause-aware check.
-      - "(?:^[\\s*_>+•(\"'`\\[-]*(?:\\d+[.)]\\s*)?|:\\s+(?:[-*+•]|\\d+[.)])\\s+[*_]*)(?:(?:and|but|so|otherwise|also|or|then|okay|ok)\\b,?\\s+)?(?:if|once|when|after)\\s+you\\b"
+      # A bare "if you" is not such a condition (GH-1869): "Let me know
+      # if you disagree, I'll run the tests now" hedges, and nothing in
+      # it waits on the supervisor. Opening a clause it is a `condition`
+      # below; elsewhere it excuses only through a phrase here that
+      # gates the promise on the supervisor ("I'll rebase it if you'd
+      # like"). "Once/after you" is a wait wherever it sits ("I'll push
+      # it once you've fixed the tests"), so it needs no gate phrase.
       - "\\b(?:once|after)\\s+you\\b"
       - "\\bwhen\\s+you(?:'ve|\\s+have)?\\s+(?:accept(?:s|ed)?|read|tell\\s+me|let\\s+me\\s+know|approve[sd]?|agree[sd]?|confirm(?:s|ed)?|decide[sd]?|pick(?:s|ed)?|choose[sn]?|chosen|chose|give[sn]?|gave|sign(?:s|ed)?|says?|said|review(?:s|ed)?|ok(?:ay)?(?:s|ed|'d)?|repl(?:y|ies|ied)|respond(?:s|ed)?|answer(?:s|ed)?|(?:approv|agree|confirm|decid|pick|choos|giv|sign|say|review|okay|reply|respond|answer)ing)\\b"
       - "\\b(?:if|when)\\s+you(?:'re|\\s+are)\\s+(?:ready|happy|done|ok|okay|fine|good|sure)\\b"
-      - "\\b(?:if|when)\\s+you(?:'d|\\s+would)?\\s+(?:approve|accept|agree|decide|choose|pick|want|wish|prefer|rather|like|ask|confirm|say|give|ok|okay|need\\s+me\\s+to)\\b"
+      - "\\b(?:if|when)\\s+you(?:'d|\\s+would)?\\s+(?:approve|accept|agree|decide|choose|pick|ask|confirm|say|give|ok|okay)\\b"
       - "\\b(?:say|give\\s+me)\\s+(?:go|the\\s+word|the\\s+go-ahead)\\b"
       - "\\bwith\\s+your\\s+(?:ok|okay|approval|go-ahead)\\b"
       # Deferred past this turn on purpose
       - "\\b(?:later\\s+today|tomorrow|next\\s+session|next\\s+time)\\b"
+    preference:
+      # What the supervisor would like rather than what they decide:
+      # the phrase a hedge is built from ("Let me know if you'd like,
+      # I'll run the tests now"). It excuses a promise only when that
+      # promise is not happening now: "I'll rebase it if you'd like"
+      # waits, "I'll rebase it now if you'd like" does not.
+      - "\\b(?:if|when)\\s+you(?:'d|\\s+would|\\s+do)?\\s+(?:want(?:ed)?|wish|prefer|rather|like|care\\s+to|need\\s+me\\s+to)\\b"
+      - "\\b(?:if|when)\\s+you(?:'re|\\s+are)\\s+(?:interested|curious|keen)\\b"
+    condition:
+      # "If/when/once/after you" opening a clause conditions it and the
+      # clauses after it ("If you see failures, I'll fix them"). Matched
+      # against the clause with its edges trimmed, so a list bullet,
+      # number, quote, bracket or Markdown emphasis may precede it, and
+      # so may a connective ("So if you…", "Otherwise, if you…"). A list
+      # item is judged after its colon lead-in, and the colon ends a
+      # clause, so "Here is the plan:\n- If you see failures, …" opens
+      # one too.
+      - "^[\\s*_>+•(\"'`\\[-]*(?:\\d+[.)]\\s*[*_]*)?(?:(?:and|but|so|otherwise|also|or|then|okay|ok)\\b\\s+)?(?:if|once|when|after)\\s+you\\b"
+    immediate:
+      # The promise is happening now, so a gate in another clause of the
+      # sentence is a hedge, not a condition on it.
+      - "\\b(?:now|right\\s+away|immediately|straight\\s+away)\\b"

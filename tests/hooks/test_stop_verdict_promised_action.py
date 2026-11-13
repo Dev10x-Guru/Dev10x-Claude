@@ -293,6 +293,12 @@ class TestATurnThatKeptItsWordEndsQuietly:
 
         assert promised_action(entries=_entries(closing=closing)) == ""
 
+    def test_a_long_run_of_emphasis_in_a_clause_is_judged_in_bounded_time(self) -> None:
+        """Overlapping condition classes once made each clause quadratic."""
+        closing = "Done, " + "*" * 1900 + " I'll run the tests, I'll push it, I'll merge it."
+
+        assert promised_action(entries=_entries(closing=closing)) == closing
+
     def test_only_the_tail_of_a_long_close_is_judged(self) -> None:
         closing = "Now I'll run the tests. " + "x" * 3000
 
@@ -379,6 +385,23 @@ _SAME_SENTENCE_EXEMPTIONS = [
         "Once you approve:\n1) I'll push the branch\n2) I'll merge it",
         id="conditional-lead-in-paren-numbers",
     ),
+    pytest.param(
+        "Ping me once you approve, I'll merge it; CI is green now.",
+        id="gate-with-now-in-another-clause",
+    ),
+    pytest.param("Let me know if you'd like, and I'll rebase it.", id="gate-phrase-no-now"),
+    pytest.param("If you'd like, I'll rebase it.", id="opening-gate-phrase"),
+    pytest.param("Say the word — I'll merge it.", id="em-dash-gate"),
+    pytest.param("Once you approve, I'll merge it now.", id="opening-wait-then-now"),
+    pytest.param("Ping me once you approve, I'll merge it now.", id="wait-in-another-clause-now"),
+    pytest.param("I'll run the tests now, if you approve.", id="now-then-decision-gate"),
+    pytest.param("If you see failures, I'll fix them right away.", id="opening-condition-now"),
+    pytest.param(
+        "Here is the plan:\n- If you see failures, I'll fix them now.",
+        id="list-item-condition-now",
+    ),
+    pytest.param("If you're interested, I'll run the tests.", id="opening-interest-no-now"),
+    pytest.param("If you see failures I'll fix them right away.", id="no-comma-condition-now"),
 ]
 
 
@@ -418,10 +441,25 @@ _UNCONDITIONAL_BESIDE_CONDITIONAL = [
 
 
 #: Closings where "if/when you" hedges rather than conditions: it
-#: neither opens the sentence nor names the supervisor's decision, so
-#: nothing in it waits on them (GH-1869). A hedge built from a gate
-#: phrase ("let me know if you'd like, …") is GH-1894's, not pinned here.
+#: neither opens a clause before the promise nor names the supervisor's
+#: decision, so nothing in it waits on them (GH-1869), or it names only
+#: a preference in another clause while the promise says it happens now
+#: (GH-1894).
 _HEDGED_PROMISES = [
+    pytest.param("Let me know if you'd like, I'll run the tests now.", id="gate-phrase-then-now"),
+    pytest.param("Let me know, if you'd like, I'll run the tests now.", id="comma-gate-then-now"),
+    pytest.param("Let us know if you'd like; now I'll push it.", id="gate-phrase-now-i-will"),
+    pytest.param("If you want, I'm going to rebase it now.", id="going-to-now"),
+    pytest.param("If you'd like, I'll rerun the tests right away.", id="right-away"),
+    pytest.param("Shout if you want — I'll merge it immediately.", id="em-dash-immediately"),
+    pytest.param("I'll run the tests now, if you'd like.", id="now-then-gate-phrase"),
+    pytest.param("I'll run the tests, if you don't mind.", id="trailing-condition"),
+    pytest.param("If you're interested, I'll run the tests now.", id="opening-interest-now"),
+    pytest.param("If you do want me to, I'll push it now.", id="opening-do-want-now"),
+    pytest.param("If you care to, I'll rebase it right away.", id="opening-care-to-now"),
+    pytest.param("If you care to I'll rebase it right away.", id="no-comma-opening-preference"),
+    pytest.param("If you're interested I'll run the tests now.", id="no-comma-interest-now"),
+    pytest.param("I'll run the tests now if you'd like.", id="no-comma-now-then-preference"),
     pytest.param("Let me know if you disagree, I'll run the tests now.", id="if-you-disagree"),
     pytest.param("Shout if you have questions; I'll push the branch now.", id="if-you-have"),
     pytest.param("Ping me when you see this, I'll rerun the tests now.", id="when-you-see"),
@@ -640,14 +678,40 @@ class TestThePatternsLiveInData:
         assert parse_intent_patterns(data={"languages": {"en": {}}}) == IntentPatterns()
         assert capsys.readouterr().err == ""
 
-    def test_a_broken_exemption_disarms_the_gate(self, capsys: pytest.CaptureFixture[str]) -> None:
-        """A lost exemption would mean more blocks, the wrong direction to fail."""
+    @pytest.mark.parametrize("key", ["exempt", "preference", "condition"])
+    def test_a_broken_excuse_disarms_the_gate(
+        self, key: str, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A lost excuse would mean more blocks, the wrong direction to fail."""
         patterns = parse_intent_patterns(
-            data={"languages": {"en": {"intent": ["\\bI'll run\\b"], "exempt": ["(unclosed"]}}}
+            data={"languages": {"en": {"intent": ["\\bI'll run\\b"], key: ["(unclosed"]}}}
         )
 
         assert patterns == IntentPatterns()
-        assert "compiling en exempt pattern" in capsys.readouterr().err
+        assert f"compiling en {key} pattern" in capsys.readouterr().err
+
+    def test_a_broken_immediacy_marker_is_dropped(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A lost marker means fewer blocks, so the rest still runs."""
+        patterns = parse_intent_patterns(
+            data={
+                "languages": {
+                    "en": {"intent": ["\\bI'll run\\b"], "immediate": ["(unclosed", "\\bnow\\b"]}
+                }
+            }
+        )
+
+        assert len(patterns.intent) == 1
+        assert len(patterns.immediate) == 1
+        assert "compiling en immediate pattern" in capsys.readouterr().err
+
+    def test_the_shipped_file_carries_conditions_and_markers(self) -> None:
+        patterns = load_intent_patterns()
+
+        assert patterns.preference
+        assert patterns.condition
+        assert patterns.immediate
 
     @pytest.mark.parametrize(
         "content",
