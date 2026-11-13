@@ -268,37 +268,15 @@ async def _pr_comment_resolve(
         "} }"
         for i, cid in enumerate(ids_to_resolve)
     )
-    query_result = await _gateway._gh_api_raw(
-        "graphql",
-        fields={"query": f"{{ {node_fragments} }}"},
-    )
-    if query_result.returncode != 0:
-        return err(query_result.stderr.strip())
+    looked_up = await _gateway._graphql(f"{{ {node_fragments} }}", partial_ok=True)
+    if isinstance(looked_up, ErrorResult):
+        return looked_up
 
-    try:
-        query_data = json.loads(query_result.stdout)
-    except json.JSONDecodeError:
-        return err(f"Invalid JSON from GitHub API: {query_result.stdout[:200]}")
     thread_ids: list[str] = []
     errors: list[str] = []
     for i, cid in enumerate(ids_to_resolve):
-        node = query_data.get("data", {}).get(f"n{i}")
-        if node is None:
-            errors.append(
-                f"Could not find thread for comment {cid}. "
-                "The resolve action requires a GraphQL node_id, not a REST "
-                "integer ID. Use the node_id field from a comment response."
-            )
-            continue
-        comment_db_id = node.get("databaseId")
-        threads = node.get("pullRequest", {}).get("reviewThreads", {}).get("nodes", [])
-        matched_thread_id: str | None = None
-        for thread in threads:
-            first_comments = thread.get("comments", {}).get("nodes", [])
-            if first_comments and first_comments[0].get("databaseId") == comment_db_id:
-                matched_thread_id = thread.get("id")
-                break
-        if matched_thread_id and matched_thread_id.startswith("PRRT_"):
+        matched_thread_id = _thread_of_comment(node=looked_up.value.get(f"n{i}"))
+        if matched_thread_id:
             thread_ids.append(matched_thread_id)
         else:
             errors.append(
@@ -310,26 +288,38 @@ async def _pr_comment_resolve(
     if not thread_ids:
         return err("; ".join(errors))
 
+    resolved = await _resolve_threads(thread_ids=thread_ids)
+    if isinstance(resolved, ErrorResult) or not errors:
+        return resolved
+    return ok({**resolved.value, "warnings": errors})
+
+
+def _thread_of_comment(*, node: Any) -> str | None:
+    """The ``PRRT_`` thread whose first comment is ``node``, if any."""
+    if not isinstance(node, dict):
+        return None
+    comment_db_id = node.get("databaseId")
+    threads = ((node.get("pullRequest") or {}).get("reviewThreads") or {}).get("nodes") or []
+    for thread in threads:
+        first_comments = (thread.get("comments") or {}).get("nodes") or []
+        if first_comments and first_comments[0].get("databaseId") == comment_db_id:
+            thread_id = thread.get("id")
+            return (
+                thread_id if isinstance(thread_id, str) and thread_id.startswith("PRRT_") else None
+            )
+    return None
+
+
+async def _resolve_threads(*, thread_ids: list[str]) -> Result[dict[str, Any]]:
     resolve_fragments = " ".join(
         f"r{i}: resolveReviewThread(input: {{threadId: {json.dumps(tid)}}}) "
         f"{{ thread {{ id isResolved }} }}"
         for i, tid in enumerate(thread_ids)
     )
-    result = await _gateway._gh_api_raw(
-        "graphql",
-        fields={"query": f"mutation {{ {resolve_fragments} }}"},
-    )
-
-    if result.returncode != 0:
-        return err(result.stderr.strip())
-
-    try:
-        response: dict[str, Any] = json.loads(result.stdout)
-    except json.JSONDecodeError:
-        return err(f"Invalid JSON from GitHub API: {result.stdout[:200]}")
-    if errors:
-        response["warnings"] = errors
-    return ok(response)
+    resolved = await _gateway._graphql(f"mutation {{ {resolve_fragments} }}")
+    if isinstance(resolved, ErrorResult):
+        return resolved
+    return ok({"data": resolved.value})
 
 
 _PR_COMMENT_ACTIONS: dict[str, Any] = {
@@ -392,21 +382,7 @@ async def resolve_review_thread(
                 f"Invalid thread IDs (must start with PRRT_): {invalid}. "
                 "Use comment_ids for GraphQL node IDs that need thread lookup."
             )
-        resolve_fragments = " ".join(
-            f"r{i}: resolveReviewThread(input: {{threadId: {json.dumps(tid)}}}) "
-            f"{{ thread {{ id isResolved }} }}"
-            for i, tid in enumerate(thread_ids)
-        )
-        result = await _gateway._gh_api_raw(
-            "graphql",
-            fields={"query": f"mutation {{ {resolve_fragments} }}"},
-        )
-        if result.returncode != 0:
-            return err(result.stderr.strip())
-        try:
-            return ok(json.loads(result.stdout))
-        except json.JSONDecodeError:
-            return err(f"Invalid JSON from GitHub API: {result.stdout[:200]}")
+        return await _resolve_threads(thread_ids=thread_ids)
 
     if comment_ids:
         repo_result = await _gateway._resolve_repo(repo)

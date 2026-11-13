@@ -68,6 +68,52 @@ class TestGraphql:
         assert message in result.error
 
 
+async def _partial(*, payload: dict[str, Any]) -> Any:
+    with patch.object(
+        _gateway,
+        "_gh_api_raw",
+        new_callable=AsyncMock,
+        return_value=_completed(stdout=json.dumps(payload)),
+    ):
+        return await _gateway._graphql("query { }", partial_ok=True)
+
+
+_NOT_FOUND = {"type": "NOT_FOUND", "message": "Could not resolve to a node"}
+
+
+class TestGraphqlPartial:
+    @pytest.mark.asyncio
+    async def test_keeps_data_returned_alongside_not_found_errors(self) -> None:
+        payload = {"data": {"n0": None, "n1": {"id": "x"}}, "errors": [_NOT_FOUND]}
+
+        result = await _partial(payload=payload)
+
+        assert isinstance(result, SuccessResult)
+        assert result.value == payload["data"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("payload", "message"),
+        [
+            ({"errors": [{"message": "syntax error"}]}, "syntax error"),
+            (
+                {
+                    "data": {"n0": None},
+                    "errors": [_NOT_FOUND, {"type": "FORBIDDEN", "message": "SAML required"}],
+                },
+                "SAML required",
+            ),
+            ({"data": {"n0": None}, "errors": [{"message": "rate limited"}]}, "rate limited"),
+        ],
+        ids=["no-data", "forbidden-beside-not-found", "untyped-error"],
+    )
+    async def test_other_errors_still_fail(self, payload: dict[str, Any], message: str) -> None:
+        result = await _partial(payload=payload)
+
+        assert isinstance(result, ErrorResult)
+        assert result.error == f"GitHub GraphQL error: {message}"
+
+
 async def _pull_request(*, response: Any) -> Any:
     with patch.object(_gateway, "_gh_api_raw", new_callable=AsyncMock, return_value=response):
         return await _gateway._graphql_pull_request(
