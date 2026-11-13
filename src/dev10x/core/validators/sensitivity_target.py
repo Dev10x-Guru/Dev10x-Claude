@@ -62,7 +62,7 @@ reversibility axes, the sensitivity axis elevates the effective effect
 to ``ask`` (deny-overrides).
 
 Review the command carefully.  If it is intentional and safe, approve it
-explicitly.  See `.claude/rules/hook-patterns.md` — DX014 / sensitivity
+explicitly.  See `.claude/rules/hook-validator-profiles.md` — DX014 / sensitivity
 axis — for the full resolution rules.
 """
 

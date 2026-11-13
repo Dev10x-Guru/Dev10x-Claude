@@ -39,7 +39,7 @@ than an eighth type — it asks what the command *targets*, not what shape
 it took.
 It shipped as DX014; see
 [`cedar-sensitivity-annotation.md`](cedar-sensitivity-annotation.md) and
-`.claude/rules/hook-patterns.md` § DX014.
+`.claude/rules/hook-validator-profiles.md` § DX014.
 
 The tracker carried this taxonomy in exactly the compressed form above
 and never expanded the seven labels into definitions.

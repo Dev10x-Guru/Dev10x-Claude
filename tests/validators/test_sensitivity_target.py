@@ -388,10 +388,12 @@ class TestMessageFormat:
         assert result is not None
         assert "review" in result.message.lower()
 
-    def test_message_references_hook_patterns(self, validator: SensitivityTargetValidator) -> None:
+    def test_message_references_hook_validator_profiles(
+        self, validator: SensitivityTargetValidator
+    ) -> None:
         result = validator.validate(inp=_inp("gh secret list"))
         assert result is not None
-        assert "hook-patterns.md" in result.message
+        assert "hook-validator-profiles.md" in result.message
 
     def test_message_references_rule_id(self, validator: SensitivityTargetValidator) -> None:
         result = validator.validate(inp=_inp("gh secret list"))

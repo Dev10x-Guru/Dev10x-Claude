@@ -51,7 +51,8 @@ The code review system uses a **multi-agent architecture**:
 | `.claude/rules/github-workflows.md` | When editing `.github/workflows/**` | GitHub Actions patterns |
 | `.claude/rules/claude-ci-cost.md` | When editing `.github/workflows/claude*.yml`, `.github/claude/**`, `.github/claude-ci-settings.json`, `.github/scripts/claude-pr-context/**` | Prompt-caching prefix, prefetch, usage reporting (GH-1585), CLI pin (GH-1615), federation (GH-1622) |
 | `.claude/rules/hook-state-schema.md` | When editing `hooks/**` state writers | Hook JSON state documentation |
-| `.claude/rules/hook-patterns.md` | When editing `hooks/**` with dual implementations | Python-shell hook equivalence |
+| `.claude/rules/hook-dispatch-patterns.md` | When editing `hooks/**`, `src/dev10x/hooks/**`, `src/dev10x/*/hooks/**`, `tests/hooks/**` | Python-shell hook equivalence, orchestrator dispatch, Stop verdicts, PostToolUse formatter scope (GH-1867) |
+| `.claude/rules/hook-validator-profiles.md` | When editing `hooks/scripts/validate-*.py`, `src/dev10x/core/hooks/hook_transport.py`, `src/dev10x/core/validators/**`, `src/dev10x/validators/**`, `tests/hooks/test_hook_transport.py`, `tests/validators/**` | Profile tiers, DX rule IDs, per-rule design notes, hook output streams (GH-1867) |
 | `.claude/rules/cwd-discipline.md` | When editing `src/dev10x/**` Python that runs subprocesses or reads CWD | GH-979 effective-CWD routing, no module-scope GitContext |
 | `.claude/rules/uv-script-dependency-pins.md` | When adding/editing a PEP 723 uv-script's `# dependencies = [...]` or `pyproject.toml` dependency arrays | GH-916 upper-bound requirement, `requires-python` exception, detector + pre-commit wiring |
 | `.claude/rules/script-domain-boundaries.md` | When editing `skills/**/scripts/**` or `src/dev10x/**/{skills,domain,mcp}/**` — the domain functions and MCP handlers it binds (GH-1763) | print-vs-logging + sys.exit-vs-Result conventions (GH-246 H3/H7) |

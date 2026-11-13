@@ -392,12 +392,12 @@ class TestMessageFormat:
         assert result is not None
         assert "spec-update" in result.message
 
-    def test_message_references_hook_patterns(
+    def test_message_references_hook_validator_profiles(
         self, validator: SpecDriftValidator, tmp_path: Path
     ) -> None:
         result = self._blocked_result(validator, tmp_path)
         assert result is not None
-        assert "hook-patterns.md" in result.message
+        assert "hook-validator-profiles.md" in result.message
 
     def test_message_contains_edited_file_path(
         self, validator: SpecDriftValidator, tmp_path: Path

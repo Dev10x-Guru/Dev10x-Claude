@@ -196,7 +196,7 @@ def _assert_metadata_matches(*, instance: Validator, spec: ValidatorSpec) -> Non
     Raised explicitly rather than asserted (GH-1419). `-O` /
     `PYTHONOPTIMIZE` strips `assert` statements, and what these three
     checks guard is the enforcement tier a rule registers at
-    (`.claude/rules/hook-patterns.md` § Profile Tiers) — a mismatch
+    (`.claude/rules/hook-validator-profiles.md` § Profile Tiers) — a mismatch
     stripped at runtime lets a rule silently register at the wrong tier.
     Nothing in this repo runs optimized today, so the exposure is
     theoretical; the cost of closing it is one line per site.

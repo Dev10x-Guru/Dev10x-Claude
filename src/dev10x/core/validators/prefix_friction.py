@@ -262,7 +262,7 @@ NEWLINE_CHAIN_RE = re.compile(
 # `Bash(gh api:*)` does not match `for n in 1 2 3; do gh api ... ; done`
 # because the matcher sees `for` as the leading token. Same regression
 # family as `cd ... &&` chaining (DX007 existing rules) and `for/xargs`
-# wrappers documented in CLAUDE.md and `.claude/rules/hook-patterns.md`.
+# wrappers documented in CLAUDE.md and `.claude/rules/hook-validator-profiles.md`.
 # The proposed remedy is the parallel-Bash-tool-call pattern.
 _LOOP_KEYWORDS = ("for", "while", "until")
 SHELL_LOOP_HEAD_RE = re.compile(

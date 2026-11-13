@@ -552,7 +552,7 @@ class TestShellTwinDetectsBundledForceFlags(ShellTwinHarness):
     """GH-1047: the shell twin must agree with the validator on what is force.
 
     ``skill_redirect._has_bare_force`` and ``git-push-safe.sh`` implement the
-    same flag test in two languages, and `.claude/rules/hook-patterns.md`
+    same flag test in two languages, and `.claude/rules/hook-dispatch-patterns.md`
     requires the pair to stay functionally equivalent. Fixing only the
     validator would leave ``push_safe`` — the very tool force pushes are
     routed into — waving ``-uf origin main`` straight through.

@@ -99,7 +99,8 @@ deliberately not expressible — the shell layer has no such flag.
 `push_safe` with the right `protected_branches` list. Reach for
 the skill's documented escape paths — not env-level bypasses —
 when the wrapper itself blocks: hook overrides live in the hook
-layer (see `.claude/rules/hook-patterns.md`), not at the caller.
+layer (see `.claude/rules/hook-validator-profiles.md`
+§ Configuration), not at the caller.
 
 If the call still blocks after adjusting `protected_branches`,
 read the returned `blocked_reason` field — it names the exact

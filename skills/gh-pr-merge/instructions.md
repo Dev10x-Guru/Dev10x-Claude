@@ -847,9 +847,6 @@ subprocess, so the PreToolUse hook that blocks raw `gh pr
 merge` Bash invocations does not apply. This is the only
 authorized way to execute the merge — do NOT fall back to a
 raw `gh pr merge` invocation or any caller-level env-bypass.
-Hook overrides for transient MCP unavailability live in the
-hook layer (see `.claude/rules/hook-patterns.md`), not at the
-skill caller.
 
 The tool returns `{pr_number, url, strategy, branch_deleted,
 admin, auto, repo}` on success and `{error: "..."}` on failure.
@@ -864,7 +861,8 @@ checked out in another worktree.
 disconnected (`merge_pr` listed as "no longer available" in
 system-reminders), STOP and ask the user to reconnect via
 `/mcp` or restart the session. Raw `gh pr merge` is blocked
-and the SKIP env-var prefix is not the documented contract.
+and the SKIP env-var prefix is not the documented contract
+(see `references/mcp-unavailable-escape-hatch.md`).
 
 **Required-review block override (GH-733, ALWAYS_ASK):** When
 Checks 1–7 pass but the merge cannot land because the PR is

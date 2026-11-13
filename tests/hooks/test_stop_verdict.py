@@ -553,7 +553,7 @@ class TestSignalIsReported:
             }
         )
 
-        # `signal` is the name `hook-patterns.md` gives the observable;
+        # `signal` is the name `hook-dispatch-patterns.md` gives the observable;
         # `reason` is kept for the records already written (GH-1390).
         assert recorded["rule_id"] == "stop-verdict"
         assert recorded["signal"] == StopSignal.STOP_HOOK_ACTIVE

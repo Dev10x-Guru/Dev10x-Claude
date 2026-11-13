@@ -582,7 +582,7 @@ ide_denies:
 # allow and deny, so a rule that *should* prompt had nowhere to live and
 # never reached a project file.
 #
-# Why ask and not deny: DX014's own rationale (.claude/rules/hook-patterns.md)
+# Why ask and not deny: DX014's own rationale (.claude/rules/hook-validator-profiles.md)
 # is that a sensitive-but-legitimate operation must prompt rather than
 # hard-block — a deny drops the user into a manual `!` shell with no
 # in-session recourse. Deny stays reserved for operations that are never

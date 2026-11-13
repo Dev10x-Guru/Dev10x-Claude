@@ -15,7 +15,7 @@ orchestrator stops depending on the agent having read it, and looks.
 
 The decision is a pure function over `git status --porcelain` output and
 the agent's status token; `inspect_worktree` is the wiring that runs git
-(hook-patterns.md, the `stop_verdict` / `build_stop_verdict` split).
+(hook-dispatch-patterns.md, the `stop_verdict` / `build_stop_verdict` split).
 """
 
 from __future__ import annotations
