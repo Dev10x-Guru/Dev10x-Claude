@@ -41,6 +41,6 @@ point of the Strategy boundary.
 
 ## Profile tiers and rule IDs
 
-See `.claude/rules/hook-patterns.md` § Profile Tiers for the
+See `.claude/rules/hook-validator-profiles.md` § Profile Tiers for the
 `minimal`/`standard`/`strict` tier assignments and the `DXNNN` rule-ID
 table.

@@ -653,7 +653,7 @@ UNKNOWN_HARNESS_VERSION = "unknown"
 def read_harness_version(*, transcript_path: str) -> str:
     """The Claude Code version that wrote this transcript (GH-1390).
 
-    ``hook-patterns.md`` makes retiring the cooldown marker conditional
+    ``hook-dispatch-patterns.md`` makes retiring the cooldown marker conditional
     on ``stop_hook_active`` appearing "across a few harness versions",
     and nothing in the Stop payload names one — so the condition could
     not be evaluated from the log at all, whatever key the signal was

@@ -94,7 +94,7 @@ RULE_WILDCARD_SUFFIX_RE = re.compile(r"(?::\*| \*)$")
 # without a trailing slash or glob. The DX014 operand patterns need an
 # exact filename, so `rg x ~/.ssh` and `Read(~/.aws/**)` slipped past them.
 # Kept local on purpose: widening DX014 itself would prompt on a plain
-# `ls ~/.ssh`, which hook-patterns.md requires to stay silent. Granting a
+# `ls ~/.ssh`, which hook-validator-profiles.md requires to stay silent. Granting a
 # rule is the stricter question, so it gets the stricter list.
 SENSITIVE_ROOT_RE = re.compile(
     r"(?:(?:^|/|~)\.(?:ssh|aws|azure|gnupg|kube|docker|netrc|pgpass|git-credentials|env"

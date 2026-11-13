@@ -1,7 +1,7 @@
 """Tests for hooks/scripts/audit-wrap (GH-1447).
 
 `audit-wrap` prefixes every entry in `hooks/hooks.json` — per
-`.claude/rules/hook-patterns.md` it captures total wall-clock timing
+`.claude/rules/hook-dispatch-patterns.md` it captures total wall-clock timing
 and injects `DEV10X_HOOK_SPAN_ID` so body-phase records correlate
 with wrap-phase records. It had zero test coverage: a grep found it
 only as a path-string literal in an unrelated permission-noise

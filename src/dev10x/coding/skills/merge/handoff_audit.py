@@ -20,7 +20,7 @@ Nothing new has to be recorded for that comparison to be available — the
 receipt already exists, it was simply never read back.
 
 Pure decisions only. Reading the report, calling ``pr_get`` and printing
-belong to ``main`` and the caller (``.claude/rules/hook-patterns.md``).
+belong to ``main`` and the caller (``.claude/rules/hook-dispatch-patterns.md``).
 """
 
 from __future__ import annotations

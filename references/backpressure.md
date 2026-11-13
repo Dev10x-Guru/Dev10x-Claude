@@ -56,7 +56,7 @@ Profile tiers: `minimal` (DX001–DX005, safety-critical only),
 `strict` (adds JTBD commit enforcement). Lower tiers always run at
 higher tiers.
 
-See `.claude/rules/hook-patterns.md` for profile tier table and
+See `.claude/rules/hook-validator-profiles.md` for profile tier table and
 validator registration pattern.
 
 ## Meta-Control: Tunable Backpressure
@@ -151,7 +151,7 @@ Meta-control
 
 | Document | Role |
 |----------|------|
-| `.claude/rules/hook-patterns.md` | Validator registration, profile tiers, DX rule IDs |
+| `.claude/rules/hook-validator-profiles.md` | Validator registration, profile tiers, DX rule IDs |
 | `references/friction-levels.md` | Friction level contract, adaptive behavior, completion gates |
 | `.claude/rules/skill-gates.md` | Decision gate pattern, ALWAYS_ASK marking |
 | `.claude/rules/performance.md` | CLI startup baseline, benchmark profiling |

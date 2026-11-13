@@ -147,7 +147,7 @@ because a second scope appeared, the correct response is to:
 
 **Do NOT reach for env-level hook bypasses as a workaround.** Hook
 overrides live in the hook layer, not at the skill caller — see
-`.claude/rules/hook-patterns.md`. See
+`.claude/rules/hook-validator-profiles.md` § Configuration. See
 `references/commit-examples.md` for atomic commit guidance.
 
 ## Prerequisites Check

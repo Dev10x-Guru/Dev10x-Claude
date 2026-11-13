@@ -56,7 +56,7 @@ Options:
   2. Edit the spec file directly (``{spec_path}``) before this file.
   3. Disable this check for the session: ``DEV10X_HOOK_DISABLE=DX015``.
 
-See ``.claude/rules/hook-patterns.md`` — DX015 / spec-drift — for details.
+See ``.claude/rules/hook-validator-profiles.md`` — DX015 / spec-drift — for details.
 """
 
 

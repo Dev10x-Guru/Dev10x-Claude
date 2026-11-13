@@ -63,7 +63,7 @@ async def _pr_comment_list(
 # Known automated-reviewer login pattern. Kept in sync with the `is_bot`
 # login branch in skills/gh-pr-merge/scripts/top-level-comments.jq so the
 # Python thread classifier and the jq top-level-comment classifier agree
-# on which accounts are bots (GH-858 F1, hook-patterns.md dual-impl parity).
+# on which accounts are bots (GH-858 F1, hook-dispatch-patterns.md dual-impl parity).
 _BOT_LOGIN_RE = re.compile(
     r"claude|github-actions|coderabbit|sourcery|openai|codex|copilot",
     re.IGNORECASE,
