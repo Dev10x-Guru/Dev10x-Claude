@@ -117,7 +117,7 @@ import re
 import sys
 import time
 from collections.abc import Mapping
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, fields, replace
 from datetime import UTC, datetime
 from enum import StrEnum
 from functools import lru_cache
@@ -844,7 +844,7 @@ class IntentPatterns:
 
 
 def _compile_patterns(*, label: str, raw: object) -> tuple[list[re.Pattern[str]], bool]:
-    """Compile one ``intent`` / ``exempt`` list, and say whether any entry failed.
+    """Compile one pattern list, and say whether any entry failed.
 
     An absent key is an empty list, not a failure. Anything else that
     cannot become a pattern — a non-list value, a non-string entry, a
@@ -873,7 +873,7 @@ def _compile_patterns(*, label: str, raw: object) -> tuple[list[re.Pattern[str]]
     return compiled, failed
 
 
-_PATTERN_KEYS = ("intent", "exempt", "preference", "condition", "immediate")
+_PATTERN_KEYS = tuple(field.name for field in fields(IntentPatterns))
 
 _EXCUSING_KEYS = frozenset({"exempt", "preference", "condition"})
 
@@ -1036,33 +1036,32 @@ class _Clauses:
     """One sentence's clauses, and which excuse each one carries."""
 
     spans: list[tuple[int, int]]
-    waits: list[bool]
-    preferences: list[bool]
+    waited: bool
+    hedged: bool
     conditioned: list[bool]
     opening: list[bool]
+
+
+def _matches(*, patterns: tuple[re.Pattern[str], ...], text: str) -> bool:
+    return any(pattern.search(text) for pattern in patterns)
 
 
 def _read_clauses(*, sentence: str, patterns: IntentPatterns) -> _Clauses:
     """Judge every clause once, whatever number of promises it holds."""
     spans = _clause_spans(sentence=sentence)
-    clauses = [sentence[start:end] for start, end in spans]
-    waits = [any(pattern.search(clause) for pattern in patterns.exempt) for clause in clauses]
-    preferences = [
-        any(pattern.search(clause) for pattern in patterns.preference) for clause in clauses
-    ]
-    conditioned = [
-        any(pattern.search(clause.strip()) for pattern in patterns.condition) for clause in clauses
-    ]
+    clauses = [sentence[start:end].strip() for start, end in spans]
+    preferences = [_matches(patterns=patterns.preference, text=clause) for clause in clauses]
+    conditioned = [_matches(patterns=patterns.condition, text=clause) for clause in clauses]
     opening = [
         conditioned[index]
         and not preferences[index]
-        and (index == 0 or bool(_LIST_ITEM.match(clause.strip())))
+        and (index == 0 or _LIST_ITEM.match(clause) is not None)
         for index, clause in enumerate(clauses)
     ]
     return _Clauses(
         spans=spans,
-        waits=waits,
-        preferences=preferences,
+        waited=any(_matches(patterns=patterns.exempt, text=clause) for clause in clauses),
+        hedged=any(preferences),
         conditioned=conditioned,
         opening=opening,
     )
@@ -1092,12 +1091,12 @@ def _promise_is_excused(
     spans = clauses.spans
     first = _clause_at(spans=spans, offset=promise.start())
     last = _clause_at(spans=spans, offset=max(promise.end() - 1, promise.start()))
-    if any(clauses.waits) or any(clauses.opening[: last + 1]):
+    if clauses.waited or any(clauses.opening[: last + 1]):
         return True
     promise_text = sentence[spans[first][0] : spans[last][1]]
-    if any(pattern.search(promise_text) for pattern in patterns.immediate):
+    if _matches(patterns=patterns.immediate, text=promise_text):
         return False
-    return any(clauses.preferences) or any(clauses.conditioned[: last + 1])
+    return clauses.hedged or any(clauses.conditioned[: last + 1])
 
 
 def _breaks_its_word(*, sentence: str, patterns: IntentPatterns) -> bool:
