@@ -294,6 +294,38 @@
           "signal": "reviewed-request-team falls through to reviewer resolution and calls request_review"
         }
       ]
+    },
+    {
+      "id": "readiness-plan-step-call-is-unattended",
+      "name": "A plan-step Skill() call without the flag is unattended",
+      "description": "GH-1890: dev10x:work-on calls this skill through Skill() while executing its 'Request review' plan step with an active task list, and passes no --unattended. Two review threads are open. The canonical definition (references/review-readiness.md) counts a plan-step call as unattended, so the skill refuses without a widget and ends with the stop marker.",
+      "input": "Skill(skill=\"dev10x:gh-pr-request-review\") — called by dev10x:work-on while executing its 'Request review' plan step with an active task list",
+      "assertions": [
+        {
+          "dimension": "readiness-gate",
+          "check": "behavioral",
+          "signal": "AskUserQuestion is NOT called and request_review is NOT called"
+        },
+        {
+          "dimension": "readiness-gate",
+          "check": "output_contains",
+          "signal": "Readiness: stopped —"
+        }
+      ]
+    },
+    {
+      "id": "readiness-task-list-alone-is-attended",
+      "name": "An open task list without a plan step stays attended",
+      "description": "GH-1890: the supervisor runs /dev10x:gh-pr-request-review directly in a session that has an open task list, with red CI. No orchestrator is executing a plan step, so the run is attended and the readiness widget fires.",
+      "input": "/dev10x:gh-pr-request-review",
+      "assertions": [
+        {
+          "dimension": "readiness-gate",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "the Readiness widget fires with 'Stop — fix it first (Recommended)' listed first"
+        }
+      ]
     }
   ],
   "trigger_evals": {

@@ -105,8 +105,8 @@ rest; never mark it ready here. `--force` does not skip this step.
 When any condition fails or cannot be read:
 
 - **Unattended** (defined in that file — `--unattended`, or an
-  orchestrator's `Skill()` call with an active task list): refuse —
-  stop before Step 2, report each reason, assign no one, post nothing.
+  orchestrator's `Skill()` call while executing a plan step with an
+  active task list): refuse — stop, report each reason, post nothing.
 - **Attended**: **REQUIRED: Call `AskUserQuestion`** (do NOT use plain
   text). Question: `"PR #{PR_NUMBER} is not ready for review:
   {reasons}. Request review anyway?"`, header `Readiness`. Options:
@@ -115,15 +115,15 @@ When any condition fails or cannot be read:
   - **Request review anyway** — continue to Step 2; Step 3.5 and the
     Step 4 summary carry the reasons.
 
+Whenever the run stops here, end the output with `Readiness: stopped —
+{reasons}` — the marker `dev10x:gh-pr-request-review` prints too.
+
 ### Step 2: Assign GitHub reviewers
 
-Delegate; `--readiness-checked` says Step 1.6 already ran. Pass
-`--unattended` only when this run is unattended — without it the
-sibling treats this call as attended:
+Delegate in this run's mode (`--readiness-checked`: Step 1.6 ran):
 
-```
-Skill(skill="dev10x:gh-pr-request-review", args="--pr {PR_NUMBER} --repo {REPO} --readiness-checked [--unattended]")
-```
+1. Unattended run: `Skill(skill="dev10x:gh-pr-request-review", args="--pr {PR_NUMBER} --repo {REPO} --readiness-checked --unattended")`
+2. Attended run: `Skill(skill="dev10x:gh-pr-request-review", args="--pr {PR_NUMBER} --repo {REPO} --readiness-checked")`
 
 It resolves reviewers from `<Dev10x config>/github-reviewers-config.yaml`
 and may skip on `skip: true`. Capture assigned / skipped / error /
