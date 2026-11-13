@@ -68,6 +68,13 @@ such as `claude-fan` never counts.
 counts.
 `observed.bot_review` carries the matching row and `observed.bots` the
 logins considered.
+`observed.truncated` names each connection that ran past its page
+(GH-1885).
+A `reviews`, `reviewThreads` or `comments` entry means a bot outside
+that 100-item window is invisible, so a timeout means "not seen", not
+"not reviewed".
+A `checkSuites` entry hides no bot: it means only that the head-push
+time may be later than the real push, which makes "at head" stricter.
 It still does not judge a review's verdict or whether findings were
 addressed — `bot_review_status`'s `ready` and `reasons` do that.
 
