@@ -39,7 +39,7 @@ _BASIS = {KIND_REVIEW: "sha", KIND_COMMENT: "timestamp"}
 PR_FIELDS = (
     "isDraft headRefOid "
     "commits(last: 1) { nodes { commit { oid committedDate "
-    "checkSuites(first: 20) { nodes { createdAt } } } } } "
+    "checkSuites(first: 100) { pageInfo { hasNextPage } nodes { createdAt } } } } } "
     "timelineItems(last: 20, itemTypes: [HEAD_REF_FORCE_PUSHED_EVENT]) { nodes { "
     "... on HeadRefForcePushedEvent { createdAt afterCommit { oid } } } } "
     "reviews(last: 100) { pageInfo { hasPreviousPage } nodes { "
@@ -164,6 +164,16 @@ def _collect_rows(*, pr: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return rows
 
 
+def _head_commit(*, pr: dict[str, Any]) -> dict[str, Any]:
+    return first_node(pr.get("commits")).get("commit") or {}
+
+
+def _check_suites_truncated(*, pr: dict[str, Any]) -> bool:
+    suites = _head_commit(pr=pr).get("checkSuites")
+    page_info = suites.get("pageInfo") if isinstance(suites, dict) else None
+    return bool(isinstance(page_info, dict) and page_info.get("hasNextPage"))
+
+
 def _head_pushed_at(*, pr: dict[str, Any], head_sha: str | None) -> str | None:
     """Best evidence of when the head reached the PR (GH-1857).
 
@@ -173,8 +183,13 @@ def _head_pushed_at(*, pr: dict[str, Any], head_sha: str | None) -> str | None:
     the commit date, a force-push event onto this head, and the head's
     earliest check suite (created on push) is used instead. A plain push
     with no CI leaves only the commit date — no worse than before.
+
+    GitHub documents no order for ``checkSuites``, so the earliest is the
+    minimum over the page read. A head with more suites than one page
+    may miss it; the result can then only be later, which makes "at
+    head" stricter, never looser (GH-1885). ``summarize`` reports it.
     """
-    commit = first_node(pr.get("commits")).get("commit") or {}
+    commit = _head_commit(pr=pr)
     suites = [s.get("createdAt") for s in connection_nodes(commit.get("checkSuites"))]
     first_suite = min((t for t in suites if t), default=None)
     force_pushes = [
@@ -250,6 +265,8 @@ def summarize(
         f"{connection}: more than 100 on this PR, so bot counts are incomplete"
         for connection in truncated
     )
+    if _check_suites_truncated(pr=pr):
+        truncated = [*truncated, "checkSuites"]
 
     return {
         "head_sha": head_sha,

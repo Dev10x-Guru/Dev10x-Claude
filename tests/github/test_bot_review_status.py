@@ -203,6 +203,20 @@ class TestSummarizeEdges:
 
         assert (report["truncated"], report["ready"]) == ([connection], False)
 
+    def test_a_truncated_check_suite_page_is_reported_without_blocking(self) -> None:
+        pr = _pr(name="stale_sha")
+        pr["commits"]["nodes"][0]["commit"]["checkSuites"] = {
+            "pageInfo": {"hasNextPage": True},
+            "nodes": [{"createdAt": "2026-01-01T00:00:00Z"}],
+        }
+
+        report = bot_reviews.summarize(pr=pr, blocking_globs=())
+
+        assert (report["truncated"], report["ready"]) == (["checkSuites"], True)
+
+    def test_check_suites_are_read_a_full_page_at_a_time(self) -> None:
+        assert "checkSuites(first: 100) { pageInfo { hasNextPage }" in bot_reviews.PR_FIELDS
+
     def test_complete_windows_are_not_truncated(self) -> None:
         pr = _pr(name="stale_sha")
         pr["reviewThreads"]["pageInfo"] = {"hasNextPage": False}
