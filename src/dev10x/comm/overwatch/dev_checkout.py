@@ -12,10 +12,9 @@ import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
-import yaml
-
 from dev10x.comm.overwatch import paths
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.domain.documents.yaml_mapping import YamlMappingError, read_yaml_mapping
 from dev10x.domain.file_locks import locked_yaml_update
 
 DEV_KEY = "dev"
@@ -35,17 +34,9 @@ class DevCheckout:
 def read_dev_checkout(*, path: Path | None = None) -> DevCheckout | None:
     target = path or Dev10xConfigDir.overwatch_yaml()
     try:
-        text = target.read_text(encoding="utf-8")
-    except FileNotFoundError:
-        return None
-    except (OSError, ValueError) as exc:
-        raise DevCheckoutError(f"{target} is unreadable: {exc}") from exc
-    try:
-        doc = yaml.safe_load(text) or {}
-    except yaml.YAMLError as exc:
-        raise DevCheckoutError(f"{target} is not valid YAML: {exc}") from exc
-    if not isinstance(doc, dict):
-        raise DevCheckoutError(f"{target} must hold a mapping")
+        doc = read_yaml_mapping(target)
+    except YamlMappingError as exc:
+        raise DevCheckoutError(str(exc)) from exc
     dev = doc.get(DEV_KEY)
     if dev is None:
         return None
