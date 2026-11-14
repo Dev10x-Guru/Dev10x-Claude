@@ -1462,7 +1462,7 @@ early to measure meaningfully).
 | Push to remote | `Skill(dev10x:git)` | `git push` |
 | Groom history | `Skill(dev10x:git-groom)` | `git rebase -i`, `git develop-log` for assessment |
 | Create branch | `Skill(dev10x:ticket-branch)` | `git checkout -b` |
-| Create a skill | `Skill(dev10x:skill-create)` | Writing SKILL.md directly |
+| Create a skill | `Skill(dev10x-teach:skill-create)` | Writing SKILL.md directly |
 | Check PR state | `mcp__plugin_dev10x_cli__pr_detect` | `gh pr view --json` |
 | Verify PR readiness | `mcp__plugin_dev10x_cli__verify_pr_state` | `gh pr checks` |
 | Verify acceptance criteria | `Skill(dev10x:verify-acc-dod)` | Inline checks |
@@ -1524,7 +1524,7 @@ missing, re-read this section before proceeding.
 7. push → `Skill(dev10x:git)`
 8. groom → `Skill(dev10x:git-groom)`
 9. branch → `Skill(dev10x:ticket-branch)`
-10. create skill → `Skill(dev10x:skill-create)`
+10. create skill → `Skill(dev10x-teach:skill-create)`
 11. check PR state → `mcp__plugin_dev10x_cli__pr_detect`
 12. verify PR readiness → `mcp__plugin_dev10x_cli__verify_pr_state`
 13. verify acceptance → `Skill(dev10x:verify-acc-dod)`

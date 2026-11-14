@@ -1420,12 +1420,12 @@ Do not add qualifiers like "independent" or "unique" to
 justify skipping — count all items processed, regardless of
 type or complexity.
 
-**REQUIRED:** Invoke `Skill(skill="dev10x:skill-audit")` to
+**REQUIRED:** Invoke `Skill(skill="dev10x-teach:skill-audit")` to
 analyze skill usage, compliance rates, and identify process
 improvements.
 
 **Hard self-check before marking Phase 6 complete (GH-724):**
-Verify that `Skill(dev10x:skill-audit)` was **actually called**
+Verify that `Skill(dev10x-teach:skill-audit)` was **actually called**
 in this session (check your tool-use history). Saving findings
 as memory notes or task descriptions is NOT a substitute —
 only a real `Skill()` invocation counts. If the call is missing,

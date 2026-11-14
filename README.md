@@ -227,11 +227,13 @@ review comment) is concise enough to evaluate in seconds.
 | **Session** | [`session-tasks`](skills/session-tasks/SKILL.md), [`session-wrap-up`](skills/session-wrap-up/SKILL.md), [`plan-sync`](skills/plan-sync/SKILL.md), [`fanout`](skills/fanout/SKILL.md), [`verify-acc-dod`](skills/verify-acc-dod/SKILL.md) | In-session work tracking, parallel execution, acceptance verification |
 | **DB** | [`db`](plugins/db/skills/db/SKILL.md), [`db-psql`](plugins/db/skills/db-psql/SKILL.md), [`sql-handoff`](plugins/db/skills/sql-handoff/SKILL.md) | Safe database query planning, execution, and hand-run write handoff |
 | **Tooling** | [`py-uv`](skills/py-uv/SKILL.md), [`slack-review-request`](skills/slack-review-request/SKILL.md), [`ask`](skills/ask/SKILL.md); in the `dev10x-comm` plugin: [`slack`](plugins/comm/skills/slack/SKILL.md), [`slack-setup`](plugins/comm/skills/slack-setup/SKILL.md), [`gchat`](plugins/comm/skills/gchat/SKILL.md), [`gog`](plugins/comm/skills/gog/SKILL.md), [`bus`](plugins/comm/skills/bus/SKILL.md), [`overwatch`](plugins/comm/skills/overwatch/SKILL.md), [`voice-channel`](plugins/comm/skills/voice-channel/SKILL.md) | Python packaging, Slack and Google Chat notifications, session messaging, interactive prompts |
-| **Meta** | [`skill-create`](skills/skill-create/SKILL.md), [`skill-audit`](skills/skill-audit/SKILL.md), [`skill-index`](skills/skill-index/SKILL.md), [`audit-file`](skills/audit-file/SKILL.md), [`playbook`](skills/playbook/SKILL.md), [`diag-friction`](skills/diag-friction/SKILL.md), [`onboarding`](skills/onboarding/SKILL.md) | Create, audit, discover, and learn skills |
-| **Maintenance** | [`memory-maintenance`](skills/memory-maintenance/SKILL.md), [`plugin-maintenance`](skills/plugin-maintenance/SKILL.md), [`upgrade-cleanup`](skills/upgrade-cleanup/SKILL.md), [`playbook-maintenance`](skills/playbook-maintenance/SKILL.md), [`context-audit`](skills/context-audit/SKILL.md), [`permission-audit-apply`](skills/permission-audit-apply/SKILL.md), [`skill-prune`](skills/skill-prune/SKILL.md) | Memory, permission, playbook, and context hygiene; applying audit fixes and hiding irrelevant skills |
+| **Meta** | [`playbook`](skills/playbook/SKILL.md), [`diag-friction`](skills/diag-friction/SKILL.md), [`onboarding`](skills/onboarding/SKILL.md); in the `dev10x-teach` plugin: [`skill-create`](plugins/teach/skills/skill-create/SKILL.md), [`skill-audit`](plugins/teach/skills/skill-audit/SKILL.md), [`skill-audit-queue`](plugins/teach/skills/skill-audit-queue/SKILL.md), [`skill-index`](plugins/teach/skills/skill-index/SKILL.md), [`audit-file`](plugins/teach/skills/audit-file/SKILL.md) | Create, audit, discover, and learn skills |
+| **Maintenance** | [`plugin-maintenance`](skills/plugin-maintenance/SKILL.md), [`upgrade-cleanup`](skills/upgrade-cleanup/SKILL.md), [`playbook-maintenance`](skills/playbook-maintenance/SKILL.md), [`permission-audit-apply`](skills/permission-audit-apply/SKILL.md), [`skill-prune`](skills/skill-prune/SKILL.md); in the `dev10x-teach` plugin: [`memory-maintenance`](plugins/teach/skills/memory-maintenance/SKILL.md), [`context-audit`](plugins/teach/skills/context-audit/SKILL.md) | Memory, permission, playbook, and context hygiene; applying audit fixes and hiding irrelevant skills |
 
-All skills use the `dev10x:` prefix — type `/dev10x:git-commit` in the Claude
-Code CLI to run it. Run `/dev10x:skill-index` for the full reference.
+Core skills use the `dev10x:` prefix — type `/dev10x:git-commit` in the
+Claude Code CLI to run it; a satellite plugin's skills use its own prefix,
+such as `dev10x-teach:`. Run `/dev10x-teach:skill-index` for the full
+reference.
 
 ## Installation
 
@@ -242,6 +244,7 @@ claude plugin install dev10x-qa@Dev10x-Guru   # optional: self-QA walkthroughs
 claude plugin install dev10x-infra@Dev10x-Guru   # optional: AWS secrets, k8s
 claude plugin install dev10x-db@Dev10x-Guru      # optional: read-only SQL
 claude plugin install dev10x-comm@Dev10x-Guru    # optional: Slack, Chat, bus
+claude plugin install dev10x-teach@Dev10x-Guru   # optional: skill authoring, audits, index
 ```
 
 Run these in your shell, not inside a Claude Code session — the

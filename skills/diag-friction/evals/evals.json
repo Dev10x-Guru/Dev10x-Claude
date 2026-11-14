@@ -316,8 +316,8 @@
     ],
     "should_not_trigger": [
       "Agent is already using skills correctly",
-      "User is asking about how to create a new skill (use dev10x:skill-create)",
-      "User wants to list available skills (use dev10x:skill-index)",
+      "User is asking about how to create a new skill (use dev10x-teach:skill-create)",
+      "User wants to list available skills (use dev10x-teach:skill-index)",
       "The CLI command has no skill or MCP equivalent"
     ]
   }

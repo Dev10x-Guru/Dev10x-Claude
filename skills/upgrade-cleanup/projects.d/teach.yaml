@@ -11,3 +11,5 @@ base_permissions:
   # GH-1153: registered read-only, never catalogued until the coverage
   # test found it.
   - "mcp__plugin_dev10x_cli__resolve_plugin_origin"
+  # --- dev10x-teach skills (GH-1568) ---
+  - "Skill(dev10x-teach:*)"

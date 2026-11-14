@@ -1,5 +1,5 @@
 ---
-name: dev10x:skill-create
+name: dev10x-teach:skill-create
 description: >
   Use when creating or improving a local skill and hitting friction — bash
   commands keep prompting for approval, the skill doesn't appear in MOTD,
@@ -11,7 +11,7 @@ description: >
   DO NOT TRIGGER when: editing skill content without structural issues,
   or writing non-skill code.
 user-invocable: true
-invocation-name: dev10x:skill-create
+invocation-name: dev10x-teach:skill-create
 allowed-tools:
   - AskUserQuestion
   - Bash(mkdir -p:*)
@@ -35,7 +35,7 @@ Create a task at invocation, mark completed when done:
 
 Mark completed when done: `TaskUpdate(taskId, status="completed")`
 
-**Announce:** "Using dev10x:skill-create to [create/improve] the `<name>` skill."
+**Announce:** "Using dev10x-teach:skill-create to [create/improve] the `<name>` skill."
 
 **Foundation:** Read `superpowers:writing-skills` first for TDD methodology,
 CSO principles, and quality standards. This skill covers only the local
@@ -174,7 +174,7 @@ ${CLAUDE_PLUGIN_ROOT}/skills/skill-index/scripts/generate-motd.sh --force
 |---|---|
 | `dev10x:git-worktree` | Step-numbered workflow, `allowed-tools`, templates |
 | `dev10x:ticket-create` | Prerequisites check, integration section |
-| `dev10x:skill-index` | Minimal skill that fully delegates to a script |
+| `dev10x-teach:skill-index` | Minimal skill that fully delegates to a script |
 | `commit` | Multi-step workflow with explicit validation gates |
 
 ## Calling Other Skills

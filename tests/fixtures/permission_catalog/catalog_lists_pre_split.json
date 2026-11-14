@@ -192,6 +192,7 @@
     "Skill(dev10x-db:*)",
     "Skill(dev10x-infra:*)",
     "Skill(dev10x-qa:*)",
+    "Skill(dev10x-teach:*)",
     "Skill(dev10x:*)",
     "WebFetch(domain:black.readthedocs.io)",
     "WebFetch(domain:cloud.google.com)",

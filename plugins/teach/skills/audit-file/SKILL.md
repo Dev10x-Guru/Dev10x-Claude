@@ -1,5 +1,5 @@
 ---
-name: dev10x:audit-file
+name: dev10x-teach:audit-file
 description: >
   File skill-audit findings as a GitHub issue at the plugin repo that
   owns the offending skill. Invoked by skill-audit Phase 7 with the
@@ -8,7 +8,7 @@ description: >
   DO NOT TRIGGER when: no audit findings exist, or user wants to review
   findings before filing.
 user-invocable: true
-invocation-name: dev10x:audit-file
+invocation-name: dev10x-teach:audit-file
 allowed-tools:
   - AskUserQuestion
   - Read(/tmp/Dev10x/skill-audit/**)
@@ -30,7 +30,7 @@ and file it at the plugin repo that owns the offending skill.
 
 ## When to Use
 
-- Delegated by `dev10x:skill-audit` Phase 7 after the user
+- Delegated by `dev10x-teach:skill-audit` Phase 7 after the user
   approves upstream reporting **and** confirms the destination
   tracker at the Phase 7 sub-step B2 gate
 - Can also be invoked standalone with a findings file
@@ -46,7 +46,7 @@ Two arguments:
    `mcp__plugin_dev10x_cli__resolve_plugin_origin` and confirms it
    with the user.
 2. Path to a findings markdown file produced by
-   `dev10x:skill-audit`.
+   `dev10x-teach:skill-audit`.
 
 **Target repo resolution:**
 

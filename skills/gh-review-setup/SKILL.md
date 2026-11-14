@@ -138,7 +138,7 @@ the tool call so the user retains override capability (per
 Each run appends a structured setup record (chosen modules, strategies,
 friction) under `.claude/Dev10x/gh-review-setup/` and emits a skill-audit
 hook so the scaffolder's own defaults can be tuned over time — the same
-mechanism as `dev10x:skill-audit`. See `instructions.md` § Phase 5.
+mechanism as `dev10x-teach:skill-audit`. See `instructions.md` § Phase 5.
 
 ## Integration
 

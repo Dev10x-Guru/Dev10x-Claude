@@ -123,7 +123,7 @@ This protocol applies to any multi-session orchestration:
   requires re-derive + respawn
 - `dev10x:fanout` — spawns independent swarms; session death orphans
   swarm agents
-- `dev10x:skill-audit` — dispatches finder and judge agents; death
+- `dev10x-teach:skill-audit` — dispatches finder and judge agents; death
   mid-wave requires resumption
 - `dev10x:adr-evaluate` — architect dispatch vulnerable to account
   session limits

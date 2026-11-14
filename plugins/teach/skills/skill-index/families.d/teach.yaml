@@ -5,8 +5,8 @@ families:
   - label: Meta
     description: "Create skills, audit usage and context"
     skills:
-      - dev10x:skill-create
-      - dev10x:skill-audit
-      - dev10x:skill-index
-      - dev10x:memory-maintenance
-      - dev10x:context-audit
+      - dev10x-teach:skill-create
+      - dev10x-teach:skill-audit
+      - dev10x-teach:skill-index
+      - dev10x-teach:memory-maintenance
+      - dev10x-teach:context-audit

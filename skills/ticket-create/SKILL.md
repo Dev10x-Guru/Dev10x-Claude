@@ -61,7 +61,7 @@ mode applies only when **both** hold:
 1. The skill was invoked via `Skill(dev10x:ticket-create)` by another
    skill or agent, not typed by the user as `/dev10x:ticket-create`.
 2. The caller is executing a plan step with an active task list
-   (an orchestrator such as `dev10x:work-on`, `dev10x:audit-file`,
+   (an orchestrator such as `dev10x:work-on`, `dev10x-teach:audit-file`,
    or a `dev10x:foreman` crew).
 
 When either is absent — including any direct `/dev10x:ticket-create`
@@ -117,7 +117,7 @@ milestone/label triage, and tracker-detection. Always reach for
 `Skill(dev10x:ticket-create)` first; the skill's Step 5 will
 dispatch the appropriate MCP tool internally.
 
-**This binds every filing path (GH-1102).** `dev10x:audit-file`,
+**This binds every filing path (GH-1102).** `dev10x-teach:audit-file`,
 `dev10x:work-on` follow-up filing, `dev10x:diag-friction` upstream
 filing, and `dev10x:foreman` crew filing all route here rather than
 calling `issue_create` bare — otherwise each one re-invents (or

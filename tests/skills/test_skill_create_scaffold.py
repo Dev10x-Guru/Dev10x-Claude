@@ -18,7 +18,15 @@ from pathlib import Path
 
 import pytest
 
-_SCRIPT = Path(__file__).parents[2] / "skills" / "skill-create" / "scripts" / "scaffold.sh"
+_SCRIPT = (
+    Path(__file__).parents[2]
+    / "plugins"
+    / "teach"
+    / "skills"
+    / "skill-create"
+    / "scripts"
+    / "scaffold.sh"
+)
 _TIMEOUT_SECONDS = 30
 _NAME = "probe-skill"
 

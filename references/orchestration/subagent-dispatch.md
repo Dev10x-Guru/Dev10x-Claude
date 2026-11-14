@@ -138,7 +138,7 @@ Set dependencies:
 - Multiple independent analysis phases (e.g., 5+ parallel subagents)
 - Partial dependencies between phases (some are independent, others depend on earlier outputs)
 - Long-running workflows where parallelization saves significant time
-- Example: `dev10x:skill-audit` with 5 parallel analysis phases + dependency on Phase 1 output
+- Example: `dev10x-teach:skill-audit` with 5 parallel analysis phases + dependency on Phase 1 output
 
 ## Fanout Execution (Multiple Items)
 

@@ -19,7 +19,8 @@ from dev10x.core.config.fragments import discover_fragments, load_merged, plugin
 from dev10x.core.plugin_map import PLUGIN_MAP_PATH, load_plugin_map
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-LIB = REPO_ROOT / "skills" / "skill-index" / "scripts" / "lib-families.sh"
+SHIPPED_SKILL_DIR = REPO_ROOT / "plugins" / "teach" / "skills" / "skill-index"
+LIB = SHIPPED_SKILL_DIR / "scripts" / "lib-families.sh"
 SHELL_TIMEOUT_SECONDS = 60
 
 pytestmark = pytest.mark.skipif(
@@ -128,8 +129,6 @@ class TestMergeFamilies:
         expected = load_merged(fragments=fragments, base=("families.yaml", base))
         assert yaml.safe_load(output.read_text()) == expected
 
-
-SHIPPED_SKILL_DIR = REPO_ROOT / "skills" / "skill-index"
 
 #: The pre-split display_map minus the entries that named no Dev10x skill
 #: (`logs`, `triage-sentry`, `app-db`) and the inverted
@@ -250,3 +249,50 @@ class TestPluginSkillDirs:
     def test_an_unresolved_dev10x_dir_lists_nothing(self) -> None:
         stdout = _shell_stdout(script='plugin_skill_dirs "$1"', args=[""])
         assert stdout == ""
+
+
+def _core(*, root: Path) -> Path:
+    (root / "src" / "dev10x" / "core").mkdir(parents=True)
+    (root / "src" / "dev10x" / "core" / "plugins.yaml").write_text("plugins: {}\n")
+    (root / "bin").mkdir()
+    (root / "bin" / "require-tool.sh").write_text("")
+    return root
+
+
+class TestCoreRoot:
+    """GH-1568: skill-index left core, so its scripts find core's bin/ and
+    plugin map wherever dev10x-teach sits."""
+
+    def test_pre_split_core_install_is_its_own_core(self, tmp_path: Path) -> None:
+        root = _core(root=tmp_path / "dev10x" / "0.115.0")
+
+        assert _shell_stdout(script='core_root "$1"', args=[str(root)]).strip() == str(root)
+
+    def test_checkout_holds_the_satellite_under_plugins(self, tmp_path: Path) -> None:
+        repo = _core(root=tmp_path / "repo")
+        teach = repo / "plugins" / "teach"
+        teach.mkdir(parents=True)
+
+        assert _shell_stdout(script='core_root "$1"', args=[str(teach)]).strip() == str(repo)
+
+    def test_installed_satellite_reads_core_beside_it_at_its_newest_version(
+        self, tmp_path: Path
+    ) -> None:
+        publisher = tmp_path / "cache" / "Dev10x-Guru"
+        _core(root=publisher / "dev10x" / "0.9.0")
+        newest = _core(root=publisher / "dev10x" / "0.10.0")
+        teach = publisher / "dev10x-teach" / "0.10.0"
+        teach.mkdir(parents=True)
+
+        assert _shell_stdout(script='core_root "$1"', args=[str(teach)]).strip() == str(newest)
+
+    def test_fails_without_core(self, tmp_path: Path) -> None:
+        teach = tmp_path / "dev10x-teach" / "0.10.0"
+        teach.mkdir(parents=True)
+
+        assert _shell(script='core_root "$1"', args=[str(teach)]).returncode == 1
+
+    def test_the_repo_satellite_resolves_to_the_repo(self) -> None:
+        teach = REPO_ROOT / "plugins" / "teach"
+
+        assert _shell_stdout(script='core_root "$1"', args=[str(teach)]).strip() == str(REPO_ROOT)

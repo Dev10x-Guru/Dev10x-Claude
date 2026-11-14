@@ -20,7 +20,7 @@ include evaluation criteria. Optional for simpler skills.
 ## Canonical Format for New Skills
 
 All new skills MUST use the **dimension-referenced format** established in
-`skills/memory-maintenance/evals/evals.json` and
+`plugins/teach/skills/memory-maintenance/evals/evals.json` and
 `skills/playbook-maintenance/evals/evals.json`. This format ensures:
 - Consistent assertion/dimension cross-references (`dimension` field → eval_dimensions.id)
 - Explicit signals for test automation and regression detection
@@ -60,7 +60,7 @@ All new skills MUST use the **dimension-referenced format** established in
 ### Working Examples
 
 Copy structure from these reference implementations:
-- `skills/memory-maintenance/evals/evals.json` — ✓ Canonical format
+- `plugins/teach/skills/memory-maintenance/evals/evals.json` — ✓ Canonical format
 - `skills/playbook-maintenance/evals/evals.json` — ✓ Canonical format
 
 ## Legacy Evals Format

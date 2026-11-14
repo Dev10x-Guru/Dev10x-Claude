@@ -101,4 +101,4 @@ reported separately from elapsed time.
 | Create worktree | `/dev10x:git-worktree` |
 | Groom commits before merge | `/dev10x:git-groom` |
 | Push safely | `/dev10x:git` (validates protected branches) |
-| Audit this session | `/dev10x:skill-audit` |
+| Audit this session | `/dev10x-teach:skill-audit` |

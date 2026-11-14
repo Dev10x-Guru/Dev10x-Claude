@@ -234,9 +234,9 @@ HOOK_SCRIPTS = [
 ]
 
 SKILL_SCRIPTS_WITH_SRC_IMPORTS = [
-    "skills/skill-audit/scripts/extract-session.py",
-    "skills/skill-audit/scripts/analyze-actions.py",
-    "skills/skill-audit/scripts/analyze-permissions.py",
+    "plugins/teach/skills/skill-audit/scripts/extract-session.py",
+    "plugins/teach/skills/skill-audit/scripts/analyze-actions.py",
+    "plugins/teach/skills/skill-audit/scripts/analyze-permissions.py",
     "skills/git-groom/scripts/mass-rewrite.py",
 ]
 

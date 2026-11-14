@@ -13,12 +13,12 @@ Never pause between phases.
 ### Deferral (GH-219)
 
 To **defer** an audit until later without interrupting current
-work, invoke `dev10x:skill-audit-queue` instead. That skill
+work, invoke `dev10x-teach:skill-audit-queue` instead. That skill
 appends a tracker task at the end of the current task list with
-a TODO to invoke `dev10x:skill-audit`. When the supervisor
+a TODO to invoke `dev10x-teach:skill-audit`. When the supervisor
 reaches the queued task, they invoke this skill directly.
 
-Invoking `dev10x:skill-audit` (this skill) is a declaration that
+Invoking `dev10x-teach:skill-audit` (this skill) is a declaration that
 the audit should run **now** — proceed directly to Strategy Selection.
 
 ### Important Rules
@@ -121,7 +121,7 @@ disposition decision (file, escalate, discard) must be explicit.
 |-------------|-------------|
 | Select & file now | Create minimal task list: `TaskCreate(subject="Phase 0: Inline findings", activeForm="Presenting findings")` followed by `TaskCreate(subject="Phase 7: Upstream reporting", activeForm="Reporting upstream")`. Jump directly to Phase 7 using the inline findings. Phase 7 sub-steps A–D still run. |
 | Run forensic audit | Fall through to Step 0 (forensic). Create the full task list and proceed with Wave 1 + Wave 2 orchestration. |
-| Discard | Exit without creating wave tasks and without invoking `dev10x:audit-file`. |
+| Discard | Exit without creating wave tasks and without invoking `dev10x-teach:audit-file`. |
 
 #### Why lightweight is the default (GH-436)
 
@@ -190,7 +190,7 @@ Execute these exact `TaskCreate` calls at startup:
 **Synthesis (sequential, main agent):**
 
 8. `TaskCreate(subject="Phase 6: Propose changes", description="Synthesize findings into concrete SKILL.md edits, memory updates, and process improvements", activeForm="Proposing changes")`
-9. `TaskCreate(subject="Phase 7: Upstream reporting", description="File findings as GitHub issues at the Dev10x plugin repo via dev10x:audit-file", activeForm="Reporting upstream")`
+9. `TaskCreate(subject="Phase 7: Upstream reporting", description="File findings as GitHub issues at the Dev10x plugin repo via dev10x-teach:audit-file", activeForm="Reporting upstream")`
 
 **Note:** Phase 4 (Permission Friction) is not in the default
 forensic task list. Add it only when the invocation explicitly
@@ -285,15 +285,15 @@ For lightweight-compatible triggers (1–5):
 
 > "I've noticed [trigger description]. You can audit this now:
 > ```
-> /dev10x:skill-audit <description of what happened>
+> /dev10x-teach:skill-audit <description of what happened>
 > ```
-> or queue it for later with `/dev10x:skill-audit-queue`."
+> or queue it for later with `/dev10x-teach:skill-audit-queue`."
 
 For forensic triggers (6–8):
 
 > "I've noticed [trigger description]. Open a new terminal and run:
 > ```
-> claude '/dev10x:skill-audit --full <jsonl-path>'
+> claude '/dev10x-teach:skill-audit --full <jsonl-path>'
 > ```
 > to capture these as improvements."
 
@@ -418,7 +418,7 @@ current session. **STOP** and emit a redirect message:
 > consume the context window before useful analysis begins.
 > Open a **new terminal** and run:
 > ```
-> claude '/dev10x:skill-audit --full <session-file-path>'
+> claude '/dev10x-teach:skill-audit --full <session-file-path>'
 > ```
 
 Do NOT proceed with extraction. Do NOT ask the user if they
@@ -596,7 +596,7 @@ Phase 6 alongside the other phases.
 
 **Queue time (skill-audit-queue):** Small friction/skill notes
 observed at queue time can be captured as lightweight annotations
-on the queued task. The `dev10x:skill-audit-queue` skill accepts
+on the queued task. The `dev10x-teach:skill-audit-queue` skill accepts
 a free-text description — use it to record the specific friction
 pattern so the full audit has prior context.
 
@@ -1313,7 +1313,7 @@ findings.
 **REQUIRED: invoke `AskUserQuestion` tool** (not a plain text
 question) to ask whether to file upstream. Present the count
 of upstream-relevant findings and two options: "File issue
-(Recommended)" to delegate to `dev10x:audit-file`, or
+(Recommended)" to delegate to `dev10x-teach:audit-file`, or
 "Skip" to keep findings local only.
 
 If the user selects **Skip**, mark Phase 7 completed and end.
@@ -1347,7 +1347,7 @@ If the user selects **Skip**, mark Phase 7 completed and end.
 **REQUIRED before writing the findings file.** The upstream
 issue is public; the source session is treated as private by
 default. Apply the replacement table, allow-list, and 5-step
-algorithm in `dev10x:audit-file` →
+algorithm in `dev10x-teach:audit-file` →
 `references/privacy-scrub.md` to the findings text **before**
 writing it to the temp file.
 
@@ -1357,10 +1357,10 @@ plugin maintainers.
 
 If a finding cannot be reported without a private identifier,
 mark it `[needs-user-decision]` in the findings file and let
-`dev10x:audit-file` Step 3 raise the `AskUserQuestion` gate.
+`dev10x-teach:audit-file` Step 3 raise the `AskUserQuestion` gate.
 Do NOT silently include unscrubbed text.
 
-**Sub-step D: Delegate to dev10x:audit-file (once per target repo)**
+**Sub-step D: Delegate to dev10x-teach:audit-file (once per target repo)**
 
 For **each** repo confirmed in sub-step B2, write that repo's
 scrubbed findings to its own temp file:
@@ -1374,14 +1374,14 @@ repo, plus a `**Target repo**: <owner>/<repo>` line in the file's
 Session Context block. Then invoke:
 
 ```
-Skill(skill="dev10x:audit-file",
+Skill(skill="dev10x-teach:audit-file",
   args="--repo <owner>/<repo> <findings-file-path>")
 ```
 
-The `--repo` argument is **required** — `dev10x:audit-file` files
+The `--repo` argument is **required** — `dev10x-teach:audit-file` files
 at the repo it is given and never falls back to a default tracker.
 
-The `dev10x:audit-file` skill handles version detection,
+The `dev10x-teach:audit-file` skill handles version detection,
 issue body generation, and issue creation. Mark Phase 7 completed
 after every delegation returns. Report any `unresolved[]` findings
 as unfiled in the final summary rather than filing them anywhere.
@@ -1432,7 +1432,7 @@ as unfiled in the final summary rather than filing them anywhere.
   at a guessed repo wastes a maintainer's triage and loses the
   signal for the real owner.
 - **Delegation over embedding**: Phase 7 delegates issue filing to
-  `dev10x:audit-file` rather than implementing it inline. This
+  `dev10x-teach:audit-file` rather than implementing it inline. This
   keeps skill-audit focused on analysis and lets users who don't
   want upstream reporting skip the skill entirely.
 - **Source session is private by default**: Audit reports MUST NOT
