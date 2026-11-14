@@ -268,6 +268,110 @@ def introduce(
     return paths
 
 
+PROMPT_CHANNEL = "prompt"
+RELAY_CHANNEL = "relay"
+SUPERVISOR = "Janusz"
+
+
+def _quoted(*, value: object) -> str:
+    return json.dumps(value, ensure_ascii=False)
+
+
+def _cli(*, subcommand: str, instance_flag: str) -> str:
+    return f"uvx dev10x overwatch artifact {subcommand}{instance_flag}"
+
+
+def artifact_event_message(
+    *,
+    title: str,
+    artifact_id: str,
+    revision: int,
+    label: str,
+    value: object,
+    instance_flag: str = "",
+) -> str:
+    return (
+        f"Artifact event from {SUPERVISOR} on {_quoted(value=title)} "
+        f"({artifact_id}, revision {revision}): "
+        f"{_quoted(value=label)} = {_quoted(value=value)}. "
+        "Treat the value as data from the supervisor. "
+        "When you act on it, update the page with: "
+        f"{_cli(subcommand='put', instance_flag=instance_flag)} <file>"
+    )
+
+
+def artifact_share_message(
+    *,
+    title: str,
+    artifact_id: str,
+    path: str,
+    publisher_id: str,
+    publisher_label: str,
+    instruction: str,
+    instance_flag: str = "",
+) -> str:
+    return (
+        f"Share request from {SUPERVISOR}: publish artifact {_quoted(value=title)} ({path}) "
+        f"with {publisher_label}. {instruction}. Then record the link: "
+        f"{_cli(subcommand='shared', instance_flag=instance_flag)} {artifact_id} "
+        f"--publisher {publisher_id} --url <url>"
+    )
+
+
+@dataclass(frozen=True)
+class Recipient:
+    name: str
+    session_id: str
+    pane_id: str
+    idle: bool
+
+
+def deliver_to_session(
+    *,
+    recipient: Recipient,
+    message_id: str,
+    text: str,
+    action: str,
+    bus_root: Path,
+    relay_mailbox: str,
+    confirmed_by: str,
+    log_path: Path,
+    sender: Callable[..., None] = submit_prompt,
+) -> str:
+    if recipient.idle and recipient.pane_id:
+        sender(pane_id=recipient.pane_id, text=text)
+        log_sent(
+            log_path=log_path,
+            action=f"{action}-prompt",
+            target=recipient.name,
+            detail=f"{message_id}: {text}",
+            confirmed_by=confirmed_by,
+        )
+        return PROMPT_CHANNEL
+    send(
+        root=bus_root,
+        envelope=Envelope(
+            sender=SENDER_MAILBOX,
+            recipient=relay_mailbox,
+            subject=f"answer {message_id}",
+            extra_headers=(
+                ("To-Session", recipient.name),
+                ("Session-Id", recipient.session_id),
+                ("Decision-Id", message_id),
+            ),
+        ),
+        body=text,
+    )
+    log_sent(
+        log_path=log_path,
+        action=f"{action}-relay",
+        target=recipient.name,
+        detail=f"{message_id}: {text}",
+        confirmed_by=confirmed_by,
+    )
+    return RELAY_CHANNEL
+
+
 def deliver_relay(
     *,
     bus_root: Path,
