@@ -62,6 +62,8 @@ base_permissions:
   - "mcp__plugin_dev10x_cli__audit_handoff_report"
   - "mcp__plugin_dev10x_cli__reconcile_fixes_links"
   - "mcp__plugin_dev10x_cli__review_stamp_write"
+  # Read-only worktree classifier behind dev10x:git-worktree-prune (GH-1930)
+  - "mcp__plugin_dev10x_cli__worktree_prune_candidates"
   # Test runner (GH-880, #877 E3 gap 1) — the diag-friction steer target
   # for scoped py tests; `run_node_tests` stays in core.
   - "mcp__plugin_dev10x_cli__run_tests"

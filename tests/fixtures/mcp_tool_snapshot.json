@@ -4700,6 +4700,44 @@
       ],
       "title": "wait_forArguments",
       "type": "object"
+    },
+    "worktree_prune_candidates": {
+      "properties": {
+        "base": {
+          "default": "develop",
+          "title": "Base",
+          "type": "string"
+        },
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "paths": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Paths"
+        }
+      },
+      "title": "worktree_prune_candidatesArguments",
+      "type": "object"
     }
   },
   "db": {

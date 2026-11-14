@@ -101,6 +101,7 @@ supporting each tool:
 | `bot_review_status` | `cli` | GH-1832 | v0.114.0+ |
 | `review_readiness_audit` | `cli` | GH-1834 | v0.116.0+ |
 | `review_stamp_write` | `cli` | GH-1830 | v0.114.0+ |
+| `worktree_prune_candidates` | `cli` | GH-1930 | v0.116.0+ (`gh` for PR state; `herdr` optional, for open workspaces) |
 | `query` | `db` | PR #126 | v0.25.0+ |
 
 When adding a new tool, update this table and note any dependencies on

@@ -261,6 +261,38 @@ async def find_fixup_target(base: str | None = None, cwd: str | None = None) -> 
 
 
 @mcp_tool
+async def worktree_prune_candidates(
+    base: str = "develop",
+    paths: list[str] | None = None,
+    cwd: str | None = None,
+) -> Result[dict]:
+    """Classify every worktree of this repo as remove, ask or keep (GH-1930).
+
+    Read-only: it runs ``git worktree list``, per-worktree ``git status`` /
+    ``rev-list`` / ``merge-base``, ``gh pr list --head`` per branch and
+    ``herdr worktree list`` when herdr is installed, and changes nothing.
+
+    Args:
+        base: Base branch; qualified to ``origin/<base>`` when that ref exists.
+        paths: Re-classify only these absolute worktree paths — the re-read a
+            caller makes right before removing one. Paths no longer listed by
+            git come back under ``not_found``.
+        cwd: Effective working directory (GH-979) — any checkout of the repo.
+
+    Returns:
+        ``worktrees`` (one entry per worktree: ``path``, ``branch``,
+        ``class`` remove/ask/keep, ``reason``, ``dirty_paths``,
+        ``mirror_paths``, ``force_required``, ``unpushed_commits``,
+        ``ahead_of_base``, ``merged_by``, ``pull_request``, ``open_workspace_id``,
+        ``last_commit_at``), the ``remove`` / ``ask`` / ``keep`` path lists,
+        ``not_found``, ``base`` and ``herdr`` (absent / read / error: ...).
+    """
+    from dev10x.coding.git import worktree_prune
+
+    return await worktree_prune.worktree_prune_candidates(base=base, paths=paths)
+
+
+@mcp_tool
 async def setup_aliases() -> Result[dict]:
     """Set up global git aliases for branch comparison operations.
 
