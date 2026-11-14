@@ -38,6 +38,15 @@ def isolated_git_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("GIT_COMMITTER_DATE", _COMMIT_DATE)
 
 
+@pytest.fixture(autouse=True)
+def fake_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    home = tmp_path / "fake-home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.delenv(wp.HERDR_ENV_VAR, raising=False)
+    return home
+
+
 def _git(*args: str, cwd: Path) -> str:
     return subprocess.run(
         ["git", *args],
@@ -527,6 +536,111 @@ class TestSplitStatus:
         assert wp.split_status(porcelain=porcelain) == expected
 
 
+class TestSplitIgnored:
+    @pytest.mark.parametrize(
+        ("porcelain", "expected"),
+        [
+            ("", ()),
+            ("!! .venv/\n!! node_modules/\n!! src/__pycache__/\n", ()),
+            ("!! .pytest_cache/\n!! .ruff_cache/\n!! .mypy_cache/\n", ()),
+            ("!! .env\n!! .venv/\n", (".env",)),
+            ("!! build/\n?? notes.txt\n M a.py\n", ("build/",)),
+            (
+                "!! pkg/node_modules/x\n!! .claude/settings.local.json\n",
+                (".claude/settings.local.json",),
+            ),
+        ],
+    )
+    def test_keeps_only_ignored_paths_outside_known_caches(
+        self,
+        porcelain: str,
+        expected: tuple[str, ...],
+    ) -> None:
+        assert wp.split_ignored(porcelain=porcelain) == expected
+
+    def test_ignored_entries_are_not_reported_as_dirty(self) -> None:
+        assert wp.split_status(porcelain="!! .env\n") == ((), ())
+
+
+class TestIgnoredFiles:
+    def test_checkout_holding_only_an_ignored_file_is_kept(
+        self,
+        repo: Path,
+        worktrees: dict[str, Any],
+    ) -> None:
+        squash = worktrees["squash"]
+        (squash / ".gitignore").write_text(".env\n.venv/\n")
+        _git("add", ".gitignore", cwd=squash)
+        _git("commit", "-q", "-m", "ignore", cwd=squash)
+        _git("push", "-q", "origin", "feat/squash", cwd=squash)
+        head = _git("rev-parse", "HEAD", cwd=squash)
+        (squash / ".env").write_text("SECRET=1\n")
+        (squash / ".venv").mkdir()
+        (squash / ".venv" / "pyvenv.cfg").write_text("cache\n")
+        prs = {"feat/squash": _pr(number=11, state="MERGED", head_oid=head)}
+
+        result = _survey(
+            cwd=repo,
+            prs=prs,
+            workspaces=wp.WorkspaceState(known=True),
+            paths=[str(squash)],
+        )
+
+        item = result.value["worktrees"][0]
+        assert (item["class"], item["ignored_paths"], item["reason"]) == (
+            "keep",
+            [".env"],
+            "1 ignored path(s) that removal would delete",
+        )
+
+    def test_checkout_holding_only_known_caches_stays_removable(
+        self,
+        repo: Path,
+        worktrees: dict[str, Any],
+    ) -> None:
+        squash = worktrees["squash"]
+        (squash / ".gitignore").write_text(".venv/\n")
+        _git("add", ".gitignore", cwd=squash)
+        _git("commit", "-q", "-m", "ignore", cwd=squash)
+        _git("push", "-q", "origin", "feat/squash", cwd=squash)
+        head = _git("rev-parse", "HEAD", cwd=squash)
+        (squash / ".venv").mkdir()
+        (squash / ".venv" / "pyvenv.cfg").write_text("cache\n")
+        prs = {"feat/squash": _pr(number=11, state="MERGED", head_oid=head)}
+
+        result = _survey(
+            cwd=repo,
+            prs=prs,
+            workspaces=wp.WorkspaceState(known=True),
+            paths=[str(squash)],
+        )
+
+        item = result.value["worktrees"][0]
+        assert (item["class"], item["ignored_paths"]) == ("remove", [])
+
+
+class TestAbsentHerdrSurvey:
+    def test_herdr_in_use_but_absent_keeps_removable_checkouts(
+        self,
+        repo: Path,
+        worktrees: dict[str, Any],
+    ) -> None:
+        result = _survey(
+            cwd=repo,
+            prs=worktrees["prs"],
+            workspaces=wp.WorkspaceState(
+                known=False,
+                source="absent: herdr is in use but not on PATH",
+            ),
+            paths=[str(worktrees["squash"])],
+        )
+
+        assert (result.value["herdr"], result.value["worktrees"][0]["class"]) == (
+            "absent: herdr is in use but not on PATH",
+            "keep",
+        )
+
+
 class TestLatestPullRequest:
     @pytest.mark.parametrize(
         ("prs", "expected"),
@@ -623,6 +737,28 @@ class TestLookupWorkspaces:
 
         assert state == wp.WorkspaceState(known=True, source="absent")
 
+    def test_absent_herdr_with_home_directory_is_unknown(self, fake_home: Path) -> None:
+        (fake_home / wp.HERDR_HOME_DIR).mkdir()
+
+        with patch.object(wp.shutil, "which", return_value=None):
+            state = asyncio.run(wp.lookup_workspaces(root="/repo"))
+
+        assert state == wp.WorkspaceState(
+            known=False,
+            source="absent: herdr is in use but not on PATH",
+        )
+
+    def test_absent_herdr_with_env_marker_is_unknown(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv(wp.HERDR_ENV_VAR, "1")
+
+        with patch.object(wp.shutil, "which", return_value=None):
+            state = asyncio.run(wp.lookup_workspaces(root="/repo"))
+
+        assert state.known is False
+
     @pytest.mark.parametrize(
         ("response", "expected"),
         [
@@ -631,10 +767,31 @@ class TestLookupWorkspaces:
                     stdout=(
                         '{"result": {"worktrees": ['
                         '{"path": "/wt/a", "open_workspace_id": "w1"},'
-                        '{"path": "/wt/b"}, "junk"]}}'
+                        '{"path": "/wt/b", "open_workspace_id": null}]}}'
                     )
                 ),
                 wp.WorkspaceState(known=True, open_by_path={"/wt/a": "w1"}, source="read"),
+            ),
+            (
+                completed(stdout='{"result": {"worktrees": [{"path": "/wt/b"}]}}'),
+                wp.WorkspaceState(
+                    known=False,
+                    source="error: herdr items lack path or open_workspace_id",
+                ),
+            ),
+            (
+                completed(stdout='{"result": {"worktrees": [{"open_workspace_id": "w1"}]}}'),
+                wp.WorkspaceState(
+                    known=False,
+                    source="error: herdr items lack path or open_workspace_id",
+                ),
+            ),
+            (
+                completed(stdout='{"result": {"worktrees": ["junk"]}}'),
+                wp.WorkspaceState(
+                    known=False,
+                    source="error: herdr items lack path or open_workspace_id",
+                ),
             ),
             (
                 completed(returncode=1, stderr="no server"),

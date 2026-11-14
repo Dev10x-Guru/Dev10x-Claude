@@ -24,6 +24,12 @@ from dev10x.subprocess_utils import async_run
 
 GENERATED_MIRROR_DIRS = (".agents/", ".codex/")
 _UNTRACKED_PREFIX = "??"
+_IGNORED_PREFIX = "!!"
+KNOWN_CACHE_DIRS = frozenset(
+    {".venv", "node_modules", "__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache"}
+)
+HERDR_ENV_VAR = "HERDR_ENV"
+HERDR_HOME_DIR = ".herdr"
 _TIMEOUT_SECONDS = 30
 _PR_LOOKUP_LIMIT = 20
 
@@ -80,6 +86,7 @@ class WorktreeFacts:
     probe_error: str = ""
     dirty_paths: tuple[str, ...] = ()
     mirror_paths: tuple[str, ...] = ()
+    ignored_paths: tuple[str, ...] = ()
     unpushed_commits: int | None = 0
     ahead_of_base: int | None = 0
     on_base: bool = False
@@ -115,6 +122,7 @@ class Classification:
             "reason": self.reason,
             "dirty_paths": list(facts.dirty_paths),
             "mirror_paths": list(facts.mirror_paths),
+            "ignored_paths": list(facts.ignored_paths),
             "force_required": bool(facts.mirror_paths) and not facts.dirty_paths,
             "unpushed_commits": facts.unpushed_commits,
             "ahead_of_base": facts.ahead_of_base,
@@ -153,6 +161,8 @@ def split_status(*, porcelain: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
     dirty: list[str] = []
     mirrors: list[str] = []
     for line in porcelain.splitlines():
+        if line.startswith(_IGNORED_PREFIX):
+            continue
         paths = parse_porcelain(porcelain=line)
         if not paths:
             continue
@@ -163,6 +173,17 @@ def split_status(*, porcelain: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
         else:
             dirty.append(path)
     return tuple(dirty), tuple(mirrors)
+
+
+def split_ignored(*, porcelain: str) -> tuple[str, ...]:
+    ignored: list[str] = []
+    for line in porcelain.splitlines():
+        if not line.startswith(_IGNORED_PREFIX):
+            continue
+        path = line[len(_IGNORED_PREFIX) :].strip()
+        if path and not KNOWN_CACHE_DIRS.intersection(path.rstrip("/").split("/")):
+            ignored.append(path)
+    return tuple(ignored)
 
 
 def latest_pull_request(*, prs: list[dict[str, Any]]) -> PullRequestRef | None:
@@ -188,6 +209,17 @@ def parse_herdr_workspaces(*, worktrees: list[Any]) -> dict[str, str]:
     }
 
 
+def has_unexpected_herdr_items(*, worktrees: list[Any]) -> bool:
+    return any(
+        not isinstance(item, dict) or "path" not in item or "open_workspace_id" not in item
+        for item in worktrees
+    )
+
+
+def herdr_in_use() -> bool:
+    return HERDR_ENV_VAR in os.environ or (Path.home() / HERDR_HOME_DIR).exists()
+
+
 def _keep_reason(*, facts: WorktreeFacts) -> str | None:
     if facts.is_main:
         return "main checkout"
@@ -205,6 +237,8 @@ def _keep_reason(*, facts: WorktreeFacts) -> str | None:
         return f"open in herdr workspace {facts.open_workspace_id}"
     if facts.dirty_paths:
         return f"{len(facts.dirty_paths)} uncommitted path(s)"
+    if facts.ignored_paths:
+        return f"{len(facts.ignored_paths)} ignored path(s) that removal would delete"
     if facts.unpushed_commits is None:
         return "unpushed commit count unknown"
     if facts.unpushed_commits:
@@ -274,6 +308,8 @@ async def lookup_pull_request(*, branch: str, cwd: str) -> PullRequestState:
 
 async def lookup_workspaces(*, root: str) -> WorkspaceState:
     if shutil.which("herdr") is None:
+        if herdr_in_use():
+            return WorkspaceState(known=False, source="absent: herdr is in use but not on PATH")
         return WorkspaceState(known=True, source="absent")
     result = await async_run(
         args=["herdr", "worktree", "list", "--cwd", root],
@@ -294,6 +330,11 @@ async def lookup_workspaces(*, root: str) -> WorkspaceState:
         return WorkspaceState(
             known=False,
             source="error: herdr payload has no result.worktrees list",
+        )
+    if has_unexpected_herdr_items(worktrees=worktrees):
+        return WorkspaceState(
+            known=False,
+            source="error: herdr items lack path or open_workspace_id",
         )
     return WorkspaceState(
         known=True,
@@ -327,7 +368,10 @@ async def _probe_entry(
         return replace(identity, exists=False)
 
     probes = await asyncio.gather(
-        _git(args=["status", "--porcelain", "--untracked-files=normal"], cwd=entry.path),
+        _git(
+            args=["status", "--porcelain", "--ignored", "--untracked-files=normal"],
+            cwd=entry.path,
+        ),
         _git(args=["rev-list", "--count", "HEAD", "--not", "--remotes"], cwd=entry.path),
         _git(args=["rev-list", "--count", f"{base_ref}..HEAD"], cwd=entry.path),
         _git(args=["log", "-1", "--format=%cI"], cwd=entry.path),
@@ -348,6 +392,7 @@ async def _probe_entry(
         identity,
         dirty_paths=dirty,
         mirror_paths=mirrors,
+        ignored_paths=split_ignored(porcelain=status.stdout),
         unpushed_commits=_count(output=unpushed.stdout),
         ahead_of_base=ahead_of_base,
         on_base=ahead_of_base == 0,

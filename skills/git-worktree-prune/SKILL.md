@@ -78,8 +78,8 @@ careful removal loop.
    cwd=<absolute path of this checkout>)`. Always pass `cwd` — the MCP
    server is long-lived and its own directory may be another repo or a
    removed worktree. Branch on an `error` key: report it and stop.
-4. Record the **surveyed set** — every `path` in `worktrees`. Steps 3 and
-   4 act only on paths in this set.
+4. Record the **surveyed set** — every `path` in `worktrees` with its
+   `branch` and `head`. Steps 3 and 4 act only on paths in this set.
 
 The tool groups every worktree:
 
@@ -87,7 +87,17 @@ The tool groups every worktree:
 |-------|---------|
 | `remove` | Clean or mirrors-only, nothing on no remote, not open in herdr, merged PR (head matches, or HEAD is on base) |
 | `ask` | Clean and pushed, but its PR closed unmerged, or it has no PR |
-| `keep` | Main or current checkout, dirty, unpushed, open, locked, open PR, moved past its merged PR, missing, or any state it could not read |
+| `keep` | Main or current checkout, dirty, holding ignored files outside known caches, unpushed, open, locked, open PR, moved past its merged PR, missing, or any state it could not read |
+
+Ignored files (a local `.env`, settings) are deleted by `git worktree
+remove` even without `--force`, so any `ignored_paths` entry keeps the
+checkout. Only `.venv/`, `node_modules/`, `__pycache__/`,
+`.pytest_cache/`, `.ruff_cache/` and `.mypy_cache/` are disregarded.
+
+The response's `herdr` field says how open workspaces were read. When
+herdr is not on the server's PATH but `~/.herdr` exists or `HERDR_ENV`
+is set, the state is unknown and every otherwise-removable checkout is
+kept. Herdr items lacking `path` or `open_workspace_id` are unknown too.
 
 ### Step 2: Approval gate
 
@@ -98,7 +108,9 @@ Otherwise present, before the question:
 
 - `remove` and `ask` paths with branch, PR, `last_commit_at` and
   `reason`, as code blocks;
-- the `keep` paths with their `reason`, so nothing is hidden.
+- the `keep` paths with their `reason`, so nothing is hidden;
+- the survey's `herdr` value as a line `herdr: <value>`, so a missing
+  herdr (`herdr: absent`) is visible instead of reading as "nothing open".
 
 **REQUIRED: Call `AskUserQuestion`** (do NOT use plain text). This blocks
 every removal until the user answers. Options — mark exactly one
@@ -125,6 +137,9 @@ For each approved path, one at a time:
    - the response has no `error` key and the path is not in `not_found`;
    - the path appears in the response's `worktrees` list — read its
      fresh `class` and `force_required` from that entry;
+   - its fresh `branch` and `head` equal the surveyed ones — a path
+     removed and recreated by a parallel session is a different
+     checkout, so skip it on any difference;
    - that `class` is one the answer approved: `remove` for **Remove
      safe**; `remove` or `ask` for **Remove safe + ask** or an explicit
      "Other" path list.
@@ -146,6 +161,12 @@ For each approved path, one at a time:
 2. Report removed, skipped (with the fresh reason) and kept paths.
 3. Point to branch cleanup: "Local branches are untouched — run
    `dev10x:git-branch-prune` to remove merged ones."
+
+## Permissions
+
+`git worktree remove` and `git worktree prune` stay out of every
+`base_permissions` catalog on purpose: they delete files, so each call
+prompts (GH-1942, supervisor decision). Do not seed them.
 
 ## Anti-Patterns
 
