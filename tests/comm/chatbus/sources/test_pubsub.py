@@ -9,7 +9,13 @@ from datetime import datetime, timedelta
 import pytest
 from dev10x.domain.common.result import ErrorResult, Result, err, ok
 
-from dev10x.comm.chatbus.events import REACTION_CREATED, REACTION_DELETED, EventSource
+from dev10x.comm.chatbus.events import (
+    REACTION_BATCH_CREATED,
+    REACTION_BATCH_DELETED,
+    REACTION_CREATED,
+    REACTION_DELETED,
+    EventSource,
+)
 from dev10x.comm.chatbus.sources.pubsub import (
     ALL_SPACES,
     PullReport,
@@ -19,7 +25,7 @@ from dev10x.comm.chatbus.sources.pubsub import (
     SubscriptionState,
     SubscriptionStatus,
     ensure_subscription,
-    event_from_pubsub,
+    events_from_pubsub,
     get_subscription,
     pull_once,
     renewal_due,
@@ -33,6 +39,14 @@ OLD = "subscriptions/old"
 NEW = "subscriptions/new"
 
 
+def reaction_resource(*, number: int, space: str = SPACE) -> dict[str, object]:
+    return {
+        "name": f"{space}/messages/m001/reactions/r{number:03d}",
+        "user": {"name": "users/111"},
+        "emoji": {"unicode": "🤖"},
+    }
+
+
 def reaction(
     *,
     number: int,
@@ -42,8 +56,7 @@ def reaction(
     data: bytes | None = None,
     publish_time: datetime | None = None,
 ) -> ReceivedMessage:
-    name = f"{space}/messages/m001/reactions/r{number:03d}"
-    body = {"reaction": {"name": name, "user": {"name": "users/111"}, "emoji": {"unicode": "🤖"}}}
+    body = {"reaction": reaction_resource(number=number, space=space)}
     return ReceivedMessage(
         ack_id=f"ack-{space[-1]}{number}",
         data=json.dumps(body).encode() if data is None else data,
@@ -52,6 +65,31 @@ def reaction(
         else attributes,
         publish_time=publish_time,
     )
+
+
+def batch(
+    *,
+    entries: list[object],
+    event_type: str = REACTION_BATCH_CREATED,
+    ack_id: str = "ack-batch",
+) -> ReceivedMessage:
+    return ReceivedMessage(
+        ack_id=ack_id,
+        data=json.dumps({"reactions": entries}).encode(),
+        attributes={"ce-type": event_type, "ce-time": "2026-11-06T11:59:00Z"},
+    )
+
+
+def batch_of(
+    *,
+    numbers: list[int],
+    space: str = SPACE,
+    event_type: str = REACTION_BATCH_CREATED,
+) -> ReceivedMessage:
+    entries: list[object] = [
+        {"reaction": reaction_resource(number=number, space=space)} for number in numbers
+    ]
+    return batch(entries=entries, event_type=event_type)
 
 
 @dataclass
@@ -77,11 +115,10 @@ def _pull(conn: sqlite3.Connection, puller: FakePuller) -> PullReport:
     return unwrap(pull_once(conn=conn, puller=puller, subscription=SUBSCRIPTION, now=NOW))
 
 
-class TestEventFromPubsub:
+class TestEventsFromPubsub:
     def test_builds_a_reaction_event(self) -> None:
-        event = event_from_pubsub(message=reaction(number=1))
+        [event] = events_from_pubsub(message=reaction(number=1)).events
 
-        assert event is not None
         assert (event.type, event.space, event.sender, event.source) == (
             REACTION_CREATED,
             SPACE,
@@ -90,18 +127,67 @@ class TestEventFromPubsub:
         )
 
     def test_keeps_the_reaction_payload(self) -> None:
-        event = event_from_pubsub(message=reaction(number=1, event_type=REACTION_DELETED))
+        [event] = events_from_pubsub(
+            message=reaction(number=1, event_type=REACTION_DELETED)
+        ).events
 
-        assert event is not None
         assert event.payload["reaction"]["emoji"] == {"unicode": "🤖"}
 
     def test_falls_back_to_the_publish_time(self) -> None:
         message = reaction(number=1, attributes={"ce-type": REACTION_CREATED}, publish_time=NOW)
 
-        event = event_from_pubsub(message=message)
+        [event] = events_from_pubsub(message=message).events
 
-        assert event is not None
         assert event.event_time == NOW
+
+    @pytest.mark.parametrize(
+        ("batch_type", "single_type"),
+        [
+            (REACTION_BATCH_CREATED, REACTION_CREATED),
+            (REACTION_BATCH_DELETED, REACTION_DELETED),
+        ],
+        ids=["created", "deleted"],
+    )
+    def test_expands_a_batch_into_single_events(self, batch_type: str, single_type: str) -> None:
+        events = events_from_pubsub(message=batch_of(numbers=[1, 2], event_type=batch_type)).events
+
+        assert [(event.type, event.resource_name) for event in events] == [
+            (single_type, f"{SPACE}/messages/m001/reactions/r001"),
+            (single_type, f"{SPACE}/messages/m001/reactions/r002"),
+        ]
+
+    def test_a_batch_member_keeps_its_own_payload(self) -> None:
+        [event] = events_from_pubsub(message=batch_of(numbers=[1])).events
+
+        assert event.payload == {"reaction": reaction_resource(number=1)}
+
+    def test_skips_a_malformed_batch_member(self) -> None:
+        message = batch(
+            entries=[{"reaction": {"name": 7}}, {"reaction": reaction_resource(number=2)}]
+        )
+
+        unpacked = events_from_pubsub(message=message)
+
+        assert (
+            [event.resource_name for event in unpacked.events],
+            unpacked.skipped_members,
+        ) == ([f"{SPACE}/messages/m001/reactions/r002"], 1)
+
+    @pytest.mark.parametrize(
+        "message",
+        [
+            batch(entries=[]),
+            batch(entries=["not-an-object", {"reaction": {"name": 7}}]),
+            ReceivedMessage(
+                ack_id="ack-batch",
+                data=b'{"reactions": {"reaction": {}}}',
+                attributes={"ce-type": REACTION_BATCH_CREATED, "ce-time": "2026-11-06T11:59:00Z"},
+            ),
+        ],
+        ids=["empty", "no-usable-member", "reactions-not-a-list"],
+    )
+    def test_rejects_a_batch_with_nothing_usable(self, message: ReceivedMessage) -> None:
+        assert events_from_pubsub(message=message).events == []
 
     @pytest.mark.parametrize(
         "message",
@@ -129,7 +215,7 @@ class TestEventFromPubsub:
         ],
     )
     def test_rejects_an_unusable_message(self, message: ReceivedMessage) -> None:
-        assert event_from_pubsub(message=message) is None
+        assert events_from_pubsub(message=message).events == []
 
 
 class TestPullOnce:
@@ -151,6 +237,23 @@ class TestPullOnce:
         assert [tuple(row) for row in rows] == [
             (f"{SPACE}/messages/m001/reactions/r001", "🤖", "users/111")
         ]
+
+    def test_remembers_every_reaction_of_a_batch_for_backfill(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        _pull(conn, FakePuller(messages=[batch_of(numbers=[1, 2])]))
+
+        assert conn.execute("SELECT COUNT(*) FROM reaction_snapshot").fetchone()[0] == 2
+
+    def test_a_batch_deletion_forgets_the_reaction(self, conn: sqlite3.Connection) -> None:
+        _pull(conn, FakePuller(messages=[reaction(number=1)]))
+
+        _pull(
+            conn,
+            FakePuller(messages=[batch_of(numbers=[1], event_type=REACTION_BATCH_DELETED)]),
+        )
+
+        assert conn.execute("SELECT COUNT(*) FROM reaction_snapshot").fetchone()[0] == 0
 
     def test_forgets_a_deleted_reaction(self, conn: sqlite3.Connection) -> None:
         _pull(conn, FakePuller(messages=[reaction(number=1)]))
@@ -191,6 +294,114 @@ class TestPullOnce:
         report = _pull(conn, puller)
 
         assert (report.failed_spaces, puller.acked) == ((OTHER,), [["ack-A1"]])
+
+    def test_stores_every_reaction_of_a_batch_and_acks_it_once(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        puller = FakePuller(messages=[batch_of(numbers=[1, 2, 3])])
+
+        report = _pull(conn, puller)
+
+        assert (report.pulled, report.inserted, report.acked, puller.acked) == (
+            1,
+            3,
+            1,
+            [["ack-batch"]],
+        )
+        stored_types = conn.execute("SELECT DISTINCT type FROM events WHERE source = 'pubsub'")
+        assert [row[0] for row in stored_types] == [REACTION_CREATED]
+
+    def test_a_batch_member_also_delivered_singly_lands_once(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        puller = FakePuller(messages=[reaction(number=1), batch_of(numbers=[1, 2])])
+
+        report = _pull(conn, puller)
+
+        assert (report.inserted, report.duplicates) == (2, 1)
+
+    def test_leaves_a_batch_unacked_until_every_space_commits(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        conn.execute(
+            "CREATE TRIGGER refuse BEFORE INSERT ON events "
+            f"WHEN NEW.space = '{OTHER}' BEGIN SELECT RAISE(ABORT, 'full'); END"
+        )
+        entries: list[object] = [
+            {"reaction": reaction_resource(number=1)},
+            {"reaction": reaction_resource(number=2, space=OTHER)},
+        ]
+        puller = FakePuller(messages=[batch(entries=entries)])
+
+        report = _pull(conn, puller)
+
+        assert (report.failed_spaces, report.inserted, report.acked, puller.acked) == (
+            (OTHER,),
+            1,
+            0,
+            [],
+        )
+
+    def test_acks_a_batch_spanning_spaces_once(self, conn: sqlite3.Connection) -> None:
+        entries: list[object] = [
+            {"reaction": reaction_resource(number=1)},
+            {"reaction": reaction_resource(number=2, space=OTHER)},
+        ]
+        puller = FakePuller(messages=[batch(entries=entries)])
+
+        report = _pull(conn, puller)
+
+        assert (report.inserted, report.acked, puller.acked) == (2, 1, [["ack-batch"]])
+
+    def test_stores_the_rest_of_a_batch_and_counts_its_bad_member(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        entries: list[object] = [
+            {"reaction": {"name": 7}},
+            {"reaction": reaction_resource(number=2)},
+        ]
+        puller = FakePuller(messages=[batch(entries=entries)])
+
+        report = _pull(conn, puller)
+
+        assert (
+            report.inserted,
+            report.malformed,
+            dict(report.skipped_members_by_type),
+            puller.acked,
+        ) == (1, 0, {REACTION_BATCH_CREATED: 1}, [["ack-batch"]])
+
+    def test_counts_dropped_messages_per_event_type(self, conn: sqlite3.Connection) -> None:
+        unknown = "google.workspace.chat.reaction.v2.created"
+        puller = FakePuller(
+            messages=[
+                reaction(number=1, attributes={"ce-type": unknown}),
+                reaction(number=2, attributes={"ce-type": unknown}),
+                batch(entries=[], ack_id="ack-empty"),
+            ]
+        )
+
+        report = _pull(conn, puller)
+
+        assert (report.malformed, dict(report.dropped_by_type)) == (
+            3,
+            {unknown: 2, REACTION_BATCH_CREATED: 1},
+        )
+
+    @pytest.mark.parametrize(
+        "message",
+        [
+            batch(entries=["not-an-object", {"reaction": {"name": 7}}]),
+            reaction(number=1, data=b'{"reaction": {"name": 7}}'),
+        ],
+        ids=["all-bad-batch", "bad-single"],
+    )
+    def test_counts_a_dropped_message_once(
+        self, conn: sqlite3.Connection, message: ReceivedMessage
+    ) -> None:
+        report = _pull(conn, FakePuller(messages=[message]))
+
+        assert (report.malformed, dict(report.skipped_members_by_type)) == (1, {})
 
     def test_an_ack_failure_reports_nothing_acked(self, conn: sqlite3.Connection) -> None:
         report = _pull(conn, FakePuller(messages=[reaction(number=1)], ack_error="HTTP 503"))
