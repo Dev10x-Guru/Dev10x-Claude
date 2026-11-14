@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import http.client
 import http.server
 import importlib
@@ -251,6 +252,17 @@ class TestRealOpener:
             assert wait_for_module._guarded_create_connection(("localhost", 8000)) is sock
 
         sock.close.assert_not_called()
+
+    def test_the_guard_closes_the_socket_when_the_peer_check_fails(self) -> None:
+        sock = MagicMock()
+        sock.getpeername.side_effect = OSError(errno.ENOTCONN, "not connected")
+        with (
+            patch.object(wait_for_module.socket, "create_connection", return_value=sock),
+            pytest.raises(OSError, match="not connected"),
+        ):
+            wait_for_module._guarded_create_connection(("localhost", 8000))
+
+        sock.close.assert_called_once_with()
 
     def test_the_probe_opener_ignores_proxy_settings(
         self, monkeypatch: pytest.MonkeyPatch

@@ -150,10 +150,13 @@ def _guarded_create_connection(address: Any, *args: Any, **kwargs: Any) -> socke
     waiting for a local server to start is what ``http`` is for.
     """
     sock = socket.create_connection(address, *args, **kwargs)
-    peer = str(sock.getpeername()[0])
-    if _is_link_local(address=peer):
+    try:
+        peer = str(sock.getpeername()[0])
+        if _is_link_local(address=peer):
+            raise _LinkLocalRefused(f"refused: connected to link-local address {peer}")
+    except BaseException:
         sock.close()
-        raise _LinkLocalRefused(f"refused: connected to link-local address {peer}")
+        raise
     return sock
 
 
