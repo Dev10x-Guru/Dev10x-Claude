@@ -49,6 +49,7 @@ from dev10x.domain.common.plugin_version import SEMVER_PATTERN, PluginVersion
 from dev10x.domain.common.result import Result
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.domain.plugin_identity import CORE_PLUGIN_NAMES, PLUGIN_NAMES
+from dev10x.skills.doctor.strategies.mcp_vs_script_drift import SCRIPT_TO_MCP
 from dev10x.skills.permission.catalog_paths import shipped_projects_catalog
 from dev10x.skills.permission.config import parse_config, resolve_config
 from dev10x.skills.permission.doctor import has_double_slash_typo
@@ -110,6 +111,24 @@ DEPRECATED_READ_GLOBS: tuple[re.Pattern[str], ...] = (
 
 def is_deprecated_read_glob(rule: str) -> bool:
     return any(p.match(rule) for p in DEPRECATED_READ_GLOBS)
+
+
+# Case-sensitive on purpose: the plugin cache directory kept its uppercase
+# spelling only before the rename, and `~/.config/Dev10x` or
+# `Read(~/.claude/skills/Dev10x:...)` rules are still live (GH-1501).
+UPPERCASE_PLUGIN_READ_GLOB = re.compile(r"^Read\(.*plugins/cache/[^/]+/Dev10x/.*\*\*.*\)$")
+
+
+def is_uppercase_plugin_read_glob(rule: str) -> bool:
+    return UPPERCASE_PLUGIN_READ_GLOB.match(rule) is not None
+
+
+def is_wrapped_script_rule(rule: str) -> bool:
+    parsed = AllowRule.parse(rule)
+    if parsed.tool != "Bash":
+        return False
+    command = re.split(r"[\s:]", parsed.inner, maxsplit=1)[0]
+    return any(command == script or command.endswith(f"/{script}") for script in SCRIPT_TO_MCP)
 
 
 HOOK_ENABLED_INNER_PREFIXES: tuple[str, ...] = (
@@ -209,6 +228,8 @@ class RemovalResult:
     ask_shadowed_by_allow: list[tuple[str, str]] = field(default_factory=list)
     deprecated_globs: list[str] = field(default_factory=list)
     unmatchable_prefix: list[str] = field(default_factory=list)
+    uppercase_plugin_reads: list[str] = field(default_factory=list)
+    wrapped_scripts: list[str] = field(default_factory=list)
     kept: list[str] = field(default_factory=list)
     namespace_migration: NamespaceMigration = field(default_factory=NamespaceMigration)
     star_prefix_repair: StarPrefixRepair = field(default_factory=StarPrefixRepair)
@@ -228,6 +249,8 @@ class RemovalResult:
             + len(self.shell_fragments)
             + len(self.double_slash)
             + len(self.deprecated_globs)
+            + len(self.uppercase_plugin_reads)
+            + len(self.wrapped_scripts)
         )
 
 
@@ -446,6 +469,14 @@ def classify_rules(
 
         if is_deprecated_read_glob(rule):
             result.deprecated_globs.append(rule)
+            continue
+
+        if is_uppercase_plugin_read_glob(rule):
+            result.uppercase_plugin_reads.append(rule)
+            continue
+
+        if is_wrapped_script_rule(rule):
+            result.wrapped_scripts.append(rule)
             continue
 
         result.kept.append(rule)
@@ -697,6 +728,24 @@ def _format_messages(
         )
         if verbose:
             for rule in result.deprecated_globs:
+                messages.append(f"    {rule}")
+
+    if result.uppercase_plugin_reads:
+        messages.append(
+            f"  - {len(result.uppercase_plugin_reads)} Read globs on the pre-rename"
+            " uppercase Dev10x/ plugin directory"
+        )
+        if verbose:
+            for rule in result.uppercase_plugin_reads:
+                messages.append(f"    {rule}")
+
+    if result.wrapped_scripts:
+        messages.append(
+            f"  - {len(result.wrapped_scripts)} direct-script rules for scripts"
+            " a skill or MCP tool now wraps"
+        )
+        if verbose:
+            for rule in result.wrapped_scripts:
                 messages.append(f"    {rule}")
 
     if result.hook_enabled:
