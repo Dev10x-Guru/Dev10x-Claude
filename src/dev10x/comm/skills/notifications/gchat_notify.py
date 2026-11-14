@@ -41,6 +41,7 @@ CHAT_API_BASE = "https://chat.googleapis.com/v1"
 IAM_CREDENTIALS_BASE = "https://iamcredentials.googleapis.com/v1"
 _JWT_GRANT = "urn:ietf:params:oauth:grant-type:jwt-bearer"
 REPLY_FALLBACK_OPTION = "REPLY_MESSAGE_FALLBACK_TO_NEW_THREAD"
+REPLY_OR_FAIL_OPTION = "REPLY_MESSAGE_OR_FAIL"
 
 _config_holder: SingletonHolder[dict] = SingletonHolder()
 
@@ -478,6 +479,7 @@ def post_message_detailed(
     cards: list[dict] | None = None,
     fallback_text: str | None = None,
     thread: str | None = None,
+    reply_option: str = REPLY_FALLBACK_OPTION,
 ) -> Result[PostedMessage]:
     qualified_thread = qualify_thread_name(thread, space_id=space_id) if thread else None
     payload_result = build_message_payload(
@@ -488,8 +490,9 @@ def post_message_detailed(
     url = f"{CHAT_API_BASE}/spaces/{space_id}/messages"
     if qualified_thread:
         # FALLBACK_TO_NEW_THREAD degrades safely: a stale or wrong thread
-        # name posts a new thread rather than failing the send.
-        url = f"{url}?messageReplyOption={REPLY_FALLBACK_OPTION}"
+        # name posts a new thread rather than failing the send. A caller
+        # that must stay in one thread passes REPLY_OR_FAIL_OPTION.
+        url = f"{url}?messageReplyOption={reply_option}"
     result = _post_json(url, payload_result.value, token)
     if isinstance(result, ErrorResult):
         return result

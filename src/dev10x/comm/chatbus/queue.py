@@ -94,17 +94,20 @@ def claim(
     claimer: str,
     lease: timedelta,
     now: datetime,
+    kind: WorkKind | None = None,
 ) -> Result[WorkItem | None]:
     """Claim the oldest claimable item, or return None when the queue is empty.
 
     A lapsed lease counts as claimable, so an item held by a session
     that died with a restart comes back on its own (ADR-0035 D4).
+    ``kind`` limits the claim to one kind of work; None takes any.
     """
     if not claimer.strip():
         return err("A claim needs a non-empty claimer name")
     if lease <= timedelta(0):
         return err("A claim needs a positive lease", lease_seconds=lease.total_seconds())
     stamp = to_db_time(moment=now)
+    wanted_kind = None if kind is None else kind.value
     try:
         with write_transaction(conn=conn) as tx:
             row = tx.execute(
@@ -114,13 +117,21 @@ def claim(
                        attempts = attempts + 1, updated_at = ?
                  WHERE id = (
                        SELECT id FROM work_items
-                        WHERE status = 'queued'
-                           OR (status = 'claimed' AND claimed_until <= ?)
+                        WHERE (status = 'queued'
+                               OR (status = 'claimed' AND claimed_until <= ?))
+                          AND (? IS NULL OR kind = ?)
                         ORDER BY id
                         LIMIT 1)
                 RETURNING {_COLUMNS}
                 """,
-                (claimer, to_db_time(moment=now + lease), stamp, stamp),
+                (
+                    claimer,
+                    to_db_time(moment=now + lease),
+                    stamp,
+                    stamp,
+                    wanted_kind,
+                    wanted_kind,
+                ),
             ).fetchone()
     except sqlite3.Error as exc:
         log.error("Chat bus claim failed for %s: %s", claimer, exc)
@@ -194,3 +205,17 @@ def release(
         parameters=(to_db_time(moment=now),),
         action="release",
     )
+
+
+def get_item(*, conn: sqlite3.Connection, item_id: int) -> Result[WorkItem]:
+    """Read one item back, e.g. to confirm a write landed (GH-1424 pattern)."""
+    try:
+        row = conn.execute(
+            f"SELECT {_COLUMNS} FROM work_items WHERE id = ?", (item_id,)
+        ).fetchone()
+    except sqlite3.Error as exc:
+        log.error("Cannot read Chat bus work item %s: %s", item_id, exc)
+        return err(f"Cannot read Chat bus work item {item_id}: {exc}", item_id=item_id)
+    if row is None:
+        return err(f"No Chat bus work item {item_id}", item_id=item_id)
+    return ok(WorkItem.from_row(row))

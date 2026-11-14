@@ -592,6 +592,22 @@ class TestPostMessage:
         assert captured["url"].endswith(f"?messageReplyOption={mod.REPLY_FALLBACK_OPTION}")
         assert captured["payload"]["thread"] == {"name": "spaces/AAAA123/threads/T1"}
 
+    def test_reply_option_can_forbid_a_new_thread(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured: dict = {}
+        monkeypatch.setattr(
+            mod,
+            "_post_json",
+            lambda url, payload, token: captured.update(url=url) or ok({"name": "n"}),
+        )
+        mod.post_message_detailed(
+            space_id="AAAA123",
+            text="hi",
+            token="tok",
+            thread="T1",
+            reply_option=mod.REPLY_OR_FAIL_OPTION,
+        )
+        assert captured["url"].endswith("?messageReplyOption=REPLY_MESSAGE_OR_FAIL")
+
     def test_bare_thread_id_is_qualified_with_the_space(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:

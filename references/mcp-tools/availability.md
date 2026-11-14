@@ -93,6 +93,10 @@ supporting each tool:
 | `gchat_watch_arm` | `cli` | GH-1682 | v0.109.0+ |
 | `gchat_watch_disarm` | `cli` | GH-1682 | v0.109.0+ |
 | `gchat_watch_list` | `cli` | GH-1682 | v0.109.0+ |
+| `chat_queue_list` | `cli` | GH-1842 | v0.116.0+ |
+| `chat_queue_claim` | `cli` | GH-1842 | v0.116.0+ |
+| `chat_queue_reply` | `cli` | GH-1842 | v0.116.0+ (write; not seeded; posts as the Chat bot) |
+| `chat_queue_ack` | `cli` | GH-1842 | v0.116.0+ |
 | `find_fixup_target` | `cli` | GH-1777 | v0.113.0+ |
 | `audit_handoff_report` | `cli` | GH-1777 | v0.113.0+ |
 | `reconcile_fixes_links` | `cli` | GH-1777 | v0.113.0+ |

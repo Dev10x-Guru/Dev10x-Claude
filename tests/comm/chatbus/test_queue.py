@@ -18,6 +18,7 @@ from dev10x.comm.chatbus.queue import (
     ack,
     claim,
     enqueue,
+    get_item,
     release,
 )
 from dev10x.comm.chatbus.store import open_store
@@ -153,6 +154,30 @@ class TestClaim:
         assert claimed is not None
         assert claimed.id == oldest.id
 
+    @pytest.mark.parametrize(
+        ("kind", "expected"),
+        [(WorkKind.REPLY, "reply_item"), (WorkKind.PRIVILEGED, "privileged_item")],
+    )
+    def test_kind_limits_the_claim(
+        self, conn: sqlite3.Connection, kind: WorkKind, expected: str
+    ) -> None:
+        first, second = _event_ids(conn=conn, count=2)
+        items = {
+            "privileged_item": _enqueue(conn=conn, event_id=first, kind=WorkKind.PRIVILEGED),
+            "reply_item": _enqueue(conn=conn, event_id=second),
+        }
+        claimed = unwrap(claim(conn=conn, claimer="session-a", lease=LEASE, now=NOW, kind=kind))
+        assert claimed is not None
+        assert claimed.id == items[expected].id
+
+    def test_kind_with_nothing_of_that_kind_returns_none(
+        self, conn: sqlite3.Connection, queued: WorkItem
+    ) -> None:
+        result = claim(
+            conn=conn, claimer="session-a", lease=LEASE, now=NOW, kind=WorkKind.PRIVILEGED
+        )
+        assert unwrap(result) is None
+
     @pytest.mark.parametrize("claimer", ["", "   "])
     def test_requires_claimer(self, conn: sqlite3.Connection, claimer: str) -> None:
         assert isinstance(claim(conn=conn, claimer=claimer, lease=LEASE, now=NOW), ErrorResult)
@@ -237,6 +262,16 @@ class TestRelease:
         )
 
 
+class TestGetItem:
+    def test_reads_the_stored_row(self, conn: sqlite3.Connection, claimed: WorkItem) -> None:
+        assert unwrap(get_item(conn=conn, item_id=claimed.id)) == claimed
+
+    def test_unknown_item_is_an_error(self, conn: sqlite3.Connection) -> None:
+        result = get_item(conn=conn, item_id=999)
+        assert isinstance(result, ErrorResult)
+        assert result.details == {"item_id": 999}
+
+
 class TestLeaseBoundary:
     """The lease ends at claimed_until: from that instant the item is claimable again."""
 
@@ -297,6 +332,9 @@ class TestStoreErrors:
             release(conn=broken_store, item_id=queued.id, claimer="session-a", now=NOW),
             ErrorResult,
         )
+
+    def test_get_item(self, broken_store: sqlite3.Connection, queued: WorkItem) -> None:
+        assert isinstance(get_item(conn=broken_store, item_id=queued.id), ErrorResult)
 
 
 @dataclass

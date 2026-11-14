@@ -26,6 +26,10 @@ allowed-tools:
   - Glob
   - Write
   - AskUserQuestion
+  - mcp__plugin_dev10x_cli__chat_queue_list
+  - mcp__plugin_dev10x_cli__chat_queue_claim
+  - mcp__plugin_dev10x_cli__chat_queue_reply
+  - mcp__plugin_dev10x_cli__chat_queue_ack
 ---
 
 # dev10x:bus — Local Maildir Bus Between Claude Sessions
@@ -103,6 +107,10 @@ shell variable, no `&&`, no `cd`, no env prefix — or the allow rules
 
 Screening order, exit codes and wire format:
 [`references/watcher.md`](references/watcher.md).
+
+**Google Chat work (GH-1842):** claim, answer and ack Chat bus items
+with the `chat_queue_*` MCP tools, never the store; see
+[`references/chat-queue.md`](references/chat-queue.md).
 
 ## Dispatch on arguments
 

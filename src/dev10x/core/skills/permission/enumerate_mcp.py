@@ -530,6 +530,9 @@ WRITE_TOOLS_NOT_SEEDED: frozenset[str] = frozenset(
         # Adds an allow rule to every settings file at once (GH-1676);
         # its prompt is the supervisor's confirmation of the grant.
         "mcp__plugin_dev10x_cli__permission_grant",
+        # Posts to Google Chat as the bot; the dispatcher grants it to the
+        # one agent working a reply item (GH-1842, ADR-0035 D2).
+        "mcp__plugin_dev10x_cli__chat_queue_reply",
     }
 )
 
