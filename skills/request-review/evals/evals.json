@@ -22,6 +22,16 @@
       "description": "--audit classifies review-requested PRs as SENT-NOT-READY or WENT-RED-AFTER through review_readiness_audit and writes nothing (GH-1834)"
     },
     {
+      "id": "run-mode",
+      "name": "Resolved Run Mode",
+      "description": "Without --unattended, Step 1.6 reads run_mode from resolve_gate, treats undetermined as attended and says so (GH-1921)"
+    },
+    {
+      "id": "structured-result",
+      "name": "Structured Result",
+      "description": "Every run ends with a review_request_result line, and the child's stop is read from its status field, never from prose (GH-1921)"
+    },
+    {
       "id": "delegation",
       "name": "Skill Delegation",
       "description": "Assignment and notification are delegated to the sibling skills, never inlined as raw gh or API calls"
@@ -374,11 +384,12 @@
       "description": "GH-1834: the PR was a draft; the user answered 'Request review anyway' in Step 1.6. gh-pr-request-review flipped it, CI went red, the user chose 'Stop — fix it first', and the child returned it to draft, ending its output with 'Readiness: stopped — …'. Nobody was asked to review, so no chat notification or PR comment may go out.",
       "setup": {
         "is_draft": true,
-        "child_output_tail": "Readiness: stopped — CI failure: pytest (failure)",
+        "child_output_tail": "Readiness: stopped — CI failure: pytest (failure)\nreview_request_result: {\"status\": \"stopped\", \"pr\": 42, \"reasons\": [\"CI failure: pytest (failure)\"]}",
         "slack_config_names_repo": true
       },
       "dimensions": [
-        "readiness-gate"
+        "readiness-gate",
+        "structured-result"
       ],
       "assertions": [
         {
@@ -400,11 +411,12 @@
           ]
         },
         {
-          "id": "reports-stopped",
-          "text": "The summary repeats the sibling's stop line",
+          "id": "reports-stopped-result",
+          "text": "Ends with a review_request_result line whose status is stopped (GH-1921)",
           "check": "output_contains",
           "signals": [
-            "Readiness: stopped —"
+            "review_request_result:",
+            "\"status\": \"stopped\""
           ]
         }
       ]
@@ -413,19 +425,33 @@
       "id": 11,
       "name": "plan-step-call-refuses-with-stop-marker",
       "prompt": "Skill(skill=\"dev10x:request-review\", args=\"--pr 42 --repo org/repo\") — called by dev10x:work-on while executing its 'Request review' plan step",
-      "description": "GH-1890: no --unattended flag, but an orchestrator calls the skill while executing a plan step with an active task list, which the canonical definition counts as unattended. CI is red, so Step 1.6 refuses without a widget and prints the parseable stop marker.",
+      "description": "GH-1890, GH-1921: no --unattended flag, but resolve_gate reports run_mode unattended because a work-on plan step is in progress. CI is red, so Step 1.6 refuses without a widget and ends with a stopped result line.",
       "setup": {
         "ci_verdict": "failing",
         "unresolved_threads": 0,
         "bots_ready": true,
         "is_draft": false,
         "caller": "dev10x:work-on plan step",
-        "task_list_open": true
+        "task_list_open": true,
+        "resolve_gate_run_mode": {
+          "mode": "unattended",
+          "basis": "plan-step-in-progress",
+          "plan_step": "Request review"
+        }
       },
       "dimensions": [
-        "readiness-gate"
+        "readiness-gate",
+        "run-mode"
       ],
       "assertions": [
+        {
+          "id": "reads-run-mode",
+          "text": "Calls resolve_gate to read run_mode instead of judging the caller from prose (GH-1921)",
+          "check": "tool_called",
+          "signals": [
+            "mcp__plugin_dev10x_cli__resolve_gate"
+          ]
+        },
         {
           "id": "no-readiness-widget",
           "text": "Does NOT call AskUserQuestion — a plan-step call is unattended",
@@ -443,11 +469,12 @@
           ]
         },
         {
-          "id": "prints-stop-marker",
-          "text": "Ends the output with the readiness stop marker",
+          "id": "prints-stopped-result",
+          "text": "Ends the output with a review_request_result line whose status is stopped",
           "check": "output_contains",
           "signals": [
-            "Readiness: stopped —"
+            "review_request_result:",
+            "\"status\": \"stopped\""
           ]
         }
       ]
@@ -456,16 +483,21 @@
       "id": 12,
       "name": "task-list-without-plan-step-is-attended",
       "prompt": "/dev10x:request-review --pr 42 --repo org/repo",
-      "description": "GH-1890: the supervisor types the command in a session whose task list happens to be open, but no orchestrator is executing a plan step. An active task list alone does not make a run unattended, so the readiness widget fires.",
+      "description": "GH-1890, GH-1921: the supervisor types the command in a session whose task list happens to be open, but no plan step is in progress, so resolve_gate reports run_mode attended. An active task list alone does not make a run unattended, so the readiness widget fires.",
       "setup": {
         "ci_verdict": "failing",
         "unresolved_threads": 0,
         "bots_ready": true,
         "is_draft": false,
-        "task_list_open": true
+        "task_list_open": true,
+        "resolve_gate_run_mode": {
+          "mode": "attended",
+          "basis": "no-plan-step-in-progress"
+        }
       },
       "dimensions": [
-        "readiness-gate"
+        "readiness-gate",
+        "run-mode"
       ],
       "assertions": [
         {
@@ -483,7 +515,7 @@
       "id": 13,
       "name": "attended-stop-prints-stop-marker",
       "prompt": "/dev10x:request-review --pr 42 --repo org/repo",
-      "description": "GH-1890: CI is red and the supervisor answers 'Stop — fix it first'. The run ends at Step 1.6 and still prints the same stop marker the sibling prints, so a caller can parse it either way.",
+      "description": "GH-1890, GH-1921: CI is red and the supervisor answers 'Stop — fix it first'. The run ends at Step 1.6 and ends with the same stopped result line the sibling emits, so a caller can branch on status either way.",
       "setup": {
         "ci_verdict": "failing",
         "unresolved_threads": 0,
@@ -513,11 +545,12 @@
           ]
         },
         {
-          "id": "prints-stop-marker",
-          "text": "Ends the output with the readiness stop marker",
+          "id": "prints-stopped-result",
+          "text": "Ends the output with a review_request_result line whose status is stopped",
           "check": "output_contains",
           "signals": [
-            "Readiness: stopped —"
+            "review_request_result:",
+            "\"status\": \"stopped\""
           ]
         }
       ]
@@ -586,6 +619,110 @@
           "check": "command_absent",
           "signals": [
             "--unattended"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "name": "undetermined-run-mode-is-reported-and-attended",
+      "prompt": "/dev10x:request-review --pr 42 --repo org/repo",
+      "description": "GH-1921: CI is red and resolve_gate reports run_mode undetermined because the session mirrors no tasks. The run is treated as attended, so the readiness widget fires, and the output says the mode was not settled instead of presenting it as attended.",
+      "setup": {
+        "ci_verdict": "failing",
+        "unresolved_threads": 0,
+        "bots_ready": true,
+        "is_draft": false,
+        "resolve_gate_run_mode": {
+          "mode": "undetermined",
+          "basis": "plan-mirror-has-no-tasks"
+        }
+      },
+      "dimensions": [
+        "run-mode"
+      ],
+      "assertions": [
+        {
+          "id": "fires-readiness-widget",
+          "text": "Calls AskUserQuestion with header Readiness — undetermined is attended",
+          "check": "tool_called",
+          "signals": [
+            "AskUserQuestion",
+            "Readiness"
+          ]
+        },
+        {
+          "id": "reports-undetermined",
+          "text": "Prints that the run mode was undetermined and names its basis",
+          "check": "output_contains",
+          "signals": [
+            "Run mode: undetermined (plan-mirror-has-no-tasks) — treated as attended"
+          ]
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "name": "child-stop-read-from-status-not-prose",
+      "prompt": "/dev10x:request-review --pr 42 --repo org/repo --unattended",
+      "description": "GH-1921: the PR is ready at Step 1.6, but gh-pr-request-review's draft flip turned CI red and it refused. Its prose wording differs from the old marker; its review_request_result line says stopped. request-review reads the status, so nothing is posted and its own result is stopped.",
+      "setup": {
+        "ci_verdict": "green",
+        "unresolved_threads": 0,
+        "bots_ready": true,
+        "is_draft": false,
+        "child_output_tail": "Refused: CI went red after the flip.\nreview_request_result: {\"status\": \"stopped\", \"pr\": 42, \"reasons\": [\"CI failure: lint (failure)\"]}",
+        "slack_config_names_repo": true
+      },
+      "dimensions": [
+        "structured-result"
+      ],
+      "assertions": [
+        {
+          "id": "posts-nothing-after-the-stop",
+          "text": "Does NOT post a chat notification or a PR comment",
+          "check": "command_absent",
+          "signals": [
+            "dev10x:slack-review-request",
+            "dev10x:gchat-review-request",
+            "mcp__plugin_dev10x_cli__pr_issue_comment"
+          ]
+        },
+        {
+          "id": "own-result-is-stopped",
+          "text": "Ends with its own review_request_result line whose status is stopped",
+          "check": "output_contains",
+          "signals": [
+            "review_request_result:",
+            "\"status\": \"stopped\""
+          ]
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "name": "successful-request-emits-requested-result",
+      "prompt": "/dev10x:request-review --pr 42 --repo org/repo --unattended",
+      "description": "GH-1921: the PR is ready and reviewers are assigned. The run still ends with a result line, status requested, so a caller never has to infer success from the summary prose.",
+      "setup": {
+        "ci_verdict": "green",
+        "unresolved_threads": 0,
+        "bots_ready": true,
+        "is_draft": false,
+        "child_output_tail": "Assigned @alice\nreview_request_result: {\"status\": \"requested\", \"pr\": 42, \"reasons\": []}",
+        "slack_config_names_repo": true
+      },
+      "dimensions": [
+        "structured-result"
+      ],
+      "assertions": [
+        {
+          "id": "requested-result",
+          "text": "Ends with a review_request_result line whose status is requested",
+          "check": "output_contains",
+          "signals": [
+            "review_request_result:",
+            "\"status\": \"requested\""
           ]
         }
       ]

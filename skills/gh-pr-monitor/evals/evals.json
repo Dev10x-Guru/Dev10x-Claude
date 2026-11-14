@@ -17,6 +17,16 @@
       "description": "After CI returns green, the Post-CI comment re-check (haiku-thread-scan) runs before the PR is marked ready. The PR is marked ready only when all four thread-scan arrays (unresolved_threads, body_findings, top_level_findings, needs_disposition) are empty — a non-blocking INFO in needs_disposition still blocks readiness (GH-465, GH-808 F1)."
     },
     {
+      "id": "run-mode",
+      "name": "Resolved Run Mode",
+      "description": "Without --unattended, the monitor reads run_mode from its resolve_gate payload; undetermined is attended and reported (GH-1921)."
+    },
+    {
+      "id": "structured-result",
+      "name": "Structured Review-Request Result",
+      "description": "Phase 3 Step 3a branches on the status of request-review's review_request_result line, never on its prose; a missing line is unknown, not success (GH-1921)."
+    },
+    {
       "id": "qa-gate",
       "name": "QA Scope Gate",
       "description": "Phase 2.5 delegates to Skill(dev10x:qa-scope), which always presents a QA assessment via AskUserQuestion once Phase 2 completes."
@@ -189,9 +199,14 @@
     {
       "id": "unattended-monitor-passes-unattended",
       "name": "An unattended monitor passes --unattended to request-review",
-      "description": "GH-1890: dev10x:work-on runs the monitor as its 'Monitor CI' plan step with an active task list, which references/review-readiness.md counts as unattended. Phase 3 Step 3a must call dev10x:request-review with --unattended; without it request-review treats the call as attended and may fire its readiness widget.",
-      "input": "Skill(skill=\"dev10x:gh-pr-monitor\") — called by dev10x:work-on while executing its 'Monitor CI' plan step with an active task list",
+      "description": "GH-1890, GH-1921: dev10x:work-on runs the monitor as its 'Monitor CI' plan step, so the Step 2 resolve_gate payload carries run_mode {mode: unattended, basis: plan-step-in-progress}. Phase 3 Step 3a must call dev10x:request-review with --unattended; without it request-review treats the call as attended and may fire its readiness widget.",
+      "input": "Skill(skill=\"dev10x:gh-pr-monitor\") — called by dev10x:work-on while executing its 'Monitor CI' plan step; resolve_gate returns run_mode {\"mode\": \"unattended\", \"basis\": \"plan-step-in-progress\"}",
       "assertions": [
+        {
+          "dimension": "run-mode",
+          "check": "behavioral",
+          "signal": "the unattended decision is taken from run_mode.mode on the resolve_gate payload, not from the caller's prose"
+        },
         {
           "dimension": "notify-gate-escalation",
           "check": "tool_called",
@@ -245,6 +260,63 @@
           "dimension": "notify-gate-escalation",
           "check": "behavioral",
           "signal": "pr_detect receives '123' without the --unattended flag"
+        }
+      ]
+    },
+    {
+      "id": "undetermined-run-mode-is-attended-and-reported",
+      "name": "An undetermined run mode is treated as attended and said so",
+      "description": "GH-1921: no --unattended flag, and resolve_gate(external_notify) returns run_mode {mode: undetermined, basis: no-plan-mirror}. Step 3a treats the run as attended, calls request-review without the flag, and prints the undetermined line instead of presenting the mode as settled.",
+      "input": "/dev10x:gh-pr-monitor 123 — resolve_gate returns run_mode {\"mode\": \"undetermined\", \"basis\": \"no-plan-mirror\"}",
+      "assertions": [
+        {
+          "dimension": "run-mode",
+          "check": "behavioral",
+          "signal": "dev10x:request-review is invoked with '--pr 123 --repo {repo}' and no --unattended"
+        },
+        {
+          "dimension": "run-mode",
+          "check": "output_contains",
+          "value": "Run mode: undetermined (no-plan-mirror) — treated as attended",
+          "signal": "The undetermined mode and its basis are reported"
+        }
+      ]
+    },
+    {
+      "id": "review-stop-read-from-status",
+      "name": "Step 3a branches on the result status, not on prose",
+      "description": "GH-1921: dev10x:request-review refused because CI went red. Its prose never says 'Readiness: stopped', but its last line is review_request_result: {\"status\": \"stopped\", ...}. Step 3a parses the status, skips Step 3b and reports the reasons.",
+      "input": "/dev10x:gh-pr-monitor 123 --unattended — request-review output ends with 'review_request_result: {\"status\": \"stopped\", \"pr\": 123, \"reasons\": [\"CI failure: lint (failure)\"]}'",
+      "assertions": [
+        {
+          "dimension": "structured-result",
+          "check": "behavioral",
+          "signal": "pr_notify(action=\"send\") is NOT called for Step 3b after a stopped status"
+        },
+        {
+          "dimension": "structured-result",
+          "check": "output_contains",
+          "value": "CI failure: lint (failure)",
+          "signal": "The reasons from the result line are reported"
+        }
+      ]
+    },
+    {
+      "id": "review-result-missing-is-unknown",
+      "name": "A missing result line is never read as a sent request",
+      "description": "GH-1921: dev10x:request-review's output has no review_request_result line. Step 3a cannot tell whether anyone was asked, so it skips Step 3b and reports the result as unknown rather than claiming review was requested.",
+      "input": "/dev10x:gh-pr-monitor 123 --unattended — request-review output carries no review_request_result line",
+      "assertions": [
+        {
+          "dimension": "structured-result",
+          "check": "behavioral",
+          "signal": "pr_notify(action=\"send\") is NOT called for Step 3b"
+        },
+        {
+          "dimension": "structured-result",
+          "check": "output_contains",
+          "value": "Review request: result unknown",
+          "signal": "The unknown result is reported"
         }
       ]
     }

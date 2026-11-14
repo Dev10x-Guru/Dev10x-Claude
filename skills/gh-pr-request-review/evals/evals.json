@@ -298,8 +298,8 @@
     {
       "id": "readiness-plan-step-call-is-unattended",
       "name": "A plan-step Skill() call without the flag is unattended",
-      "description": "GH-1890: dev10x:work-on calls this skill through Skill() while executing its 'Request review' plan step with an active task list, and passes no --unattended. Two review threads are open. The canonical definition (references/review-readiness.md) counts a plan-step call as unattended, so the skill refuses without a widget and ends with the stop marker.",
-      "input": "Skill(skill=\"dev10x:gh-pr-request-review\") — called by dev10x:work-on while executing its 'Request review' plan step with an active task list",
+      "description": "GH-1890, GH-1921: dev10x:work-on calls this skill through Skill() while executing its 'Request review' plan step, and passes no --unattended. resolve_gate(request_review) returns run_mode {mode: unattended, basis: plan-step-in-progress}. Two review threads are open, so the skill refuses without a widget and ends with a stopped result line.",
+      "input": "Skill(skill=\"dev10x:gh-pr-request-review\") — called by dev10x:work-on while executing its 'Request review' plan step; resolve_gate returns run_mode {\"mode\": \"unattended\", \"basis\": \"plan-step-in-progress\"}",
       "assertions": [
         {
           "dimension": "readiness-gate",
@@ -309,7 +309,7 @@
         {
           "dimension": "readiness-gate",
           "check": "output_contains",
-          "signal": "Readiness: stopped —"
+          "signal": "review_request_result: {\"status\": \"stopped\""
         }
       ]
     },

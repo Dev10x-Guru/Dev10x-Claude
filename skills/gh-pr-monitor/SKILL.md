@@ -51,11 +51,11 @@ the user can keep working.
 - `--unattended` (GH-1911) — nobody is watching this run. No phase
   fires a notification widget: an `external_notify` gate that
   resolves to `ask` is treated as `skip`, and Phase 3 passes
-  `--unattended` on to `dev10x:request-review`. A `Skill()` call
-  from an orchestrator executing a plan step with an active task
-  list is unattended too, with or without the flag
-  (`references/review-readiness.md`). Strip the flag before
-  handing the PR argument to `pr_detect`.
+  `--unattended` on to `dev10x:request-review`. Without the flag
+  the run is still unattended when `resolve_gate`'s `run_mode.mode`
+  says so — an `afk` overlay or a work-on plan step in progress
+  (GH-1921, `references/review-readiness.md`). Strip the flag
+  before handing the PR argument to `pr_detect`.
 
 ## Instructions
 

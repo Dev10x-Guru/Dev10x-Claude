@@ -244,12 +244,12 @@ NOT notify the requested reviewers — the request is lost.
    this step even if `--readiness-checked` was passed: the caller
    checked the PR before it was ready. Otherwise skip this step when
    the caller passed `--readiness-checked` (`dev10x:request-review`
-   already ran it). When a condition fails: unattended (as that file
-   defines it — `--unattended`, or a `Skill()` call from an
-   orchestrator while executing a plan step with an active task list,
-   e.g. the work-on "Request review" step; a call from
-   `dev10x:request-review` is attended unless it passes
-   `--unattended`), refuse and stop; attended, **REQUIRED: Call
+   already ran it). When a condition fails, resolve the run mode as
+   that file orders it: `--unattended`, else `run_mode.mode` from the
+   `resolve_gate(gate="request_review")` payload this skill already
+   read (`undetermined` is attended — print `Run mode: undetermined
+   ({basis}) — treated as attended`). Unattended: refuse and stop;
+   attended, **REQUIRED: Call
    `AskUserQuestion`** (do NOT use plain text) with **Stop — fix it
    first (Recommended)** and **Request review anyway**, header
    `Readiness`. When the run stops here after this run flipped a
@@ -257,8 +257,11 @@ NOT notify the requested reviewers — the request is lost.
    the PR to draft with
    `mcp__plugin_dev10x_cli__pr_ready(pr_number={pr_number}, undo=true)`
    before stopping, so it is not left published with a known problem.
-   Whenever the run stops at this step, end the output with the line
-   `Readiness: stopped — {reasons}`; `dev10x:request-review` keys on it.
+   Whenever the run stops at this step, print `Readiness: stopped —
+   {reasons}` for humans, then end with the `review_request_result:`
+   line (`status: "stopped"`) from that file § Result for callers —
+   `dev10x:request-review` reads its `status`, not the prose. Every
+   other ending of this skill emits that line too.
 5. Call the `request_review` MCP tool with the resolved reviewers
 
 ### Stand-by / Defer path (GH-396, ADR-0019, GH-998)
