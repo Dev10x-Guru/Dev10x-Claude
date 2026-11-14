@@ -111,6 +111,36 @@ class TestFindRelay:
     def test_ignores_non_matching(self, pane: HerdrPane, sessions: list[ClaudeSession]) -> None:
         assert _find(panes=[pane], sessions=sessions) == []
 
+    @pytest.mark.parametrize(
+        "spelling",
+        [RELAY_CWD + "/", RELAY_CWD + "/./", "/home/janusz/.config/Dev10x/../Dev10x/overwatch"],
+        ids=["trailing-slash", "dot-segment", "parent-segment"],
+    )
+    def test_matches_the_state_dir_however_it_is_spelled(self, spelling: str) -> None:
+        relay = _pane()
+
+        assert _find(panes=[relay], sessions=[_session(name="kb-84", cwd=spelling)]) == [relay]
+
+    def test_matches_the_state_dir_through_a_symlink(self, tmp_path: Path) -> None:
+        state = tmp_path / "overwatch"
+        state.mkdir()
+        link = tmp_path / "config-link"
+        link.symlink_to(tmp_path)
+        relay = _pane()
+
+        matches = find_relay(
+            panes=[relay],
+            sessions=[_session(name="kb-84", cwd=str(link / "overwatch"))],
+            name="relay",
+            mailbox=MAILBOX,
+            cwd=str(state),
+        )
+
+        assert matches == [relay]
+
+    def test_an_empty_session_cwd_is_not_the_state_dir(self) -> None:
+        assert _find(panes=[_pane()], sessions=[_session(name="kb-84", cwd="")]) == []
+
     def test_reports_every_pane_that_matches(self) -> None:
         first = _pane()
         second = _pane(pane_id="w8:p1", session_id=OTHER_ID)
@@ -272,13 +302,18 @@ class TestAttempt:
         make_rearm: Callable[..., RelayRearm],
         sender: RecordingSender,
         unwritable_log_path: Path,
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
         rearm = make_rearm(panes=[_pane()])
         rearm.log_path = unwritable_log_path
 
-        assert (rearm.attempt(), sender.calls) == (
+        with caplog.at_level(logging.WARNING, logger="dev10x.comm.overwatch.delivery"):
+            outcome = rearm.attempt()
+
+        assert (outcome, sender.calls, "could not record" in caplog.text) == (
             RearmOutcome.SENT,
             [{"pane_id": "w7:p1", "text": REARM_PROMPT}],
+            True,
         )
 
     def test_logs_who_confirmed(
@@ -317,10 +352,10 @@ class RecordingStop(threading.Event):
     def __init__(self, *, give_up_after: int) -> None:
         super().__init__()
         self.give_up_after = give_up_after
-        self.delays: list[float] = []
+        self.delays: list[float | None] = []
 
     def wait(self, timeout: float | None = None) -> bool:
-        self.delays.append(timeout or 0.0)
+        self.delays.append(timeout)
         if len(self.delays) >= self.give_up_after:
             self.set()
         return self.is_set()
