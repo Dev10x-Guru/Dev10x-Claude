@@ -156,6 +156,15 @@ maintenance pass reported failures — leaving `version.yml`
 stale keeps the upgrade prompt visible until the issue is
 resolved.
 
+## Auto mode sessions (GH-1868)
+
+In auto mode the classifier can deny reads and writes of the user-level
+settings files that Step 2's audit and Step 3's guard registration
+touch. Follow [`references/auto-mode.md`](references/auto-mode.md):
+restrictive half of a paired edit first, no retry by another route,
+hand the exact change to the supervisor, and never put a denied
+project rule in the global file instead.
+
 ## Post-upgrade verification (GH-1137)
 
 **A clean maintenance log is not proof the upgrade landed.** GH-1136

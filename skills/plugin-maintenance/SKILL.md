@@ -932,6 +932,12 @@ HIGH finding unattended:
 Skill(skill="dev10x:permission-audit-apply", args="--severity-max=HIGH")
 ```
 
+**Auto mode (GH-1868).** The auto mode classifier can deny the
+auditor's reads of user-level settings and the apply skill's edits to
+them. A denial is not a failure of the pass: record the change as
+handed over to the supervisor and continue. The rules for that case
+are in `skills/upgrade-cleanup/references/auto-mode.md`.
+
 ### 11. Clean project files *(full only)*
 
 Strip redundant rules from project `settings.local.json` files.
