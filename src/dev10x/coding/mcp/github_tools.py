@@ -1456,7 +1456,12 @@ async def resolve_review_thread(
         cwd: Effective working directory (GH-979).
 
     Returns:
-        Dictionary with GraphQL mutation results per resolved thread
+        Dictionary with ``data`` (the GraphQL mutation results) and
+        ``resolved`` (thread IDs GitHub reports resolved). A batch where
+        only some threads resolved is still a success: it adds ``failed``
+        (thread IDs that did not resolve) and ``warnings`` (one message
+        per GraphQL error, naming its thread). Only a batch where nothing
+        resolved returns ``{"error": ...}`` (GH-1913).
     """
     return await gh.resolve_review_thread(
         thread_ids=thread_ids,
