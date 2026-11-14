@@ -314,6 +314,149 @@
       "title": "candidate_rules_reportArguments",
       "type": "object"
     },
+    "chat_queue_ack": {
+      "properties": {
+        "claimer": {
+          "title": "Claimer",
+          "type": "string"
+        },
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "item_id": {
+          "title": "Item Id",
+          "type": "integer"
+        },
+        "result": {
+          "default": "",
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "item_id",
+        "claimer"
+      ],
+      "title": "chat_queue_ackArguments",
+      "type": "object"
+    },
+    "chat_queue_claim": {
+      "properties": {
+        "claimer": {
+          "title": "Claimer",
+          "type": "string"
+        },
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "kind": {
+          "default": "reply",
+          "title": "Kind",
+          "type": "string"
+        },
+        "lease_seconds": {
+          "default": 900,
+          "title": "Lease Seconds",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "claimer"
+      ],
+      "title": "chat_queue_claimArguments",
+      "type": "object"
+    },
+    "chat_queue_list": {
+      "properties": {
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "limit": {
+          "default": 20,
+          "title": "Limit",
+          "type": "integer"
+        },
+        "status": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Status"
+        }
+      },
+      "title": "chat_queue_listArguments",
+      "type": "object"
+    },
+    "chat_queue_reply": {
+      "properties": {
+        "claimer": {
+          "title": "Claimer",
+          "type": "string"
+        },
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "item_id": {
+          "title": "Item Id",
+          "type": "integer"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "item_id",
+        "claimer",
+        "text"
+      ],
+      "title": "chat_queue_replyArguments",
+      "type": "object"
+    },
     "check_top_level_comments": {
       "properties": {
         "cwd": {
