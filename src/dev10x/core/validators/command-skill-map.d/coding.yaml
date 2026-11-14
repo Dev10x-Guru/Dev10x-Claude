@@ -215,10 +215,12 @@ rules:
         tool: mcp__plugin_dev10x_cli__issue_close
         guardrails: structured responses, no Bash permission friction
         description: >
-          If the MCP server is unavailable, use gh issue close N
-          --reason <completed|not_planned> directly, including the
-          string `cli-friction: allow raw-gh-issue-write` in the
-          command so this rule lets it through.
+          Writes wait during an MCP outage. Attended: ask the user to
+          reconnect via /mcp. Unattended: record the blocker and stop.
+          Scripted DoD checks only: gh issue close N --reason
+          <completed|not_planned> with the string
+          `cli-friction: allow raw-gh-issue-write` in the command
+          lets it through.
     reason: >
       Direct gh issue close changes issue state and requires per-call
       Bash permission. The MCP tool accepts reason and optional
@@ -237,10 +239,11 @@ rules:
         tool: mcp__plugin_dev10x_cli__issue_reopen
         guardrails: structured responses, no Bash permission friction
         description: >
-          If the MCP server is unavailable, use gh issue reopen N
-          directly, including the string
-          `cli-friction: allow raw-gh-issue-write` in the command so
-          this rule lets it through.
+          Writes wait during an MCP outage. Attended: ask the user to
+          reconnect via /mcp. Unattended: record the blocker and stop.
+          Scripted DoD checks only: gh issue reopen N with the string
+          `cli-friction: allow raw-gh-issue-write` in the command
+          lets it through.
     reason: >
       Direct gh issue reopen changes issue state and requires per-call
       Bash permission. The MCP tool returns structured responses and
@@ -287,10 +290,10 @@ rules:
         tool: mcp__plugin_dev10x_cli__issue_create
         guardrails: structured responses, no Bash permission friction
         description: >
-          If the MCP server is unavailable, use gh issue create directly
-          with --title and --body-file. GH-1266: --body-file is the form
-          this rule's `except` lets through — a --body fallback would be
-          denied by the same rule that suggested it.
+          Writes wait during an MCP outage. Attended: ask the user to
+          reconnect via /mcp. Unattended: record the blocker and stop.
+          Scripted callers only: gh issue create with --title and
+          --body-file is the form this rule's `except` lets through.
     reason: >
       Direct gh issue create requires Bash permission approval on
       every call. The MCP tool provides structured JSON responses
@@ -311,11 +314,11 @@ rules:
         tool: mcp__plugin_dev10x_cli__update_pr
         guardrails: structured responses, no Bash permission friction
         description: >
-          If the MCP server is unavailable, use gh pr edit directly
-          with the required flags (--title, --body-file, --add-label,
-          --milestone, --base), including the string
-          `cli-friction: allow raw-gh-pr-write` in the command so this
-          rule lets it through.
+          Writes wait during an MCP outage. Attended: ask the user to
+          reconnect via /mcp. Unattended: record the blocker and stop.
+          Scripted DoD checks only: gh pr edit with the string
+          `cli-friction: allow raw-gh-pr-write` in the command lets
+          it through.
     reason: >
       Direct gh pr edit mutates PR metadata (title, body, labels,
       base) and bypasses the gh-pr-create "update mode" guardrails.
@@ -338,10 +341,11 @@ rules:
           Covers both directions: omit `undo` to publish a draft, pass
           `undo=true` to convert a published PR back to draft (GH-931
           finding 2) — the safe response to spotting a problem after
-          marking ready. If the MCP server is unavailable, run
-          gh pr ready <pr> --repo <owner/repo> [--undo] directly,
-          including the string `cli-friction: allow raw-gh-pr-write`
-          in the command so this rule lets it through.
+          marking ready. Writes wait during an MCP outage. Attended:
+          ask the user to reconnect via /mcp. Unattended: record the
+          blocker and stop. Scripted DoD checks only: gh pr ready <pr>
+          with the string `cli-friction: allow raw-gh-pr-write` in the
+          command lets it through.
     reason: >
       The draft flag is not PATCHable via update_pr, so un-drafting
       needs gh pr ready. The pr_ready MCP tool (GH-779) wraps it with
@@ -361,10 +365,11 @@ rules:
         tool: mcp__plugin_dev10x_cli__issue_edit
         guardrails: structured responses, no Bash permission friction
         description: >
-          If the MCP server is unavailable, use gh issue edit directly
-          with --title, --body-file, --milestone, --add-label, including
-          the string `cli-friction: allow raw-gh-issue-write` in the
-          command so this rule lets it through.
+          Writes wait during an MCP outage. Attended: ask the user to
+          reconnect via /mcp. Unattended: record the blocker and stop.
+          Scripted DoD checks only: gh issue edit with the string
+          `cli-friction: allow raw-gh-issue-write` in the command
+          lets it through.
     reason: >
       Direct gh issue edit mutates issue metadata (title, body,
       milestone, labels) and requires per-call Bash permission. The
@@ -381,21 +386,19 @@ rules:
         tool: mcp__plugin_dev10x_cli__issue_comment
         guardrails: structured responses, body written to temp file safely
         description: >
-          Use the MCP tool. If the MCP server is unavailable, the
-          sanctioned fallback is
-          `gh api repos/<owner>/<repo>/issues/<n>/comments -F body=@<file>`
-          — NOT `gh issue comment --body-file`, which this same rule
-          blocks (GH-1068 F6).
+          Use the MCP tool. Writes wait during an MCP outage.
+          Attended: ask the user to reconnect via /mcp. Unattended:
+          record the blocker and stop. `gh issue comment --body-file`
+          is not a fallback (this same rule blocks it, GH-1068 F6),
+          and neither is a raw `gh api` POST.
     reason: >
       Direct gh issue comment requires Bash permission per call and
       forces callers to manage heredoc/quoting. The MCP tool writes
       the body to a temp file and returns the comment permalink.
-      The fallback names `gh api … -F body=@<file>` because the
-      previous hint pointed at `gh issue comment --body-file`, a shape
-      this rule denies — so a caller that hit the block was steered
-      into the block a second time, with no working path out. A hint
-      that is itself denied is worse than no hint: it reads as
-      sanctioned and costs another round trip to disprove.
+      The fallback names no raw write because a hint that is itself
+      denied reads as sanctioned and costs another round trip to
+      disprove, and a raw gh api POST would contradict the outage
+      guidance that writes wait (GH-1916).
 
   - name: gh-issue-list
     matcher: Bash
