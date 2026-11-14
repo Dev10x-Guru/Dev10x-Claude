@@ -1,0 +1,39 @@
+@startuml component-architecture
+!theme plain
+title Interactive artifacts on the local Overwatch server (ADR-0036)
+
+actor Supervisor
+rectangle "Claude session (owner)" as session {
+  component "dev10x:artifact skill" as skill
+  component "dev10x overwatch artifact put" as cli
+}
+
+rectangle "Overwatch daemon (127.0.0.1, token)" as daemon {
+  component "artifacts.py\nstore + schema v1" as store
+  component "publishers.py\nbuilt-in + overwatch.yaml" as publishers
+  component "server.py\n/api/artifact, /artifact/event,\n/artifact/share, SSE" as server
+  component "delivery.py\nprompt or relay" as delivery
+}
+
+database "~/.config/Dev10x/overwatch/\nartifacts/<id>.json\n<id>.events.jsonl" as files
+file "~/.config/Dev10x/overwatch.yaml\nartifact_publishers:" as config
+component "Svelte SPA\nartifact view (hash a/<id>)" as spa
+component "herdr\nsubmit_prompt" as herdr
+component "dev10x:bus\noverwatch-relay -> SendMessage" as relay
+cloud "claude.ai / configured\nskill or MCP publisher" as publisher
+
+skill --> cli : JSON document
+cli --> store : validate, owner, revision
+store --> files
+server --> store : index + read
+server --> publishers
+publishers --> config
+spa <--> server : GET / POST / SSE
+Supervisor --> spa : read, press, share
+server --> delivery
+delivery --> herdr : idle pane
+delivery --> relay : otherwise
+herdr --> session
+relay --> session
+session --> publisher : publishes on request
+@enduml
