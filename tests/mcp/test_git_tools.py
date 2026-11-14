@@ -406,6 +406,60 @@ class TestFindFixupTarget:
         mock_use_cwd.assert_called_once_with(str(tmp_path))
 
 
+class TestWorktreePruneCandidates:
+    @pytest.mark.asyncio
+    @patch(
+        "dev10x.coding.git.worktree_prune.worktree_prune_candidates",
+        new_callable=AsyncMock,
+    )
+    async def test_delegates_with_defaults(self, mock_fn: AsyncMock) -> None:
+        mock_fn.return_value = ok({"remove": [], "ask": [], "keep": ["/repo"]})
+
+        result = await cli_server.worktree_prune_candidates()
+
+        assert (result["keep"], mock_fn.call_args.kwargs) == (
+            ["/repo"],
+            {"base": "develop", "paths": None},
+        )
+
+    @pytest.mark.asyncio
+    @patch(
+        "dev10x.coding.git.worktree_prune.worktree_prune_candidates",
+        new_callable=AsyncMock,
+    )
+    async def test_forwards_base_and_paths(self, mock_fn: AsyncMock) -> None:
+        mock_fn.return_value = ok({"worktrees": []})
+
+        await cli_server.worktree_prune_candidates(base="main", paths=["/wt/a"])
+
+        assert mock_fn.call_args.kwargs == {"base": "main", "paths": ["/wt/a"]}
+
+    @pytest.mark.asyncio
+    @patch(
+        "dev10x.coding.git.worktree_prune.worktree_prune_candidates",
+        new_callable=AsyncMock,
+    )
+    async def test_returns_error_on_failure(self, mock_fn: AsyncMock) -> None:
+        mock_fn.return_value = err("not inside a git repository")
+
+        result = await cli_server.worktree_prune_candidates()
+
+        assert result["error"] == "not inside a git repository"
+
+    @pytest.mark.asyncio
+    @patch(
+        "dev10x.coding.git.worktree_prune.worktree_prune_candidates",
+        new_callable=AsyncMock,
+    )
+    async def test_forwards_cwd(self, mock_fn: AsyncMock, tmp_path) -> None:
+        mock_fn.return_value = ok({"worktrees": []})
+
+        with patch("dev10x.subprocess_utils.use_cwd") as mock_use_cwd:
+            await cli_server.worktree_prune_candidates(cwd=str(tmp_path))
+
+        mock_use_cwd.assert_called_once_with(str(tmp_path))
+
+
 class TestSetupAliases:
     @pytest.mark.asyncio
     @patch("dev10x.git.setup_aliases", new_callable=AsyncMock)
