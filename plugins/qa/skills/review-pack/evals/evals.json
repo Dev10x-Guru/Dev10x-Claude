@@ -195,6 +195,47 @@
       ]
     },
     {
+      "id": "stale-video-refused",
+      "name": "A video older than the last UI commit is refused with a re-record message",
+      "description": "A review fix restyled a button after the pack's video was recorded (GH-1828)",
+      "input": "/dev10x-qa:review-pack the review fixes are in, send the pack again",
+      "assertions": [
+        {
+          "dimension": "gate-enforcement",
+          "check": "tool_called",
+          "tool": "Bash",
+          "assertion": "freshness_check_runs",
+          "signal": "scripts/video-freshness.py is run with --base and the configured ui_globs before review is requested"
+        },
+        {
+          "dimension": "gate-enforcement",
+          "check": "output_contains",
+          "value": "Re-record",
+          "signal": "The refusal names the stale video and the UI commit that outdated it"
+        },
+        {
+          "dimension": "gate-enforcement",
+          "check": "behavioral",
+          "assertion": "stale_video_not_sent",
+          "signal": "The pack is not sent with the stale video unless an override reason is stated and written into section 4"
+        }
+      ]
+    },
+    {
+      "id": "pack-only-stale-video-not-handed-on",
+      "name": "A pack-only run refuses a stale video instead of handing it on",
+      "description": "An afk work-on continuation calls review-pack with --no-request-review and video-freshness.py exits 1 (GH-1828)",
+      "input": "Skill(dev10x-qa:review-pack, args=\"--no-request-review 1234\") in an afk session; the newest video predates the last UI commit",
+      "assertions": [
+        {
+          "dimension": "gate-enforcement",
+          "check": "behavioral",
+          "assertion": "pack_only_stale_returns_without_link",
+          "signal": "The freshness message is printed and the run returns without the pack link; resolve_gate does not auto-advance a stale video into section 4"
+        }
+      ]
+    },
+    {
       "id": "pack-has-five-sections",
       "name": "The pack follows the template",
       "description": "A UI change with configured evidence repo",
