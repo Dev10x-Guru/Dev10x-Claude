@@ -13,6 +13,13 @@ from typing import Any
 MESSAGE_CREATED = "google.workspace.chat.message.v1.created"
 REACTION_CREATED = "google.workspace.chat.reaction.v1.created"
 REACTION_DELETED = "google.workspace.chat.reaction.v1.deleted"
+# GH-1948
+REACTION_BATCH_CREATED = "google.workspace.chat.reaction.v1.batchCreated"
+REACTION_BATCH_DELETED = "google.workspace.chat.reaction.v1.batchDeleted"
+BATCH_MEMBER_TYPES: Mapping[str, str] = {
+    REACTION_BATCH_CREATED: REACTION_CREATED,
+    REACTION_BATCH_DELETED: REACTION_DELETED,
+}
 
 _SEGMENT = r"[A-Za-z0-9_.\-]+"
 _MESSAGE_NAME = rf"(?P<space>spaces/{_SEGMENT})/messages/{_SEGMENT}"

@@ -2,9 +2,11 @@
 
 A Workspace Events subscription on every Chat space publishes
 ``reaction.created`` / ``reaction.deleted`` with ``includeResource`` to
-a Pub/Sub topic. The daemon pulls from that topic, so events queue in
-Pub/Sub while the machine sleeps, and acks a message only after its
-event is committed. A subscription carrying resource data lapses after
+a Pub/Sub topic, plus the ``batchCreated`` / ``batchDeleted`` batches
+Google adds unasked, which are expanded into their member events. The
+daemon pulls from that topic, so events queue in Pub/Sub while the
+machine sleeps, and acks a message only after all of its events are
+committed. A subscription carrying resource data lapses after
 4 hours, so the renewal tick renews it hourly and recreates it once it
 has lapsed. The subscription it manages is kept in the store, so a
 restart renews the same one instead of creating another.
@@ -15,6 +17,7 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
+from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -22,6 +25,7 @@ from enum import StrEnum
 from typing import Any, Protocol
 
 from dev10x.comm.chatbus.events import (
+    BATCH_MEMBER_TYPES,
     REACTION_CREATED,
     REACTION_DELETED,
     ChatEvent,
@@ -88,22 +92,17 @@ def _mapping(value: object) -> Mapping[str, Any]:
     return value if isinstance(value, Mapping) else {}
 
 
-def event_from_pubsub(*, message: ReceivedMessage) -> ChatEvent | None:
-    """The Workspace Event a Pub/Sub message carries, or None when it is unusable."""
-    event_type = message.attributes.get("ce-type", "")
-    if event_type not in (REACTION_CREATED, REACTION_DELETED):
-        return None
-    try:
-        payload = json.loads(message.data or b"null")
-    except (json.JSONDecodeError, UnicodeDecodeError):
-        return None
-    reaction = _mapping(_mapping(payload).get("reaction"))
+def _reaction_event(
+    *,
+    event_type: str,
+    reaction: Mapping[str, Any],
+    moment: datetime,
+) -> ChatEvent | None:
     name = reaction.get("name")
     if not isinstance(name, str):
         return None
     space = resource_space(event_type=event_type, resource_name=name)
-    moment = parse_time(raw=message.attributes.get("ce-time", "")) or message.publish_time
-    if space is None or moment is None:
+    if space is None:
         return None
     try:
         return ChatEvent(
@@ -120,6 +119,42 @@ def event_from_pubsub(*, message: ReceivedMessage) -> ChatEvent | None:
         return None
 
 
+def _member_reactions(*, event_type: str, payload: object) -> list[Mapping[str, Any]]:
+    if event_type in BATCH_MEMBER_TYPES:
+        members = _mapping(payload).get("reactions")
+        if not isinstance(members, list):
+            return []
+        return [_mapping(_mapping(member).get("reaction")) for member in members]
+    return [_mapping(_mapping(payload).get("reaction"))]
+
+
+@dataclass(frozen=True)
+class Unpacked:
+    events: list[ChatEvent] = field(default_factory=list)
+    skipped_members: int = 0
+
+
+def events_from_pubsub(*, message: ReceivedMessage) -> Unpacked:
+    """The Workspace Events a Pub/Sub message carries, a batch expanded; no events if unusable."""
+    event_type = message.attributes.get("ce-type", "")
+    single_type = BATCH_MEMBER_TYPES.get(event_type, event_type)
+    if single_type not in (REACTION_CREATED, REACTION_DELETED):
+        return Unpacked()
+    moment = parse_time(raw=message.attributes.get("ce-time", "")) or message.publish_time
+    if moment is None:
+        return Unpacked()
+    try:
+        payload = json.loads(message.data or b"null")
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return Unpacked()
+    built = [
+        _reaction_event(event_type=single_type, reaction=reaction, moment=moment)
+        for reaction in _member_reactions(event_type=event_type, payload=payload)
+    ]
+    events = [event for event in built if event is not None]
+    return Unpacked(events=events, skipped_members=len(built) - len(events))
+
+
 @dataclass(frozen=True)
 class PullReport:
     pulled: int
@@ -128,6 +163,8 @@ class PullReport:
     malformed: int
     acked: int
     failed_spaces: tuple[str, ...] = ()
+    dropped_by_type: Mapping[str, int] = field(default_factory=dict)
+    skipped_members_by_type: Mapping[str, int] = field(default_factory=dict)
 
 
 def _ack(
@@ -158,41 +195,60 @@ def pull_once(
     pulled = puller.pull(subscription=subscription, max_messages=max_messages)
     if isinstance(pulled, ErrorResult):
         return pulled
-    by_space: dict[str, list[tuple[ChatEvent, str]]] = {}
+    by_space: dict[str, list[ChatEvent]] = {}
+    spaces_of: dict[str, set[str]] = {}
     # A message that can never become an event is acked, or it would be
     # redelivered forever.
     ack_ids: list[str] = []
+    dropped: Counter[str] = Counter()
+    skipped: Counter[str] = Counter()
     for message in pulled.value:
-        event = event_from_pubsub(message=message)
-        if event is None:
-            log.warning("Dropping an unusable Pub/Sub Chat message %s", message.ack_id)
+        event_type = message.attributes.get("ce-type", "")
+        unpacked = events_from_pubsub(message=message)
+        if not unpacked.events:
+            log.warning(
+                "Dropping an unusable Pub/Sub Chat message %s (%s)",
+                message.ack_id,
+                event_type or "no ce-type",
+            )
+            dropped[event_type] += 1
             ack_ids.append(message.ack_id)
             continue
-        by_space.setdefault(event.space, []).append((event, message.ack_id))
-    malformed = len(ack_ids)
+        if unpacked.skipped_members:
+            log.warning(
+                "Skipping %d unusable member(s) of Pub/Sub Chat message %s (%s)",
+                unpacked.skipped_members,
+                message.ack_id,
+                event_type,
+            )
+            skipped[event_type] += unpacked.skipped_members
+        for event in unpacked.events:
+            by_space.setdefault(event.space, []).append(event)
+        spaces_of[message.ack_id] = {event.space for event in unpacked.events}
     inserted = duplicates = 0
     failed: list[str] = []
-    for space, entries in sorted(by_space.items()):
-        stored = ingest_events(
-            conn=conn, space=space, events=[event for event, _ in entries], now=now
-        )
+    for space, space_events in sorted(by_space.items()):
+        stored = ingest_events(conn=conn, space=space, events=space_events, now=now)
         if isinstance(stored, ErrorResult):
             failed.append(space)
             continue
         # A failed snapshot write only weakens deletion inference until the
         # next backfill re-diffs, so the committed events are still acked.
-        remember_reactions(conn=conn, events=[event for event, _ in entries], now=now)
+        remember_reactions(conn=conn, events=space_events, now=now)
         inserted += stored.value.inserted
         duplicates += stored.value.duplicates
-        ack_ids += [ack_id for _, ack_id in entries]
+    # GH-1948
+    ack_ids += [ack_id for ack_id, spaces in spaces_of.items() if spaces.isdisjoint(failed)]
     return ok(
         PullReport(
             pulled=len(pulled.value),
             inserted=inserted,
             duplicates=duplicates,
-            malformed=malformed,
+            malformed=sum(dropped.values()),
             acked=_ack(puller=puller, subscription=subscription, ack_ids=ack_ids),
             failed_spaces=tuple(failed),
+            dropped_by_type=dict(dropped),
+            skipped_members_by_type=dict(skipped),
         )
     )
 

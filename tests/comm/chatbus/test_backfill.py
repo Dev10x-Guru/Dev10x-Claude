@@ -43,7 +43,7 @@ from dev10x.comm.chatbus.sources.pubsub import (
     RenewalAction,
     SubscriptionSpec,
     SubscriptionState,
-    event_from_pubsub,
+    events_from_pubsub,
     pull_once,
 )
 from dev10x.comm.chatbus.store import open_store
@@ -134,8 +134,7 @@ class FakeHistory:
         listed = [
             raw
             for raw in self.messages.get(space, [])
-            if _created(raw) > since
-            and (not threads or raw["thread"]["name"] in threads)
+            if _created(raw) > since and (not threads or raw["thread"]["name"] in threads)
         ]
         listed.sort(key=lambda raw: raw["createTime"])
         return ok(self._page(items=listed, size=page_size, token=page_token))
@@ -215,8 +214,7 @@ def seed_poll(
 
 
 def seed_reaction(conn: sqlite3.Connection, *, raw: dict[str, Any], at: datetime) -> None:
-    event = event_from_pubsub(message=pubsub_reaction(raw=raw, at=at))
-    assert event is not None
+    [event] = events_from_pubsub(message=pubsub_reaction(raw=raw, at=at)).events
     unwrap(ingest_events(conn=conn, space=event.space, events=[event], now=at))
     unwrap(remember_reactions(conn=conn, events=[event], now=at))
 
