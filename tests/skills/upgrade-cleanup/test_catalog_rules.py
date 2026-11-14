@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 import pytest
 from dev10x.skills.permission.catalog_rules import (
+    GeneralizationPlan,
     ScriptRoot,
     _expand_stale_wildcards,
     _generalizations,
@@ -18,9 +19,11 @@ from dev10x.skills.permission.catalog_rules import (
     generalize_permission,
     is_dead_glob_script_rule,
     is_well_formed_rule,
+    plan_generalizations,
     satellite_script_roots,
     scan_plugin_scripts,
     verify_script_coverage,
+    widening_hold_reason,
 )
 
 from dev10x.core.plugin_map import PluginMap
@@ -455,6 +458,75 @@ class TestGeneralizations:
             replacements, refused = _generalizations(["Bash(/p/foo.sh arg1:*)"])
         assert replacements == []
         assert refused == ["Bash(/p/foo.sh arg1:*)"]
+
+
+class TestWideningHoldReason:
+    """GH-1868: generalize never widens env-pinned or secret-handling rules."""
+
+    @pytest.mark.parametrize(
+        "entry,reason",
+        [
+            (
+                "Bash(env PLANTUML_SECURITY_PROFILE=UNSECURE bash skills/x/render.sh a.puml)",
+                "env-assignment prefix",
+            ),
+            ("Bash(FOO=bar ./run.sh arg)", "env-assignment prefix"),
+            (
+                "Bash(~/.claude/skills/s/scripts/secrets.sh get key)",
+                "names secret or credential handling",
+            ),
+            (
+                "Bash(/p/skills/aws-vault/scripts/aws.sh sts get-caller-identity)",
+                "names secret or credential handling",
+            ),
+            ("Bash(/p/get-token.py prod)", "names secret or credential handling"),
+        ],
+    )
+    def test_holds_sensitive_rules(self, entry: str, reason: str) -> None:
+        assert widening_hold_reason(entry) == reason
+
+    @pytest.mark.parametrize(
+        "entry",
+        ["Bash(/p/foo.sh arg1:*)", "Bash(/p/draws.sh 1)", "Write(/tmp/Dev10x/git/msg.AbCd.txt)"],
+    )
+    def test_lets_ordinary_rules_widen(self, entry: str) -> None:
+        assert widening_hold_reason(entry) is None
+
+    @pytest.mark.parametrize(
+        "pattern",
+        ["flux-capacitor-toggle.py", "Bash(~/.claude/tools/flux-*)"],
+    )
+    def test_exclude_matches_substring_or_glob(self, pattern: str) -> None:
+        entry = "Bash(~/.claude/tools/flux-capacitor-toggle.py on)"
+
+        assert widening_hold_reason(entry, exclude=(pattern,)) == (
+            f"excluded by --exclude {pattern!r}"
+        )
+
+
+class TestPlanGeneralizations:
+    @pytest.fixture
+    def plan(self) -> GeneralizationPlan:
+        return plan_generalizations(
+            [
+                "Bash(/p/foo.sh arg1:*)",
+                "Bash(/p/secrets.sh read:*)",
+                "Bash(/p/toggle.py on)",
+            ],
+            exclude=("toggle.py",),
+        )
+
+    def test_rewrites_only_the_ordinary_rule(self, plan: GeneralizationPlan) -> None:
+        assert plan.replacements == [("Bash(/p/foo.sh arg1:*)", "Bash(/p/foo.sh:*)")]
+
+    def test_lists_held_rules_with_reasons(self, plan: GeneralizationPlan) -> None:
+        assert plan.held == [
+            ("Bash(/p/secrets.sh read:*)", "names secret or credential handling"),
+            ("Bash(/p/toggle.py on)", "excluded by --exclude 'toggle.py'"),
+        ]
+
+    def test_refuses_nothing(self, plan: GeneralizationPlan) -> None:
+        assert plan.refused == []
 
 
 class TestExpandStaleWildcards:

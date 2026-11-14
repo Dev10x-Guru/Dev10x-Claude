@@ -8,6 +8,7 @@ arguments. The writers in :mod:`dev10x.skills.permission.catalog_write`
 act on these answers. Split out of ``update_paths.py`` by GH-1432.
 """
 
+import fnmatch
 import json
 import re
 from dataclasses import dataclass
@@ -596,17 +597,60 @@ def generalize_permission(entry: str) -> str | None:
     return None
 
 
-def _generalizations(allow_list: list[str]) -> tuple[list[tuple[str, str]], list[str]]:
-    """Return the safe (old, new) rewrites plus the rules it refused to touch."""
+# GH-1868
+_ENV_ASSIGNMENT_RE = re.compile(r"^(?:env\s+)?[A-Za-z_][A-Za-z0-9_]*=\S*\s")
+_SENSITIVE_RULE_RE = re.compile(
+    r"secret|credential|passw(?:or)?d|token|vault|unsecure|keychain"
+    r"|private[-_]?key|(?<![a-z])aws(?![a-z])",
+    re.IGNORECASE,
+)
+
+
+def widening_hold_reason(entry: str, *, exclude: tuple[str, ...] = ()) -> str | None:
+    """Why `entry` must keep its exact arguments, or None when it may widen."""
+    for pattern in exclude:
+        if pattern in entry or fnmatch.fnmatchcase(entry, pattern):
+            return f"excluded by --exclude {pattern!r}"
+    if _ENV_ASSIGNMENT_RE.match(AllowRule.parse(entry).inner):
+        return "env-assignment prefix"
+    if _SENSITIVE_RULE_RE.search(entry):
+        return "names secret or credential handling"
+    return None
+
+
+@dataclass(frozen=True)
+class GeneralizationPlan:
+    replacements: list[tuple[str, str]]
+    refused: list[str]
+    held: list[tuple[str, str]]
+
+
+def plan_generalizations(
+    allow_list: list[str],
+    *,
+    exclude: tuple[str, ...] = (),
+) -> GeneralizationPlan:
+    """Split rewrite candidates into safe rewrites, refusals and held rules."""
     existing = set(allow_list)
     replacements: list[tuple[str, str]] = []
     refused: list[str] = []
+    held: list[tuple[str, str]] = []
     for entry in allow_list:
         generalized = generalize_permission(entry)
         if not generalized or generalized == entry or generalized in existing:
+            continue
+        reason = widening_hold_reason(entry, exclude=exclude)
+        if reason is not None:
+            held.append((entry, reason))
             continue
         if not is_well_formed_rule(generalized):
             refused.append(entry)
             continue
         replacements.append((entry, generalized))
-    return replacements, refused
+    return GeneralizationPlan(replacements=replacements, refused=refused, held=held)
+
+
+def _generalizations(allow_list: list[str]) -> tuple[list[tuple[str, str]], list[str]]:
+    """Return the safe (old, new) rewrites plus the rules it refused to touch."""
+    plan = plan_generalizations(allow_list)
+    return plan.replacements, plan.refused

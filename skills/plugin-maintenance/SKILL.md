@@ -417,6 +417,12 @@ uvx dev10x permission update-paths --dry-run --summary
 uvx dev10x permission update-paths
 ```
 
+A dotfiles repo that tracks `~/.claude/settings.json` makes this step
+print `SKIP (git-tracked)` for it, and its version-pinned rules go stale
+on every upgrade (GH-1868). `--global` lifts the guard for that one
+file, as it does for `ensure-base`; project files that git tracks stay
+skipped. See [Tracked user settings](#tracked-user-settings-gh-1868).
+
 ### 2. Migrate config files **[bootstrap]**
 
 Move config files from deprecated locations to canonical Dev10x
@@ -660,10 +666,33 @@ wildcard patterns that work across future sessions.
 uvx dev10x permission generalize --dry-run
 ```
 
-2. Apply:
+2. Gate (GH-1868). Each `old → new` line widens a one-off grant into a
+   `:*` wildcard, so the dry run is a proposal, not a formality.
+   Rules with an env-assignment prefix
+   (`env PLANTUML_SECURITY_PROFILE=UNSECURE …`) or a name that says
+   they handle secrets or credentials (`secrets.sh`, `aws.sh`,
+   `*token*`, `*vault*`) are never widened; the dry run lists them as
+   `HELD`. Read the remaining lines for scripts that act on their own
+   arguments in a way a wildcard should not pre-approve — a script that
+   edits settings, deletes, or deploys.
+   When the dry run proposes any rewrite, **REQUIRED: Call
+   `AskUserQuestion`** (do NOT use plain text). Options:
+   - Apply all
+   - Apply, excluding some — ask which rules to keep exact, then pass
+     one `--exclude '<substring or glob>'` per rule
+   - Skip this step
+
+   Compute the `(Recommended)` option from the dry-run output and list
+   it first: "Apply all" when every proposed line only drops a session
+   id, ticket id, PR number or temp-file hash; "Apply, excluding some"
+   when the odd ones out can be named; "Skip this step" otherwise.
+   Unattended runs apply only in the first case and skip otherwise.
+
+3. Apply:
 
 ```bash
 uvx dev10x permission generalize
+uvx dev10x permission generalize --exclude 'flux-capacitor-toggle.py'
 ```
 
 **What gets generalized:**
@@ -984,6 +1013,28 @@ uvx dev10x permission clean --restore
 **Leaked secret detection:** Rules containing plaintext
 credentials are flagged with warnings so users can rotate them.
 
+#### Tracked user settings (GH-1868)
+
+The default `clean` only migrates the user `~/.claude/settings.json`;
+it never prunes it. A file kept in a dotfiles repo therefore piles up
+rules pinned to old plugin versions with nothing to remove them. When
+`catalog-gap` or the dry run of step 1 names that file, offer the
+opt-in pass:
+
+```bash
+uvx dev10x permission update-paths --global --dry-run
+uvx dev10x permission clean --global --dry-run
+```
+
+`clean --global` gives the user file the same default clean as a
+project file: old versions, env noise, shell fragments, double-slash
+typos. It never deduplicates the file against itself, even under
+`--aggressive`. Apply only after the supervisor has seen both dry runs,
+and say the change lands in the dotfiles repo's working tree for them
+to commit. Rules these classes do not cover (an uppercase `Dev10x/`
+Read glob, a direct-script rule a skill now wraps) still need a
+hand edit — the auditor reports them as `manual` findings.
+
 ### 12. Run permission doctor *(full only)* (GH-99)
 
 Apply the baseline-permissions catalog and detect cross-project /
@@ -1117,6 +1168,14 @@ flag list.
 |------|---------|
 | `--version VER` | Target a specific version instead of latest |
 | `--restore` | Restore settings from most recent backups |
+| `--global` | Also rewrite a git-tracked `~/.claude/settings.json` (GH-1868) |
+
+### `clean` and `generalize` extras
+
+| Flag | Purpose |
+|------|---------|
+| `clean --global` | Also prune stale rules from `~/.claude/settings.json` (GH-1868) |
+| `generalize --exclude PAT` | Keep rules matching a substring or glob exact; repeatable (GH-1868) |
 
 > First-time userspace config seeding is a separate subcommand,
 > `uvx dev10x permission init` (formerly the `update-paths --init`
