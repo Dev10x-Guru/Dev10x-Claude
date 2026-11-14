@@ -71,11 +71,16 @@ rules:
           The skill's Step 5 executes the merge via
           `mcp__plugin_dev10x_cli__merge_pr` (GH-232) — symmetric
           to `create_pr` / `push_safe`. Do NOT bypass this with
-          `DEV10X_SKIP_CMD_VALIDATION=true gh pr merge ...`; that
-          flag is reserved for transient MCP-unavailability
-          emergencies, not the documented flow. If the MCP tool is
-          unavailable, stop and ask the user to reconnect via
-          `/mcp` rather than running raw `gh pr merge`.
+          `DEV10X_SKIP_CMD_VALIDATION=true gh pr merge ...`: that
+          flag is reserved for skill-authorized exceptions and is not
+          a sanctioned path during an MCP outage either. If `merge_pr`
+          is unavailable, do not retry it and never run raw
+          `gh pr merge` in its place. Attended, ask the user to
+          reconnect via `/mcp`. Unattended, leave the PR as it is,
+          record the blocker and end the chunk. After a reconnect,
+          re-read the PR with `pr_get` (state, mergedAt) before
+          calling `merge_pr` again — a dropped merge may have landed
+          (GH-1099). See references/mcp-unavailable-escape-hatch.md.
     reason: >
       Direct gh pr merge bypasses the 9 pre-merge checks the skill
       enforces. Adaptive friction does not waive the skill body —
@@ -102,7 +107,8 @@ rules:
           `protected_branches=["main"]`; pushing to main passes
           `protected_branches=[]`. Do NOT use
           DEV10X_SKIP_CMD_VALIDATION=true to bypass — that flag is
-          reserved for skill-internal exceptions, not for callers.
+          reserved for skill-authorized exceptions, not for callers,
+          and not for an MCP outage.
           GH-963: a non-force push that names an explicit,
           non-protected branch (e.g. `git push -u origin
           my-feature-branch`) is already allowed straight through —
