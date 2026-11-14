@@ -31,6 +31,7 @@ from dev10x.comm.chatbus.events import (
     to_db_time,
 )
 from dev10x.comm.chatbus.ingest import ingest_events
+from dev10x.comm.chatbus.snapshot import remember_reactions
 from dev10x.comm.chatbus.store import write_transaction
 from dev10x.comm.skills.notifications.gchat_watch import parse_time
 from dev10x.domain.common.result import ErrorResult, Result, err, ok
@@ -178,6 +179,9 @@ def pull_once(
         if isinstance(stored, ErrorResult):
             failed.append(space)
             continue
+        # A failed snapshot write only weakens deletion inference until the
+        # next backfill re-diffs, so the committed events are still acked.
+        remember_reactions(conn=conn, events=[event for event, _ in entries], now=now)
         inserted += stored.value.inserted
         duplicates += stored.value.duplicates
         ack_ids += [ack_id for _, ack_id in entries]
