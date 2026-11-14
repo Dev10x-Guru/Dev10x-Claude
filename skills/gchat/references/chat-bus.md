@@ -114,9 +114,18 @@ After editing the allowlist, reload it without a restart:
 systemctl --user reload dev10x-chatbus.service
 ```
 
+A reload that breaks the allowlist is rejected and logged at ERROR;
+the daemon keeps running on the allowlist it already had.
+
 A trusted user's privileged command waits in `awaiting_approval`.
-The approval DM is not sent yet (GH-1932); the owner approves with
-`approve <item id>` in a DM with the bot.
+The bot sends the owner a DM naming the work item, the requester and
+the verb, posting with the chat.bot token from the `auth:` block.
+The bot creates the DM when none exists yet.
+The owner approves with a ✅ reaction on that message, or with
+`approve <item id>` in the DM.
+List that DM under `direct_messages` so the daemon reads the reply.
+When the DM cannot be sent, the item still waits, and the typed
+`approve <item id>` still works.
 
 ## Installing the service
 

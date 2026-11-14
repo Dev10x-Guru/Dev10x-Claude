@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 import threading
 from collections.abc import Mapping, Sequence
@@ -520,6 +521,28 @@ class TestReload:
         report = daemon.tick(now=NOW)
         assert report.failures == {"reload": "found 0 owners"}
         assert daemon.allowlist == OWNER_ONLY
+
+    def test_a_valid_reload_still_applies_after_a_rejected_one(
+        self, daemon: ChatBusDaemon, fakes: Fakes
+    ) -> None:
+        fakes.loader.results = [err("found 2 owners"), ok(NEW_OWNER)]
+        daemon.request_reload()
+        daemon.tick(now=NOW)
+        rejected = daemon.allowlist
+        daemon.request_reload()
+        daemon.tick(now=NOW)
+        assert (rejected, daemon.allowlist) == (OWNER_ONLY, NEW_OWNER)
+
+    def test_a_rejected_reload_is_logged_with_the_kept_allowlist(
+        self, daemon: ChatBusDaemon, fakes: Fakes, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        fakes.loader.results = [err("found 0 owners")]
+        with caplog.at_level(logging.ERROR, logger="dev10x.comm.chatbus.daemon"):
+            expect_error(daemon.reload_allowlist())
+        assert [record.getMessage() for record in caplog.records] == [
+            "Chat bus allowlist reload rejected; keeping the previous allowlist "
+            f"({OWNER_ONLY.describe()}): found 0 owners"
+        ]
 
 
 class TestRunLoop:

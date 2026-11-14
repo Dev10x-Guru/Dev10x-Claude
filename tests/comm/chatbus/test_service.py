@@ -9,11 +9,13 @@ import pytest
 from dev10x.domain.common.result import Result, err, ok
 
 from dev10x.comm.chatbus import service
+from dev10x.comm.chatbus.approval_dm import ChatApprovalNotifier
+from dev10x.comm.chatbus.daemon import DaemonPorts
 from dev10x.comm.chatbus.dispatch import HerdrLauncher
 from dev10x.comm.chatbus.service import (
     CachedToken,
     ChatBusSettings,
-    UnsentApprovalNotifier,
+    bot_token,
     build_ports,
     load_settings,
     merge_targets,
@@ -214,17 +216,25 @@ class TestUserToken:
         assert expect_error(user_token()).error == "No ADC"
 
 
-def test_approval_dms_are_not_sent_yet() -> None:
-    sent = UnsentApprovalNotifier().request_approval(
-        owner="users/1", work_item_id=7, requester="users/2", verb="start"
+class TestBotToken:
+    def test_mints_the_configured_chat_bot_token(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(service.gchat_notify, "mint_chat_token", lambda: ok("bot-token"))
+        assert unwrap(bot_token()) == "bot-token"
+
+
+def _ports(*, settings: ChatBusSettings, config_path: Path = CONFIG) -> DaemonPorts:
+    return build_ports(
+        settings=settings,
+        config_path=config_path,
+        token=lambda: ok("user-token"),
+        bot=lambda: ok("bot-token"),
     )
-    assert "`approve 7`" in expect_error(sent).error
 
 
 class TestBuildPorts:
     def test_wires_every_configured_source(self) -> None:
         settings = unwrap(parse_settings(config=FULL, path=CONFIG))
-        ports = build_ports(settings=settings, config_path=CONFIG, token=lambda: ok("t"))
+        ports = _ports(settings=settings)
         assert ports.pubsub is not None and ports.pubsub.renewal is not None
         assert isinstance(ports.pubsub.puller, PubSubRest)
         assert isinstance(ports.pubsub.renewal.api, WorkspaceEventsRest)
@@ -236,13 +246,22 @@ class TestBuildPorts:
         assert ports.bot_user == BOT
 
     def test_leaves_out_what_is_not_configured(self) -> None:
-        ports = build_ports(settings=_settings(), config_path=CONFIG, token=lambda: ok("t"))
+        ports = _ports(settings=_settings())
         assert (ports.pubsub, ports.dispatching) == (None, None)
-        assert isinstance(ports.notifier, UnsentApprovalNotifier)
+
+    def test_the_approval_dm_posts_with_the_bot_token(self) -> None:
+        ports = _ports(settings=_settings())
+        assert isinstance(ports.notifier, ChatApprovalNotifier)
+        assert unwrap(ports.notifier.client.token()) == "bot-token"
+
+    def test_reads_history_with_the_user_token(self) -> None:
+        ports = _ports(settings=_settings())
+        assert isinstance(ports.history, ChatRest)
+        assert unwrap(ports.history.client.token()) == "user-token"
 
     def test_pulls_without_renewing_when_no_topic_is_set(self) -> None:
         settings = _settings(pubsub={"subscription": "projects/p/subscriptions/chat"})
-        ports = build_ports(settings=settings, config_path=CONFIG, token=lambda: ok("t"))
+        ports = _ports(settings=settings)
         assert ports.pubsub is not None and ports.pubsub.renewal is None
 
     def test_loads_the_allowlist_from_the_config_file(self, tmp_path: Path) -> None:
@@ -251,5 +270,5 @@ class TestBuildPorts:
             "users:\n  me:\n    chat_user_id: '1'\n    bus_role: owner\n"
             f"chat_bus:\n  bot_user: {BOT}\n"
         )
-        ports = build_ports(settings=_settings(), config_path=path, token=lambda: ok("t"))
+        ports = _ports(settings=_settings(), config_path=path)
         assert unwrap(ports.load_allowlist(reason="start")).owner == "users/1"

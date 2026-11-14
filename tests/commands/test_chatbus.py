@@ -9,14 +9,15 @@ from typing import Any
 
 import pytest
 from click.testing import CliRunner, Result
-from dev10x.domain.common.result import ok
+from dev10x.domain.common.result import err, ok
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from tests.comm.chatbus.factories import unwrap
 
 from dev10x.cli import cli
+from dev10x.comm.chatbus.approval_dm import ChatApprovalNotifier
 from dev10x.comm.chatbus.authz import Allowlist
 from dev10x.comm.chatbus.daemon import ChatBusDaemon, DaemonLimits, DaemonPorts, utc_now
-from dev10x.comm.chatbus.service import UnsentApprovalNotifier
+from dev10x.comm.chatbus.sources.google_http import GoogleJsonClient
 from dev10x.comm.chatbus.store import open_store
 from dev10x.comm.chatbus.unit import UNIT_NAME
 from dev10x.commands import chatbus as command
@@ -123,7 +124,10 @@ class TestRun:
         calls: list[str] = []
 
         def fake_run(self: ChatBusDaemon, *, stop: threading.Event) -> None:
-            calls.append(f"run owner={self.allowlist.owner}")
+            calls.append(
+                f"run owner={self.allowlist.owner} bot={self.ports.bot_user} "
+                f"notifier={type(self.ports.notifier).__name__}"
+            )
 
         def fake_handlers(*, daemon: ChatBusDaemon, stop: threading.Event) -> None:
             calls.append("signals")
@@ -138,7 +142,10 @@ class TestRun:
         gchat_config(OWNER_CONFIG)
         result = _invoke("run")
         assert result.exit_code == 0, result.output
-        assert ran == ["signals", "run owner=users/1"]
+        assert ran == [
+            "signals",
+            f"run owner=users/1 bot={BOT} notifier=ChatApprovalNotifier",
+        ]
         assert Dev10xConfigDir.chat_bus_db().exists()
 
     def test_without_config_refuses_to_start(self, ran: list[str]) -> None:
@@ -174,7 +181,9 @@ class TestSignalHandlers:
             conn=conn,
             ports=DaemonPorts(
                 bot_user=BOT,
-                notifier=UnsentApprovalNotifier(),
+                notifier=ChatApprovalNotifier(
+                    client=GoogleJsonClient(token=lambda: err("no token in tests"))
+                ),
                 load_allowlist=lambda *, reason: ok(
                     Allowlist(owner="users/1", trusted=frozenset(), logins={})
                 ),

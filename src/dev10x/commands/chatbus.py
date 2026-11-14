@@ -16,7 +16,13 @@ from typing import Any
 import click
 
 from dev10x.comm.chatbus.daemon import ChatBusDaemon, start_daemon, utc_now
-from dev10x.comm.chatbus.service import CachedToken, build_ports, load_settings, user_token
+from dev10x.comm.chatbus.service import (
+    CachedToken,
+    bot_token,
+    build_ports,
+    load_settings,
+    user_token,
+)
 from dev10x.comm.chatbus.status import get_status, render_status
 from dev10x.comm.chatbus.store import open_store
 from dev10x.comm.chatbus.unit import install_unit, render_unit, service_state, user_unit_dir
@@ -75,6 +81,7 @@ def run() -> None:
                 settings=settings.value,
                 config_path=config_path,
                 token=CachedToken(mint=user_token),
+                bot=CachedToken(mint=bot_token),
             ),
         )
         if isinstance(started, ErrorResult):
