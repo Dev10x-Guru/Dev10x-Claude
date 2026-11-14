@@ -4,6 +4,8 @@
   import SessionPane from "./components/SessionPane.svelte";
   import Sidebar from "./components/Sidebar.svelte";
   import ArtifactView from "./components/artifact/ArtifactView.svelte";
+  import ChatBusView from "./components/ChatBusView.svelte";
+  import { isBusRoute } from "./lib/chatbus";
   import {
     browserStorage,
     checkToken,
@@ -90,9 +92,11 @@
   let snapshot = $state<Snapshot | null>(null);
   let connection = $state<Connection>("connecting");
   const initialRoute = parseRoute(location.hash);
+  const initialBus = isBusRoute(location.hash);
 
   let route = $state(initialRoute);
-  let chosen = $state(initialRoute ? "" : sessionFromHash(location.hash));
+  let bus = $state(initialBus);
+  let chosen = $state(initialRoute || initialBus ? "" : sessionFromHash(location.hash));
   let artifact = $state<ArtifactDocument | null>(null);
   let artifactError = $state("");
   let artifactReloads = $state(0);
@@ -137,8 +141,9 @@
 
   $effect(() => {
     const follow = (): void => {
+      bus = isBusRoute(location.hash);
       route = parseRoute(location.hash);
-      if (!route) chosen = sessionFromHash(location.hash);
+      if (!route && !bus) chosen = sessionFromHash(location.hash);
     };
     window.addEventListener("hashchange", follow);
     return () => window.removeEventListener("hashchange", follow);
@@ -208,8 +213,9 @@
   });
 
   function select(sessionId: string): void {
-    if (sessionId === current?.session_id && !route) return;
+    if (sessionId === current?.session_id && !route && !bus) return;
     route = null;
+    bus = false;
     chosen = sessionId;
     detail = null;
     history.replaceState(null, "", `${location.search}#${encodeURIComponent(sessionId)}`);
@@ -362,6 +368,7 @@
         {pending}
         {artifacts}
         artifact={route?.id ?? ""}
+        {bus}
         onselect={select}
         onpin={pin}
         {run}
@@ -372,7 +379,9 @@
     {@render handle("side", "details panel")}
 
     <main class="center">
-      {#if route}
+      {#if bus}
+        <ChatBusView {token} />
+      {:else if route}
         {#if artifact?.id === route.id}
           {#key artifact.id}
             <ArtifactView

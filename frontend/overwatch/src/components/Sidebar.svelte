@@ -16,6 +16,7 @@
     togglePin,
   } from "../lib/prefs";
   import { formatRoute, type ArtifactIndexEntry } from "../lib/artifact";
+  import { BUS_ROUTE } from "../lib/chatbus";
   import { arrange, buildTree, isActive, markOf, matches } from "../lib/tree";
   import type { Session } from "../lib/types";
 
@@ -27,6 +28,7 @@
     pending: boolean;
     artifacts?: ArtifactIndexEntry[];
     artifact?: string;
+    bus?: boolean;
     onselect: (sessionId: string) => void;
     onpin: (sessionId: string) => void;
     run: (path: string, body: Record<string, unknown>, what: string) => Promise<boolean>;
@@ -40,6 +42,7 @@
     pending,
     artifacts = [],
     artifact = "",
+    bus = false,
     onselect,
     onpin,
     run,
@@ -206,6 +209,23 @@
   </div>
 
   <div class="scroll">
+    <section class="group" aria-label="Chat bus">
+      <p class="group-head">Chat bus</p>
+      <ul class="sessions flat">
+        <li class={["leaf", { current: bus }]}>
+          <a
+            class="pick page"
+            href={BUS_ROUTE}
+            title="Chat events, work items, verdicts, open gaps and the allowlist (read-only)"
+            aria-current={bus ? "page" : undefined}
+          >
+            <span class="page-dot" aria-hidden="true"></span>
+            <span class="leaf-name">Events, work and gaps</span>
+          </a>
+        </li>
+      </ul>
+    </section>
+
     {#if pages.length}
       <section class="group" aria-label="Artifacts">
         <p class="group-head">Artifacts</p>
