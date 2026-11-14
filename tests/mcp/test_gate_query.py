@@ -466,3 +466,78 @@ class TestWorktreePolicyInheritance:
 
         # No working tree to probe, so the worktree path governs → defaults.
         assert await _merge_effect(tmp_path) == "ask"
+
+
+def _write_plan_mirror(toplevel: Path, body: dict) -> None:
+    path = toplevel / ".claude" / "session" / "plan.yaml"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(yaml.safe_dump(body))
+
+
+class TestRunModeOnTheOutcome:
+    """GH-1921: every resolution carries the run mode a callee reads."""
+
+    async def _run_mode(self, toplevel: Path) -> dict:
+        result = await GateResolutionQuery(
+            gate="external_notify", context={}, toplevel=str(toplevel)
+        ).run()
+        assert not isinstance(result, ErrorResult)
+        return result.value.run_mode.to_payload()
+
+    @pytest.mark.asyncio
+    async def test_no_plan_mirror_is_undetermined(self, tmp_path: Path) -> None:
+        assert await self._run_mode(tmp_path) == {
+            "mode": "undetermined",
+            "basis": "no-plan-mirror",
+        }
+
+    @pytest.mark.asyncio
+    async def test_afk_overlay_is_unattended(self, tmp_path: Path) -> None:
+        _write_config(tmp_path, "gate_overlays: [afk]\n")
+
+        assert await self._run_mode(tmp_path) == {"mode": "unattended", "basis": "afk-overlay"}
+
+    @pytest.mark.asyncio
+    async def test_dropped_afk_overlay_does_not_count(self, tmp_path: Path) -> None:
+        _write_config(tmp_path, "gate_overlays: [afk]\nallowed_overlays: [solo-maintainer]\n")
+
+        assert (await self._run_mode(tmp_path))["mode"] == "undetermined"
+
+    @pytest.mark.asyncio
+    async def test_plan_step_in_progress_is_unattended(self, tmp_path: Path) -> None:
+        _write_plan_mirror(
+            tmp_path,
+            {
+                "tasks": [
+                    {
+                        "id": "7",
+                        "subject": "Monitor CI",
+                        "status": "in_progress",
+                        "metadata": {"skills": ["dev10x:gh-pr-monitor"]},
+                    }
+                ]
+            },
+        )
+
+        assert await self._run_mode(tmp_path) == {
+            "mode": "unattended",
+            "basis": "plan-step-in-progress",
+            "plan_step": "Monitor CI",
+        }
+
+    @pytest.mark.asyncio
+    async def test_plan_from_another_branch_is_undetermined(self, tmp_path: Path) -> None:
+        # tmp_path is not a git checkout, so the current branch is unknown
+        # and cannot match the branch the plan was recorded on.
+        _write_plan_mirror(
+            tmp_path,
+            {
+                "plan": {"branch": "someone/else"},
+                "tasks": [{"id": "1", "status": "in_progress", "metadata": {"type": "x"}}],
+            },
+        )
+
+        assert await self._run_mode(tmp_path) == {
+            "mode": "undetermined",
+            "basis": "plan-mirror-other-branch",
+        }

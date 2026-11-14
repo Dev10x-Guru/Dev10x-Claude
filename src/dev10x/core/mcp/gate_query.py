@@ -26,6 +26,7 @@ from dev10x.domain.common.result import Result, err, ok
 
 if TYPE_CHECKING:  # pragma: no cover
     from dev10x.domain.gate_policy import GateContext, GateResolution
+    from dev10x.domain.run_mode import RunModeResolution
 
 # Durable, git-tracked project pin (ADR-0016 #752). The spike wrote the
 # pin under ``.claude/Dev10x/`` which this repo gitignores wholesale, so a
@@ -193,6 +194,24 @@ def _computed_session_stale(*, toplevel: str) -> bool:
     )
 
 
+def _computed_run_mode(*, toplevel: str, overlays: list[str]) -> RunModeResolution:
+    """Derive the GH-1921 run mode from the overlays and the plan-sync mirror.
+
+    The mirror is per-worktree, so it is read at the invocation toplevel,
+    never the GH-978 policy toplevel.
+    """
+    from dev10x.core.plan_mirror import plan_mirror_path, read_plan_mirror
+    from dev10x.domain.run_mode import PlanState, resolve_run_mode
+
+    path = plan_mirror_path(toplevel=toplevel)
+    mirror = read_plan_mirror(path=path)
+    return resolve_run_mode(
+        overlays=overlays,
+        plan=PlanState(present=path.exists(), branch=mirror.branch, tasks=mirror.tasks),
+        current_branch=_current_branch(toplevel),
+    )
+
+
 def _partition_context(context: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
     """Split caller context into GateContext fields and ignored extras.
 
@@ -329,13 +348,15 @@ class GateResolutionOutcome:
     overlays the durable-mode guard removed before resolution;
     ``ignored_context_fields`` lists caller-supplied context keys that are
     not ``GateContext`` fields — they are dropped (resolving in the safe
-    direction) rather than hard-failing the call (GH-854 F1).
+    direction) rather than hard-failing the call (GH-854 F1);
+    ``run_mode`` is the GH-1921 resolved run mode for this checkout.
     """
 
     context: GateContext
     resolution: GateResolution
     dropped_overlays: list[str]
     ignored_context_fields: list[str]
+    run_mode: RunModeResolution
 
 
 @dataclass(frozen=True)
@@ -411,11 +432,15 @@ class GateResolutionQuery:
         except (UnknownToggleError, UnknownPresetError) as exc:
             return err(str(exc))
 
+        run_mode = await asyncio.to_thread(
+            _computed_run_mode, toplevel=self.toplevel, overlays=overlays
+        )
         return ok(
             GateResolutionOutcome(
                 context=gate_context,
                 resolution=resolution,
                 dropped_overlays=dropped_overlays,
                 ignored_context_fields=ignored_context_fields,
+                run_mode=run_mode,
             )
         )

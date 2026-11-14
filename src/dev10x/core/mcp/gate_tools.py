@@ -106,6 +106,7 @@ async def resolve_gate_for_toplevel(
     outcome = outcome_result.value
 
     payload = outcome.resolution.to_payload()
+    payload["run_mode"] = outcome.run_mode.to_payload()
     record = _emit_auto_advance(resolution=outcome.resolution, toplevel=toplevel)
     if record is not None:
         payload["record"] = record
@@ -134,9 +135,13 @@ async def resolve_gate(
     Returns:
         Dictionary with keys: gate, effect (ask|auto-advance|skip),
         resolved_option, log_to, reason, floors_applied,
-        anchor_recommendations, and — on an auto-advance — a `record`
-        with the visible D-7 line. `{"error": ...}` on unknown gate,
-        context field, or preset.
+        anchor_recommendations, run_mode, and — on an auto-advance — a
+        `record` with the visible D-7 line. `run_mode` (GH-1921) is
+        `{mode: unattended|attended|undetermined, basis, plan_step?}`,
+        derived from the `afk` overlay and the plan-sync task mirror;
+        a caller's own `--unattended` flag still wins, and
+        `undetermined` is reported, never silently defaulted.
+        `{"error": ...}` on unknown gate, context field, or preset.
     """
     from dev10x.domain.git_context import GitContext
 
