@@ -14,6 +14,7 @@ from types import FrameType
 import click
 
 from dev10x.comm.overwatch import paths
+from dev10x.comm.overwatch.artifacts import ArtifactStore
 from dev10x.comm.overwatch.decisions import DecisionStore
 from dev10x.comm.overwatch.delivery import RELAY_MAILBOX
 from dev10x.comm.overwatch.dev_checkout import (
@@ -81,6 +82,7 @@ def build_app(
     return OverwatchApp(
         store=DecisionStore(path=paths.decisions_path(instance=instance)),
         settings=SettingsStore(path=paths.settings_path(instance=instance)),
+        artifacts=ArtifactStore(root=paths.artifacts_dir(instance=instance)),
         bus_root=bus_root,
         kb_root=kb_root,
         log_path=paths.actions_log_path(instance=instance),

@@ -268,6 +268,62 @@ def introduce(
     return paths
 
 
+def prompt_artifact_event(
+    *,
+    pane_id: str,
+    session_name: str,
+    text: str,
+    detail: str,
+    confirmed_by: str,
+    log_path: Path,
+    submitter: Callable[..., None] = submit_prompt,
+) -> None:
+    submitter(pane_id=pane_id, text=text)
+    log_sent(
+        log_path=log_path,
+        action="artifact-event-prompt",
+        target=session_name,
+        detail=detail,
+        confirmed_by=confirmed_by,
+    )
+
+
+def relay_artifact_event(
+    *,
+    bus_root: Path,
+    relay_mailbox: str,
+    session_name: str,
+    session_id: str,
+    event_id: str,
+    text: str,
+    detail: str,
+    confirmed_by: str,
+    log_path: Path,
+) -> Path:
+    delivery = send(
+        root=bus_root,
+        envelope=Envelope(
+            sender=SENDER_MAILBOX,
+            recipient=relay_mailbox,
+            subject=f"artifact-event {event_id}",
+            extra_headers=(
+                ("To-Session", session_name),
+                ("Session-Id", session_id),
+                ("Event-Id", event_id),
+            ),
+        ),
+        body=text,
+    )
+    log_sent(
+        log_path=log_path,
+        action="artifact-event-relay",
+        target=session_name,
+        detail=detail,
+        confirmed_by=confirmed_by,
+    )
+    return delivery.path
+
+
 def deliver_relay(
     *,
     bus_root: Path,

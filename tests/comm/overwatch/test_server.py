@@ -14,6 +14,7 @@ from typing import Any
 import pytest
 
 from dev10x.comm.overwatch import server as server_module
+from dev10x.comm.overwatch.artifacts import UNTRUSTED_OPEN, ArtifactStore
 from dev10x.comm.overwatch.decisions import ANSWERED, DELIVERED, OPEN, DecisionStore
 from dev10x.comm.overwatch.history import PastSession
 from dev10x.comm.overwatch.launcher import Checkout, Launched, LaunchError, Project
@@ -147,7 +148,18 @@ def static_dir(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def app(tmp_path: Path, keys: KeySender, panes: dict[str, str], static_dir: Path) -> OverwatchApp:
+def prompts() -> KeySender:
+    return KeySender()
+
+
+@pytest.fixture
+def app(
+    tmp_path: Path,
+    keys: KeySender,
+    prompts: KeySender,
+    panes: dict[str, str],
+    static_dir: Path,
+) -> OverwatchApp:
     supervisor = OverwatchApp(
         store=DecisionStore(path=tmp_path / "decisions.json"),
         bus_root=tmp_path / "bus",
@@ -167,6 +179,8 @@ def app(tmp_path: Path, keys: KeySender, panes: dict[str, str], static_dir: Path
         today=lambda: date(2026, 10, 31),
         static_dir=static_dir,
         settings=SettingsStore(path=tmp_path / "settings.json"),
+        artifacts=ArtifactStore(root=tmp_path / "artifacts"),
+        prompt_sender=prompts,
     )
     supervisor.publish(
         snapshot=Snapshot(sessions=[WAITING, IDLE, PERMISSION], taken_at=NOW),
@@ -1856,3 +1870,169 @@ class TestStatusLines:
         )
 
         assert (reads, app.status_lines) == ([], {"sid-idle": ""})
+
+
+def artifact_document(
+    *, artifact_id: str = "rollout", session: str = "mc-updates"
+) -> dict[str, Any]:
+    return {
+        "id": artifact_id,
+        "title": "Rollout",
+        "session": session,
+        "blocks": [
+            {"type": "summary", "text": "Ship it."},
+            {"id": "ship", "type": "button", "label": "Ship"},
+            {"id": "region", "type": "choice", "prompt": "Where?", "options": ["eu", "us"]},
+        ],
+    }
+
+
+def store_artifact(*, app: OverwatchApp, **changes: str) -> dict[str, Any]:
+    assert app.artifacts is not None
+    return app.artifacts.write(document=artifact_document(**changes), now=NOW)
+
+
+class TestArtifactRoutes:
+    @pytest.mark.parametrize(
+        ("method", "path"),
+        [("GET", "/api/artifacts"), ("GET", "/api/artifact"), ("POST", "/api/artifact/event")],
+    )
+    def test_require_token(self, port: int, method: str, path: str) -> None:
+        assert call(port=port, method=method, path=path, payload={}, token=None).status == 403
+
+    def test_list(self, port: int, app: OverwatchApp) -> None:
+        stored = store_artifact(app=app)
+
+        response = call(port=port, method="GET", path="/api/artifacts")
+
+        assert response.json() == {
+            "artifacts": [
+                {
+                    "id": "rollout",
+                    "title": "Rollout",
+                    "session": "mc-updates",
+                    "revision": 1,
+                    "updated_at": stored["updated_at"],
+                }
+            ]
+        }
+
+    def test_get(self, port: int, app: OverwatchApp) -> None:
+        stored = store_artifact(app=app)
+
+        response = call(port=port, method="GET", path="/api/artifact?id=rollout")
+
+        assert (response.status, response.json()) == (200, stored)
+
+    @pytest.mark.parametrize("artifact_id", ["missing", "..%2Fdecisions"])
+    def test_get_unknown(self, port: int, app: OverwatchApp, artifact_id: str) -> None:
+        response = call(port=port, method="GET", path=f"/api/artifact?id={artifact_id}")
+
+        assert (response.status, response.json()) == (404, {"error": "No such artifact."})
+
+    def test_snapshot_lists_artifacts(self, app: OverwatchApp) -> None:
+        store_artifact(app=app)
+
+        assert [item["id"] for item in snapshot_payload(app=app)["artifacts"]] == ["rollout"]
+
+    def test_without_a_store(self, port: int, app: OverwatchApp) -> None:
+        app.artifacts = None
+
+        response = call(port=port, method="GET", path="/api/artifacts")
+
+        assert (response.status, snapshot_payload(app=app)["artifacts"]) == (503, [])
+
+
+class TestArtifactEvents:
+    def post_event(self, *, port: int, **payload: Any) -> Response:
+        body = {"artifact_id": "rollout", "control_id": "region", "value": "us", **payload}
+        return call(port=port, method="POST", path="/api/artifact/event", payload=body)
+
+    def test_idle_owner_gets_a_prompt(
+        self, port: int, app: OverwatchApp, prompts: KeySender
+    ) -> None:
+        store_artifact(app=app)
+
+        response = self.post_event(port=port, revision=1)
+        [sent] = prompts.calls
+        [record] = [json.loads(line) for line in app.log_path.read_text().splitlines()]
+
+        assert (
+            response.json()["channel"],
+            sent["pane_id"],
+            UNTRUSTED_OPEN in sent["text"],
+            record["action"],
+            record["detail"].endswith('rollout/region: "us"'),
+        ) == ("prompt", "w12:p1", True, "artifact-event-prompt", True)
+
+    def test_busy_owner_gets_relay_mail(
+        self, port: int, app: OverwatchApp, prompts: KeySender
+    ) -> None:
+        store_artifact(app=app, session="sid-wait")
+
+        response = self.post_event(port=port, control_id="ship", value=None)
+        [message] = mailbox_unread(root=app.bus_root, name=RELAY)
+        headers, body = read_message(message=message)
+
+        assert (
+            response.json()["channel"],
+            prompts.calls,
+            headers["to-session"],
+            headers["subject"].startswith("artifact-event rollout-"),
+            UNTRUSTED_OPEN in body,
+        ) == ("relay", [], "kb-84", True, True)
+
+    @pytest.mark.parametrize(
+        ("payload", "status", "error"),
+        [
+            pytest.param(
+                {"artifact_id": "missing"}, 404, "No such artifact.", id="unknown-artifact"
+            ),
+            pytest.param({"revision": 7}, 409, "The page changed", id="stale-page"),
+            pytest.param({"value": "mars"}, 400, "pick one of the listed", id="bad-value"),
+            pytest.param({"control_id": "nope"}, 400, "not on this page", id="unknown-control"),
+        ],
+    )
+    def test_rejects(
+        self,
+        port: int,
+        app: OverwatchApp,
+        prompts: KeySender,
+        payload: dict[str, Any],
+        status: int,
+        error: str,
+    ) -> None:
+        store_artifact(app=app)
+
+        response = self.post_event(port=port, **payload)
+
+        assert (response.status, error in response.json()["error"], prompts.calls) == (
+            status,
+            True,
+            [],
+        )
+
+    def test_owner_not_running(self, port: int, app: OverwatchApp) -> None:
+        store_artifact(app=app, session="ghost")
+
+        response = self.post_event(port=port)
+
+        assert (response.status, "not running" in response.json()["error"]) == (409, True)
+
+    def test_prompt_failure_is_bad_gateway(
+        self, port: int, app: OverwatchApp, prompts: KeySender
+    ) -> None:
+        store_artifact(app=app)
+        prompts.error = ProbeError("herdr is gone")
+
+        response = self.post_event(port=port)
+
+        assert (response.status, response.json()) == (502, {"error": "herdr is gone"})
+
+    def test_relay_failure_is_bad_gateway(self, port: int, app: OverwatchApp) -> None:
+        store_artifact(app=app, session="sid-wait")
+        app.relay_mailbox = "not a mailbox"
+
+        response = self.post_event(port=port)
+
+        assert response.status == 502

@@ -17,6 +17,13 @@ from typing import Any
 from urllib.parse import parse_qs, urlsplit
 from uuid import uuid4
 
+from dev10x.comm.overwatch.artifacts import (
+    ArtifactError,
+    ArtifactStore,
+    ControlEvent,
+    build_event,
+    render_event,
+)
 from dev10x.comm.overwatch.decisions import (
     ANSWERED,
     HOOK_CHANNEL,
@@ -34,6 +41,8 @@ from dev10x.comm.overwatch.delivery import (
     introduce,
     keys_for_option,
     log_action,
+    prompt_artifact_event,
+    relay_artifact_event,
     rename_session,
     request_preapproval,
     run_session_command,
@@ -59,7 +68,13 @@ from dev10x.comm.overwatch.pending import (
     read_recent_tools,
     read_session_commands,
 )
-from dev10x.comm.overwatch.probes import ProbeError, Snapshot, read_pane, send_keys
+from dev10x.comm.overwatch.probes import (
+    ProbeError,
+    Snapshot,
+    read_pane,
+    send_keys,
+    submit_prompt,
+)
 from dev10x.comm.overwatch.prompts import (
     find_option,
     parse_prompt,
@@ -119,8 +134,10 @@ class OverwatchApp:
     relay_mailbox: str
     hook_token: str = ""
     settings: SettingsStore | None = None
+    artifacts: ArtifactStore | None = None
     now: Callable[[], datetime] = _local_now
     key_sender: Callable[..., None] = send_keys
+    prompt_sender: Callable[..., None] = submit_prompt
     pane_reader: Callable[..., str] = read_pane
     preview_reader: Callable[..., Preview | None] = read_preview
     commands_reader: Callable[..., list[str]] = read_session_commands
@@ -174,6 +191,9 @@ class OverwatchApp:
 
     def page_settings(self) -> PageSettings:
         return self.settings.load() if self.settings else PageSettings()
+
+    def artifact_summaries(self) -> list[dict[str, Any]]:
+        return [asdict(item) for item in self.artifacts.all()] if self.artifacts else []
 
     def nudge(self) -> None:
         with self.changed:
@@ -250,6 +270,7 @@ def snapshot_payload(*, app: OverwatchApp) -> dict[str, Any]:
         "errors": snapshot.errors,
         "sessions": sessions,
         "settings": asdict(app.page_settings()),
+        "artifacts": app.artifact_summaries(),
     }
 
 
@@ -409,6 +430,8 @@ class OverwatchHandler(BaseHTTPRequestHandler):
                 "/api/events": self._events,
                 "/api/session": self._session_detail,
                 "/api/project": self._project_detail,
+                "/api/artifacts": self._artifact_list,
+                "/api/artifact": self._artifact_detail,
                 "/lessons": self._lessons,
             }
         )
@@ -429,6 +452,7 @@ class OverwatchHandler(BaseHTTPRequestHandler):
                 "/launch": self._post_launch,
                 "/preapprove": self._post_preapprove,
                 "/lessons": self._post_lesson,
+                "/api/artifact/event": self._post_artifact_event,
             }
         )
 
@@ -1034,6 +1058,97 @@ class OverwatchHandler(BaseHTTPRequestHandler):
             today=self.app.today(),
         )
         self._json(status=HTTPStatus.CREATED, payload={"path": str(path)})
+
+    def _artifact_store(self) -> ArtifactStore:
+        if self.app.artifacts is None:
+            raise RequestError(
+                status=HTTPStatus.SERVICE_UNAVAILABLE, message="This page keeps no artifacts."
+            )
+        return self.app.artifacts
+
+    def _artifact(self, *, artifact_id: str) -> dict[str, Any]:
+        document = self._artifact_store().get(artifact_id=artifact_id)
+        if document is None:
+            raise RequestError(status=HTTPStatus.NOT_FOUND, message="No such artifact.")
+        return document
+
+    def _artifact_list(self, params: dict[str, str]) -> None:
+        self._artifact_store()
+        self._json(status=HTTPStatus.OK, payload={"artifacts": self.app.artifact_summaries()})
+
+    def _artifact_detail(self, params: dict[str, str]) -> None:
+        self._json(status=HTTPStatus.OK, payload=self._artifact(artifact_id=params.get("id", "")))
+
+    def _artifact_owner(self, *, session: str) -> SessionView:
+        with self.app.changed:
+            sessions = list(self.app.snapshot.sessions)
+        owner = next((view for view in sessions if view.session_id == session), None) or next(
+            (view for view in sessions if view.name == session), None
+        )
+        if owner is None:
+            raise RequestError(
+                status=HTTPStatus.CONFLICT,
+                message="The session that owns this page is not running. Nothing was sent.",
+            )
+        return owner
+
+    def _post_artifact_event(self, params: dict[str, str]) -> None:
+        body = self._body()
+        document = self._artifact(artifact_id=str(body.get("artifact_id", "")))
+        revision = body.get("revision")
+        if revision is not None and revision != document["revision"]:
+            raise RequestError(
+                status=HTTPStatus.CONFLICT,
+                message="The page changed since you loaded it. Nothing was sent; look again.",
+            )
+        try:
+            event = build_event(
+                document=document,
+                control_id=str(body.get("control_id", "")),
+                value=body.get("value"),
+                event_id=f"{document['id'][:24]}-{uuid4().hex[:8]}",
+            )
+        except ArtifactError as exc:
+            raise RequestError(status=HTTPStatus.BAD_REQUEST, message=str(exc)) from exc
+        owner = self._artifact_owner(session=document["session"])
+        channel = self._deliver_artifact_event(event=event, owner=owner)
+        self._ok(event_id=event.event_id, channel=channel)
+
+    def _deliver_artifact_event(self, *, event: ControlEvent, owner: SessionView) -> str:
+        text = render_event(event=event)
+        detail = (
+            f"{event.event_id} {event.artifact_id}/{event.control_id}: "
+            f"{json.dumps(event.value, ensure_ascii=False)}"
+        )
+        if owner.status == "idle" and owner.pane_id:
+            try:
+                prompt_artifact_event(
+                    pane_id=owner.pane_id,
+                    session_name=owner.name,
+                    text=text,
+                    detail=detail,
+                    confirmed_by=CONFIRMED_BY,
+                    log_path=self.app.log_path,
+                    submitter=self.app.prompt_sender,
+                )
+            except ProbeError as exc:
+                raise RequestError(status=HTTPStatus.BAD_GATEWAY, message=str(exc)) from exc
+            return "prompt"
+        try:
+            relay_artifact_event(
+                bus_root=self.app.bus_root,
+                relay_mailbox=self.app.relay_mailbox,
+                session_name=owner.name,
+                session_id=owner.session_id,
+                event_id=event.event_id,
+                text=text,
+                detail=detail,
+                confirmed_by=CONFIRMED_BY,
+                log_path=self.app.log_path,
+            )
+        except (InvalidMessageError, OSError) as exc:
+            raise RequestError(status=HTTPStatus.BAD_GATEWAY, message=str(exc)) from exc
+        return "relay"
 
 
 def _option_index(*, raw: object, decision: Decision) -> int:
