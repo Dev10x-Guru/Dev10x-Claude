@@ -12,6 +12,7 @@ from typing import Any
 
 import pytest
 from dev10x.config.loader import load_document
+from dev10x.core.validators.skill_redirect import MCP_UNAVAILABLE_HINT
 from dev10x.domain.rules.validation_rule import MatchingRule
 
 from tests.validators.loop_shapes import BARE_POLL_LOOP
@@ -408,13 +409,10 @@ class TestGh879WatchLoopEntry:
         # GH-1068 F6: the hint used to name `gh issue comment --body-file`,
         # a shape this same rule denies — steering a blocked caller straight
         # back into the block.
+        # GH-1916: the hint now recommends no raw write at all, so it
+        # cannot steer back into the block either.
         rule = _rule_by_name("gh-issue-comment")
-        hint = " ".join(comp.get("description", "") for comp in rule["compensations"])
-        assert "-F body=@" in hint
-        assert not _matches_any_pattern(
-            rule=rule,
-            command="gh api repos/o/r/issues/1/comments -F body=@/tmp/b.txt",
-        )
+        assert not _recommends_a_denied_command(rule)
 
     def test_find_search_routes_to_grep_and_glob(self) -> None:
         targets = _compensation_targets(_rule_by_name("find-search"))
@@ -728,3 +726,49 @@ class TestSelfDenyingFallbacks:
         assert rule["hook_block"] is True
         assert rule["except"] == ["cli-friction: allow raw-gh-issue"]
         assert not any(str(marker).endswith("-write") for marker in rule["except"])
+
+
+_OUTAGE_WRITE_RULES: list[str] = [
+    "gh-issue-close",
+    "gh-issue-reopen",
+    "gh-issue-create",
+    "gh-issue-edit",
+    "gh-issue-comment",
+    "gh-pr-edit",
+    "gh-pr-ready",
+]
+
+
+class TestOutageWriteGuidance:
+    """GH-1916: the hint, the rule fallbacks and the doc agree that writes wait."""
+
+    @pytest.mark.parametrize("rule_name", _OUTAGE_WRITE_RULES)
+    def test_write_fallback_says_writes_wait(self, rule_name: str) -> None:
+        assert "Writes wait during an MCP outage" in _fallback_text(_rule_by_name(rule_name))
+
+    @pytest.mark.parametrize("rule_name", _OUTAGE_WRITE_RULES)
+    def test_write_fallback_splits_attended_and_unattended(self, rule_name: str) -> None:
+        text = _fallback_text(_rule_by_name(rule_name))
+        assert "Attended: ask the user to reconnect via /mcp" in text
+        assert "Unattended: record the blocker and stop" in text
+
+    @pytest.mark.parametrize(
+        "rule_name",
+        ["gh-issue-close", "gh-issue-reopen", "gh-issue-edit", "gh-pr-edit", "gh-pr-ready"],
+    )
+    def test_marker_is_offered_to_scripted_checks_only(self, rule_name: str) -> None:
+        assert "Scripted DoD checks only" in _fallback_text(_rule_by_name(rule_name))
+
+    def test_hint_says_writes_wait_and_scopes_the_marker(self) -> None:
+        assert "State-CHANGING operations wait for the wrapper" in MCP_UNAVAILABLE_HINT
+        assert "Unattended: record the blocker" in MCP_UNAVAILABLE_HINT
+        assert "scripted DoD checks only" in MCP_UNAVAILABLE_HINT
+
+    def test_doc_carries_the_same_policy(self) -> None:
+        doc = (
+            Path(__file__).resolve().parent.parent.parent
+            / "references"
+            / "mcp-unavailable-escape-hatch.md"
+        ).read_text()
+        assert "## Writes Wait (GH-1916)" in doc
+        assert "scripted DoD checks only" in doc

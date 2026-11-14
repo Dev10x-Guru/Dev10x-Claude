@@ -89,6 +89,25 @@ branch, record the blocker (status file, PR comment, or issue
 comment as the run allows), and end the chunk — a human resolves
 the reconnect on the next attended pass.
 
+## Writes Wait (GH-1916)
+
+During an outage, every state-changing operation waits for the
+wrapper, with no raw-CLI escape.
+Attended: ask the user to reconnect.
+Unattended: record the blocker and stop.
+
+The GH-1266 markers (`cli-friction: allow raw-gh-issue-write`,
+`cli-friction: allow raw-gh-pr-write`) and the `--body-file` form of
+`gh issue create` stay in the rules for scripted DoD checks only.
+A block message that names one describes where the rule lets a
+script through, not a sanctioned outage fallback.
+Read-only `gh api` calls remain the sanctioned way to gather state.
+
+`MCP_UNAVAILABLE_HINT`, the `coding.yaml` write fallbacks and this
+file say the same thing;
+`tests/validators/test_command_skill_map.py::TestOutageWriteGuidance`
+pins the agreement.
+
 ## After a Reconnect
 
 A write wrapper can land on the server while the reply is lost

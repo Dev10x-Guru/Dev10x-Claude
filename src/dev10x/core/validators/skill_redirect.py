@@ -367,11 +367,14 @@ MCP_UNAVAILABLE_HINT = (
     "  gh api repos/<owner>/<repo>/pulls/<n>\n"
     "  gh api repos/<owner>/<repo>/issues/<n>\n"
     "  gh api graphql -f query='...'   # e.g. reviewThreads state\n"
-    "Only state-CHANGING operations must wait for the wrapper — a "
-    "write is what these guardrails exist to gate. An unattended "
-    "agent told only to stop, with no named alternative, either "
-    "stalls on a prompt nobody will answer or reaches for the skip "
-    "flag; neither is the intended behaviour."
+    "State-CHANGING operations wait for the wrapper — a write is "
+    "what these guardrails exist to gate. Attended: reconnect via "
+    "`/mcp`. Unattended: record the blocker (status file, PR or "
+    "issue comment) and stop. A `cli-friction: allow raw-gh-*-write` "
+    "marker is for scripted DoD checks only, never an outage "
+    "fallback. An unattended agent told only to stop, with no named "
+    "alternative, either stalls on a prompt nobody will answer or "
+    "reaches for the skip flag; neither is the intended behaviour."
 )
 
 
