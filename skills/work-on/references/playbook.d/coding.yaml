@@ -237,6 +237,50 @@ fragments:
             environment, or no dev10x-qa plugin installed.
           skills: [dev10x:qa-scope, dev10x-qa:qa-self]
 
+  # Re-record counterpart for pr-continuation (GH-1848). Review fixes
+  # that change the UI make the first pack's video stale; this re-records
+  # only then, using review-pack's freshness check (GH-1828), which keys
+  # on author dates so a groom does not make every video look stale.
+  # Same modes as self-qa-evidence.
+  self-qa-evidence-refresh:
+    - subject: Re-record self-QA video if the UI changed
+      type: detailed
+      prompt: >
+        (1) Read the PR body with pr_get. When it links no review pack
+        or the pack has no video, print "Self-QA refresh skipped: no
+        earlier recording" and complete the step. (2) Run
+        dev10x-qa:review-pack's freshness check, scripts/video-freshness.py
+        (plugins/qa/skills/review-pack/references/evidence.md §
+        Freshness check), against
+        origin/<baseRefName> with the configured ui_globs from
+        review-pack.yaml (none: the script's default) and the pack
+        video's capture time: --video for a take still on disk, else
+        --recorded-at with the time the take was committed to the
+        evidence repo. On exit 0 print "Self-QA evidence still current:
+        <verdict>" and complete the step. (3) On exit 1 the video is
+        stale: run dev10x-qa:qa-self with --exploratory <PR> against
+        staging or the configured local stack, recording a narrated
+        video, then hand it to dev10x-qa:review-pack with
+        --no-request-review so the pack and the PR body link the new
+        take. When no runnable environment resolves, or the dev10x-qa
+        plugin is not installed, print "Self-QA refresh skipped:
+        <reason>" and record the stale video as an open gap in the
+        Verify-AC summary. Keep every external-publish gate those
+        skills own: staging footage only, never production, and no
+        public host for a private repository. This step never
+        requests review itself, the play's next step does.
+      skills: [dev10x-qa:review-pack, dev10x-qa:qa-self]
+      modes:
+        qa-off: skip
+        qa-record-only:
+          prompt: >
+            Run steps (1) and (2) as written. When the video is stale,
+            run dev10x-qa:qa-self --exploratory <PR> with a narrated
+            recording and publish nothing: leave the run directory
+            local, name it in the Verify-AC summary, and print
+            "Self-QA re-recorded, not published (qa-record-only)".
+          skills: [dev10x-qa:review-pack, dev10x-qa:qa-self]
+
   # Bundled multi-issue implementation (GH-196).
   # Replaces the single "Implement changes" epic when work-on
   # is run with ≥ 2 ticket inputs and Strategy B (bundled PR)
@@ -311,6 +355,7 @@ fragments:
       prompt: >
         Update the PR with final linked commits and checklist.
       skills: [dev10x:gh-pr-create]
+    - fragment: self-qa-evidence-refresh
     - subject: Request re-review
       type: detailed
       prompt: >

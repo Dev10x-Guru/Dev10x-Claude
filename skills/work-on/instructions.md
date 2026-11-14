@@ -966,6 +966,16 @@ change or no environment can run the PR; it keeps the publish
 gates of the skills it delegates to. A project drops it with the
 `qa-off` mode or records without publishing with `qa-record-only`.
 
+`pr-continuation` carries the counterpart, `[detailed] Re-record
+self-QA video if the UI changed → dev10x-qa:review-pack,
+dev10x-qa:qa-self`, after Update PR description and right before
+Request re-review (GH-1848). It runs review-pack's freshness check
+(`video-freshness.py`, GH-1828) and re-records only when the pack's
+video predates the newest UI commit; otherwise it prints "Self-QA
+evidence still current". The check compares author dates, so the
+groom before it does not make the video look stale. The same two
+modes apply.
+
 **Feature from ticket** (subtasks of Phase 4):
 ```
 4.1  [detailed] Set up workspace          → dev10x:ticket-branch
