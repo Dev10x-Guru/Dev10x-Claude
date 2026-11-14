@@ -1492,8 +1492,10 @@ resumable (expired turn, session ended, or `BLOCKED`).
 
 See [`references/orchestration/subagent-status-protocol.md`](
 ../../references/orchestration/subagent-status-protocol.md)
-for the full prompt template, parse pattern, and migration
-notes.
+for the full prompt template and parse pattern, and
+[`references/orchestration/subagent-status-operations.md`](
+../../references/orchestration/subagent-status-operations.md)
+for the resume and non-resumable cases and migration notes.
 
 ## Recursive-Fanout Guard (GH-36)
 

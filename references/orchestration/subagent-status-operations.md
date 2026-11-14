@@ -1,3 +1,14 @@
+# Subagent Status Operations
+
+Operational guidance for running the
+[subagent status protocol](subagent-status-protocol.md): how to reach
+the orchestrator, what to do when an agent goes silent or dies, and
+how a skill adopts the protocol. The statuses, prompt template,
+delivery channel and parse pattern live in the protocol file; read it
+first (GH-1892).
+
+## Delivery quirks
+
 ### Addressing the orchestrator (GH-848 F1)
 
 `SendMessage(to="main", …)` is the documented default, but some
@@ -26,7 +37,8 @@ session death (below). Plan to respawn, not to message.
 Do NOT try to retrieve a background teammate's result with
 `TaskOutput(task_id=…)`. Agents spawned via the `Agent` tool are not
 task-runner processes — `TaskOutput` returns "No task found" for
-them. Their ONLY result channel is the `SendMessage` delivery above.
+them. Their ONLY result channel is the `SendMessage` delivery in
+[§ Delivery channel](subagent-status-protocol.md#delivery-channel--background-vs-synchronous-gh-776).
 `TaskOutput` is valid only for work started through the task runner,
 never for `Agent`-dispatched teammates.
 
@@ -46,6 +58,13 @@ it as `DONE`. Escalate:
 Evidence (session 2026-07-07, PR #772): five research agents
 dispatched with the status template alone delivered zero reports
 spontaneously; recovery required the ladder above.
+
+## Recovering an unfinished agent
+
+An agent that ends without `DONE` — interrupted, out of turns, or
+with no status line at all — is routed per the protocol's
+[§ Controller parse pattern](subagent-status-protocol.md#controller-parse-pattern).
+This section decides how to bring it back.
 
 **Resume-first recovery (GH-462 F1):** Before re-dispatching a
 fresh agent, attempt a **SendMessage resume** of the same agent —
