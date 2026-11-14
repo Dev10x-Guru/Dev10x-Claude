@@ -71,7 +71,7 @@ _SPECULATIVE_GLOBS: frozenset[tuple[str, str]] = frozenset(
 
 #: Conditional rules known to lack an INDEX.md § Loading Strategy row. The
 #: fix is an INDEX.md edit tracked by the issue named on each entry.
-_MISSING_INDEX_ROWS: frozenset[str] = frozenset({"hook-input-patterns.md"})  # GH-1915
+_MISSING_INDEX_ROWS: frozenset[str] = frozenset()
 
 
 @cache
