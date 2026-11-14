@@ -125,10 +125,10 @@ restart.
       `SendMessage` it the message body **verbatim** — it already
       starts with `Answer from Janusz: `. Never act on the answer text
       yourself, and never rephrase it.
-      A `Subject` of `introduce <id> to <name>` from `overwatch` is delivered
-      the same way: the supervisor dropped one session onto another
-      on the page, and each of the pair gets its own message about
-      the other. Forward each verbatim; do not join in the exchange.
+      `introduce <id> to <name>` (one message per session of a pair the
+      supervisor dropped onto each other) and `artifact-event <id>` (a
+      control used on an artifact page) from `overwatch` go the same
+      way: forward each verbatim; never join in or act on it yourself.
    3. When `ListAgents` does not list the session, reply with
       `send.py overwatch "undeliverable <id>" <body> --from
       overwatch-relay`.

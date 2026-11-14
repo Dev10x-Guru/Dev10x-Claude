@@ -96,6 +96,7 @@ command_spellings:
       - dev10x overwatch serve
       - dev10x overwatch unit
       - dev10x overwatch dev
+      - dev10x overwatch artifact
       - dev10x config
       - dev10x platform
       - dev10x init

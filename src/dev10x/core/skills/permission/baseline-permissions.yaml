@@ -314,6 +314,9 @@ groups:
       # GH-1765 — `dev` writes only ~/.config/Dev10x/overwatch.yaml
       # and the dev page's token file; it starts nothing
       - Bash(uvx dev10x overwatch dev:*)
+      # GH-1938 — writes only validated JSON under
+      # ~/.config/Dev10x/overwatch/artifacts/; it sends nothing
+      - Bash(uvx dev10x overwatch artifact:*)
 
   # ─── TIER 2 ─────────────────────────────────────────────────────────
 

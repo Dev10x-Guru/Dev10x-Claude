@@ -7,7 +7,8 @@ description: >
   render in both themes, evidence) instead of after rounds of layout
   and diagram corrections.
   TRIGGER when: publishing a long, comparison-shaped or shareable
-  report as a claude.ai Artifact.
+  report as a claude.ai Artifact, or building a page the supervisor
+  answers on the local Overwatch page (buttons, choices, forms).
   DO NOT TRIGGER when: the answer fits in a few lines of markdown, the
   Artifact quickstart names a typed Artifact that fits (slides, a
   document, a live-data dashboard), or a diagram file is the
@@ -20,6 +21,7 @@ allowed-tools:
   - Write
   - Edit
   - Skill
+  - Bash(uvx dev10x overwatch artifact:*)
 ---
 
 # dev10x:artifact
@@ -35,6 +37,16 @@ This skill follows `references/task-orchestration.md` patterns.
 1. `TaskCreate(subject="Build artifact page", activeForm="Building artifact page")`
 
 Mark completed when done: `TaskUpdate(taskId, status="completed")`
+
+## Choose the target
+
+| The page is for | Target |
+|---|---|
+| The supervisor, who answers it (decide, pick, fill in) | **Local Overwatch page (default)**: a JSON document; follow [`references/overwatch-local.md`](references/overwatch-local.md) and skip the rest of this file |
+| Other people, read-only (a report to forward) | **claude.ai export**: `template.html`, from § Scope on |
+
+A page can have both: answer it locally, then export the outcome.
+Without a running Overwatch page (`dev10x:overwatch`), use the export.
 
 ## Scope
 
