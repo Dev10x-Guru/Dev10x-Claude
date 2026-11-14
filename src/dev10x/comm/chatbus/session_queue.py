@@ -17,7 +17,7 @@ from typing import Any
 from dev10x.comm.chatbus import queue, worklist
 from dev10x.comm.chatbus.queue import WorkKind, WorkStatus
 from dev10x.comm.chatbus.store import open_store
-from dev10x.comm.chatbus.worklist import UNTRUSTED_NOTICE, ChatPoster
+from dev10x.comm.chatbus.worklist import THREAD_CONTEXT_NOTICE, UNTRUSTED_NOTICE, ChatPoster
 from dev10x.domain.common.result import ErrorResult, Result, err, ok
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
 
@@ -70,12 +70,30 @@ def list_items(
     return _with_store(path=path, operation=operation)
 
 
+def _context_fields(
+    *,
+    conn: sqlite3.Connection,
+    view: worklist.WorkView,
+    now: datetime,
+    context_limit: int,
+    context_max_age: timedelta,
+) -> dict[str, Any]:
+    context = worklist.thread_context(
+        conn=conn, view=view, now=now, limit=context_limit, max_age=context_max_age
+    )
+    if isinstance(context, ErrorResult):
+        return {"thread_context": [], "thread_context_error": context.error}
+    return {"thread_context": [post.to_dict() for post in context.value]}
+
+
 def claim_item(
     *,
     claimer: str,
     kind: str,
     lease: timedelta,
     now: datetime,
+    context_limit: int,
+    context_max_age: timedelta,
     path: Path | None = None,
 ) -> Result[dict[str, Any]]:
     if kind not in {member.value for member in WorkKind}:
@@ -100,6 +118,14 @@ def claim_item(
                 "observed_status": item.status.value,
                 "claim_verified": item.status is WorkStatus.CLAIMED and item.claimed_by == claimer,
                 "notice": UNTRUSTED_NOTICE,
+                **_context_fields(
+                    conn=conn,
+                    view=observed.value,
+                    now=now,
+                    context_limit=context_limit,
+                    context_max_age=context_max_age,
+                ),
+                "thread_context_notice": THREAD_CONTEXT_NOTICE,
             }
         )
 
