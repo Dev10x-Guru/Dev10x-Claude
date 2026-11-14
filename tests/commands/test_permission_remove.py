@@ -8,9 +8,9 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner, Result
 from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR
-from dev10x.skills.permission import backup, remove_rules
 
 from dev10x.commands.permission import remove
+from dev10x.skills.permission import backup, remove_rules
 
 PERMISSIONS = {
     "allow": ["Read(a/Dev10x/**)", "Bash(git log:*)", "Read(b/Dev10x/**)"],
