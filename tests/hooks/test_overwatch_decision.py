@@ -52,6 +52,14 @@ class FakeOpener:
         ]
 
 
+class DevDownOpener(FakeOpener):
+    def __call__(self, request: urllib.request.Request, *, timeout: float) -> io.BytesIO:
+        if ":9300/" not in request.full_url:
+            return super().__call__(request, timeout=timeout)
+        self.requests.append((request, timeout))
+        raise urllib.error.URLError("refused")
+
+
 class FakeTime:
     def __init__(self) -> None:
         self.now = 0.0
@@ -231,7 +239,7 @@ class TestDevFanOut:
             f"dev:\n  checkout: {checkout}\n  port: 9300\n", encoding="utf-8"
         )
 
-    def test_mirrors_to_dev_before_release(self, token: str, dev_token: str, pinned: None) -> None:
+    def test_mirrors_to_dev_after_release(self, token: str, dev_token: str, pinned: None) -> None:
         opener = FakeOpener()
 
         overwatch_decision(PAYLOAD, opener=opener, in_herdr=lambda: True)
@@ -240,8 +248,8 @@ class TestDevFanOut:
             (request.full_url, request.get_header("X-overwatch-token"))
             for request, _ in opener.requests
         ] == [
-            ("http://127.0.0.1:9300/decisions", "dev-tok"),
             ("http://127.0.0.1:8765/decisions", "tok-1"),
+            ("http://127.0.0.1:9300/decisions", "dev-tok"),
         ]
 
     def test_dev_copy_never_holds_the_session(
@@ -251,10 +259,82 @@ class TestDevFanOut:
 
         overwatch_decision(PAYLOAD, opener=opener, in_herdr=lambda: False)
 
-        assert [
-            json.loads(request.data)["hold"]  # type: ignore[arg-type]
-            for request, _ in opener.requests
-        ] == [False, True]
+        assert (
+            [
+                json.loads(request.data)["hold"]  # type: ignore[arg-type]
+                for request, _ in opener.requests[:2]
+            ]
+            == [True, False]
+        )
+
+    @pytest.mark.parametrize(
+        ("release_reply", "held_seconds"),
+        [
+            ({"decision_ids": ["d1"], "wait_seconds": 30}, 30.0),
+            ({"decision_ids": ["d1"], "wait_seconds": 0}, 0),
+            ({}, 0),
+        ],
+        ids=["held", "not-held", "old-daemon"],
+    )
+    def test_dev_copy_says_how_long_release_holds_it(
+        self,
+        token: str,
+        dev_token: str,
+        pinned: None,
+        release_reply: dict[str, Any],
+        held_seconds: float,
+    ) -> None:
+        opener = FakeOpener(
+            replies=[release_reply, {}, {"ok": True, "answers": {"Which hub?": "Relay"}}]
+        )
+
+        overwatch_decision(
+            PAYLOAD,
+            opener=opener,
+            in_herdr=lambda: False,
+            clock=FakeTime().clock,
+            sleep=lambda seconds: None,
+            emit=lambda text: None,
+        )
+        dev_body = json.loads(opener.requests[1][0].data)  # type: ignore[arg-type]
+
+        assert (opener.requests[1][0].full_url, dev_body["held_elsewhere_seconds"]) == (
+            "http://127.0.0.1:9300/decisions",
+            held_seconds,
+        )
+
+    def test_dev_down_does_not_block_release(
+        self, token: str, dev_token: str, pinned: None
+    ) -> None:
+        opener = DevDownOpener(
+            replies=[
+                {"decision_ids": ["d1"], "wait_seconds": 30},
+                {"ok": True, "answers": {"Which hub?": "Relay"}},
+            ]
+        )
+        emitted: list[str] = []
+        time = FakeTime()
+
+        overwatch_decision(
+            PAYLOAD,
+            opener=opener,
+            in_herdr=lambda: False,
+            clock=time.clock,
+            sleep=time.sleep,
+            emit=emitted.append,
+        )
+
+        assert (
+            [request.full_url for request, _ in opener.requests],
+            len(emitted),
+        ) == (
+            [
+                "http://127.0.0.1:8765/decisions",
+                "http://127.0.0.1:9300/decisions",
+                "http://127.0.0.1:8765/decisions/answers",
+            ],
+            1,
+        )
 
     def test_dev_still_gets_it_when_release_is_down(
         self, config_home: Path, dev_token: str, pinned: None

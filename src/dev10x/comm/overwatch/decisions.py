@@ -29,14 +29,23 @@ class Decision:
     answer: str = ""
     channel: str = ""
     held_until: str = ""
+    held_elsewhere_until: str = ""
+
+
+def _open_until(*, decision: Decision, until: str, now: datetime) -> bool:
+    return decision.state == OPEN and bool(until) and datetime.fromisoformat(until) > now
 
 
 def is_held(*, decision: Decision, now: datetime) -> bool:
-    return (
-        decision.state == OPEN
-        and bool(decision.held_until)
-        and datetime.fromisoformat(decision.held_until) > now
-    )
+    return _open_until(decision=decision, until=decision.held_until, now=now)
+
+
+def is_held_elsewhere(*, decision: Decision, now: datetime) -> bool:
+    return _open_until(decision=decision, until=decision.held_elsewhere_until, now=now)
+
+
+def _until(*, at: datetime, seconds: float) -> str:
+    return (at + timedelta(seconds=seconds)).isoformat() if seconds > 0 else ""
 
 
 def _option_labels(*, question: dict[str, Any]) -> list[str]:
@@ -63,11 +72,13 @@ class DecisionStore:
         cwd: str,
         questions: list[dict[str, Any]],
         hold_seconds: float = 0,
+        held_elsewhere_seconds: float = 0,
         now: datetime | None = None,
     ) -> list[Decision]:
         at = now or datetime.now().astimezone()
         created = at.isoformat()
-        held_until = (at + timedelta(seconds=hold_seconds)).isoformat() if hold_seconds > 0 else ""
+        held_until = _until(at=at, seconds=hold_seconds)
+        held_elsewhere_until = _until(at=at, seconds=held_elsewhere_seconds)
         added = [
             Decision(
                 decision_id=f"{session_id[:8]}-{uuid4().hex[:8]}",
@@ -79,6 +90,7 @@ class DecisionStore:
                 multi_select=bool(question.get("multiSelect", False)),
                 created=created,
                 held_until=held_until,
+                held_elsewhere_until=held_elsewhere_until,
             )
             for question in questions
         ]

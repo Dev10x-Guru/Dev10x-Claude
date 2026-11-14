@@ -8,6 +8,7 @@ import {
   diffLineKind,
   displayName,
   headline,
+  heldElsewhereUntil,
   inHerdr,
   isStockExtra,
   optionText,
@@ -151,6 +152,32 @@ describe("diffLineKind", () => {
     [" same", "same"],
   ])("%j → %s", (line, kind) => {
     expect(diffLineKind(line)).toBe(kind);
+  });
+});
+
+describe("heldElsewhereUntil", () => {
+  const decision = {
+    decision_id: "d1",
+    session_id: "s1",
+    question: "Which hub?",
+    header: "",
+    options: ["Relay"],
+    multi_select: false,
+    created: "2026-11-14T12:00:00+00:00",
+  };
+  const now = new Date("2026-11-14T12:00:10+00:00").getTime();
+
+  it.each([
+    ["2026-11-14T12:00:30+00:00", "2026-11-14T12:00:30+00:00"],
+    ["2026-11-14T12:00:05+00:00", ""],
+    ["", ""],
+    ["nope", ""],
+  ])("held elsewhere until %s reads as %s", (until, expected) => {
+    expect(heldElsewhereUntil({ ...decision, held_elsewhere_until: until }, now)).toBe(expected);
+  });
+
+  it("is empty for a daemon that never sends the field", () => {
+    expect(heldElsewhereUntil(decision, now)).toBe("");
   });
 });
 

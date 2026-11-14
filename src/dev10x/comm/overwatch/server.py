@@ -24,6 +24,7 @@ from dev10x.comm.overwatch.decisions import (
     Decision,
     DecisionStore,
     is_held,
+    is_held_elsewhere,
 )
 from dev10x.comm.overwatch.delivery import (
     SESSION_COMMANDS,
@@ -87,6 +88,9 @@ STATIC_DIR = Path(__file__).parent / "static"
 HEARTBEAT_SECONDS = 15.0
 HOOK_ROUTES = frozenset({"/decisions", "/decisions/answers", "/decisions/release"})
 HELD_WAITING_FOR = "your answer on this page"
+HELD_ELSEWHERE_MESSAGE = (
+    "The session is waiting for this answer on the release Overwatch page; answer it there."
+)
 EXCERPT_LINES = 24
 TAIL_LINES = 400
 TAIL_SOURCE = "recent-unwrapped"
@@ -578,11 +582,19 @@ class OverwatchHandler(BaseHTTPRequestHandler):
             question.get("multiSelect") for question in asked
         )
         wait = self.app.page_settings().answer_wait_seconds if holdable else 0
+        elsewhere = body.get("held_elsewhere_seconds")
         added = self.app.store.add_from_hook(
             session_id=str(body["session_id"]),
             cwd=str(body.get("cwd", "")),
             questions=asked,
             hold_seconds=wait,
+            held_elsewhere_seconds=(
+                elsewhere
+                if not holdable
+                and isinstance(elsewhere, int | float)
+                and not isinstance(elsewhere, bool)
+                else 0
+            ),
             now=self.app.now(),
         )
         self.app.nudge()
@@ -659,6 +671,8 @@ class OverwatchHandler(BaseHTTPRequestHandler):
         decision = self.app.store.get(decision_id=str(body.get("decision_id", "")))
         if decision is None or decision.state != OPEN:
             raise RequestError(status=HTTPStatus.CONFLICT, message="Already answered.")
+        if is_held_elsewhere(decision=decision, now=self.app.now()):
+            raise RequestError(status=HTTPStatus.CONFLICT, message=HELD_ELSEWHERE_MESSAGE)
         index = _option_index(raw=body.get("option_index"), decision=decision)
         answer = decision.options[index]
         if is_held(decision=decision, now=self.app.now()):

@@ -1,4 +1,4 @@
-import type { Group, PromptOption, RecentTool, Session } from "./types";
+import type { Decision, Group, PromptOption, RecentTool, Session } from "./types";
 
 const RECOMMENDED = /\s*\(recommended\)\s*$/i;
 
@@ -80,6 +80,12 @@ export function ago(iso: string, now: number = Date.now()): string {
   const hours = Math.round(minutes / 60);
   if (hours < 48) return `${hours}h ago`;
   return `${Math.round(hours / 24)}d ago`;
+}
+
+export function heldElsewhereUntil(decision: Decision, now: number = Date.now()): string {
+  const until = decision.held_elsewhere_until ?? "";
+  const end = new Date(until).getTime();
+  return !Number.isNaN(end) && end > now ? until : "";
 }
 
 export function clockTime(iso: string): string {

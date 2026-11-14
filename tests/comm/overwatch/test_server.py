@@ -343,6 +343,64 @@ class TestHeldQuestions:
 
         assert (response.status, app.store.get(decision_id=decision_id).held_until) == (200, "")  # type: ignore[union-attr]
 
+    def _mirror(self, *, port: int, held_elsewhere: object, hold: bool = False) -> str:
+        [decision_id] = call(
+            port=port,
+            method="POST",
+            path="/decisions",
+            payload={
+                "session_id": "sid-idle",
+                "cwd": "/w",
+                "questions": [QUESTION],
+                "hold": hold,
+                "held_elsewhere_seconds": held_elsewhere,
+            },
+            token=HOOK_TOKEN,
+        ).json()["decision_ids"]
+        return decision_id
+
+    def test_a_question_held_elsewhere_is_answered_there(
+        self, port: int, keys: KeySender, app: OverwatchApp
+    ) -> None:
+        decision_id = self._mirror(port=port, held_elsewhere=30)
+
+        response = call(
+            port=port,
+            method="POST",
+            path="/answer",
+            payload={"decision_id": decision_id, "option_index": 0},
+        )
+
+        assert (
+            response.status,
+            "release Overwatch page" in response.json()["error"],
+            app.store.get(decision_id=decision_id).state,  # type: ignore[union-attr]
+            keys.calls,
+        ) == (409, True, "open", [])
+
+    def test_a_held_elsewhere_question_shows_until_when(self, port: int) -> None:
+        self._mirror(port=port, held_elsewhere=30)
+
+        idle = next(
+            session
+            for session in call(port=port, method="GET", path="/api/sessions").json()["sessions"]
+            if session["session_id"] == "sid-idle"
+        )
+
+        assert [bool(decision["held_elsewhere_until"]) for decision in idle["decisions"]] == [True]
+
+    @pytest.mark.parametrize(
+        ("held_elsewhere", "hold"),
+        [(0, False), (-5, False), ("soon", False), (True, False), (30, True)],
+        ids=["zero", "negative", "string", "bool", "held-here"],
+    )
+    def test_no_elsewhere_window_without_a_positive_number(
+        self, port: int, app: OverwatchApp, held_elsewhere: object, hold: bool
+    ) -> None:
+        decision_id = self._mirror(port=port, held_elsewhere=held_elsewhere, hold=hold)
+
+        assert app.store.get(decision_id=decision_id).held_elsewhere_until == ""  # type: ignore[union-attr]
+
     @pytest.mark.parametrize("path", ["/decisions/answers", "/decisions/release"])
     @pytest.mark.parametrize("payload", [{}, {"decision_ids": []}, {"decision_ids": "d1"}])
     def test_hook_routes_need_ids(self, port: int, path: str, payload: dict[str, Any]) -> None:

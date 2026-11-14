@@ -7,6 +7,7 @@
   import {
     clockTime,
     displayName,
+    heldElsewhereUntil,
     inHerdr,
     isStockExtra,
     optionText,
@@ -226,7 +227,13 @@
         {#if decision.header}<span class="header">{decision.header}</span>{/if}
         {decision.question}
       </p>
-      {#if decision.multi_select}
+      {@const elsewhereUntil = heldElsewhereUntil(decision)}
+      {#if elsewhereUntil}
+        <p class="held">
+          Answer this on the release Overwatch page: the session is waiting for it there until
+          {clockTime(elsewhereUntil)}. An answer from this page could not reach it.
+        </p>
+      {:else if decision.multi_select}
         <p class="note">This one takes several picks; answer it in the session's own pane.</p>
       {:else}
         <ol class="options">
