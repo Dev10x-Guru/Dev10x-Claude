@@ -67,9 +67,9 @@ even though their verb is "get" — fetch secrets through
 
 **The kubectl wrapper is strictly read-only.** Only the verbs
 listed under "When to Use" pass through; mutating verbs
-(`apply`, `create`, `delete`, `patch`, `scale`, `rollout`,
-`exec`, `port-forward`, `proxy`, `cp`, `debug`, `set`,
-`label`, `annotate`, `taint`, `drain`, `cordon`, `run`,
+(`apply`, `create`, `delete`, `patch`, `scale`, `rollout
+undo|restart|pause|resume`, `exec`, `port-forward`, `proxy`,
+`cp`, `debug`, `set`, `label`, `annotate`, `taint`, `drain`, `cordon`, `run`,
 `expose`, `autoscale`, ...) are denied. Privilege-escalation
 and cluster-redirection flags (`--as`, `--as-group`,
 `--token`, `--server`, `--kubeconfig`,
@@ -187,11 +187,13 @@ ${CLAUDE_PLUGIN_ROOT}/skills/aws-vault/scripts/kubectl.sh production auth can-i 
 | `auth` | `auth can-i` and read-only auth probes |
 | `wait` | Block until a resource condition is met |
 | `diff` | Compare a local manifest to live state (no mutation) |
+| `rollout status`, `rollout history` | Watch or list a rollout (read-only sub-verbs) |
 
 ### What is denied
 
 Mutating verbs (`apply`, `create`, `delete`, `patch`, `scale`,
-`rollout`, `exec`, `port-forward`, `proxy`, `cp`, `debug`,
+`rollout undo|restart|pause|resume` and any other `rollout`
+sub-verb, `exec`, `port-forward`, `proxy`, `cp`, `debug`,
 `set`, `label`, `annotate`, `taint`, `drain`, `cordon`, `run`,
 `expose`, `autoscale`, ...) exit non-zero with a snippet for
 manual execution.

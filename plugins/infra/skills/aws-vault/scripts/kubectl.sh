@@ -19,7 +19,7 @@
 #   <env>           Environment name (resolved from registry)
 #   <kubectl-verb>  One of: get, describe, logs, top, events, explain,
 #                   version, cluster-info, api-resources, api-versions,
-#                   auth, wait, diff
+#                   auth, wait, diff, rollout (status|history only)
 #   [args...]       Remaining kubectl arguments (selectors, names, flags)
 #
 # Registry: ~/.config/Dev10x/aws-vault/service-registry.yaml
@@ -40,6 +40,11 @@ ALLOWED_VERBS=(
     auth
     wait
     diff
+)
+
+ALLOWED_ROLLOUT_SUBVERBS=(
+    status
+    history
 )
 
 DENIED_FLAG_PREFIXES=(
@@ -83,6 +88,19 @@ for allowed in "${ALLOWED_VERBS[@]}"; do
     fi
 done
 
+# `rollout` is allowed per sub-verb: status/history only read, while
+# undo/restart/pause/resume (and anything unknown) mutate.
+DENIED_LABEL="$VERB"
+if [[ "$VERB" == "rollout" ]]; then
+    DENIED_LABEL="rollout ${1:-}"
+    for allowed in "${ALLOWED_ROLLOUT_SUBVERBS[@]}"; do
+        if [[ "${1:-}" == "$allowed" ]]; then
+            is_allowed_verb=true
+            break
+        fi
+    done
+fi
+
 PROFILE=$(yq ".environments.$ENV.aws_vault_profile" "$REGISTRY")
 if [[ -z "$PROFILE" || "$PROFILE" == "null" ]]; then
     VALID=$(yq '.environments | keys | join(", ")' "$REGISTRY")
@@ -99,12 +117,13 @@ NAMESPACE=$(yq ".environments.$ENV.k8s.namespace // \"default\"" "$REGISTRY")
 
 if [[ "$is_allowed_verb" != "true" ]]; then
     {
-        echo "kubectl.sh: verb '$VERB' is not permitted by this wrapper."
+        echo "kubectl.sh: verb '$DENIED_LABEL' is not permitted by this wrapper."
         echo
         echo "This wrapper is strictly read-only. Allowed verbs:"
         echo "  ${ALLOWED_VERBS[*]}"
+        echo "  rollout (sub-verbs: ${ALLOWED_ROLLOUT_SUBVERBS[*]})"
         echo
-        echo "If you need to run '$VERB', execute the following in a"
+        echo "If you need to run '$DENIED_LABEL', execute the following in a"
         echo "separate terminal under your own supervision:"
         echo
         echo "    aws-vault exec $PROFILE -- \\"
