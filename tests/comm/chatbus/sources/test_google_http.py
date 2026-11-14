@@ -4,6 +4,7 @@ import base64
 import io
 import json
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -14,9 +15,12 @@ import pytest
 from dev10x.domain.common.result import Result, err, ok
 from dev10x.domain.retry import RetryPolicy
 
+from dev10x.comm.chatbus.backfill import Page
 from dev10x.comm.chatbus.sources.google_http import (
+    CHAT_API,
     PUBSUB_API,
     WORKSPACE_EVENTS_API,
+    ChatRest,
     GoogleJsonClient,
     PubSubRest,
     WorkspaceEventsRest,
@@ -322,3 +326,93 @@ class TestWorkspaceEventsRest:
         }
 
         assert expect_error(calls[call]()).details == {"status": 400}
+
+
+SINCE = datetime(2026, 11, 6, 6, 0, tzinfo=UTC)
+MESSAGE = "spaces/AAAA/messages/m1"
+
+
+def _query(request: urllib.request.Request) -> dict[str, list[str]]:
+    return urllib.parse.parse_qs(urllib.parse.urlsplit(request.full_url).query)
+
+
+class TestChatRest:
+    def test_lists_messages_since_a_time_oldest_first(self) -> None:
+        json_client, opener = client(
+            json.dumps({"messages": [{"name": MESSAGE}], "nextPageToken": "p2"})
+        )
+
+        page = unwrap(
+            ChatRest(client=json_client).list_messages(
+                space="spaces/AAAA", since=SINCE, threads=(), page_size=100, page_token=None
+            )
+        )
+
+        assert page == Page(items=[{"name": MESSAGE}], next_page_token="p2")
+        assert _query(opener.requests[0]) == {
+            "filter": ['createTime > "2026-11-06T06:00:00.000000Z"'],
+            "orderBy": ["createTime ASC"],
+            "pageSize": ["100"],
+        }
+
+    def test_narrows_the_listing_to_the_watched_threads(self) -> None:
+        json_client, opener = client("{}")
+
+        unwrap(
+            ChatRest(client=json_client).list_messages(
+                space="spaces/AAAA",
+                since=SINCE,
+                threads=("spaces/AAAA/threads/t1", "spaces/AAAA/threads/t2"),
+                page_size=10,
+                page_token="p2",
+            )
+        )
+
+        query = _query(opener.requests[0])
+        assert (query["filter"], query["pageToken"]) == (
+            [
+                'createTime > "2026-11-06T06:00:00.000000Z" AND '
+                "(thread.name = spaces/AAAA/threads/t1 OR thread.name = spaces/AAAA/threads/t2)"
+            ],
+            ["p2"],
+        )
+
+    def test_lists_the_reactions_on_a_message(self) -> None:
+        json_client, opener = client(json.dumps({"reactions": [{"name": f"{MESSAGE}/r/1"}]}))
+
+        page = unwrap(
+            ChatRest(client=json_client).list_reactions(
+                message=MESSAGE, page_size=50, page_token="p3"
+            )
+        )
+
+        assert page == Page(items=[{"name": f"{MESSAGE}/r/1"}])
+        assert opener.requests[0].full_url == (
+            f"{CHAT_API}/{MESSAGE}/reactions?pageSize=50&pageToken=p3"
+        )
+
+    def test_ignores_what_is_not_a_listing(self) -> None:
+        json_client, _ = client(json.dumps({"reactions": "x", "nextPageToken": ""}))
+
+        page = unwrap(
+            ChatRest(client=json_client).list_reactions(
+                message=MESSAGE, page_size=50, page_token=None
+            )
+        )
+
+        assert page == Page(items=[])
+
+    @pytest.mark.parametrize("call", ["messages", "reactions"])
+    def test_failures_are_returned(self, call: str) -> None:
+        json_client, _ = client(http_error(code=403))
+        rest = ChatRest(client=json_client)
+        calls = {
+            "messages": lambda: rest.list_messages(
+                space="spaces/AAAA", since=SINCE, threads=(), page_size=1, page_token=None
+            ),
+            "reactions": lambda: rest.list_reactions(
+                message=MESSAGE, page_size=1, page_token=None
+            ),
+        }
+
+        assert expect_error(calls[call]()).details == {"status": 403}

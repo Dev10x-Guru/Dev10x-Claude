@@ -1,8 +1,9 @@
-"""Google REST transport for the Pub/Sub source (ADR-0035 D1, D8).
+"""Google REST transport for the Pub/Sub source and backfill (ADR-0035 D1, D7, D8).
 
 One JSON request helper with bounded back-off on 408, 429, the
 retryable 5xx and network faults (``dev10x.domain.retry``, per
-ADR-0029), plus the two thin REST adapters the Pub/Sub source needs.
+ADR-0029), plus the two thin REST adapters the Pub/Sub source needs
+and the Chat history reader backfill needs.
 The token comes from a caller-supplied provider holding the user's
 read grant; this module never loads credentials itself.
 
@@ -25,8 +26,10 @@ import urllib.parse
 import urllib.request
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import Any
 
+from dev10x.comm.chatbus.backfill import Page
 from dev10x.comm.chatbus.sources.pubsub import (
     ReceivedMessage,
     SubscriptionSpec,
@@ -40,6 +43,7 @@ log = logging.getLogger(__name__)
 
 PUBSUB_API = "https://pubsub.googleapis.com/v1"
 WORKSPACE_EVENTS_API = "https://workspaceevents.googleapis.com/v1"
+CHAT_API = "https://chat.googleapis.com/v1"
 REQUEST_TIMEOUT_SECONDS = 30
 NOT_FOUND = 404
 
@@ -198,6 +202,78 @@ def _operation_result(*, operation: Mapping[str, Any], action: str) -> Result[Su
     if not isinstance(response, Mapping):
         return err(f"Workspace Events {action} finished without a subscription")
     return _subscription(raw=response)
+
+
+def _rfc3339(*, moment: datetime) -> str:
+    return moment.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+
+def _page(*, payload: Mapping[str, Any], key: str) -> Page:
+    items = payload.get(key)
+    token = payload.get("nextPageToken")
+    return Page(
+        items=[item for item in items if isinstance(item, Mapping)]
+        if isinstance(items, list)
+        else [],
+        next_page_token=token if isinstance(token, str) and token else None,
+    )
+
+
+@dataclass(frozen=True)
+class ChatRest:
+    """Chat API history reads for backfill (GH-1841).
+
+    [Verify] The ``filter`` grammar for several threads (``thread.name``
+    joined by ``OR``) follows the ``spaces.messages.list`` reference and
+    was not exercised against the live API.
+    """
+
+    client: GoogleJsonClient
+
+    def list_messages(
+        self,
+        *,
+        space: str,
+        since: datetime,
+        threads: tuple[str, ...],
+        page_size: int,
+        page_token: str | None,
+    ) -> Result[Page]:
+        clauses = [f'createTime > "{_rfc3339(moment=since)}"']
+        if threads:
+            clauses.append("(" + " OR ".join(f"thread.name = {name}" for name in threads) + ")")
+        query = {
+            "filter": " AND ".join(clauses),
+            "orderBy": "createTime ASC",
+            "pageSize": str(page_size),
+        }
+        if page_token:
+            query["pageToken"] = page_token
+        listed = self.client.request(
+            method="GET",
+            url=f"{CHAT_API}/{space}/messages?{urllib.parse.urlencode(query)}",
+        )
+        if isinstance(listed, ErrorResult):
+            return listed
+        return ok(_page(payload=listed.value, key="messages"))
+
+    def list_reactions(
+        self,
+        *,
+        message: str,
+        page_size: int,
+        page_token: str | None,
+    ) -> Result[Page]:
+        query = {"pageSize": str(page_size)}
+        if page_token:
+            query["pageToken"] = page_token
+        listed = self.client.request(
+            method="GET",
+            url=f"{CHAT_API}/{message}/reactions?{urllib.parse.urlencode(query)}",
+        )
+        if isinstance(listed, ErrorResult):
+            return listed
+        return ok(_page(payload=listed.value, key="reactions"))
 
 
 @dataclass(frozen=True)

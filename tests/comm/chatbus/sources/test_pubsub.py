@@ -143,6 +143,22 @@ class TestPullOnce:
             conn.execute("SELECT COUNT(*) FROM events WHERE source = 'pubsub'").fetchone()[0] == 2
         )
 
+    def test_remembers_a_created_reaction_for_backfill(self, conn: sqlite3.Connection) -> None:
+        _pull(conn, FakePuller(messages=[reaction(number=1)]))
+
+        rows = conn.execute("SELECT reaction_name, emoji, user FROM reaction_snapshot").fetchall()
+
+        assert [tuple(row) for row in rows] == [
+            (f"{SPACE}/messages/m001/reactions/r001", "🤖", "users/111")
+        ]
+
+    def test_forgets_a_deleted_reaction(self, conn: sqlite3.Connection) -> None:
+        _pull(conn, FakePuller(messages=[reaction(number=1)]))
+
+        _pull(conn, FakePuller(messages=[reaction(number=1, event_type=REACTION_DELETED)]))
+
+        assert conn.execute("SELECT COUNT(*) FROM reaction_snapshot").fetchone()[0] == 0
+
     def test_a_redelivery_lands_once(self, conn: sqlite3.Connection) -> None:
         puller = FakePuller(messages=[reaction(number=1)])
         _pull(conn, puller)
