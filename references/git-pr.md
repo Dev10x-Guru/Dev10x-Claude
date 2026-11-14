@@ -92,6 +92,10 @@ The body should be **compact** to avoid cluttering Slack previews.
      a bare one or a `<reason>` placeholder.
    - Only visible lines count: a trailer or reference inside fenced code
      or an HTML comment closes nothing and satisfies nothing (GH-1896).
+   - Only a reference right after `Fixes`, `Closes` or `Resolves` closes
+     an issue on merge, whether a full URL or `#N` (GH-1927).
+     A `Refs:` link or an issue URL in prose names the issue and leaves
+     it open.
    - Do NOT manually add `---`, blank lines, or separators after `Fixes:`
      (Note: The `create-pr.sh` template automatically adds separators as
      part of standard formatting. Do not remove them.)
