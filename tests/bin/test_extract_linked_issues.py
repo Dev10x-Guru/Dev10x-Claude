@@ -31,6 +31,8 @@ EXIT_MISSING = extract_linked_issues.EXIT_MISSING
 EXIT_DECLARED_NONE = extract_linked_issues.EXIT_DECLARED_NONE
 
 REPO = "Dev10x-Guru/Dev10x-Claude"
+_NBSP = chr(0x00A0)
+_ZERO_WIDTH_SPACE = chr(0x200B)
 _WORKFLOW = _REPO_ROOT / ".github" / "workflows" / "close-issues.yml"
 
 
@@ -114,6 +116,170 @@ class TestMixedAndDegenerate:
         # The caller treats an empty result as a failure, not a no-op --
         # a bare mention must not be enough to close someone's issue.
         assert extract(body=body, repo=REPO) == []
+
+
+class TestOnlyVisibleReferencesClose:
+    """GH-1896: references obey the same visibility rule as a none trailer."""
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            "<!-- Fixes: #123 -->",
+            "<!--\nFixes: GH-123\n-->",
+            "```\nFixes: #123\n```",
+            "~~~md\nCloses #123",
+            f"<!-- Fixes: https://github.com/{REPO}/issues/123 -->",
+            f"```\nFixes: https://github.com/{REPO}/issues/123\n```",
+        ],
+        ids=[
+            "inline-comment",
+            "multi-line-comment",
+            "backtick-fence",
+            "unclosed-tilde-fence",
+            "url-in-comment",
+            "url-in-fence",
+        ],
+    )
+    def test_hidden_reference_closes_nothing(self, body: str) -> None:
+        assert extract(body=body, repo=REPO) == []
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            "<!-- Fixes: #999 -->\nFixes: #123",
+            "```\nFixes: #999\n```\nFixes: #123",
+            "<!-- a\nb -->Fixes: #123",
+            "  Fixes: #123  ",
+        ],
+        ids=["after-comment", "after-fence", "after-multi-line-comment", "indented"],
+    )
+    def test_visible_reference_beside_a_hidden_one_closes_alone(self, body: str) -> None:
+        assert extract(body=body, repo=REPO) == [f"{REPO}#123"]
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            "```inline``` aside\nFixes: #123",
+            "````\n```\nFixes: #999\n````\nFixes: #123",
+            "~~~\n```\nFixes: #999\n~~~\nFixes: #123",
+            "```\nFixes: #999\n``` not a closer\n```\nFixes: #123",
+            "```\n    ```\nFixes: #999\n```\nFixes: #123",
+            "    ```\nFixes: #123",
+            f"{_NBSP}```\nFixes: #123",
+            "   ```\nFixes: #999\n   ```  \r\nFixes: #123",
+        ],
+        ids=[
+            "inline-code-is-not-a-fence",
+            "shorter-closer-stays-inside",
+            "other-marker-stays-inside",
+            "closer-with-text-stays-inside",
+            "indented-closer-stays-inside",
+            "indented-opener-is-code-not-a-fence",
+            "nbsp-led-opener-is-not-a-fence",
+            "three-space-fence-with-trailing-space",
+        ],
+    )
+    def test_fence_boundaries_follow_commonmark(self, body: str) -> None:
+        assert extract(body=body, repo=REPO) == [f"{REPO}#123"]
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            "Fixes\n```\nx\n```\n#5",
+            "Fixes\n<!-- x -->\n#5",
+            "Fixes:\n#5",
+        ],
+        ids=["across-a-fence", "across-a-comment", "across-a-line-break"],
+    )
+    def test_a_keyword_never_reaches_a_number_on_another_line(self, body: str) -> None:
+        assert extract(body=body, repo=REPO) == []
+
+
+class TestAsciiOnlyReferences:
+    """GH-1896: a non-ASCII digit or repo name never reaches `gh issue close`."""
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            "Fixes: #١٢٣",
+            "Fixes: GH-١٢٣",
+            "Fixes: #12٣",
+            "Closes #１２",
+            "Fixes: https://github.com/ówner/repo/issues/1",
+            "Fixes: https://github.com/owner/répo/issues/1",
+            f"Fixes: https://github.com/{REPO}/issues/١",
+            f"Fixes: https://github.com/{REPO}/issues/1٣",
+            f"Fixes #1{_ZERO_WIDTH_SPACE}2",
+            f"Fixes #1{chr(0x0301)}2",
+            f"Fixes #1{chr(0x2060)}2",
+            f"Fixes: #123{chr(0x202E)}",
+            f"Fixes: #123{chr(0xE0041)}",
+            f"Fixes: #123{chr(0x05B0)}",
+            f"Fixes: #123{chr(0x20E3)}",
+            "Fixes: #12é",
+            "Fixes: #12_",
+        ],
+        ids=[
+            "arabic-indic-digits",
+            "arabic-indic-digits-gh-form",
+            "ascii-digits-glued-to-a-non-ascii-digit",
+            "fullwidth-digits",
+            "non-ascii-owner",
+            "non-ascii-repo",
+            "url-non-ascii-number",
+            "url-number-glued-to-a-non-ascii-digit",
+            "zero-width-space-inside-the-number",
+            "combining-mark-inside-the-number",
+            "word-joiner-inside-the-number",
+            "bidi-override-after-the-number",
+            "tag-character-after-the-number",
+            "hebrew-point-after-the-number",
+            "enclosing-keycap-after-the-number",
+            "number-glued-to-a-non-ascii-letter",
+            "number-glued-to-an-underscore",
+        ],
+    )
+    def test_non_ascii_reference_closes_nothing(self, body: str) -> None:
+        assert extract(body=body, repo=REPO) == []
+
+    @pytest.mark.parametrize(
+        ("body", "expected"),
+        [
+            ("Fixes: #123.", [f"{REPO}#123"]),
+            ("(Closes #123)", [f"{REPO}#123"]),
+            ("Fixes: #123, Fixes: #124", [f"{REPO}#123", f"{REPO}#124"]),
+            ("Fixes: GH-123\n", [f"{REPO}#123"]),
+            (f"Fixes: https://github.com/{REPO}/issues/123.", [f"{REPO}#123"]),
+            ("Fixes: #123— part of a bundle", [f"{REPO}#123"]),
+            ("Fixes: #123…", [f"{REPO}#123"]),
+            ("（Closes #123）", [f"{REPO}#123"]),
+            (f"Fixes: #123{_NBSP}", [f"{REPO}#123"]),
+            (f"Fixes:{_NBSP}#123", [f"{REPO}#123"]),
+        ],
+        ids=[
+            "full-stop",
+            "parenthesised",
+            "comma-list",
+            "trailing-newline",
+            "url-full-stop",
+            "em-dash",
+            "ellipsis",
+            "fullwidth-parentheses",
+            "trailing-nbsp",
+            "nbsp-separator",
+        ],
+    )
+    def test_ascii_punctuation_after_the_number_still_closes(
+        self,
+        body: str,
+        expected: list[str],
+    ) -> None:
+        assert extract(body=body, repo=REPO) == expected
+
+    def test_url_followed_by_a_fragment_still_closes(self) -> None:
+        body = f"Fixes: https://github.com/{REPO}/issues/42#issuecomment-1"
+
+        assert extract(body=body, repo=REPO) == [f"{REPO}#42"]
 
 
 _PARTIAL_DELIVERY_BODY = "\n".join(
