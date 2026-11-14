@@ -328,7 +328,7 @@ matches the Rationalization Watchlist above, the task MUST be
 rejected and split into separate fixups before invoking
 `Skill(dev10x:gh-pr-fixup)`. This makes the "memory-only" rule a
 mechanical guardrail: the metadata records the decision, the
-watchlist filters bad rationales, and `dev10x:skill-audit` can
+watchlist filters bad rationales, and `dev10x-teach:skill-audit` can
 surface patterns of bundling decisions across sessions.
 
 ### Bundled-reply template

@@ -180,11 +180,13 @@ class TestCommExtractionAliases:
     def test_old_name_resolves_to_the_comm_plugin(self, skill: str) -> None:
         assert resolve_skill_alias(name=f"dev10x:{skill}") == f"dev10x-comm:{skill}"
 
-    def test_every_comm_skill_keeps_its_old_name_as_an_alias(self) -> None:
+    def test_every_moved_skill_keeps_its_old_name_as_an_alias(self) -> None:
         plugin_map = load_plugin_map()
 
         assert {(alias.old, alias.new) for alias in SKILL_NAME_ALIASES} == {
-            (f"dev10x:{skill}", f"dev10x-comm:{skill}") for skill in plugin_map.plugins["comm"]
+            (f"dev10x:{skill}", f"{plugin_map.plugin_names[key]}:{skill}")
+            for key in ("comm", "teach")
+            for skill in plugin_map.plugins[key]
         }
 
     def test_rewrites_a_moved_name_in_a_user_playbook(self) -> None:
@@ -217,6 +219,57 @@ class TestCommExtractionAliases:
             "friction.yaml": "defaults:\n  notify: dev10x-comm:gchat\n",
             "playbooks/work-on.yaml": (
                 "steps:\n  - skill: dev10x-comm:slack\n  - skill: dev10x:slack-review-request\n"
+            ),
+        }
+
+
+MOVED_TO_TEACH_IN_GH_1568 = (
+    "audit-file",
+    "context-audit",
+    "memory-maintenance",
+    "skill-audit",
+    "skill-audit-queue",
+    "skill-create",
+    "skill-index",
+)
+
+
+class TestTeachExtractionAliases:
+    @pytest.mark.parametrize("skill", MOVED_TO_TEACH_IN_GH_1568)
+    def test_old_name_resolves_to_the_teach_plugin(self, skill: str) -> None:
+        assert resolve_skill_alias(name=f"dev10x:{skill}") == f"dev10x-teach:{skill}"
+
+    def test_rewrites_a_name_and_its_longer_sibling_separately(self) -> None:
+        text = "skills:\n  - dev10x:skill-audit\n  - dev10x:skill-audit-queue\n"
+
+        assert migrate_text(text=text, aliases=SKILL_NAME_ALIASES) == (
+            "skills:\n  - dev10x-teach:skill-audit\n  - dev10x-teach:skill-audit-queue\n",
+            2,
+        )
+
+    def test_leaves_a_core_name_that_shares_a_prefix(self) -> None:
+        text = "skill: dev10x:skill-prune\n"
+
+        assert migrate_text(text=text, aliases=SKILL_NAME_ALIASES) == (text, 0)
+
+    @pytest.fixture
+    def migrated_home(self, tmp_path: Path) -> Path:
+        home = tmp_path / "config-home"
+        (home / "playbooks").mkdir(parents=True)
+        (home / "friction.yaml").write_text("defaults:\n  audit: dev10x:skill-audit\n")
+        (home / "playbooks" / "fanout.yaml").write_text(
+            "steps:\n  - skill: dev10x:skill-audit-queue\n  - skill: dev10x:skill-prune\n"
+        )
+        result = migrate_user_configs(config_home=home, dry_run=False)
+        assert isinstance(result, SuccessResult)
+        return home
+
+    def test_shipped_table_migrates_a_temp_config_home(self, migrated_home: Path) -> None:
+        assert _texts(home=migrated_home) == {
+            "friction.yaml": "defaults:\n  audit: dev10x-teach:skill-audit\n",
+            "playbooks/fanout.yaml": (
+                "steps:\n  - skill: dev10x-teach:skill-audit-queue\n"
+                "  - skill: dev10x:skill-prune\n"
             ),
         }
 

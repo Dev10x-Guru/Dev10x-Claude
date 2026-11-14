@@ -26,6 +26,7 @@ extracted:
   - infra
   - db
   - comm
+  - teach
 dependencies:
   coding:
     - tasks

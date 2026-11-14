@@ -203,7 +203,7 @@ _DETECTION_EXEMPT_PATHS: tuple[str, ...] = (
     # from these modules.
     "src/dev10x/core/validators/",
     "src/dev10x/teach/skills/audit/",
-    "skills/skill-audit/",
+    "plugins/teach/skills/skill-audit/",
     # The diag-friction skill (formerly skill-reinforcement) exists
     # to redirect agents away from raw CLI commands; naming those
     # commands is its job.

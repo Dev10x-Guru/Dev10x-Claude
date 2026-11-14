@@ -32,7 +32,7 @@ allowed-tools:
   - Skill(dev10x:gh-pr-merge)
   - Skill(dev10x:fanout)
   - Skill(dev10x:diag-friction)
-  - Skill(dev10x:skill-audit-queue)
+  - Skill(dev10x-teach:skill-audit-queue)
   - Skill(dev10x:session-wrap-up)
   - mcp__plugin_dev10x_cli__issue_list
   - mcp__plugin_dev10x_cli__issue_get

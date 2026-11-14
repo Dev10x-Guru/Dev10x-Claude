@@ -59,7 +59,7 @@ explicitly per task tier:
 | `dev10x:work-on` | Phase 2 (gather) | haiku | Gather |
 | `dev10x:gh-pr-monitor` | CI polling | haiku | Monitor |
 | `dev10x:gh-pr-monitor` | Long CI (>10 min) | sonnet | Analyze |
-| `dev10x:skill-audit` | Wave 1+2 (5 phases) | sonnet | Analyze |
+| `dev10x-teach:skill-audit` | Wave 1+2 (5 phases) | sonnet | Analyze |
 | `dev10x:adr-evaluate` | Architect advocates | opus | Design |
 
 ## Per-Project Model Overrides

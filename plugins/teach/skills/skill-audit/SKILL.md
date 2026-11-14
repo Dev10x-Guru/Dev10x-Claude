@@ -1,5 +1,5 @@
 ---
-name: dev10x:skill-audit
+name: dev10x-teach:skill-audit
 description: >
   Audit a session's skill usage, compliance, and extract lessons learned.
   Default (lightweight): analyzes visible context inline and presents a
@@ -11,7 +11,7 @@ description: >
   DO NOT TRIGGER when: mid-session during active work, or user is
   asking about a specific skill's documentation.
 user-invocable: true
-invocation-name: dev10x:skill-audit
+invocation-name: dev10x-teach:skill-audit
 allowed-tools:
   - Agent
   - AskUserQuestion
@@ -39,7 +39,7 @@ allowed-tools:
   - Bash(ls ~/.claude/tools/:*)
   - Bash(find ~/.claude/skills:*)
   - Skill(dev10x:ticket-create)
-  - Skill(dev10x:audit-file)
+  - Skill(dev10x-teach:audit-file)
 ---
 
 # Skill Audit

@@ -49,7 +49,7 @@ change.
 |----------|-------|-----------|
 | `dev10x:permission-investigator` | Rule shape mutation matrix | Doesn't read memories or doc drift |
 | `dev10x:plugin-maintenance` | Ensures permissions present | Doesn't diagnose why intent breaks |
-| `dev10x:memory-maintenance` | Memory consolidation | Doesn't link drift to permission friction |
+| `dev10x-teach:memory-maintenance` | Memory consolidation | Doesn't link drift to permission friction |
 
 `dev10x:plugin-doctor` orchestrates these as remediation targets — it
 diagnoses, then delegates concrete edits.
@@ -144,7 +144,7 @@ Each remediation either:
 - Calls the MCP tool a remediation names in `action.tool` with its
   `action.arguments` (e.g. `sibling-only-grants` →
   `permission_grant(..., remember=true)`)
-- Delegates to `dev10x:memory-maintenance` for memory restructuring
+- Delegates to `dev10x-teach:memory-maintenance` for memory restructuring
 - Files an upstream issue via `mcp__plugin_dev10x_cli__issue_create`
   when the drift originates in the plugin itself
 

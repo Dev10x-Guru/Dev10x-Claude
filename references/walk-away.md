@@ -104,7 +104,7 @@ For a skill that emits `AskUserQuestion`:
      recommended option, and surface the returned `record` line so a
      present supervisor can still veto
 4. ✓ Append a one-line entry to the resolved `log_to` doubt sink
-5. ✓ Log the suppression to the audit hook so `dev10x:skill-audit`
+5. ✓ Log the suppression to the audit hook so `dev10x-teach:skill-audit`
      can surface walk-away suppressions in the session report
 
 ## Anti-patterns

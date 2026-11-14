@@ -53,7 +53,7 @@ Session — Track work, defer items, resume later
   /dev10x:session-wrap-up -> /dev10x:park-discover
 
 To see all skills: check ~/.claude/SKILLS.md
-To regenerate: /dev10x:skill-index
+To regenerate: /dev10x-teach:skill-index
 ```
 
 ### 2.2 Git Workflow Setup

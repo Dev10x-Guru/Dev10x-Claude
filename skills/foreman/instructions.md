@@ -274,7 +274,7 @@ turn are the most precious resources on site:
 3. **Self-audit:** collect every prompted, denied, or hook-blocked
    command from the night; run `Skill(dev10x:diag-friction)` on each;
    file upstream issues for the structural ones. Queue
-   `Skill(dev10x:skill-audit-queue)` for the session.
+   `Skill(dev10x-teach:skill-audit-queue)` for the session.
 4. `Skill(dev10x:session-wrap-up)` to route anything unfinished.
 
 ## Crew contract (what every worker prompt must contain)

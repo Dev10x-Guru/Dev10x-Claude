@@ -6,14 +6,18 @@ set -euo pipefail
 SKILLS_MENU="${HOME}/.claude/.skills-menu.txt"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 USER_CONFIG_DIR="${HOME}/.claude/skill-index"
-BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)/bin"
-# shellcheck source=../../../bin/require-tool.sh
-source "$BIN_DIR/require-tool.sh"
+PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 # shellcheck source=lib-families.sh
 source "${SCRIPT_DIR}/scripts/lib-families.sh"
+CORE_ROOT="$(core_root "$PLUGIN_ROOT")" || {
+    echo >&2 "ERROR: no dev10x core plugin found beside ${PLUGIN_ROOT}"
+    exit 1
+}
+# shellcheck source=/dev/null
+source "$CORE_ROOT/bin/require-tool.sh"
 require_tool yq
 require_tool jq
-PLUGIN_MAP="$(dirname "$BIN_DIR")/src/dev10x/core/plugins.yaml"
+PLUGIN_MAP="$CORE_ROOT/src/dev10x/core/plugins.yaml"
 
 # ── Resolve config files (user-space overrides plugin defaults) ──
 # families.yaml: user file replaces plugin default (and its fragments)
@@ -44,7 +48,7 @@ resolve_Dev10x_dir() {
 
     find "$cache_base" -mindepth 4 -maxdepth 4 -type d -name skills 2>/dev/null \
         | while IFS= read -r skills_dir; do
-            [[ -f "$skills_dir/skill-index/SKILL.md" ]] || continue
+            is_core_root "$(dirname "$skills_dir")" || continue
             version="$(basename "$(dirname "$skills_dir")")"
             printf '%s\t%s\n' "$version" "$skills_dir"
         done \

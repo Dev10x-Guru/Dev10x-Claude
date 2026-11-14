@@ -80,7 +80,7 @@ bytes ÷ 4, not the bill — the README says so itself.
 
 A session transcript where Bash tool results (not MCP payloads or
 skill bodies) are measured as a top-three token cost — for example
-from a forensic `dev10x:skill-audit --full` pass over the transcript.
+from a forensic `dev10x-teach:skill-audit --full` pass over the transcript.
 `usage_blocks` is not enough: it reports totals per block, with no
 attribution to tool results. Then evaluate a
 narrow, opt-in integration, for example recommending rtk only for

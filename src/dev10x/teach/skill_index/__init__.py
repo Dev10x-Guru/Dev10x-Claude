@@ -8,11 +8,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from dev10x.core.paths import skill_script
 from dev10x.domain.common.result import Result, err, ok
 from dev10x.subprocess_utils import async_run_script
 from dev10x.teach.skill_index.builder import SkillEntry, scan_skill_dirs
 from dev10x.teach.skill_index.catalog import SkillCatalog
+from dev10x.teach.teach_script import teach_script
 
 __all__ = ["SkillCatalog", "SkillEntry", "generate_all", "scan_skill_dirs"]
 
@@ -26,7 +26,7 @@ async def generate_all(
         args.append("--force")
 
     result = await async_run_script(
-        skill_script(skill="skill-index", rel="generate-all.sh"),
+        teach_script(skill="skill-index", rel="generate-all.sh"),
         *args,
     )
 

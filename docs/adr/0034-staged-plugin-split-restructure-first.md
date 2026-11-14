@@ -520,6 +520,17 @@ The supervisor decided the Stage B open decisions on 2026-10-19
      core's `src/` through `skills/bus/lib/core_src.py`: under their own
      root, under a checkout's root, or beside the installed satellite in
      the cache at core's newest version.
+   - B5 (GH-1568) moves the seven `teach` skills. The audit and
+     `generate_skill_index` MCP tools and their Python stay in
+     `dev10x.teach`; they reach the moved scripts through
+     `dev10x.teach.teach_script`, the same `satellite_script` resolver
+     B3 uses for `db.sh`. The skill-audit shims carry their own copy of
+     `lib/core_src.py`, since one satellite cannot import another. The
+     skill-index generators find core's `bin/` and plugin map through
+     `core_root` in `lib-families.sh`, tried in the same three layouts,
+     and pick the installed core by its plugin map rather than by the
+     presence of `skill-index`, so `~/.claude/SKILLS.md` keeps listing
+     core and every satellite.
 5. **Old names stay readable for two releases (GH-1564).** Each moved
    skill gets one `SKILL_NAME_ALIASES` row, and
    `dev10x config migrate-skill-names` rewrites user configs. QA ships
@@ -537,6 +548,8 @@ The supervisor decided the Stage B open decisions on 2026-10-19
      B4 (GH-1567) ships in `0.116.0`, so its seven rows end at
      `0.118.0` and the register entry returns with that removal
      version.
+   - B5 (GH-1568) also lands before `0.116.0` is released, so its
+     seven rows end at `0.118.0` and the register entry stays put.
 
 ### Open decisions (record before the dependent step)
 

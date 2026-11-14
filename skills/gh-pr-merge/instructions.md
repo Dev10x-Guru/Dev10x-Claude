@@ -560,7 +560,7 @@ prematurely).
     skill's task metadata
     (`TaskUpdate(taskId, metadata={"merge_override_reason":
     "<user text>", "override_check": "<check-name>",
-    "override_state": "<state>"})`) so `dev10x:skill-audit`
+    "override_state": "<state>"})`) so `dev10x-teach:skill-audit`
     can surface override patterns later.
   - **Abort** — cancel merge.
 
@@ -908,7 +908,7 @@ silently would defeat the gate's purpose.
     `TaskUpdate(taskId, metadata={"merge_override_reason":
     "solo-maintainer required-review block",
     "override_check": "branch-protection",
-    "override_state": "BLOCKED"})` so `dev10x:skill-audit`
+    "override_state": "BLOCKED"})` so `dev10x-teach:skill-audit`
     can surface override patterns later.
   - **Enable auto-merge** — re-call
     `merge_pr(pr_number=NUMBER, strategy="...", auto=true,

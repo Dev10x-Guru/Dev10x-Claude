@@ -53,6 +53,39 @@ merge_families() {
     yq eval-all '. as $item ireduce ({}; . *+ $item)' "$@" > "$output"
 }
 
+# is_core_root <dir>
+#   Succeed when <dir> is a dev10x core root: it holds the plugin map and
+#   the bin/ helpers the generators source.
+is_core_root() {
+    local dir="$1"
+    [[ -f "$dir/src/dev10x/core/plugins.yaml" && -f "$dir/bin/require-tool.sh" ]]
+}
+
+# core_root <plugin_root>
+#   Print core's root wherever this skill's plugin sits (GH-1568), trying
+#   in order: a pre-split core install (<plugin_root> itself), a checkout or
+#   marketplace clone (<repo>/plugins/teach), and an installed satellite
+#   whose core sits beside it at <cache>/<publisher>/dev10x/<newest ver>.
+#   Fails when none of them is a core root.
+core_root() {
+    local plugin_root="$1"
+    local outer newest
+    outer="$(dirname "$(dirname "$plugin_root")")"
+    if is_core_root "$plugin_root"; then
+        echo "$plugin_root"
+        return 0
+    fi
+    if is_core_root "$outer"; then
+        echo "$outer"
+        return 0
+    fi
+    [[ -d "$outer/dev10x" ]] || return 1
+    newest="$(printf '%s\n' "$outer"/dev10x/*/ | sort -V | tail -n1)"
+    newest="${newest%/}"
+    is_core_root "$newest" || return 1
+    echo "$newest"
+}
+
 # plugin_skill_dirs <dev10x_skills_dir>
 #   Print every plugin root's skills directory: the dev10x plugin's own,
 #   then any plugins/<name>/skills shipped beside it (Stage B layout).

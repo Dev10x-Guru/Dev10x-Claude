@@ -145,7 +145,7 @@ Priority order (highest leverage first):
    deterministic status parsing
 2. `skills/gh-pr-monitor/` — replaces heuristic fallback
    (GH-901)
-3. `skills/skill-audit/` — Wave 2 phases unify their result
+3. `plugins/teach/skills/skill-audit/` — Wave 2 phases unify their result
    shape
 4. `skills/work-on/` — Phase 2 Gather and Phase 3 execution
    subagents

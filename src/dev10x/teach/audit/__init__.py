@@ -18,7 +18,6 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-from dev10x.core.paths import skill_script
 from dev10x.domain.claude_paths import ClaudeDir
 from dev10x.domain.common.result import Result, err, ok
 from dev10x.domain.file_locks import atomic_write_text
@@ -26,6 +25,7 @@ from dev10x.subprocess_utils import async_run_script
 from dev10x.teach.audit.log_pruner import prune
 from dev10x.teach.audit.log_reader import audit_dir, iter_records
 from dev10x.teach.audit.summarizer import summarize
+from dev10x.teach.teach_script import teach_script
 
 __all__ = [
     "iter_records",
@@ -53,7 +53,7 @@ async def extract_session(
         args.append(output_path)
 
     result = await async_run_script(
-        skill_script(skill="skill-audit", rel="extract-session.py"),
+        teach_script(skill="skill-audit", rel="extract-session.py"),
         *args,
     )
 
@@ -73,7 +73,7 @@ async def analyze_actions(
         args.append(output_path)
 
     result = await async_run_script(
-        skill_script(skill="skill-audit", rel="analyze-actions.py"),
+        teach_script(skill="skill-audit", rel="analyze-actions.py"),
         *args,
     )
 
@@ -91,7 +91,7 @@ async def analyze_permissions(
 ) -> Result[dict[str, Any]]:
     """Run permission-friction analysis in-process (GH-142).
 
-    Previously shelled out to skills/skill-audit/scripts/analyze-permissions.py;
+    Previously shelled out to the skill-audit analyze-permissions.py script;
     now calls dev10x.audit.analyze.build_audit_report() directly so MCP
     callers consume structured data without a subprocess hop.
     """

@@ -119,7 +119,7 @@ class TestOpenWorkEndsTheTurnQuietly:
 
 
 class TestAQueuedAuditDoesNotDemandToRun:
-    """GH-1684 F3: `dev10x:skill-audit-queue` records intent only.
+    """GH-1684 F3: `dev10x-teach:skill-audit-queue` records intent only.
 
     The audit it queues waits for the supervisor to invoke it, so the
     hook must not block each turn-end demanding the agent run it. Under
@@ -132,7 +132,7 @@ class TestAQueuedAuditDoesNotDemandToRun:
         "tasks": [
             {"subject": "Monitor CI", "status": "completed"},
             {
-                "subject": "Invoke dev10x:skill-audit to diagnose recent friction",
+                "subject": "Invoke dev10x-teach:skill-audit to diagnose recent friction",
                 "status": "pending",
             },
             {"subject": "Verify acceptance criteria", "status": "pending"},
