@@ -67,13 +67,12 @@ When this skill is invoked, Read `instructions.md` now and
 follow it end-to-end. `TaskCreate` and `AskUserQuestion` calls
 documented there are REQUIRED.
 
-**End-to-end read enforcement (GH-166, GH-1890): `instructions.md`
-may NOT fit in one `Read`.** A truncated result carries a
-`PARTIAL view` header; keep issuing `Read(offset=…)` until you
-reach its final line. Do NOT substitute `Grep` for the missing
-pages: Phase 3 (the review request and its `--unattended`
-pass-through) and Phase 4 (acceptance verification) sit at the
-tail.
+`instructions.md` fits in one `Read` (GH-1922). It holds the
+orchestration, the task list and a phase index; each phase body
+lives in `references/phase-*.md` and is linked from that index.
+Read a phase's file when the supervisor reaches the phase — Phase
+3 (the review request and its `--unattended` pass-through) is in
+`references/phase-3-notification.md`.
 
 ## Mandatory Invocation After PR Creation (GH-162)
 
