@@ -57,6 +57,15 @@ It owns no capture, narration or upload mechanics:
 | Reviewer assignment + chat ping | `dev10x:request-review` |
 | Pack content, hosting, PR link, pre-send gate | **this skill** |
 
+## Arguments
+
+- PR URL or number (optional) — passed to `pr_detect`.
+- `--no-request-review` (GH-1912) — pack only: build and link the pack,
+  run the pre-send gate's pack-only branch, then return the pack link
+  without calling `dev10x:request-review`. Callers with their own
+  review-request step pass it (`dev10x:work-on`'s self-QA and Request
+  review steps), so that step stays the only one.
+
 ## Configuration
 
 Read `<Dev10x config>/review-pack.yaml` (the core `dev10x` plugin's
@@ -221,9 +230,11 @@ own review step decides whether to send.
      not a judgment of these boxes, and list **Send with the gap
      stated (Recommended)**, **Fix the gap first**, **Hold**.
    - an `error` key — **REQUIRED: Call `AskUserQuestion`** with the
-     same three options in the same order. Say in the question that
-     the resolver failed, so this mode's default could not be
-     resolved; Send leads only because a pack-only run hands gaps on.
+     `ask` bullet's options in its order: **Send with the gap stated
+     (Recommended)**, **Fix the gap first**, **Hold**.
+     Say in the question that the resolver failed, so this mode's
+     default could not be resolved; Send leads only because a pack-only
+     run hands gaps on.
    - `auto-advance` — take **Send with the gap stated**, the option
      the resolver's `record` line calls "Recommended".
    - `skip` — take **Send with the gap stated** without a prompt.

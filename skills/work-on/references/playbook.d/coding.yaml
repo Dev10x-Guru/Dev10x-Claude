@@ -123,7 +123,10 @@ fragments:
         push via dev10x:git). After all fixes, run dev10x:review
         --unattended --loop once on the new HEAD, then re-run
         dev10x-qa:review-pack --no-request-review once so section 4
-        matches that HEAD; skip both when nothing was fixed. A
+        matches that HEAD, and refresh the PR body's linked commit
+        list the way Update PR description wrote it
+        (dev10x:gh-pr-create) so it names the fix commits; skip all
+        three when nothing was fixed. A
         UI-changing fix makes the pack's video stale, so list that
         gap instead of fixing it here. Record in the Verify-AC summary
         which gaps were closed and which remain, so the reviewer does

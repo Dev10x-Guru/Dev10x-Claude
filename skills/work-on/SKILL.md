@@ -28,6 +28,7 @@ allowed-tools:
   - Skill(dev10x-qa:qa-self)
   - Skill(dev10x-qa:review-pack)
   - Skill(dev10x:reflect)
+  - Skill(dev10x:review)
   - Skill(dev10x:session-config-seed)
   - Skill(dev10x:skill-create)
   - Skill(dev10x:ticket-branch)

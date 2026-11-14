@@ -127,8 +127,9 @@ most of it — to `skills/foreman/references/` and leave a pointer.
   `references/spec-gate.md` and `references/domain-dispatch.md`.
   Split plan: move § Step 5's confidence-threshold destination note and
   § Design Note (`--post-to-pr`) to `references/` first
-- `review-pack` (~245 lines, GH-1878, GH-1899) — the pre-send gate and its
-  pack-only resolver branch are execution-gating and stay inline.
+- `review-pack` (~255 lines, GH-1878, GH-1899, GH-1912) — the pre-send
+  gate and its pack-only resolver branch are execution-gating and stay
+  inline.
   Split plan: move § Video and the hosting prose of § Where the pack
   lives to `references/` first, keeping inline the bullets the gate
   checks — Verify-before-sending backs the fourth box, § Video's
