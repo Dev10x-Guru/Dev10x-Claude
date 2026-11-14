@@ -168,6 +168,27 @@ def _thread_of(
     return None if row is None else _message_thread(payload=_payload(raw=row["payload"]))
 
 
+def event_thread(
+    *,
+    conn: sqlite3.Connection,
+    event_type: str,
+    resource_name: str,
+    raw_payload: str,
+) -> str | None:
+    """The Chat thread a stored event belongs to, as the bus would reply into it."""
+    return _thread_of(
+        conn=conn,
+        event_type=event_type,
+        resource_name=resource_name,
+        payload=_payload(raw=raw_payload),
+    )
+
+
+def event_text(*, raw_payload: str) -> str:
+    """What a Chat user typed (or the emoji they reacted with); untrusted data."""
+    return _untrusted_text(payload=_payload(raw=raw_payload))
+
+
 _VIEW_QUERY = """
     SELECT w.id, w.event_id, w.kind, w.status, w.claimed_by, w.claimed_until,
            w.attempts, w.result, w.created_at,
@@ -215,17 +236,19 @@ def list_work(
     conn: sqlite3.Connection,
     statuses: Collection[WorkStatus] = OPEN_STATUSES,
     limit: int = 20,
+    newest_first: bool = False,
 ) -> Result[list[WorkView]]:
-    """List items in ``statuses``, oldest first, with the event each came from."""
+    """List items in ``statuses`` with the event each came from, oldest first by default."""
     if limit < 1:
         return err("A queue listing needs a positive limit", limit=limit)
     if not statuses:
         return err("A queue listing needs at least one status")
     wanted = sorted(status.value for status in statuses)
     placeholders = ", ".join("?" for _ in wanted)
+    order = "DESC" if newest_first else "ASC"
     try:
         rows = conn.execute(
-            f"{_VIEW_QUERY} WHERE w.status IN ({placeholders}) ORDER BY w.id LIMIT ?",
+            f"{_VIEW_QUERY} WHERE w.status IN ({placeholders}) ORDER BY w.id {order} LIMIT ?",
             (*wanted, limit),
         ).fetchall()
         views = [_view(conn=conn, row=row) for row in rows]

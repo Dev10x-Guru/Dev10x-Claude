@@ -17,6 +17,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlsplit
 from uuid import uuid4
 
+from dev10x.comm.chatbus.board import ChatBoard, get_board
 from dev10x.comm.overwatch.artifacts import (
     CONTROL_EVENT,
     SHARE_EVENT,
@@ -97,7 +98,8 @@ from dev10x.comm.overwatch.workspace import (
     read_workspace,
 )
 from dev10x.comm.skills.bus.maildir import InvalidMessageError
-from dev10x.domain.common.result import ErrorResult
+from dev10x.domain.common.result import ErrorResult, Result
+from dev10x.domain.dev10x_paths import Dev10xConfigDir
 
 log = logging.getLogger(__name__)
 
@@ -121,6 +123,14 @@ STATUS_LINE_WORKERS = 8
 
 def _local_now() -> datetime:
     return datetime.now().astimezone()
+
+
+def read_chat_board(*, now: datetime) -> Result[ChatBoard]:
+    return get_board(
+        path=Dev10xConfigDir.chat_bus_db(),
+        config=Dev10xConfigDir.gchat_config_yaml(),
+        now=now,
+    )
 
 
 class RequestError(Exception):
@@ -158,6 +168,7 @@ class OverwatchApp:
     artifacts: ArtifactStore | None = None
     publishers_reader: Callable[[], PublisherConfig] = builtin_publishers
     prompt_sender: Callable[..., None] = submit_prompt
+    chat_board_reader: Callable[..., Result[ChatBoard]] = read_chat_board
     instance_flag: str = ""
     artifact_index: list[ArtifactSummary] = field(default_factory=list)
     publishers: PublisherConfig = field(default_factory=builtin_publishers)
@@ -456,6 +467,7 @@ class OverwatchHandler(BaseHTTPRequestHandler):
                 "/api/session": self._session_detail,
                 "/api/project": self._project_detail,
                 "/api/artifact": self._artifact_detail,
+                "/api/chatbus": self._chat_bus,
                 "/lessons": self._lessons,
             }
         )
@@ -605,6 +617,13 @@ class OverwatchHandler(BaseHTTPRequestHandler):
                 self.wfile.flush()
         except (BrokenPipeError, ConnectionResetError):
             return
+
+    def _chat_bus(self, params: dict[str, str]) -> None:
+        now = self.app.now()
+        board = self.app.chat_board_reader(now=now)
+        if isinstance(board, ErrorResult):
+            raise RequestError(status=HTTPStatus.SERVICE_UNAVAILABLE, message=board.error)
+        self._json(status=HTTPStatus.OK, payload=board.value.to_dict(now=now))
 
     def _lessons(self, params: dict[str, str]) -> None:
         found = find_lessons(
