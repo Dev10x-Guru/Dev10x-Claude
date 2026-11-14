@@ -26,7 +26,6 @@ from dev10x.skills.permission.catalog_result import _result
 from dev10x.skills.permission.catalog_rules import (
     ScriptRoot,
     _expand_stale_wildcards,
-    _generalizations,
     _is_nonfunctional_mcp_wildcard,
     build_marketplaces_read_rules,
     build_marketplaces_script_rules,
@@ -36,6 +35,7 @@ from dev10x.skills.permission.catalog_rules import (
     collapse_legacy_upgrade_cleanup_rule,
     is_dead_glob_script_rule,
     partition_unmatchable_rules,
+    plan_generalizations,
     satellite_script_roots,
     scan_plugin_scripts,
     scan_user_skill_scripts,
@@ -334,6 +334,7 @@ def generalize_permissions(
     path: Path,
     *,
     dry_run: bool = False,
+    exclude: tuple[str, ...] = (),
 ) -> tuple[int, list[str]]:
     content = path.read_text()
     try:
@@ -345,8 +346,12 @@ def generalize_permissions(
     if not allow_list:
         return 0, []
 
-    replacements, refused = _generalizations(allow_list)
-    refusal_messages = [f"  REFUSED (would emit a malformed rule): {entry}" for entry in refused]
+    plan = plan_generalizations(allow_list, exclude=exclude)
+    replacements = plan.replacements
+    refusal_messages = [
+        f"  REFUSED (would emit a malformed rule): {entry}" for entry in plan.refused
+    ]
+    refusal_messages.extend(f"  HELD ({reason}): {entry}" for entry, reason in plan.held)
 
     if not replacements:
         return 0, refusal_messages
@@ -354,8 +359,8 @@ def generalize_permissions(
     if not dry_run:
         with backed_up_write(path=path) as live_data:
             live_allow = live_data.get("permissions", {}).get("allow", [])
-            live_replacements, _live_refused = _generalizations(live_allow)
-            for old, new in live_replacements:
+            live_plan = plan_generalizations(live_allow, exclude=exclude)
+            for old, new in live_plan.replacements:
                 live_allow[live_allow.index(old)] = new
 
     messages = [f"  {old} → {new}" for old, new in replacements]
@@ -1273,6 +1278,7 @@ def generalize(
     dry_run: bool,
     quiet: bool = False,
     allow_tracked: bool = False,
+    exclude: tuple[str, ...] = (),
 ) -> dict[str, object]:
     """Replace session-specific permission args with wildcards. Returns result dict."""
     messages: list[str] = []
@@ -1296,7 +1302,7 @@ def generalize(
     files_changed = 0
 
     for path in writable_files:
-        count, file_messages = generalize_permissions(path, dry_run=dry_run)
+        count, file_messages = generalize_permissions(path, dry_run=dry_run, exclude=exclude)
         if count > 0:
             if not quiet:
                 messages.append(f"\n{path}")
@@ -1305,7 +1311,7 @@ def generalize(
             files_changed += 1
         elif file_messages and not quiet:
             # A zero count with messages means every candidate rule was
-            # REFUSED as malformed (GH-1150). Dropping those messages here
+            # REFUSED as malformed (GH-1150) or HELD (GH-1868). Dropping those messages here
             # would restore the silence that issue exists to remove — the
             # file looks untouched and nothing says a rule was skipped.
             messages.append(f"\n{path}")

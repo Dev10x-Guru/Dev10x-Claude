@@ -168,6 +168,26 @@ class TestGeneralizePermissions:
 
         assert count == 0
 
+    def test_holds_env_pinned_and_excluded_rules(self, settings_file: Path) -> None:
+        held_env = "Bash(env PLANTUML_SECURITY_PROFILE=UNSECURE bash render.sh a.puml)"
+        held_excluded = "Bash(~/.claude/tools/flux-capacitor-toggle.py on)"
+        settings_file.write_text(
+            json.dumps({"permissions": {"allow": [held_env, held_excluded]}}) + "\n"
+        )
+        original = settings_file.read_text()
+
+        count, messages = update_paths.generalize_permissions(
+            settings_file,
+            exclude=("flux-capacitor-toggle.py",),
+        )
+
+        assert count == 0
+        assert settings_file.read_text() == original
+        assert messages == [
+            f"  HELD (env-assignment prefix): {held_env}",
+            f"  HELD (excluded by --exclude 'flux-capacitor-toggle.py'): {held_excluded}",
+        ]
+
     def test_preserves_other_settings_keys(self, settings_file: Path) -> None:
         settings_file.write_text(
             json.dumps(

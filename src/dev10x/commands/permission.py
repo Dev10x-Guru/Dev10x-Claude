@@ -124,6 +124,12 @@ def _run_fix(
     help="Print one line per changed file (count) instead of full per-file details",
 )
 @click.option("--restore", is_flag=True, help="Restore settings from most recent backups")
+@click.option(
+    "--global",
+    "include_global",
+    is_flag=True,
+    help="Also rewrite ~/.claude/settings.json when a dotfiles repo tracks it (GH-1868)",
+)
 def update_paths(
     *,
     dry_run: bool,
@@ -131,6 +137,7 @@ def update_paths(
     quiet: bool,
     summary: bool,
     restore: bool,
+    include_global: bool,
 ) -> None:
     """Update versioned plugin cache paths to the latest version."""
     from dev10x.core.skills.permission import satellite_paths
@@ -166,7 +173,12 @@ def update_paths(
     # redirect: this command mutates rules that already exist, so there
     # is nothing to hand to a sibling file — the sibling gets its own
     # rewrite from its own entry in settings_files.
-    writable_files, skip_messages = mod.partition_writable(sorted(settings_files))
+    writable_files, skip_messages = mod.partition_writable(
+        sorted(settings_files),
+        allow_tracked_paths=(
+            frozenset({ClaudeDir.settings_json()}) if include_global else frozenset()
+        ),
+    )
     if not quiet:
         for msg in skip_messages:
             click.echo(msg)
@@ -556,8 +568,27 @@ def ensure_safety_keys(*, dry_run: bool, quiet: bool, allow_tracked: bool) -> No
     is_flag=True,
     help="Write even when a target settings file is git-tracked (GH-1155).",
 )
-def generalize(*, dry_run: bool, quiet: bool, allow_tracked: bool) -> None:
-    """Replace session-specific permission args with wildcard patterns."""
+@click.option(
+    "--exclude",
+    "exclude",
+    multiple=True,
+    help=(
+        "Keep matching rules exact: a substring or fnmatch glob of the whole rule. "
+        "Repeatable (GH-1868)."
+    ),
+)
+def generalize(
+    *,
+    dry_run: bool,
+    quiet: bool,
+    allow_tracked: bool,
+    exclude: tuple[str, ...],
+) -> None:
+    """Replace session-specific permission args with wildcard patterns.
+
+    Rules with an env-assignment prefix or a secret/credential-handling
+    name are never widened; they are listed as HELD.
+    """
     from dev10x.core.skills.permission import update_paths as mod
 
     _run_fix(
@@ -565,7 +596,7 @@ def generalize(*, dry_run: bool, quiet: bool, allow_tracked: bool) -> None:
         needs_config=False,
         dry_run=dry_run,
         quiet=quiet,
-        extra={"allow_tracked": allow_tracked},
+        extra={"allow_tracked": allow_tracked, "exclude": tuple(exclude)},
     )
 
 
@@ -694,6 +725,15 @@ def init() -> None:
         "environment. Recover a bad run with `dev10x permission clean --restore`."
     ),
 )
+@click.option(
+    "--global",
+    "include_global",
+    is_flag=True,
+    help=(
+        "Also clean stale rules from ~/.claude/settings.json, e.g. one a dotfiles "
+        "repo tracks. Never deduplicated against itself (GH-1868)."
+    ),
+)
 def clean(
     *,
     dry_run: bool,
@@ -702,6 +742,7 @@ def clean(
     restore: bool,
     skip_global_dedup: bool,
     aggressive: bool,
+    include_global: bool,
 ) -> None:
     """Clean redundant permissions from project settings files."""
     from dev10x.core.skills.permission import clean_project_files as mod
@@ -739,6 +780,9 @@ def clean(
         excluded=vendored_dirs(config),
     )
     migration_layers = mod.namespace_migration_layers(settings_files=settings_files)
+    global_file = ClaudeDir.settings_json() if include_global else None
+    if global_file is not None and not global_file.is_file():
+        global_file = None
 
     if not settings_files and not migration_layers:
         click.echo("No project settings files found.")
@@ -760,6 +804,7 @@ def clean(
         verbose=verbose,
         skip_global_dedup=skip_global_dedup,
         migration_layers=migration_layers,
+        global_file=global_file,
     )
 
     for outcome in run.outcomes:

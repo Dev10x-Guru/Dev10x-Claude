@@ -777,10 +777,19 @@ def run_clean(
     verbose: bool,
     skip_global_dedup: bool,
     migration_layers: list[Path] | None = None,
+    global_file: Path | None = None,
 ) -> CleanRunResult:
-    """Clean every settings file, migrate every other layer, and aggregate."""
+    """Clean every settings file, migrate every other layer, and aggregate.
+
+    ``global_file`` is the user ``settings.json`` opted in with
+    ``clean --global`` (GH-1868). It gets the full clean but never global
+    dedup: deduplicating the global file against itself would empty it.
+    """
     run = CleanRunResult()
-    for path in sorted(settings_files):
+    targets = [(path, skip_global_dedup) for path in sorted(settings_files)]
+    if global_file is not None:
+        targets.append((global_file, True))
+    for path, skip_dedup in targets:
         result, messages = clean_file(
             path,
             global_rules=global_rules,
@@ -789,10 +798,12 @@ def run_clean(
             cache_root=cache_root,
             dry_run=dry_run,
             verbose=verbose,
-            skip_global_dedup=skip_global_dedup,
+            skip_global_dedup=skip_dedup,
         )
         _record(run=run, outcome=CleanFileOutcome(path=path, messages=messages, result=result))
     for path in migration_layers or []:
+        if global_file is not None and path.resolve() == global_file.resolve():
+            continue
         result, messages = migrate_file(path, dry_run=dry_run)
         _record(run=run, outcome=CleanFileOutcome(path=path, messages=messages, result=result))
     return run
