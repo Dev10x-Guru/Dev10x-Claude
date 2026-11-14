@@ -2,7 +2,9 @@
 
 Everything Google-facing reads the user's Application Default
 Credentials (the grant ``gog`` and the Chat bot already use) through a
-token provider, so the unit file carries no secret (ADR-0035 D9).
+token provider, so the unit file carries no secret (ADR-0035 D9). The
+approval DM alone posts as the bot, with the chat.bot token
+``gchat-config.yaml``'s ``auth:`` block mints.
 Nothing here runs at import time or in tests: tests build
 ``DaemonPorts`` from fakes and exercise the settings parsing only.
 """
@@ -19,6 +21,7 @@ from typing import Any, Protocol
 
 import yaml
 
+from dev10x.comm.chatbus.approval_dm import ChatApprovalNotifier
 from dev10x.comm.chatbus.authz import load_allowlist
 from dev10x.comm.chatbus.backfill import SubscriptionRecovery
 from dev10x.comm.chatbus.daemon import (
@@ -172,25 +175,8 @@ def user_token() -> Result[str]:
     return gchat_notify.mint_user_token(adc_info=adc.value)
 
 
-@dataclass(frozen=True)
-class UnsentApprovalNotifier:
-    """No approval DM goes out yet; the item waits in awaiting_approval."""
-
-    # GH-1932
-
-    def request_approval(
-        self,
-        *,
-        owner: str,
-        work_item_id: int,
-        requester: str,
-        verb: str,
-    ) -> Result[str]:
-        return err(
-            f"Approval DMs are not sent yet; the owner approves work item {work_item_id} "
-            f"with `approve {work_item_id}` in a DM with the bot",
-            work_item_id=work_item_id,
-        )
+def bot_token() -> Result[str]:
+    return gchat_notify.mint_chat_token()
 
 
 def target_provider(
@@ -244,13 +230,14 @@ def build_ports(
     settings: ChatBusSettings,
     config_path: Path,
     token: TokenProvider,
+    bot: TokenProvider,
     reader: RawMessageReader = gog_list_messages,
     watches: WatchLister = list_watches,
 ) -> DaemonPorts:
     client = GoogleJsonClient(token=token)
     return DaemonPorts(
         bot_user=settings.bot_user,
-        notifier=UnsentApprovalNotifier(),
+        notifier=ChatApprovalNotifier(client=GoogleJsonClient(token=bot)),
         load_allowlist=partial(load_allowlist, path=config_path),
         poll=PollSource(
             reader=reader, targets=target_provider(settings=settings, watches=watches)

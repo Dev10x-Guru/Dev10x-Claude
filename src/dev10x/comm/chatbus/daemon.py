@@ -196,6 +196,11 @@ class ChatBusDaemon:
         """The SIGHUP hook: swap in a freshly loaded allowlist."""
         loaded = self.ports.load_allowlist(reason="reload")
         if isinstance(loaded, ErrorResult):
+            log.error(
+                "Chat bus allowlist reload rejected; keeping the previous allowlist (%s): %s",
+                self.allowlist.describe(),
+                loaded.error,
+            )
             return loaded
         self.allowlist = loaded.value
         return loaded
