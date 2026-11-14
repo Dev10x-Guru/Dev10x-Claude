@@ -17,15 +17,18 @@ import re
 import sys
 import unicodedata
 
+# GH-1896
+_NUMBER_END = r"(?u:(?!\w))"
+_HIDDEN_CATEGORIES = frozenset({"Mn", "Mc", "Me", "Cf"})
 _URL = re.compile(
-    r"https://github\.com/(?P<repo>[\w.-]+/[\w.-]+)/issues/(?P<number>\d+)",
-    re.IGNORECASE,
+    rf"https://github\.com/(?P<repo>[\w.-]+/[\w.-]+)/issues/(?P<number>\d+){_NUMBER_END}",
+    re.IGNORECASE | re.ASCII,
 )
 
 _KEYWORDS = r"(?:fixes|closes|resolves)"
 _BARE = re.compile(
-    rf"\b{_KEYWORDS}:?\s+(?:GH-|#)(?P<number>\d+)\b",
-    re.IGNORECASE,
+    rf"\b{_KEYWORDS}:?(?u:\s+)(?:GH-|#)(?P<number>\d+){_NUMBER_END}",
+    re.IGNORECASE | re.ASCII,
 )
 
 _DECLARES_NONE = re.compile(r"fixes:[ \t]*none(?![\w-])", re.IGNORECASE)
@@ -35,7 +38,8 @@ _EXPLICIT_NONE = re.compile(
 )
 _WORD = re.compile(r"[^\W_]")
 _PLACEHOLDER = re.compile(r"<[^<>]*>")
-_FENCE_MARKERS = ("```", "~~~")
+_FENCE_OPEN = re.compile(r"(?P<marker>`{3,}|~{3,})(?P<info>.*)")
+_MAX_FENCE_INDENT = 3
 _COMMENT_OPEN = "<!--"
 _COMMENT_CLOSE = "-->"
 
@@ -64,25 +68,38 @@ def extract(*, body: str, repo: str) -> list[str]:
     """Return `owner/repo#number` refs found in ``body``, first-seen order.
 
     ``repo`` resolves the bare `GH-N` / `#N` forms; a full URL keeps the
-    repository it names.
+    repository it names. Only `visible_lines` are read, one at a time, so
+    a reference in fenced code or an HTML comment closes nothing and a
+    keyword never reaches a number across a hidden block.
     """
-    found: list[str] = []
-    seen: set[str] = set()
+    found = (
+        ref
+        for line in visible_lines(body=body)
+        for ref in references_in_line(line=line, repo=repo)
+    )
+    return list(dict.fromkeys(found))
 
-    def add(*, target_repo: str, number: str) -> None:
-        ref = f"{target_repo}#{number}"
-        if ref not in seen:
-            seen.add(ref)
-            found.append(ref)
 
-    for match in _URL.finditer(body):
-        add(target_repo=match.group("repo"), number=match.group("number"))
+def references_in_line(*, line: str, repo: str) -> list[str]:
+    """Return the `owner/repo#number` refs one visible line closes."""
+    refs = [
+        f"{match.group('repo')}#{match.group('number')}"
+        for match in _URL.finditer(line)
+        if _ends_visibly(match=match)
+    ]
+    without_urls = _URL.sub(" ", line)
+    refs.extend(
+        f"{repo}#{match.group('number')}"
+        for match in _BARE.finditer(without_urls)
+        if _ends_visibly(match=match)
+    )
+    return refs
 
-    without_urls = _URL.sub(" ", body)
-    for match in _BARE.finditer(without_urls):
-        add(target_repo=repo, number=match.group("number"))
 
-    return found
+def _ends_visibly(*, match: re.Match[str]) -> bool:
+    """Whether the number is not glued to a mark or format character a reader cannot see."""
+    following = match.string[match.end() : match.end() + 1]
+    return not following or unicodedata.category(following) not in _HIDDEN_CATEGORIES
 
 
 def declares_none(*, line: str) -> bool:
@@ -97,10 +114,15 @@ def is_usable_reason(*, reason: str) -> bool:
 
 def visible_lines(*, body: str) -> list[str]:
     """Return the stripped lines a reader sees: no fenced code, no HTML comments."""
-    visible: list[str] = []
+    return list(visible_lines_by_index(body=body).values())
+
+
+def visible_lines_by_index(*, body: str) -> dict[int, str]:
+    """Map each visible line's index in ``body.split("\\n")`` to its stripped text."""
+    visible: dict[int, str] = {}
     fence: str | None = None
     in_comment = False
-    for raw in body.splitlines():
+    for index, raw in enumerate(body.split("\n")):
         text = raw
         if in_comment:
             close = text.find(_COMMENT_CLOSE)
@@ -108,18 +130,40 @@ def visible_lines(*, body: str) -> list[str]:
                 continue
             text = text[close + len(_COMMENT_CLOSE) :]
             in_comment = False
-        stripped = text.strip()
+        candidate = _fence_candidate(text=text)
         if fence is not None:
-            if stripped.startswith(fence):
+            if candidate is not None and _closes_fence(stripped=candidate, fence=fence):
                 fence = None
             continue
-        opening = next((m for m in _FENCE_MARKERS if stripped.startswith(m)), None)
+        opening = None if candidate is None else _fence_opener(stripped=candidate)
         if opening is not None:
             fence = opening
             continue
         text, in_comment = _without_comments(text=text)
-        visible.append(text.strip())
+        visible[index] = text.strip()
     return visible
+
+
+def _fence_candidate(*, text: str) -> str | None:
+    """The line as a fence marker sees it, or None when indented as code."""
+    unindented = text.lstrip(" ")
+    if len(text) - len(unindented) > _MAX_FENCE_INDENT:
+        return None
+    return unindented.rstrip()
+
+
+def _fence_opener(*, stripped: str) -> str | None:
+    match = _FENCE_OPEN.match(stripped)
+    if match is None:
+        return None
+    marker = match.group("marker")
+    if marker.startswith("`") and "`" in match.group("info"):
+        return None
+    return marker
+
+
+def _closes_fence(*, stripped: str, fence: str) -> bool:
+    return len(stripped) >= len(fence) and stripped == fence[0] * len(stripped)
 
 
 def _without_comments(*, text: str) -> tuple[str, bool]:
