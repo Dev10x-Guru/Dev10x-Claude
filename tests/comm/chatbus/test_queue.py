@@ -17,8 +17,11 @@ from dev10x.comm.chatbus.queue import (
     WorkStatus,
     ack,
     claim,
+    defer,
     enqueue,
     get_item,
+    hand_over,
+    reject,
     release,
 )
 from dev10x.comm.chatbus.store import open_store
@@ -260,6 +263,144 @@ class TestRelease:
             release(conn=conn, item_id=claimed.id, claimer="session-b", now=NOW),
             ErrorResult,
         )
+
+
+class TestHandOver:
+    @pytest.fixture
+    def handed(self, conn: sqlite3.Connection, claimed: WorkItem) -> WorkItem:
+        return unwrap(
+            hand_over(
+                conn=conn,
+                item_id=claimed.id,
+                claimer="session-a",
+                to="agent-b",
+                lease=timedelta(hours=1),
+                now=NOW,
+                note="routed",
+            )
+        )
+
+    def test_moves_the_claim(self, handed: WorkItem) -> None:
+        assert (handed.status, handed.claimed_by, handed.claimed_until, handed.result) == (
+            WorkStatus.CLAIMED,
+            "agent-b",
+            to_db_time(moment=NOW + timedelta(hours=1)),
+            "routed",
+        )
+
+    def test_keeps_the_attempt_count(self, handed: WorkItem) -> None:
+        assert handed.attempts == 1
+
+    def test_new_holder_can_ack(self, conn: sqlite3.Connection, handed: WorkItem) -> None:
+        assert unwrap(ack(conn=conn, item_id=handed.id, claimer="agent-b", now=NOW)).status == (
+            WorkStatus.DONE
+        )
+
+    def test_old_holder_cannot_ack(self, conn: sqlite3.Connection, handed: WorkItem) -> None:
+        assert isinstance(
+            ack(conn=conn, item_id=handed.id, claimer="session-a", now=NOW), ErrorResult
+        )
+
+    @pytest.mark.parametrize(
+        ("to", "lease"),
+        [("", timedelta(hours=1)), ("  ", timedelta(hours=1)), ("agent-b", timedelta(0))],
+    )
+    def test_validates_arguments(
+        self,
+        conn: sqlite3.Connection,
+        claimed: WorkItem,
+        to: str,
+        lease: timedelta,
+    ) -> None:
+        result = hand_over(
+            conn=conn,
+            item_id=claimed.id,
+            claimer="session-a",
+            to=to,
+            lease=lease,
+            now=NOW,
+            note="x",
+        )
+        assert isinstance(result, ErrorResult)
+
+
+class TestDefer:
+    @pytest.mark.parametrize(("refund", "attempts"), [(True, 0), (False, 1)])
+    def test_requeues_with_reason(
+        self,
+        conn: sqlite3.Connection,
+        claimed: WorkItem,
+        refund: bool,
+        attempts: int,
+    ) -> None:
+        item = unwrap(
+            defer(
+                conn=conn,
+                item_id=claimed.id,
+                claimer="session-a",
+                now=NOW,
+                reason="herdr is down",
+                refund_attempt=refund,
+            )
+        )
+        assert (item.status, item.claimed_by, item.attempts, item.result) == (
+            WorkStatus.QUEUED,
+            None,
+            attempts,
+            "herdr is down",
+        )
+
+    def test_none_reason_keeps_the_recorded_one(
+        self, conn: sqlite3.Connection, claimed: WorkItem
+    ) -> None:
+        unwrap(
+            hand_over(
+                conn=conn,
+                item_id=claimed.id,
+                claimer="session-a",
+                to="session-a",
+                lease=LEASE,
+                now=NOW,
+                note="first reason",
+            )
+        )
+        item = unwrap(
+            defer(
+                conn=conn,
+                item_id=claimed.id,
+                claimer="session-a",
+                now=NOW,
+                reason=None,
+                refund_attempt=True,
+            )
+        )
+        assert item.result == "first reason"
+
+
+class TestReject:
+    def test_marks_rejected_with_reason(self, conn: sqlite3.Connection, claimed: WorkItem) -> None:
+        item = unwrap(
+            reject(conn=conn, item_id=claimed.id, claimer="session-a", now=NOW, reason="poison")
+        )
+        assert (item.status, item.claimed_until, item.result) == (
+            WorkStatus.REJECTED,
+            None,
+            "poison",
+        )
+
+    def test_rejected_item_is_never_reclaimed(
+        self, conn: sqlite3.Connection, claimed: WorkItem
+    ) -> None:
+        unwrap(
+            reject(conn=conn, item_id=claimed.id, claimer="session-a", now=NOW, reason="poison")
+        )
+        assert _claim(conn=conn, claimer="session-b", minutes_later=60) is None
+
+    def test_other_session_cannot_reject(
+        self, conn: sqlite3.Connection, claimed: WorkItem
+    ) -> None:
+        result = reject(conn=conn, item_id=claimed.id, claimer="session-b", now=NOW, reason="x")
+        assert isinstance(result, ErrorResult)
 
 
 class TestGetItem:

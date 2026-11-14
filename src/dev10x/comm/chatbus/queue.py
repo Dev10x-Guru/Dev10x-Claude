@@ -207,6 +207,78 @@ def release(
     )
 
 
+def hand_over(
+    *,
+    conn: sqlite3.Connection,
+    item_id: int,
+    claimer: str,
+    to: str,
+    lease: timedelta,
+    now: datetime,
+    note: str,
+) -> Result[WorkItem]:
+    """Pass a live claim to the session that will answer the item (ADR-0035 D10)."""
+    if not to.strip():
+        return err("A hand-over needs a non-empty session name", item_id=item_id)
+    if lease <= timedelta(0):
+        return err("A hand-over needs a positive lease", lease_seconds=lease.total_seconds())
+    return _finish_claim(
+        conn=conn,
+        item_id=item_id,
+        claimer=claimer,
+        assignments="claimed_by = ?, claimed_until = ?, result = ?, updated_at = ?",
+        parameters=(to, to_db_time(moment=now + lease), note, to_db_time(moment=now)),
+        action="hand over",
+    )
+
+
+def defer(
+    *,
+    conn: sqlite3.Connection,
+    item_id: int,
+    claimer: str,
+    now: datetime,
+    reason: str | None,
+    refund_attempt: bool,
+) -> Result[WorkItem]:
+    """Put a claimed item back in the queue and record why.
+
+    ``refund_attempt`` undoes the claim's attempt count when nothing was
+    tried, so waiting for herdr never counts toward the poison limit.
+    A None ``reason`` keeps the reason already on record.
+    """
+    return _finish_claim(
+        conn=conn,
+        item_id=item_id,
+        claimer=claimer,
+        assignments=(
+            "status = 'queued', claimed_by = NULL, claimed_until = NULL, "
+            "attempts = MAX(attempts - ?, 0), result = COALESCE(?, result), updated_at = ?"
+        ),
+        parameters=(int(refund_attempt), reason, to_db_time(moment=now)),
+        action="defer",
+    )
+
+
+def reject(
+    *,
+    conn: sqlite3.Connection,
+    item_id: int,
+    claimer: str,
+    now: datetime,
+    reason: str,
+) -> Result[WorkItem]:
+    """Stop working a claimed item for good; the reason stays visible in ``result``."""
+    return _finish_claim(
+        conn=conn,
+        item_id=item_id,
+        claimer=claimer,
+        assignments="status = 'rejected', claimed_until = NULL, result = ?, updated_at = ?",
+        parameters=(reason, to_db_time(moment=now)),
+        action="reject",
+    )
+
+
 def get_item(*, conn: sqlite3.Connection, item_id: int) -> Result[WorkItem]:
     """Read one item back, e.g. to confirm a write landed (GH-1424 pattern)."""
     try:
