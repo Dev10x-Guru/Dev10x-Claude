@@ -21,6 +21,7 @@ allowed-tools:
   - mcp__plugin_dev10x_cli__unresolved_threads
   - mcp__plugin_dev10x_cli__bot_review_status
   - mcp__plugin_dev10x_cli__review_readiness_audit
+  - mcp__plugin_dev10x_cli__resolve_gate
   - Skill(dev10x:gh-pr-request-review)
   - Skill(dev10x:slack-review-request)
   - Skill(dev10x:gchat-review-request)
@@ -53,14 +54,9 @@ nothing. Verdict meanings: `references/review-readiness.md` § Audit.
 
 ### Step 1: Detect PR context
 
-Use the MCP tool to detect PR number and repo:
-
-```
-mcp__plugin_dev10x_cli__pr_detect(arg="$ARG")
-```
-
-Pass `$ARG` (PR URL, bare number, or empty) and parse `PR_NUMBER`,
-`REPO`, `PR_URL`. If detection fails, report the error and stop.
+Call `mcp__plugin_dev10x_cli__pr_detect(arg="$ARG")` with `$ARG` (PR
+URL, bare number, or empty) and parse `PR_NUMBER`, `REPO`, `PR_URL`.
+If detection fails, report the error and stop.
 
 ### Step 1.5: Approval state precheck (GH-993, GH-128)
 
@@ -102,11 +98,14 @@ Run the four conditions in
 — draft, CI, unresolved threads, bots at head. A draft fails like the
 rest; never mark it ready here. `--force` does not skip this step.
 
-When any condition fails or cannot be read:
+When any condition fails or cannot be read, resolve the run mode as
+that file's § "When the PR is not ready" orders it: `--unattended`,
+else `run_mode.mode` of `mcp__plugin_dev10x_cli__resolve_gate(gate=
+"external_notify", context={})` (read only `run_mode`). `undetermined`
+or an error is attended, printed as `Run mode: undetermined ({basis})
+— treated as attended`.
 
-- **Unattended** (defined in that file — `--unattended`, or an
-  orchestrator's `Skill()` call while executing a plan step with an
-  active task list): refuse — stop, report each reason, post nothing.
+- **Unattended**: refuse — stop, report each reason, post nothing.
 - **Attended**: **REQUIRED: Call `AskUserQuestion`** (do NOT use plain
   text). Question: `"PR #{PR_NUMBER} is not ready for review:
   {reasons}. Request review anyway?"`, header `Readiness`. Options:
@@ -115,8 +114,7 @@ When any condition fails or cannot be read:
   - **Request review anyway** — continue to Step 2; Step 3.5 and the
     Step 4 summary carry the reasons.
 
-Whenever the run stops here, end the output with `Readiness: stopped —
-{reasons}` — the marker `dev10x:gh-pr-request-review` prints too.
+A stop here goes straight to Step 4 with `status: "stopped"`.
 
 ### Step 2: Assign GitHub reviewers
 
@@ -126,9 +124,9 @@ Delegate in this run's mode (`--readiness-checked`: Step 1.6 ran):
 2. Attended run: `Skill(skill="dev10x:gh-pr-request-review", args="--pr {PR_NUMBER} --repo {REPO} --readiness-checked")`
 
 It resolves reviewers from `<Dev10x config>/github-reviewers-config.yaml`
-and may skip on `skip: true`. Capture assigned / skipped / error /
-stopped. **Stopped** — its output ends with `Readiness: stopped —
-{reasons}` — ends the run: skip Steps 3 and 3.5; Step 4 prints it.
+and may skip on `skip: true`. Read the `status` of its
+`review_request_result:` line (GH-1921), never its prose. `stopped`
+ends the run: skip Steps 3 and 3.5; Step 4 carries its reasons.
 
 ### Step 3: Post the review notification
 
@@ -192,6 +190,8 @@ Review request for PR #{PR_NUMBER}:
 ```
 
 List one line per transport that ran — never one the config omits.
+End with the `review_request_result:` line and task metadata defined
+in `references/review-readiness.md` § Result for callers.
 
 ## Notes
 

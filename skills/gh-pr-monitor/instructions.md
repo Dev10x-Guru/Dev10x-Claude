@@ -286,8 +286,8 @@ file so its Step 3a review-request rules are read as a unit.
 | 3, 3.5, 3.6 | [`phase-3-notification.md`](references/phase-3-notification.md) | `resolve_gate(gate="external_notify")`; on `ask`, **REQUIRED: Call `AskUserQuestion`** (post notification / skip notification) |
 | 4 | [`phase-4-verification.md`](references/phase-4-verification.md) | none |
 
-In an unattended run (`--unattended`, or `Skill()` from an
-orchestrator executing a plan step with an active task list) an
+In an unattended run (`--unattended`, or `run_mode.mode:
+unattended` on the same `resolve_gate` payload, GH-1921) an
 `external_notify` gate that resolves to `ask` is treated as `skip`
 and fires no widget — see Phase 3 Step 2 and Step 3a.
 

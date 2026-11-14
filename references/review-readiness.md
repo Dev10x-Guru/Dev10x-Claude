@@ -65,16 +65,28 @@ already notified by the flip; that cannot be undone.
 ## When the PR is not ready
 
 List every failing condition with its reason, one line each, then
-branch on how the skill was invoked. A run is **unattended** when the
-`--unattended` flag is passed, or when an orchestrating skill invokes
-it through `Skill()` while executing a plan step with an active task
-list (`dev10x:work-on`, `dev10x:foreman` crews) — the same test
-`dev10x:git-commit` uses. `dev10x:request-review` is a single skill, not
-a plan step: it passes `--unattended` to `gh-pr-request-review` only
-when it is unattended itself. Anything else is attended; when in doubt,
-treat the run as attended. `--readiness-checked` is not a mode: it
-tells `gh-pr-request-review` that `request-review` already ran this
-check, so it is not run twice.
+branch on the run mode. Resolve it in this order (GH-1921):
+
+1. The `--unattended` flag was passed → **unattended**.
+2. Otherwise read `run_mode.mode` from a
+   `mcp__plugin_dev10x_cli__resolve_gate` payload — every payload
+   carries it, whatever gate was asked, so reuse one the skill already
+   resolved. It is derived from structured state, never from prose:
+   the `afk` overlay, or a `dev10x:work-on` plan step `in_progress` in
+   the plan-sync mirror, is `unattended`; mirrored tasks with no plan
+   step running is `attended`.
+3. `run_mode.mode` is `undetermined` (no mirror, no mirrored tasks, a
+   mirror from another branch), or the call returned `{"error": ...}`
+   → treat the run as **attended**, and print
+   `Run mode: undetermined ({basis}) — treated as attended` so the
+   caller sees that nothing settled it.
+
+`references/mcp-tools/caveats-config-pins.md` lists every `basis`.
+`dev10x:request-review` is a single skill, not a plan step: it passes
+`--unattended` to `gh-pr-request-review` only when it resolved
+unattended itself. `--readiness-checked` is not a mode: it tells
+`gh-pr-request-review` that `request-review` already ran this check,
+so it is not run twice.
 
 - **Unattended**: **refuse**. Do not assign reviewers, do not post a chat notification
   and do not comment on the PR. Report the reasons and stop, so the
@@ -93,6 +105,28 @@ head)`; `gh-pr-request-review` leaves out the draft — and continue.
 `--force` skips only the approval precheck, never this check. A flag
 that silently skipped readiness would recreate the problem it exists to
 stop.
+
+## Result for callers
+
+`dev10x:request-review` and `dev10x:gh-pr-request-review` end every
+run with one machine-readable line, after any prose (GH-1921):
+
+```
+review_request_result: {"status": "stopped", "pr": 42, "reasons": ["CI failure: pytest (failure)"]}
+```
+
+`reasons` lists the failing conditions (empty when none). `status` is
+`requested` (ready, sent), `requested_anyway` (attended override sent
+it), `stopped` (nobody was asked), `skipped` (config, an approval
+short-circuit or a cancel sent nothing) or `error`. With the task tools
+present, the skill also stores the object on its own task:
+`TaskUpdate(taskId, metadata={"review_request_result": {...}})`.
+
+A caller parses the JSON after `review_request_result:` and branches on
+`status`. It never matches the prose: `Readiness: stopped — …` stays as
+a line for humans, not as a contract. A missing or unparseable result
+line counts as `error` — the caller cannot tell whether anyone was
+asked, so it must not report that review was requested.
 
 ## Audit: sent not ready, or went red after?
 

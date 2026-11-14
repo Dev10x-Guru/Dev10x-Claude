@@ -75,20 +75,31 @@ If user approves, execute two delegated steps in sequence:
 
 **Step 3a: Request review (GitHub + Slack)**
 
-Pass the monitor's own mode through, as
+Pass the monitor's own mode through, resolved as
 [`references/review-readiness.md`](../../../references/review-readiness.md)
-defines it: this run is **unattended** when it was invoked with
-`--unattended`, or through `Skill()` while an orchestrator executes a
-plan step with an active task list. Anything else is attended. Without
-the flag, `dev10x:request-review` treats the call as attended and may
-fire its readiness widget inside a run nobody is watching.
+§ "When the PR is not ready" orders it (GH-1921): this run is
+**unattended** when it was invoked with `--unattended`, or when
+`run_mode.mode` on the Step 2 `resolve_gate(gate="external_notify")`
+payload is `unattended` (an `afk` overlay, or a work-on plan step in
+progress). `attended`, `undetermined` and an `error` payload are
+attended; for `undetermined` print `Run mode: undetermined ({basis}) —
+treated as attended`. Without the flag, `dev10x:request-review` treats
+the call as attended and may fire its readiness widget inside a run
+nobody is watching. The same resolved mode is "unattended" in Step 2
+above and in Phase 2.
 
 1. Unattended run: `Skill(skill="dev10x:request-review", args="--pr {pr_number} --repo {repo} --unattended")`
 2. Otherwise (attended): `Skill(skill="dev10x:request-review", args="--pr {pr_number} --repo {repo}")`
 
-When its output has a line containing `Readiness: stopped —` (the bare
-Step 1.6 marker or the Step 4 summary bullet), nobody was asked to
-review: skip Step 3b and report the reasons.
+Then parse the JSON on its `review_request_result:` line (that file
+§ Result for callers) and branch on `status` — never on prose:
+
+- `stopped` → nobody was asked to review: skip Step 3b and report the
+  `reasons`.
+- `requested` / `requested_anyway` / `skipped` → continue to Step 3b.
+- `error`, or no parseable result line → skip Step 3b and report
+  `Review request: result unknown` — the monitor cannot tell whether
+  anyone was asked.
 
 The dev10x:request-review skill will:
 - Assign GitHub reviewers from project config
