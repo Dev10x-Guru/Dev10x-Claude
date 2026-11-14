@@ -57,8 +57,8 @@
   "digests": {
     "git-commit": "9a4e5e88f815eee6",
     "gh-pr-create": "11f48b128f4bd071",
-    "gh-pr-merge": "ca28d9f6e9b9eb73",
-    "git-push": "75ac5f5165f7cd49",
+    "gh-pr-merge": "7f6bfb819a56e6fb",
+    "git-push": "53c2101f604c43f3",
     "git-rebase-interactive": "e093e35833f2251f",
     "gh-pr-checks-watch": "0767cf10c4921a7c",
     "gh-pr-view": "bf5c9b9ebf8b67c0",

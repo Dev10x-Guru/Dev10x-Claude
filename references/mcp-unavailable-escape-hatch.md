@@ -78,7 +78,7 @@ This path does NOT cover:
 - Any `--force`/`-f` push (with or without `--force-with-lease`,
   which was already exempt) — still requires the skill/MCP path.
 - Every other MCP-backed operation (PR creation, merge, issue
-  comments, etc.) — those still hit the lose-lease loop above and
+  comments, etc.) — those still hit the lose-lose loop above and
   still require "stop and ask" for an attended session, or a
   documented deferral (see below) for an unattended one.
 
@@ -88,6 +88,15 @@ covered by the push exception above: do not retry, do not use
 branch, record the blocker (status file, PR comment, or issue
 comment as the run allows), and end the chunk — a human resolves
 the reconnect on the next attended pass.
+
+## After a Reconnect
+
+A write wrapper can land on the server while the reply is lost
+with the connection (GH-1099). Before re-issuing a state-changing
+call that was in flight when the server dropped, re-read the field
+it would have set — `pr_get` `state`/`mergedAt` before another
+`merge_pr`, `isDraft` before another `pr_ready`, the remote SHA
+before another `push_safe`. Re-issue only if the write did not land.
 
 ## Detection
 
@@ -106,16 +115,23 @@ fallbacks in their documentation:
   is the one sanctioned exception: a non-force push to an explicit,
   non-protected branch needs neither the wrapper nor MCP)
 - `dev10x:git-fixup` — raw `gh api`
-- `dev10x:git-commit` — `mktmp` wrapper
+- `dev10x:git-commit` — `mktmp.sh` (the second exception: its hook
+  rule `mktmp-bash-fallback` is advisory, not blocking, and the
+  script needs no MCP server, so it remains a working fallback for
+  getting a commit-message path)
 - `dev10x:git-groom` — raw git commands
 - `dev10x:gh-pr-create` — `create-pr.sh`, `verify-state.sh`
+- `dev10x:gh-pr-merge` — raw `gh pr merge` (blocked); unattended,
+  leave the PR as it is and record the blocker, then re-read
+  `pr_get` state after the reconnect
 - `dev10x:gh-pr-monitor` — `pr-notify.py`, `ci-check-status.py`
 - `dev10x:gh-pr-respond` — raw `gh api`
 - `dev10x:gh-pr-fixup` — raw `gh api`
 - `dev10x:gh-pr-triage` — raw `gh api`
 
-All of the above should treat MCP unavailability as a hard stop,
-not a signal to chain through wrapper fallbacks.
+Apart from the two exceptions named above, all of these should
+treat MCP unavailability as a hard stop, not a signal to chain
+through wrapper fallbacks.
 
 ## Hook Reinforcement
 

@@ -859,10 +859,21 @@ checked out in another worktree.
 
 **MCP unavailable fallback:** If the MCP server is
 disconnected (`merge_pr` listed as "no longer available" in
-system-reminders), STOP and ask the user to reconnect via
-`/mcp` or restart the session. Raw `gh pr merge` is blocked
-and the SKIP env-var prefix is not the documented contract
-(see `references/mcp-unavailable-escape-hatch.md`).
+system-reminders), do not retry `merge_pr` and do not reach
+for raw `gh pr merge` (blocked) or the SKIP env-var prefix
+(not a sanctioned outage path). Then:
+
+- **Attended:** STOP and ask the user to reconnect via `/mcp`
+  or restart the session.
+- **Unattended:** leave the PR as it is, record the blocker
+  (status file, PR comment, or issue comment as the run
+  allows), and end the chunk.
+- **After a reconnect:** re-read the PR with
+  `mcp__plugin_dev10x_cli__pr_get` (`state`, `mergedAt`)
+  before calling `merge_pr` again. A merge is a write, and a
+  dropped call may have landed without a reply (GH-1099).
+
+Full contract: `references/mcp-unavailable-escape-hatch.md`.
 
 **Required-review block override (GH-733, ALWAYS_ASK):** When
 Checks 1–7 pass but the merge cannot land because the PR is

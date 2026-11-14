@@ -912,6 +912,10 @@ Options:
    ```bash
    /tmp/Dev10x/bin/mktmp.sh git commit-msg .txt
    ```
+   Unlike most wrapper fallbacks, the hooks still allow this one
+   during an MCP outage: its rule is advisory, and the script needs
+   no MCP server (`references/mcp-unavailable-escape-hatch.md`
+   § Affected Skills).
    **Do NOT use hardcoded paths** — hooks reject non-mktmp
    paths and the commit will fail.
 
