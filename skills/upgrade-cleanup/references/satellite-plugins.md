@@ -1,15 +1,25 @@
+# Satellite plugins after a skill extraction
+
+Read by SKILL.md Step 1c once `migrate-skill-names` has run (ADR-0034).
+
+## Which skills moved, and where their grants go
+
 Renaming a config entry does not install the satellite plugin a skill
 moved to. Read `${CLAUDE_PLUGIN_ROOT}/src/dev10x/core/plugins.yaml`:
 each entry under `extracted:` ships as `plugin_names[<entry>]`, and its
 skills are listed under `plugins[<entry>]`. The file is the source of
 truth, so a table copied here would go stale on the next extraction.
-`update-paths` (step 1 of the Step 2 maintenance pass) moves those
+`update-paths` (step 1 of the SKILL.md Step 2 maintenance pass) moves those
 skills' script rules to the satellite's directory; its dry run lists
 each one as a move, not a removal (GH-1793). `ensure-scripts` and
 `ensure-reads` then scan every installed satellite beside core, so a
 user who never held the old core rules still gets the satellite's
 script and skill-folder grants; a satellite with no cache directory
 is skipped (GH-1807).
+Each satellite is found at its own newest installed version, not
+core's (GH-1886).
+
+## When the satellite is not installed
 
 When the dry run rewrote any name with one of those prefixes, or the
 user asks for one of those skills, check `enabledPlugins` in

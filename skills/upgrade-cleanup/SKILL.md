@@ -89,7 +89,13 @@ Bash("dev10x config migrate-skill-names --dry-run")
 Bash("dev10x config migrate-skill-names")
 ```
 
-See [`references/satellite-plugins.md`](references/satellite-plugins.md).
+Renaming a config entry does not install the satellite plugin a skill
+moved to. When the dry run rewrote a name, or the user asks for a
+skill that moved, follow
+[`references/satellite-plugins.md`](references/satellite-plugins.md):
+it says where the moved skills' grants go and how to check
+`enabledPlugins`. Never install a satellite for the user — tell them
+the `claude plugin install` command instead; installing is their call.
 
 Step 2 — delegate to the maintenance skill in `full` mode:
 
@@ -129,7 +135,11 @@ then and warns the user to reload. See
 [`references/plugin-load-race.md`](../../references/plugin-load-race.md)
 for the failure mode and diagnosis chain.
 
-See [`references/plugin-load-guard.md`](references/plugin-load-guard.md).
+Run the three steps in
+[`references/plugin-load-guard.md`](references/plugin-load-guard.md):
+copy the guard to `~/.claude/hooks/`, register it as a userspace
+`SessionStart` hook in `~/.claude/settings.json`, and remove any
+registration that points into a versioned plugin-cache path.
 
 After the maintenance pass succeeds, record the plugin version
 so the SessionStart install-check stays silent until the next
