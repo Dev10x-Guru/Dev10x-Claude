@@ -43,7 +43,7 @@ class TestStdlibOnly:
 
 
 _REPO = "Dev10x-Guru/Dev10x-Claude"
-_NONE_TRAILERS = {
+_TRAILERS = {
     "em-dash-reason": ("Fixes: none — part of #909", True),
     "hyphen-reason": ("Fixes: none - self-motivated", True),
     "uppercase": ("FIXES: NONE — self-motivated", True),
@@ -59,13 +59,23 @@ _NONE_TRAILERS = {
     "fenced-example-then-bare": ("```\nFixes: none — part of #909\n```\nFixes: none", False),
     "commented-example-then-bare": ("<!-- Fixes: none — part of #909 -->\nFixes: none", False),
     "unclosed-fence": ("```\nFixes: none — part of #909", False),
+    "indented-reason": ("  Fixes: none — part of #909", True),
+    "indented-bare": ("  Fixes: none", False),
+    "commented-reason-only": ("<!-- Fixes: none — part of #909 -->", False),
+    "reference": ("Fixes: #123", True),
+    "indented-reference": ("  Fixes: #123", True),
+    "commented-reference-only": ("<!-- Fixes: #123 -->", False),
+    "fenced-reference-only": ("```\nFixes: #123\n```", False),
+    "commented-reference-then-bare": ("<!-- Fixes: #123 -->\nFixes: none", False),
+    "non-ascii-number": ("Fixes: #١٢٣", False),
+    "number-glued-to-a-word-character": ("Fixes: GH-12_", False),
 }
 
 
 class TestCreationAndMergeAgree:
-    """GH-1873: a none trailer create_pr accepts is one close-issues accepts."""
+    """GH-1873, GH-1896: a trailer create_pr accepts is one close-issues accepts."""
 
-    @pytest.fixture(params=_NONE_TRAILERS.values(), ids=list(_NONE_TRAILERS))
+    @pytest.fixture(params=_TRAILERS.values(), ids=list(_TRAILERS))
     def case(self, request: pytest.FixtureRequest) -> tuple[str, bool]:
         trailer, expected = request.param
         return f"**When** a slice lands, **a maintainer wants** it.\n\n{trailer}", expected
