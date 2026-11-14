@@ -8,6 +8,7 @@ on the real plugin cache layout.
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -23,27 +24,8 @@ from dev10x.skills.permission.update_paths import (
 
 
 @pytest.fixture
-def fake_home(tmp_path: Path) -> Path:
-    """Materialize a HOME-like directory and return its path."""
-    home = tmp_path / "home" / "tester"
-    home.mkdir(parents=True)
-    return home
-
-
-@pytest.fixture
-def fake_plugin_root(fake_home: Path) -> Path:
-    """Materialize a plugin cache layout under fake_home.
-
-    Mirrors the real shape:
-      <home>/.claude/plugins/cache/<publisher>/<plugin>/<version>/
-        skills/<name>/
-        agents/
-        commands/
-        hooks/scripts/
-        bin/
-        ...
-    """
-    plugin_root = fake_home / ".claude" / "plugins" / "cache" / "Dev10x-Guru" / "Dev10x" / "9.9.9"
+def fake_plugin_root(make_plugin_cache: Callable[..., Path]) -> Path:
+    plugin_root = make_plugin_cache(plugin_name="Dev10x", version="9.9.9")
     skills_dir = plugin_root / "skills"
     for skill in ["alpha-skill", "beta-skill"]:
         (skills_dir / skill).mkdir(parents=True)
@@ -208,7 +190,11 @@ class TestVerifyReadCoverage:
 
 
 class TestEnsureReadRules:
-    def test_appends_missing_rules_idempotently(self, tmp_path: Path) -> None:
+    def test_appends_missing_rules_idempotently(
+        self,
+        tmp_path: Path,
+        read_allow: Callable[[Path], list[str]],
+    ) -> None:
         settings = tmp_path / "settings.json"
         settings.write_text(json.dumps({"permissions": {"allow": ["Read(existing)"]}}))
 
@@ -224,13 +210,16 @@ class TestEnsureReadRules:
             dry_run=False,
         )
 
-        data = json.loads(settings.read_text())
-        allow = data["permissions"]["allow"]
+        allow = read_allow(settings)
         assert allow.count("Read(new-1)") == 1
         assert allow.count("Read(new-2)") == 1
         assert "Read(existing)" in allow
 
-    def test_dry_run_does_not_modify_file(self, tmp_path: Path) -> None:
+    def test_dry_run_does_not_modify_file(
+        self,
+        tmp_path: Path,
+        read_allow: Callable[[Path], list[str]],
+    ) -> None:
         settings = tmp_path / "settings.json"
         settings.write_text(json.dumps({"permissions": {"allow": []}}))
 
@@ -242,8 +231,7 @@ class TestEnsureReadRules:
 
         assert count == 1
         assert any("Read(would-add)" in m for m in messages)
-        data = json.loads(settings.read_text())
-        assert data["permissions"]["allow"] == []
+        assert read_allow(settings) == []
 
     def test_returns_zero_when_nothing_missing(self, tmp_path: Path) -> None:
         settings = tmp_path / "settings.json"
