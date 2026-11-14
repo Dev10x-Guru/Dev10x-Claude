@@ -358,11 +358,16 @@ The SessionEnd hook installed by Path B prompts:
 If yes: `git worktree remove <path>`
 If no: the worktree persists for future sessions.
 
-Manual removal:
+That prompt covers one worktree per session and never fires for
+herdr-created (Path C) or crew/fanout worktrees. To sweep every
+worktree whose work has merged, run `dev10x:git-worktree-prune`: it
+classifies them all in one call, asks once, and keeps anything dirty,
+unpushed or open.
+
+Manual removal of a single clean worktree:
 
 ```bash
 git worktree remove <path>
-git worktree remove --force <path>  # if dirty
 git worktree list                   # list all worktrees
 ```
 
