@@ -51,9 +51,11 @@ the user says `stop`.
 ## Overview
 
 `dev10x overwatch serve` polls `claude agents --json`, `herdr agent
-list` and the `dev10x:bus` status board every 5 s and serves one page
-on `127.0.0.1:8765` behind a per-boot token. A `PreToolUse` hook on
-`AskUserQuestion` posts each session's open questions to the page.
+list` and the `dev10x:bus` status board every 5 s.
+It serves the release page on `127.0.0.1:8765` behind a per-boot token,
+and while a checkout is pinned (see `dev`) a dev page on `:8766`.
+A `PreToolUse` hook on `AskUserQuestion` posts each session's open
+questions to the pages.
 An answer goes back one of two ways:
 
 | Session state | Delivery |
@@ -67,7 +69,7 @@ with `GET /lessons?repo=&q=`.
 
 ## Dispatch on arguments
 
-Args: `[serve | relay | stop]` (default `serve`).
+Args: `[serve | dev | relay | stop]` (default `serve`).
 
 ### `serve`
 
@@ -78,39 +80,38 @@ Args: `[serve | relay | stop]` (default `serve`).
    and show the unit text (`Restart=always`). Saving it as
    `~/.config/systemd/user/dev10x-overwatch.service` and enabling it
    is the user's step.
-   It is the only unit: there is no separate dev unit (GH-1804).
-   A dev unit installed from GH-1765 runs `serve --dev`, which no
-   longer exists, and would restart-loop; tell the user to run
-   `systemctl --user disable --now dev10x-overwatch-dev` and delete
-   its unit file.
+   It is the only unit; an old `dev10x-overwatch-dev` unit runs the
+   removed `serve --dev` and restart-loops, so have the user run
+   `systemctl --user disable --now dev10x-overwatch-dev` and delete it.
 4. After a herdr restart the relay session resumes without its
-   watcher.
-   Once per start, the release daemon re-arms it as soon as the relay
-   is `idle` or `done` (see Safety).
+   watcher; the release daemon re-arms it once per start (see Safety).
    A relay stuck on a prompt still needs that prompt answered by hand.
 
-### Dev page from a local checkout (GH-1765, GH-1804)
+### `dev` — a page from a local checkout
 
-A second page can run the code of a local Dev10x-Claude checkout, so a
-commit can be tried on a live page without a release. The pin is the
-only switch; the running `serve` follows it without a restart.
+A second page runs the code of a local Dev10x-Claude checkout, so a
+commit can be tried on a live page without a release.
+The pin is the only switch; the running `serve` follows it without a
+restart.
 
 1. `uvx dev10x overwatch dev pin --checkout <abs path> [--port 8766]`
-   writes `dev:` to `~/.config/Dev10x/overwatch.yaml`. Within one poll
-   the release `serve` starts `uv run --project <checkout> dev10x
-   overwatch serve --instance dev` beside the release page. When the
-   checkout's HEAD moves, or the child exits, it starts a new child.
-2. Re-pinning to another checkout or port restarts the dev page;
-   `dev unpin` stops it. The release page keeps running either way.
+   writes `dev:` to `~/.config/Dev10x/overwatch.yaml`.
+   Within one poll the release `serve` starts `uv run --project
+   <checkout> dev10x overwatch serve --instance dev` beside it.
+   When the checkout's HEAD moves it starts a new child; a child that
+   keeps exiting is restarted with a backoff of up to 60 s.
+2. Re-pinning restarts the dev page, `dev unpin` stops it, and
+   `dev status` shows the pin and URL; the release page keeps running.
 3. An unusable pin (bad YAML, missing checkout) is announced in the
-   service log and never stops the release page; a dev page already
-   running keeps running until the pin is fixed or removed.
+   service log and stops neither page; an empty file means no pin.
 4. The dev page keeps its state in `~/.config/Dev10x/overwatch/dev/`,
    never renames sessions, and keeps its page token across restarts.
    `dev rotate-token` drops that token; the next dev start issues one.
-5. The `AskUserQuestion` hook posts to both pages. An answer on either
-   one sends keys to the real session, so answer each question on one
-   page only.
+5. The `AskUserQuestion` hook posts to both pages.
+   An answer on either one sends keys to the real session, so answer
+   each question on one page only.
+   A question the release page holds for a session outside Herdr can
+   only be answered there; the dev page says so until the hold ends.
 
 ### `relay`
 
@@ -163,6 +164,9 @@ Stopping `serve` stops both pages, since the dev page runs under it;
 - The release page's token lasts one boot. The dev page's token is
   saved (`0600`) so a commit-triggered restart keeps the tab working;
   any process running as the user can read it.
+- Overwatch assumes a single-user host: between two dev children the
+  dev port is unbound, and another local user who binds it first gets
+  the saved token from the open tab; never pin on a shared machine.
 - Input reaches a session only from a button press on the page, with
   one exception.
   Once per daemon start, the release daemon sends the fixed prompt
