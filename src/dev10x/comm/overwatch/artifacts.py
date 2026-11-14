@@ -505,7 +505,7 @@ class ArtifactStore:
             "channel": channel,
             **detail,
         }
-        target = self.events_path(artifact_id=artifact_id)
-        with file_lock(target):
-            atomic_append_line(target, json.dumps(event, ensure_ascii=False))
+        log_path = self.events_path(artifact_id=artifact_id)
+        with file_lock(log_path):
+            atomic_append_line(log_path, json.dumps(event, ensure_ascii=False))
         return event
