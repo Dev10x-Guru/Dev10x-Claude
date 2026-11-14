@@ -2,19 +2,22 @@
 
 from __future__ import annotations
 
+import json
 import os
 import secrets
 import shutil
 import signal
 import threading
 from collections.abc import Callable
+from datetime import datetime
 from pathlib import Path
 from types import FrameType
+from typing import TextIO
 
 import click
 
 from dev10x.comm.overwatch import paths
-from dev10x.comm.overwatch.artifacts import ArtifactStore
+from dev10x.comm.overwatch.artifacts import ArtifactError, ArtifactStore, parse_document
 from dev10x.comm.overwatch.decisions import DecisionStore
 from dev10x.comm.overwatch.delivery import RELAY_MAILBOX
 from dev10x.comm.overwatch.dev_checkout import (
@@ -349,6 +352,82 @@ def dev_status() -> None:
         f"State: {paths.state_dir(instance=paths.Instance.DEV)}\n"
         f"Open: {page}"
     )
+
+
+def _artifact_store(*, instance: str) -> ArtifactStore:
+    return ArtifactStore(root=paths.artifacts_dir(instance=paths.Instance(instance)))
+
+
+def _artifact_page(*, instance: str, artifact_id: str) -> str:
+    port = paths.profile(instance=paths.Instance(instance)).default_port
+    return f"{page_url(port=port)}?token=<page token>#artifact/{artifact_id}"
+
+
+instance_option = click.option(
+    "--instance",
+    type=click.Choice([instance.value for instance in paths.Instance]),
+    default=paths.Instance.RELEASE.value,
+    show_default=True,
+    help="Which Overwatch page reads the artifact.",
+)
+
+
+@overwatch.group(name="artifact")
+def artifact_group() -> None:
+    """Write the JSON artifact documents the Overwatch page renders."""
+
+
+@artifact_group.command(name="write")
+@click.option("--file", "source", type=click.File("r", encoding="utf-8"), required=True)
+@instance_option
+def artifact_write(*, source: TextIO, instance: str) -> None:
+    """Validate and store an artifact document (`-` reads stdin)."""
+    try:
+        document = parse_document(raw=source.read())
+        stored = _artifact_store(instance=instance).write(
+            document=document, now=datetime.now().astimezone()
+        )
+    except ArtifactError as exc:
+        raise click.ClickException(f"The artifact document is invalid: {exc}") from exc
+    click.echo(
+        f"Artifact {stored['id']} revision {stored['revision']} stored; open "
+        f"{_artifact_page(instance=instance, artifact_id=stored['id'])}"
+    )
+
+
+@artifact_group.command(name="list")
+@instance_option
+def artifact_list(*, instance: str) -> None:
+    """List stored artifacts, newest first."""
+    found = _artifact_store(instance=instance).all()
+    if not found:
+        click.echo("No artifacts are stored.")
+        return
+    for item in found:
+        click.echo(f"{item.id}\tr{item.revision}\t{item.updated_at}\t{item.session}\t{item.title}")
+
+
+@artifact_group.command(name="show")
+@click.option("--id", "artifact_id", required=True)
+@instance_option
+def artifact_show(*, artifact_id: str, instance: str) -> None:
+    """Print one stored artifact document as JSON."""
+    document = _artifact_store(instance=instance).get(artifact_id=artifact_id)
+    if document is None:
+        raise click.ClickException(f"No artifact {artifact_id!r} is stored.")
+    click.echo(json.dumps(document, indent=2, ensure_ascii=False))
+
+
+@artifact_group.command(name="remove")
+@click.option("--id", "artifact_id", required=True)
+@instance_option
+def artifact_remove(*, artifact_id: str, instance: str) -> None:
+    """Delete one stored artifact document."""
+    try:
+        removed = _artifact_store(instance=instance).remove(artifact_id=artifact_id)
+    except ArtifactError as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(f"Artifact {artifact_id} removed." if removed else "No such artifact.")
 
 
 @dev_group.command(name="rotate-token")

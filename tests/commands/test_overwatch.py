@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import http.client
+import json
 import stat
 import threading
 from collections.abc import Iterator
@@ -688,3 +689,86 @@ class TestDevCommands:
             paths.page_token_path(instance=paths.Instance.DEV).exists(),
             result.output.startswith("Dev page token dropped"),
         ) == (0, False, True)
+
+
+ARTIFACT = {
+    "id": "rollout",
+    "title": "Rollout",
+    "session": "dev10x-claude-75",
+    "blocks": [{"id": "ship", "type": "button", "label": "Ship"}],
+}
+
+
+def _artifact_cli(*args: str, stdin: str | None = None) -> Result:
+    return CliRunner().invoke(cli, ["overwatch", "artifact", *args], input=stdin)
+
+
+class TestArtifactCommands:
+    @pytest.fixture
+    def written(self, config_home: Path) -> Result:
+        return _artifact_cli("write", "--file", "-", stdin=json.dumps(ARTIFACT))
+
+    def test_write_stores_the_document(self, written: Result) -> None:
+        stored = json.loads(paths.artifacts_dir().joinpath("rollout.json").read_text())
+
+        assert (
+            written.exit_code,
+            stored["revision"],
+            "Artifact rollout revision 1 stored" in written.output,
+            "http://127.0.0.1:8765/?token=<page token>#artifact/rollout" in written.output,
+        ) == (0, 1, True, True)
+
+    def test_write_to_the_dev_page(self, config_home: Path) -> None:
+        result = _artifact_cli(
+            "write", "--file", "-", "--instance", "dev", stdin=json.dumps(ARTIFACT)
+        )
+
+        assert (
+            result.exit_code,
+            paths.artifacts_dir(instance=paths.Instance.DEV).joinpath("rollout.json").is_file(),
+            ":8766/" in result.output,
+        ) == (0, True, True)
+
+    def test_write_rejects_an_invalid_document(self, config_home: Path) -> None:
+        result = _artifact_cli(
+            "write", "--file", "-", stdin=json.dumps({**ARTIFACT, "blocks": [{"type": "html"}]})
+        )
+
+        assert (
+            result.exit_code,
+            "The artifact document is invalid" in result.output,
+            paths.artifacts_dir().exists(),
+        ) == (1, True, False)
+
+    def test_list(self, written: Result) -> None:
+        output = _artifact_cli("list").output
+
+        assert output.startswith("rollout\tr1\t") and output.rstrip().endswith(
+            "dev10x-claude-75\tRollout"
+        )
+
+    def test_list_when_empty(self, config_home: Path) -> None:
+        assert _artifact_cli("list").output.strip() == "No artifacts are stored."
+
+    def test_show(self, written: Result) -> None:
+        shown = json.loads(_artifact_cli("show", "--id", "rollout").output)
+
+        assert (shown["title"], shown["revision"]) == ("Rollout", 1)
+
+    def test_show_unknown(self, config_home: Path) -> None:
+        result = _artifact_cli("show", "--id", "missing")
+
+        assert (result.exit_code, "No artifact 'missing'" in result.output) == (1, True)
+
+    @pytest.mark.parametrize(
+        ("artifact_id", "exit_code", "message"),
+        [
+            ("rollout", 0, "Artifact rollout removed."),
+            ("missing", 0, "No such artifact."),
+            ("../x", 1, "no such artifact"),
+        ],
+    )
+    def test_remove(self, written: Result, artifact_id: str, exit_code: int, message: str) -> None:
+        result = _artifact_cli("remove", "--id", artifact_id)
+
+        assert (result.exit_code, message in result.output) == (exit_code, True)
