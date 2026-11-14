@@ -4,7 +4,15 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from dev10x.comm.chatbus.events import MESSAGE_CREATED, ChatEvent, EventSource, to_db_time
+from dev10x.comm.chatbus.events import (
+    MESSAGE_CREATED,
+    REACTION_CREATED,
+    REACTION_DELETED,
+    ChatEvent,
+    EventSource,
+    resource_space,
+    to_db_time,
+)
 from tests.comm.chatbus.factories import NOW, SPACE, message_event
 
 
@@ -64,3 +72,39 @@ class TestRejectedAtConstruction:
     def test_naive_event_time(self) -> None:
         with pytest.raises(ValueError, match="timezone-aware"):
             _event(event_time=datetime(2026, 11, 6, 12, 0, 0))
+
+
+class TestIdentityFieldsValidated:
+    """GH-1839: a malformed event cannot claim a key a genuine event needs."""
+
+    @pytest.mark.parametrize(
+        ("event_type", "resource_name", "space", "message"),
+        [
+            ("google.workspace.chat.space.v1.updated", f"{SPACE}/messages/a", SPACE, "Unknown"),
+            (MESSAGE_CREATED, f"{SPACE}/messages/a/reactions/b", SPACE, "Malformed"),
+            (REACTION_CREATED, f"{SPACE}/messages/a", SPACE, "Malformed"),
+            (REACTION_DELETED, "messages/a/reactions/b", SPACE, "Malformed"),
+            (MESSAGE_CREATED, f"{SPACE}/messages/a b", SPACE, "Malformed"),
+            (MESSAGE_CREATED, "spaces/BBBB/messages/a", SPACE, "not in the event's space"),
+        ],
+    )
+    def test_rejected(self, event_type: str, resource_name: str, space: str, message: str) -> None:
+        with pytest.raises(ValueError, match=message):
+            ChatEvent(
+                type=event_type,
+                resource_name=resource_name,
+                space=space,
+                sender="users/111",
+                event_time=NOW,
+                payload={},
+                source=EventSource.POLL,
+            )
+
+
+class TestResourceSpace:
+    def test_unknown_type(self) -> None:
+        assert resource_space(event_type="x", resource_name=f"{SPACE}/messages/a") is None
+
+    def test_reaction(self) -> None:
+        name = f"{SPACE}/messages/a/reactions/b"
+        assert resource_space(event_type=REACTION_CREATED, resource_name=name) == SPACE

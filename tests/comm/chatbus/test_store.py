@@ -10,7 +10,7 @@ import pytest
 from dev10x.domain.common.result import ErrorResult
 from dev10x.domain.dev10x_paths import CONFIG_HOME_ENV_VAR
 
-from dev10x.comm.chatbus.schema import SCHEMA_VERSION
+from dev10x.comm.chatbus.schema import MIGRATIONS, SCHEMA_VERSION
 from dev10x.comm.chatbus.store import (
     _rollback,
     configure,
@@ -40,6 +40,7 @@ class TestOpenStore:
             "cursors",
             "reaction_snapshot",
             "gaps",
+            "approvals",
         }
 
     def test_records_schema_version(self, conn: sqlite3.Connection) -> None:
@@ -123,6 +124,40 @@ class TestReopen:
 
     def test_second_open_keeps_version(self, reopened: sqlite3.Connection) -> None:
         assert reopened.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+
+
+class TestUpgradeFromVersionOne:
+    """A phase 1 store gains the GH-1839 authorization columns and keeps its rows."""
+
+    @pytest.fixture
+    def upgraded(self, tmp_path: Path) -> Iterator[sqlite3.Connection]:
+        raw = sqlite3.connect(tmp_path / "v1.sqlite3", isolation_level=None)
+        raw.row_factory = sqlite3.Row
+        for statement in MIGRATIONS[0]:
+            raw.execute(statement)
+        raw.execute("PRAGMA user_version = 1")
+        raw.execute(
+            "INSERT INTO events (event_key, type, space, resource_name, sender, event_time,"
+            " received_at, source, payload) VALUES ('k', 't', 's', 'r', 'u', 'x', 'x', 'poll', '{}')"
+        )
+        raw.execute(
+            "INSERT INTO commands (event_id, actor, verb, authorized, reason, created_at)"
+            " VALUES (1, 'u', 'v', 0, 'old', 'x')"
+        )
+        unwrap(migrate(conn=raw))
+        yield raw
+        raw.close()
+
+    def test_keeps_old_command(self, upgraded: sqlite3.Connection) -> None:
+        row = upgraded.execute("SELECT reason, outcome, work_item_id FROM commands").fetchone()
+        assert tuple(row) == ("old", None, None)
+
+    def test_one_command_per_event(self, upgraded: sqlite3.Connection) -> None:
+        with pytest.raises(sqlite3.IntegrityError):
+            upgraded.execute(
+                "INSERT INTO commands (event_id, actor, verb, authorized, reason, created_at)"
+                " VALUES (1, 'u', 'v', 0, 'again', 'x')"
+            )
 
 
 class TestNewerSchema:

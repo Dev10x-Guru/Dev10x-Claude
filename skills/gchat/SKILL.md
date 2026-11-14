@@ -126,7 +126,18 @@ users:
   wooyek:
     chat_user_id: "1234567890"
     name: Janusz Skonieczny
+    bus_role: owner      # Chat bus allowlist: owner | trusted
 ```
+
+`bus_role` is the Chat bus allowlist (ADR-0035 D3).
+An entry without it, or with any other value, has no authority.
+Exactly one `owner` is required, or the bus refuses to start.
+Anyone may mention or DM the bot for a reply.
+Only the owner's 🎫 / 🤖 reactions or `start` / `implement` / `ticket`
+commands queue privileged work.
+The same command from a `trusted` user waits for the owner's ✅ or
+`approve <id>` in the approval DM.
+Nothing sent over Chat can change this file.
 
 ## Usage
 
