@@ -84,6 +84,99 @@ class TestUrlForm:
         assert extract(body=body, repo=REPO) == [f"{REPO}#42"]
 
 
+class TestUrlNeedsAClosingKeyword:
+    """GH-1927: a full URL closes only right after Fixes / Closes / Resolves."""
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            f"Refs: https://github.com/{REPO}/issues/1915",
+            f"Refs https://github.com/{REPO}/issues/1915",
+            f"Split out to https://github.com/{REPO}/issues/1915 for later.",
+            f"https://github.com/{REPO}/issues/1915",
+            f"Fixes: see https://github.com/{REPO}/issues/1915",
+            f"Prefixes: https://github.com/{REPO}/issues/1915",
+            f"Fixes: https://github.com/{REPO}/pull/1915",
+            f"Fixes:\nhttps://github.com/{REPO}/issues/1915",
+        ],
+        ids=[
+            "refs-line",
+            "refs-without-colon",
+            "prose",
+            "bare-url",
+            "keyword-not-immediately-before",
+            "keyword-inside-a-word",
+            "pull-request-url",
+            "keyword-on-the-previous-line",
+        ],
+    )
+    def test_url_without_a_closing_keyword_closes_nothing(self, body: str) -> None:
+        assert extract(body=body, repo=REPO) == []
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            f"Fixes: https://github.com/{REPO}/issues/42",
+            f"Fixes https://github.com/{REPO}/issues/42",
+            f"Closes https://github.com/{REPO}/issues/42",
+            f"Closes: https://github.com/{REPO}/issues/42",
+            f"Resolves: https://github.com/{REPO}/issues/42",
+            f"fixes: HTTPS://GITHUB.COM/{REPO}/issues/42",
+        ],
+        ids=["fixes-colon", "fixes", "closes", "closes-colon", "resolves-colon", "lowercase"],
+    )
+    def test_keyworded_url_closes(self, body: str) -> None:
+        assert extract(body=body, repo=REPO) == [f"{REPO}#42"]
+
+    def test_every_fixes_line_closes_while_refs_lines_do_not(self) -> None:
+        body = "\n".join(
+            [
+                "**When** a slice lands ...",
+                "",
+                f"Refs: https://github.com/{REPO}/issues/1915",
+                f"Fixes: https://github.com/{REPO}/issues/1",
+                f"Fixes: https://github.com/{REPO}/issues/2",
+                f"Fixes: https://github.com/{REPO}/issues/3",
+            ]
+        )
+
+        assert extract(body=body, repo=REPO) == [f"{REPO}#1", f"{REPO}#2", f"{REPO}#3"]
+
+    def test_cross_repo_fixes_url_keeps_its_repo(self) -> None:
+        body = "\n".join(
+            [
+                "Refs: https://github.com/other-org/other-repo/issues/8",
+                "Fixes: https://github.com/other-org/other-repo/issues/7",
+            ]
+        )
+
+        assert extract(body=body, repo=REPO) == ["other-org/other-repo#7"]
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            f"```\nFixes: https://github.com/{REPO}/issues/123\n```",
+            f"~~~\nCloses https://github.com/{REPO}/issues/123\n~~~",
+            f"<!-- Resolves: https://github.com/{REPO}/issues/123 -->",
+        ],
+        ids=["backtick-fence", "tilde-fence", "html-comment"],
+    )
+    def test_hidden_keyworded_url_closes_nothing(self, body: str) -> None:
+        assert extract(body=body, repo=REPO) == []
+
+    def test_refs_url_beside_a_bare_fixes_on_one_line(self) -> None:
+        body = f"Fixes #7, refs https://github.com/{REPO}/issues/8"
+
+        assert extract(body=body, repo=REPO) == [f"{REPO}#7"]
+
+    def test_refs_only_body_fails_and_says_why(self) -> None:
+        body = f"Story.\n\nRefs: https://github.com/{REPO}/issues/1915"
+        code, lines = verdict(body=body, repo=REPO)
+
+        assert code == EXIT_MISSING
+        assert extract_linked_issues.KEYWORD_REQUIRED_HINT in lines
+
+
 class TestMixedAndDegenerate:
     def test_mixed_url_and_bare_forms_both_land(self) -> None:
         body = "\n".join(

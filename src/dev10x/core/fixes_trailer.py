@@ -20,14 +20,15 @@ import unicodedata
 # GH-1896
 _NUMBER_END = r"(?u:(?!\w))"
 _HIDDEN_CATEGORIES = frozenset({"Mn", "Mc", "Me", "Cf"})
-_URL = re.compile(
-    rf"https://github\.com/(?P<repo>[\w.-]+/[\w.-]+)/issues/(?P<number>\d+){_NUMBER_END}",
-    re.IGNORECASE | re.ASCII,
-)
+_URL_BODY = rf"https://github\.com/(?P<repo>[\w.-]+/[\w.-]+)/issues/(?P<number>\d+){_NUMBER_END}"
+_URL = re.compile(_URL_BODY, re.IGNORECASE | re.ASCII)
 
 _KEYWORDS = r"(?:fixes|closes|resolves)"
+_KEYWORD_LEAD = rf"\b{_KEYWORDS}:?(?u:\s+)"
+# GH-1927
+_KEYWORDED_URL = re.compile(rf"{_KEYWORD_LEAD}{_URL_BODY}", re.IGNORECASE | re.ASCII)
 _BARE = re.compile(
-    rf"\b{_KEYWORDS}:?(?u:\s+)(?:GH-|#)(?P<number>\d+){_NUMBER_END}",
+    rf"{_KEYWORD_LEAD}(?:GH-|#)(?P<number>\d+){_NUMBER_END}",
     re.IGNORECASE | re.ASCII,
 )
 
@@ -53,6 +54,12 @@ RECOGNIZED_SHAPES = (
     "Closes #123",
     "Resolves #123",
     "Fixes: https://github.com/<owner>/<repo>/issues/123",
+    "Closes https://github.com/<owner>/<repo>/issues/123",
+)
+
+KEYWORD_REQUIRED_HINT = (
+    "A reference closes only right after Fixes, Closes or Resolves; "
+    "a 'Refs:' link or an issue URL in prose closes nothing."
 )
 
 NONE_TRAILER_HINT = (
@@ -81,10 +88,14 @@ def extract(*, body: str, repo: str) -> list[str]:
 
 
 def references_in_line(*, line: str, repo: str) -> list[str]:
-    """Return the `owner/repo#number` refs one visible line closes."""
+    """Return the `owner/repo#number` refs one visible line closes.
+
+    Both forms need a closing keyword right before them: a full URL on a
+    `Refs:` line or in prose names an issue without closing it.
+    """
     refs = [
         f"{match.group('repo')}#{match.group('number')}"
-        for match in _URL.finditer(line)
+        for match in _KEYWORDED_URL.finditer(line)
         if _ends_visibly(match=match)
     ]
     without_urls = _URL.sub(" ", line)
@@ -219,6 +230,7 @@ def verdict(*, body: str, repo: str) -> tuple[int, list[str]]:
         lines.append(f"::error::{workflow_data(text=NONE_TRAILER_HINT)}.")
     shapes = ", ".join(f"'{shape}'" for shape in RECOGNIZED_SHAPES)
     lines.append(f"Recognized shapes: {shapes}.")
+    lines.append(KEYWORD_REQUIRED_HINT)
     lines.append("A PR that closes nothing declares 'Fixes: none — <reason>'.")
     return EXIT_MISSING, lines
 

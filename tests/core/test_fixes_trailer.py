@@ -69,6 +69,13 @@ _TRAILERS = {
     "commented-reference-then-bare": ("<!-- Fixes: #123 -->\nFixes: none", False),
     "non-ascii-number": ("Fixes: #١٢٣", False),
     "number-glued-to-a-word-character": ("Fixes: GH-12_", False),
+    "url": (f"Fixes: https://github.com/{_REPO}/issues/123", True),
+    "closes-url-beside-fixes": (
+        f"Closes https://github.com/{_REPO}/issues/9\nFixes: #123",
+        True,
+    ),
+    "refs-url-only": (f"Refs: https://github.com/{_REPO}/issues/123", False),
+    "url-glued-to-the-colon": (f"Fixes:https://github.com/{_REPO}/issues/123", False),
 }
 
 
