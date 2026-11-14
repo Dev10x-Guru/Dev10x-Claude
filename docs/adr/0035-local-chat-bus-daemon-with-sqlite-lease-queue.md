@@ -51,8 +51,13 @@ it.
 3. The strict high-water cursor misses a message that is indexed
    late, because its `createTime` is already behind the cursor.
 4. A Workspace Events subscription that carries resource data expires
-   after 4 hours. A machine that sleeps longer loses every event
-   published while the subscription was lapsed.
+   after at most 4 hours, or 24 hours with domain-wide delegation.
+   One without resource data lasts up to 7 days
+   ([event data](https://developers.google.com/workspace/events/guides#event-data)).
+   The daemon carries resource data without delegation, so 4 hours
+   applies.
+   A machine that sleeps longer loses every event published while the
+   subscription was lapsed.
 5. The supervisor cannot see or triage what the bots were asked to do.
 
 ## Decision
@@ -81,6 +86,19 @@ Reactions and messages arrive with no public endpoint:
   through a Pub/Sub **pull** subscription, so events queue in Pub/Sub
   while the machine sleeps. The daemon renews the subscription every
   hour and recreates it when it has lapsed.
+- Google also delivers **batch** events (`reaction.v1.batchCreated`,
+  `reaction.v1.batchDeleted`) to any subscription for the single type,
+  carrying a `reactions` list, when many reactions land in a short
+  period.
+  Whether they reach the `spaces/-` target is as unconfirmed as the
+  single events (next bullet).
+  The source must expand each into single-type events (D5).
+  It does not yet: today it acks and drops them
+  ([GH-1948](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1948)).
+- Google documents reaction events only for subscriptions to one
+  space.
+  Whether the `spaces/-` target delivers them is unconfirmed; see the
+  risk table.
 - Messages and new threads come from a poll source over the watched
   spaces, DMs and threads. It subsumes the GH-1682 watcher as one
   ingest source.
@@ -188,8 +206,11 @@ claim held by a session that died with a restart is never stuck.
   (`google.workspace.chat.message.v1.created`,
   `google.workspace.chat.reaction.v1.created`,
   `google.workspace.chat.reaction.v1.deleted`) and the same
-  `includeResource` payload. `source` exists for diagnostics only. No
-  consumer branches on it.
+  `includeResource` payload.
+  A batch event is to be stored as its member events, never under a
+  batch type (GH-1948).
+  `source` exists for diagnostics only.
+  No consumer branches on it.
 - A cursor advances in the same transaction that commits its event
   rows, never before.
 
@@ -241,7 +262,7 @@ API. The daemon's own caps sit well below them:
 | page size | 100 |
 | reads per backfill run | 1000; the remainder continues on the next tick, with a `gaps` row until it does |
 | tracked recent messages for reaction diffing | 200 |
-| maximum backfill window | 7 days, matching the default Pub/Sub retention |
+| maximum backfill window | 7 days, matching the default Pub/Sub message retention; a subscription can retain up to 31 days ([subscription properties](https://cloud.google.com/pubsub/docs/subscription-properties)) |
 
 HTTP 408, 429 and the retryable 5xx responses back off through
 `dev10x.domain.retry`, per ADR-0029.
@@ -325,9 +346,10 @@ queue lives there too.
 
 **Pros:** less code.
 
-**Cons:** the Workspace Events subscription lapses after 4 hours, and
-nothing is published while it is lapsed. An overnight sleep loses
-events silently.
+**Cons:** the Workspace Events subscription lapses after at most 4
+hours (with resource data, no domain-wide delegation), and nothing is
+published while it is lapsed.
+An overnight sleep loses events silently.
 
 **Verdict:** Rejected.
 
@@ -385,6 +407,8 @@ D3's fail-closed rules and visibility mitigate the coupling.
 | Chat API quota exhaustion | Low | Medium | D8 caps plus `domain.retry` back-off |
 | Reaction deletions missed outside the tracked set | Medium | Low | The tracked-message cap is configurable; deletions only cancel triggers |
 | Writer contention | Low | Low | WAL, `busy_timeout`, short `BEGIN IMMEDIATE` transactions |
+| The `spaces/-` subscription delivers no reaction events (unconfirmed by Google's docs) | Medium | High | Verify on first live run; fall back to one subscription per watched space, within D8's space cap |
+| Reactions arrive as a batch event the source drops today | Medium | High | Expand batch events into single events ([GH-1948](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1948)) |
 
 ## Implementation Plan
 
@@ -409,7 +433,9 @@ issue per phase, chained with `Depends on:`.
 - [Google Workspace Events API: subscribe to Chat events](https://developers.google.com/workspace/events/guides/events-chat)
 - [Chat API `spaces.messages.list`](https://developers.google.com/workspace/chat/api/reference/rest/v1/spaces.messages/list)
 - [Chat API `spaces.messages.reactions.list`](https://developers.google.com/workspace/chat/api/reference/rest/v1/spaces.messages.reactions/list)
+- [Google Workspace Events API: event data and subscription expiry](https://developers.google.com/workspace/events/guides#event-data)
 - [Pub/Sub pull subscriptions](https://cloud.google.com/pubsub/docs/pull)
+- [Pub/Sub subscription properties: message retention](https://cloud.google.com/pubsub/docs/subscription-properties)
 - [SQLite `RETURNING`](https://www.sqlite.org/lang_returning.html)
 
 ### Internal References
