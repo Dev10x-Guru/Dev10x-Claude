@@ -115,6 +115,7 @@ DELIBERATELY_UNCATALOGUED: frozenset[str] = frozenset(
     {
         "uvx dev10x skill rename",  # GH-1558: rewrites skill names repo-wide
         "uvx dev10x permission grant",  # GH-1676: its prompt confirms the grant
+        "uvx dev10x permission remove",  # GH-1925: deletes rules by glob, prompt confirms
     }
 )
 
