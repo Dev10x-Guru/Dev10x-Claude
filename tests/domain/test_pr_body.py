@@ -6,6 +6,7 @@ from dev10x.domain.pr_body import (
     MISSING_REFERENCE_HINT,
     MULTILINE_REFERENCE_HINT,
     NONE_TRAILER_HINT,
+    SEVERAL_REFERENCES_HINT,
     SO_CAN_MARKER,
     UNREADABLE_REFERENCE_HINT,
     WANTS_MARKER,
@@ -23,6 +24,10 @@ from dev10x.domain.pr_body import (
 )
 
 _NBSP = chr(0x00A0)
+_ZWSP = chr(0x200B)
+_WORD_JOINER = chr(0x2060)
+_BOM = chr(0xFEFF)
+_SPACING_MARK = chr(0x0903)
 
 COMPLIANT_STORY = (
     "**When** an unattended run creates PRs, **the plugin maintainer "
@@ -523,3 +528,83 @@ def test_the_none_rule_answers_before_the_unreadable_reference_rule():
     error = malformed_trailer_error(body="Story\n\nFixes: #١٢٣\nFixes: none")
 
     assert error == f"Fixes: trailer is malformed — {NONE_TRAILER_HINT}"
+
+
+@pytest.mark.parametrize(
+    "references",
+    [
+        "#12, #13 (duplicate)",
+        f"#12{_NBSP}#13",
+        "#12 GH-13 see-above",
+        "https://github.com/o/r/issues/12 and #13",
+    ],
+    ids=["trailing-prose", "nbsp", "word-token", "url-and-bare"],
+)
+def test_a_non_split_trailer_naming_several_issues_is_refused(references: str):
+    # GH-1936
+    error = built_trailer_error(job_story="Story", references=references)
+
+    assert error == f"Fixes: trailer is malformed — {SEVERAL_REFERENCES_HINT}"
+
+
+@pytest.mark.parametrize(
+    "trailer",
+    [
+        "Fixes: #12, #13",
+        "Closes #12 #13",
+        "Fixes: #12 (duplicate of #11)",
+    ],
+    ids=["comma", "closes-space", "prose-mention"],
+)
+def test_a_body_line_naming_more_issues_than_it_closes_is_refused(trailer: str):
+    # GH-1936
+    error = malformed_trailer_error(body=f"Story\n\n{trailer}")
+
+    assert error == f"Fixes: trailer is malformed — {SEVERAL_REFERENCES_HINT}"
+
+
+@pytest.mark.parametrize(
+    "trailer",
+    [
+        "Fixes: #12\nFixes: #13",
+        "Fixes: GH-7, Fixes: #8",
+        "Fixes: https://github.com/o/r/issues/12#issuecomment-1",
+        "Fixes: none — part of #909 and #910",
+        "Fixes: LIN-42 LIN-43",
+    ],
+    ids=["one-per-line", "keyword-per-reference", "url-fragment", "declared-none", "non-github"],
+)
+def test_a_line_closing_every_issue_it_names_is_accepted(trailer: str):
+    assert malformed_trailer_error(body=f"Story\n\n{trailer}") is None
+
+
+@pytest.mark.parametrize(
+    "trailer",
+    [f"Fixes:{_ZWSP}#12", f"Fixes: {_WORD_JOINER}#12", f"Closes{_BOM}#12"],
+    ids=["zwsp", "word-joiner", "bom"],
+)
+def test_a_format_character_between_keyword_and_number_is_refused(trailer: str):
+    # GH-1936
+    error = malformed_trailer_error(body=f"Story\n\n{trailer}")
+
+    assert error == f"Fixes: trailer is malformed — {UNREADABLE_REFERENCE_HINT}"
+
+
+@pytest.mark.parametrize(
+    "trailer",
+    [f"Fixes: #12{_SPACING_MARK}", f"Fixes: https://github.com/o/r/issues/12{_ZWSP}"],
+    ids=["spacing-mark-after-number", "hidden-character-after-url"],
+)
+def test_a_hidden_character_after_the_reference_is_refused(trailer: str):
+    # GH-1936
+    error = malformed_trailer_error(body=f"Story\n\n{trailer}")
+
+    assert error == f"Fixes: trailer is malformed — {UNREADABLE_REFERENCE_HINT}"
+
+
+def test_the_missing_hint_says_fixes_url_replaces_issue_id():
+    assert "replaces issue_id" in MISSING_REFERENCE_HINT
+
+
+def test_the_multiline_hint_does_not_call_a_none_value_an_issue_reference():
+    assert "issue reference" not in MULTILINE_REFERENCE_HINT

@@ -18,6 +18,11 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from dev10x.domain.common.result import ErrorResult, SuccessResult, err, ok
+from dev10x.domain.pr_body import (
+    MISSING_REFERENCE_HINT,
+    MULTILINE_REFERENCE_HINT,
+    SEVERAL_REFERENCES_HINT,
+)
 from dev10x.skills.merge.fixes_scope import reconcile_link_closure
 
 from dev10x import github as gh
@@ -208,6 +213,38 @@ class TestCreatePrRefusesUnclosableNoneTrailer:
 
         assert isinstance(result, ErrorResult)
         assert result.error.startswith("create_pr: Fixes: trailer is malformed")
+        mock_run.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("kwargs", "expected"),
+        [
+            (
+                {"fixes_url": ","},
+                f"create_pr: Fixes: trailer is missing — {MISSING_REFERENCE_HINT}",
+            ),
+            (
+                {"issue_id": "GH-1\nnone"},
+                f"create_pr: Fixes: trailer is malformed — {MULTILINE_REFERENCE_HINT}",
+            ),
+            (
+                {"fixes_url": "#12, #13 (duplicate)"},
+                f"create_pr: Fixes: trailer is malformed — {SEVERAL_REFERENCES_HINT}",
+            ),
+        ],
+        ids=["missing", "multiline", "several-references-on-one-line"],
+    )
+    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
+    async def test_a_built_trailer_is_refused_with_its_hint(
+        self, mock_run: AsyncMock, kwargs: dict[str, str], expected: str
+    ) -> None:
+        # GH-1936
+        arguments = {"issue_id": "GH-1", **kwargs}
+
+        result = await gh.create_pr(title="t", job_story=_JOB_STORY, **arguments)
+
+        assert isinstance(result, ErrorResult)
+        assert result.error == expected
         mock_run.assert_not_awaited()
 
     @pytest.mark.asyncio

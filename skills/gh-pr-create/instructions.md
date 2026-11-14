@@ -446,6 +446,10 @@ missing` means the trailer built from those values names no reference
 `create_pr: body carries no Fixes: trailer` means no visible `Fixes:`
 line was found: one inside a code block or HTML comment, or only a
 `Refs:` line, does not count, and no PR was opened (GH-1935).
+A closing line that names more GitHub issues than it closes, such as
+`Fixes: #12, #13 (duplicate)`, is refused too: close-issues reads one
+reference per keyword (GH-1936). Pass one reference per token in
+`fixes_url`, or one `Fixes:` line per issue in `body`.
 It needs a usable `Fixes: none — <reason>` or an ASCII issue
 reference, on a visible line outside code and comments. Then call
 `create_pr` again. In unattended mode this is a retry, not a gate.

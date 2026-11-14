@@ -47,6 +47,9 @@ if [ -n "$FIXES_URL" ]; then
     # would emit three bogus Fixes lines.
     _fixes_normalized="${FIXES_URL//,/ }"
     _fixes_splittable=1
+    # Word-split the references without pathname expansion: a token
+    # with *, ? or [ must not match files in the caller's CWD (GH-1936).
+    set -f
     for ref in $_fixes_normalized; do
         case "$ref" in
             http://*|https://*|\#[0-9]*|[A-Z]*-[0-9]*) ;;
@@ -64,6 +67,7 @@ if [ -n "$FIXES_URL" ]; then
     else
         FIXES_LINES=$(printf 'Fixes: %s\n' "$FIXES_URL")
     fi
+    set +f
 
     if [ -n "$FIXES_LINES" ]; then
         FIXES_LINE=$(printf '\n\n%s' "$FIXES_LINES")

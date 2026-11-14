@@ -43,6 +43,8 @@ class TestStdlibOnly:
 
 
 _REPO = "Dev10x-Guru/Dev10x-Claude"
+_ZWSP = chr(0x200B)
+_SPACING_MARK = chr(0x0903)
 _TRAILERS = {
     "em-dash-reason": ("Fixes: none — part of #909", True),
     "hyphen-reason": ("Fixes: none - self-motivated", True),
@@ -76,6 +78,9 @@ _TRAILERS = {
     ),
     "refs-url-only": (f"Refs: https://github.com/{_REPO}/issues/123", False),
     "url-glued-to-the-colon": (f"Fixes:https://github.com/{_REPO}/issues/123", False),
+    "zero-width-space-before-number": (f"Fixes:{_ZWSP}#123", False),
+    "spacing-mark-after-number": (f"Fixes: #123{_SPACING_MARK}", False),
+    "hidden-character-after-url": (f"Fixes: https://github.com/{_REPO}/issues/123{_ZWSP}", False),
 }
 
 
