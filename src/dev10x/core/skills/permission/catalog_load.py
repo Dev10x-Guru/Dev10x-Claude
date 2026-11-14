@@ -22,8 +22,8 @@ from pathlib import Path
 
 import yaml
 
+from dev10x.core.paths import latest_version
 from dev10x.domain.claude_paths import ClaudeDir
-from dev10x.domain.common.plugin_version import PluginVersion
 from dev10x.domain.common.result import Result
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.skills.permission.catalog_merge import MergedCatalog, merge_catalogs
@@ -109,13 +109,7 @@ def load_effective_config(config_path: Path) -> MergedCatalog:
 
 
 def detect_latest_version(cache_dir: Path) -> str | None:
-    if not cache_dir.is_dir():
-        return None
-    versions = sorted(
-        cache_dir.iterdir(),
-        key=lambda p: PluginVersion.sort_key(p.name),
-    )
-    return versions[-1].name if versions else None
+    return latest_version(versions_dir=cache_dir)
 
 
 def find_settings_files(

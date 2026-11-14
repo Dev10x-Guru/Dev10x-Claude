@@ -475,12 +475,23 @@ The supervisor decided the Stage B open decisions on 2026-10-19
      its script twins with the `plugins/<key>/` infix. `ensure-reads`
      emits the versioned skill-folder Read rules for the same roots;
      the unversioned `marketplaces/<pub>/**` Read rule already spans
-     every satellite. Seeding uses each satellite's newest installed
-     version, not core's, so its grants are written even when it lags
-     core by a release; runtime resolution through
-     `dev10x.core.paths.satellite_script` still assumes the lockstep
-     version. A key under `extracted:` with no installed version is
-     skipped.
+     every satellite. A key under `extracted:` with no installed
+     version is skipped.
+   - **Version policy (GH-1886): a satellite is located at its own
+     newest installed version, never at core's.** Permission seeding
+     and runtime resolution through `dev10x.core.paths.satellite_script`
+     both follow it, so a satellite that lags or leads core by a
+     release still resolves and still gets its grants. Releases still
+     bump every plugin together; the policy only stops the lookup from
+     depending on that. `update-paths` rewrites a rule the user already
+     holds and cannot see what is installed, so it keeps the rule's
+     version segment; `ensure-scripts` adds the newest one.
+   - The layout rules have one owner each (GH-1886):
+     `PluginMap.installed_name` for a key's plugin name, and
+     `dev10x.core.paths.satellite_cache_dir` / `satellite_subdir` /
+     `latest_version` for the cache sibling, the `plugins/<key>`
+     infix and the version choice. A Stage B layout change edits
+     those, not their callers.
    - B3 (GH-1566) keeps `command-skill-map.d/db.yaml`,
      `families.d/db.yaml` and `projects.d/db.yaml` in core's tree too.
      `projects.d/db.yaml` gains `Skill(dev10x-db:*)` next to the
@@ -491,7 +502,7 @@ The supervisor decided the Stage B open decisions on 2026-10-19
      The resolver tries the satellite under core's own root first,
      which covers a checkout and a marketplace clone. It then tries
      the satellite installed beside core in the cache
-     (`…/dev10x-db/<ver>/`, lockstep version). With neither present,
+     (`…/dev10x-db/<ver>/`, its newest version). With neither present,
      `query` returns an error that names `dev10x-db`. B9's coding
      scripts, which `cli` tools run, can use the same resolver.
 5. **Old names stay readable for two releases (GH-1564).** Each moved

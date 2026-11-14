@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from dev10x.core.domain.claude_paths import ClaudeDir
-from dev10x.core.plugin_map import PluginMap, expected_plugin_name, load_plugin_map
+from dev10x.core.plugin_map import PluginMap, load_plugin_map
 from dev10x.core.skills.permission.legacy_namespace import CURRENT_PLUGIN_ID, LEGACY_PLUGIN_ID
 
 log = logging.getLogger(__name__)
@@ -49,7 +49,7 @@ def enabled_plugins(*, project_dir: Path | None) -> dict[str, bool]:
 
 def plugin_ids(*, key: str, plugin_map: PluginMap) -> frozenset[str]:
     if plugin_map.is_extracted(key=key):
-        name = plugin_map.plugin_name(key=key) or expected_plugin_name(key=key)
+        name = plugin_map.installed_name(key=key)
         return frozenset({f"{name}@{plugin_map.marketplace}".casefold()})
     return frozenset({CURRENT_PLUGIN_ID.casefold(), LEGACY_PLUGIN_ID.casefold()})
 

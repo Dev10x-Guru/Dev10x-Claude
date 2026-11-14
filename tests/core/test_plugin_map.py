@@ -184,6 +184,22 @@ class TestPluginNames:
     def test_plugin_name(self, named_map: PluginMap, key: str, expected: str | None) -> None:
         assert named_map.plugin_name(key=key) == expected
 
+    @pytest.mark.parametrize(
+        ("key", "expected"),
+        [
+            pytest.param("qa", "qa-plugin", id="named"),
+            pytest.param("comm", "dev10x-comm", id="falls-back-to-scheme"),
+            pytest.param("core", "dev10x", id="core"),
+        ],
+    )
+    def test_installed_name(
+        self,
+        named_map: PluginMap,
+        key: str,
+        expected: str,
+    ) -> None:
+        assert named_map.installed_name(key=key) == expected
+
     def test_known_plugin_names(self, named_map: PluginMap) -> None:
         assert named_map.known_plugin_names() == ("dev10x", "qa-plugin")
 
