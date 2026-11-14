@@ -314,6 +314,8 @@ groups:
       # GH-1765 — `dev` writes only ~/.config/Dev10x/overwatch.yaml
       # and the dev page's token file; it starts nothing
       - Bash(uvx dev10x overwatch dev:*)
+      # GH-1845 — read-only; `run` and `install-unit` stay uncatalogued
+      - Bash(uvx dev10x chatbus status:*)
 
   # ─── TIER 2 ─────────────────────────────────────────────────────────
 
