@@ -589,6 +589,24 @@ class TestDevCommands:
             f"Dev Overwatch page: {checkout} on port 9301; {command.LIVE_NOTE}."
         )
 
+    @pytest.mark.parametrize(
+        "port", ["65536", "-1", "0"], ids=["just-past-max", "negative", "zero"]
+    )
+    def test_pin_rejects_a_bad_port(self, config_home: Path, checkout: Path, port: str) -> None:
+        result = CliRunner().invoke(
+            cli, ["overwatch", "dev", "pin", "--checkout", str(checkout), "--port", port]
+        )
+
+        assert (
+            result.exit_code,
+            "1-65535" in result.output,
+            (config_home / "overwatch.yaml").exists(),
+        ) == (
+            1,
+            True,
+            False,
+        )
+
     def test_pin_rejects_a_foreign_dir(self, config_home: Path, tmp_path: Path) -> None:
         result = CliRunner().invoke(cli, ["overwatch", "dev", "pin", "--checkout", str(tmp_path)])
 
@@ -650,3 +668,23 @@ class TestDevCommands:
         CliRunner().invoke(cli, ["overwatch", "dev", "rotate-token"])
 
         assert saved.exists() is False
+
+    def test_rotate_token_says_when_the_new_one_arrives(self, config_home: Path) -> None:
+        command.write_token(token="old", path=paths.page_token_path(instance=paths.Instance.DEV))
+
+        result = CliRunner().invoke(cli, ["overwatch", "dev", "rotate-token"])
+
+        assert (result.exit_code, result.output.strip()) == (
+            0,
+            "Dev page token dropped; the dev page issues a new one when it next starts "
+            "(a new commit in the checkout, or `dev unpin` then `dev pin`).",
+        )
+
+    def test_rotate_token_without_a_saved_token(self, config_home: Path) -> None:
+        result = CliRunner().invoke(cli, ["overwatch", "dev", "rotate-token"])
+
+        assert (
+            result.exit_code,
+            paths.page_token_path(instance=paths.Instance.DEV).exists(),
+            result.output.startswith("Dev page token dropped"),
+        ) == (0, False, True)
