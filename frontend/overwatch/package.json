@@ -15,6 +15,7 @@
     "@fontsource/ibm-plex-mono": "5.3.0",
     "@fontsource/source-code-pro": "5.3.0",
     "@sveltejs/vite-plugin-svelte": "7.3.1",
+    "mermaid": "11.17.2",
     "svelte": "5.57.3",
     "svelte-check": "4.7.7",
     "typescript": "5.9.3",

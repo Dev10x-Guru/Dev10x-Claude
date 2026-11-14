@@ -1,9 +1,87 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { post, readToken } from "./api";
+import { checkToken, forgetToken, post, readToken, resolveToken } from "./api";
 
 afterEach(() => {
   vi.unstubAllGlobals();
+});
+
+function memoryStorage(initial: Record<string, string> = {}): Storage {
+  const items = new Map(Object.entries(initial));
+  return {
+    get length() {
+      return items.size;
+    },
+    clear: () => items.clear(),
+    getItem: (key: string) => items.get(key) ?? null,
+    key: (index: number) => [...items.keys()][index] ?? null,
+    removeItem: (key: string) => void items.delete(key),
+    setItem: (key: string, value: string) => void items.set(key, value),
+  };
+}
+
+function brokenStorage(): Storage {
+  const fail = (): never => {
+    throw new Error("blocked");
+  };
+  return { length: 0, clear: fail, getItem: fail, key: fail, removeItem: fail, setItem: fail };
+}
+
+describe("resolveToken", () => {
+  it("remembers a token given in the link", () => {
+    const storage = memoryStorage();
+
+    const found = resolveToken("?token=fresh", storage);
+
+    expect([found, storage.getItem("overwatch.token")]).toEqual([{ token: "fresh", remembered: false }, "fresh"]);
+  });
+
+  it("falls back to the remembered token", () => {
+    expect(resolveToken("", memoryStorage({ "overwatch.token": "old" }))).toEqual({
+      token: "old",
+      remembered: true,
+    });
+  });
+
+  it.each([
+    ["no storage", null, "?token=a", { token: "a", remembered: false }],
+    ["nothing remembered", memoryStorage(), "", { token: "", remembered: true }],
+    ["blocked storage, link token", brokenStorage(), "?token=a", { token: "a", remembered: false }],
+    ["blocked storage, no link token", brokenStorage(), "", { token: "", remembered: false }],
+  ])("%s", (_name, storage, search, expected) => {
+    expect(resolveToken(search, storage)).toEqual(expected);
+  });
+});
+
+describe("forgetToken", () => {
+  it("drops the remembered token", () => {
+    const storage = memoryStorage({ "overwatch.token": "old" });
+
+    forgetToken(storage);
+
+    expect(storage.getItem("overwatch.token")).toBeNull();
+  });
+
+  it("tolerates blocked storage", () => {
+    expect(() => forgetToken(brokenStorage())).not.toThrow();
+  });
+});
+
+describe("checkToken", () => {
+  it.each([
+    [403, "rejected"],
+    [200, "ok"],
+  ])("HTTP %i → %s", async (status, expected) => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ status }));
+
+    expect(await checkToken("tok")).toBe(expected);
+  });
+
+  it("reports a daemon that is down", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("fetch failed")));
+
+    expect(await checkToken("tok")).toBe("down");
+  });
 });
 
 describe("readToken", () => {
