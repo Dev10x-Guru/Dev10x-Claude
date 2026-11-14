@@ -117,20 +117,9 @@ fold it into a later "apply the rest" choice.
 mechanical finding in `findings` without a gate; list `manual` findings
 and every id in `excluded_by_severity` in the summary as not applied.
 
-### Step 3: Hand deferred rules to the end of the session
+### Step 3: Apply one rule
 
-When anything was deferred, allocate
-`mktmp(namespace="permission-audit", prefix="deferred", ext=".json")`,
-Write to it a findings block holding only the deferred findings (each
-narrowed to its deferred `rules`), validate it with Step 1's command,
-then:
-
-1. `TaskCreate(subject="Apply deferred permission-audit findings", description="Run dev10x:permission-audit-apply <deferred path> — N rules deferred: <ids>", activeForm="Applying deferred audit findings")`
-
-Never apply a deferred rule in this run, and never drop one: the task
-is the only place the supervisor's "later" survives.
-
-### Step 4: Apply one rule
+Run for each approved target as soon as it is approved.
 
 1. `Read` the finding's `file` (expand `~`).
 2. Check it applies — otherwise mark it **inapplicable** and continue:
@@ -147,6 +136,28 @@ is the only place the supervisor's "later" survives.
 4. Validate: `jq empty <file>`. On failure, revert the edit with a
    second `Edit` and mark the finding **failed**.
 
+When approved findings move one command between lists (an `ask`
+removed, an `allow` added), apply the `add` first, so a denied second
+edit leaves the file stricter, never looser. In auto mode the
+classifier may deny `Read` or `Edit` of a user-level settings file
+(GH-1868): mark that rule **handed over**, show the exact edit, and
+move on — never retry by another route or write the rule to the global
+file instead. See
+[`auto-mode.md`](../upgrade-cleanup/references/auto-mode.md).
+
+### Step 4: Hand deferred rules to the end of the session
+
+After the last finding (or a Stop), when anything was deferred, allocate
+`mktmp(namespace="permission-audit", prefix="deferred", ext=".json")`,
+Write to it a findings block holding only the deferred findings (each
+narrowed to its deferred `rules`), validate it with Step 1's command,
+then:
+
+1. `TaskCreate(subject="Apply deferred permission-audit findings", description="Run dev10x:permission-audit-apply <deferred path> — N rules deferred: <ids>", activeForm="Applying deferred audit findings")`
+
+Never apply a deferred rule in this run, and never drop one: the task
+is the only place the supervisor's "later" survives.
+
 ### Step 5: Summary report
 
 ```
@@ -156,6 +167,7 @@ Permission audit — applied 3, skipped 1, deferred 2, inapplicable 1, manual 1
   – F4 MEDIUM    skipped by the user
   ⏸ F5 MEDIUM    deferred: Bash(python3:*), Bash(node:*) → task created
   ∅ F6 MEDIUM    inapplicable: rule not present
+  ⇢ F2 HIGH      handed over: auto mode denied the Edit to ~/.claude/settings.json
   ✋ F7 LOW      manual: register hooks/validate-bash.py under PreToolUse
   ⏭ below ceiling (HIGH): F8, F9
 ```
