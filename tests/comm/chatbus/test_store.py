@@ -41,6 +41,7 @@ class TestOpenStore:
             "reaction_snapshot",
             "gaps",
             "approvals",
+            "subscriptions",
         }
 
     def test_records_schema_version(self, conn: sqlite3.Connection) -> None:

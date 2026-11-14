@@ -166,6 +166,11 @@ _NET_IMPORT_EXEMPT_PATHS: tuple[str, ...] = (
     # package is missing. No new destination, no new data — covered by
     # the Slack row in PRIVACY_POLICY.md.
     "src/dev10x/comm/skills/notifications/slack_notify.py",
+    # Chat bus Pub/Sub source: the local `dev10x-chatbus` daemon pulls
+    # Chat reaction events from the user's own Pub/Sub subscription and
+    # keeps the Workspace Events subscription alive. Covered by the
+    # Google Chat bus row in PRIVACY_POLICY.md (GH-1840).
+    "src/dev10x/comm/chatbus/sources/google_http.py",
     # PyPI version sweep: `dev10x deps sweep` reads pypi.org/pypi/
     # <name>/json for each pinned distribution when the user (or the
     # scheduled workflow) runs it. Anonymous, read-only, sends only

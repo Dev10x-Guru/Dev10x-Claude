@@ -96,6 +96,18 @@ MIGRATIONS: tuple[tuple[str, ...], ...] = (
         )
         """,
     ),
+    (
+        # GH-1840: the Workspace Events subscription the Pub/Sub source
+        # renews, so a restart renews it instead of creating a second one.
+        """
+        CREATE TABLE subscriptions (
+            target TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            expire_time TEXT NOT NULL,
+            renewed_at TEXT NOT NULL
+        )
+        """,
+    ),
 )
 
 SCHEMA_VERSION = len(MIGRATIONS)

@@ -45,6 +45,24 @@ def get_cursor(*, conn: sqlite3.Connection, space: str) -> Cursor | None:
     return Cursor(event_time=row[0], resource_name=row[1])
 
 
+def count_recovered_by_lookback(
+    *,
+    conn: sqlite3.Connection,
+    since: datetime | None = None,
+) -> dict[str, int]:
+    """Events per space that only the look-back re-read found (ADR-0035 D6)."""
+    floor = "" if since is None else to_db_time(moment=since)
+    rows = conn.execute(
+        """
+        SELECT space, COUNT(*) FROM events
+         WHERE via_lookback = 1 AND received_at >= ?
+         GROUP BY space ORDER BY space
+        """,
+        (floor,),
+    ).fetchall()
+    return {row[0]: int(row[1]) for row in rows}
+
+
 def _insert(
     *,
     conn: sqlite3.Connection,
