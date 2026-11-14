@@ -44,6 +44,19 @@ Launch a background agent that monitors a PR through its full
 lifecycle — CI checks, review comments, team notification — so
 the user can keep working.
 
+## Arguments
+
+- PR URL or number (optional) — passed to `pr_detect`; empty
+  detects the PR for the current branch.
+- `--unattended` (GH-1911) — nobody is watching this run. No phase
+  fires a notification widget: an `external_notify` gate that
+  resolves to `ask` is treated as `skip`, and Phase 3 passes
+  `--unattended` on to `dev10x:request-review`. A `Skill()` call
+  from an orchestrator executing a plan step with an active task
+  list is unattended too, with or without the flag
+  (`references/review-readiness.md`). Strip the flag before
+  handing the PR argument to `pr_detect`.
+
 ## Instructions
 
 The full workflow — background dispatch, polling loop, fixup
