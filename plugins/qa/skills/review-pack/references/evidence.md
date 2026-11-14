@@ -62,6 +62,48 @@ The pack-specific rules:
   every automated check — only watching catches it.
 - **State in the video description that it is a staging capture.**
 
+### Freshness check
+
+A video older than the branch's last UI change shows a screen that no
+longer exists (GH-1828).
+Run the check before every send, and again before every re-review:
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/skills/review-pack/scripts/video-freshness.py \
+  --base origin/<baseRefName> --repo <PR checkout> \
+  --ui-glob <glob> ... \
+  --video <take.webm> ... | --recorded-at <ISO-8601 with offset> ...
+```
+
+- **Globs** come from `ui_globs` in `review-pack.yaml`, one `--ui-glob`
+  each.
+  None configured: omit the flag and the script uses front-end
+  extensions (`tsx`, `jsx`, `vue`, `svelte`, `astro`, `html`, `css`,
+  `scss`, `sass`, `less`).
+- **Capture time** comes from `--recorded-at`, else the container's
+  `creation_time` tag, else the file's mtime.
+  A fresh clone of the evidence repo resets mtimes to the clone time,
+  so pass `--recorded-at` for any take not on disk as recorded; the
+  report's `source` field names which one was used.
+- **Commit time** is the newest *author* date in `<base>..HEAD` among
+  commits touching the globs, because a rebase or groom rewrites
+  committer dates.
+  Known gap: a fixup folded into an older commit keeps that commit's
+  older author date, so its UI change can hide behind it.
+
+| Exit | Verdict | Meaning |
+|---|---|---|
+| 0 | `fresh` | The newest video post-dates the newest UI commit |
+| 0 | `no-ui-change` | No branch commit touches the globs |
+| 0 | `no-video` | Nothing to compare |
+| 0 | `stale` + `override` | Sent anyway; the reason goes in section 4 |
+| 1 | `stale` | Refused: print `message`, re-record |
+| 2 | — | Tooling or input error, as `{"error": ...}` |
+
+`--override "<reason>"` is for a change the footage genuinely does not
+show (a hover colour off-screen, say).
+It is never silent: the reason is in the report and in section 4.
+
 ### The fallback rule, in detail
 
 The three pieces are cursor, captions and narration.

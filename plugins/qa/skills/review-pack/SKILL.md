@@ -28,6 +28,7 @@ allowed-tools:
   - Bash(gh api repos/:*)
   - Bash(git add:*)
   - Bash(git commit:*)
+  - Bash(${CLAUDE_PLUGIN_ROOT}/skills/review-pack/scripts/:*)
   - mcp__plugin_dev10x_cli__pr_detect
   - mcp__plugin_dev10x_cli__pr_get
   - mcp__plugin_dev10x_cli__update_pr
@@ -80,6 +81,7 @@ defaults:
   evidence_branch: main
   pack_path: "packs/{ticket}.md"
   evidence_dir: "evidence/{ticket}/"
+  ui_globs: ["web/**", "**/*.tsx"]              # freshness check; default: front-end extensions
   ticket_links:                                 # same shape as release-notes
     GH: "https://github.com/example-org/app/issues/{number}"
     PAY: "https://linear.app/example-team/issue/{id}"
@@ -161,6 +163,8 @@ this). Anything else in frame is your organisation's disclosure policy.
 **Evidence expires with the UI.** When a later commit changes UI the
 video shows — review fixes, redesign, copy — re-record before asking for
 (re-)review.
+`scripts/video-freshness.py` decides it from author dates (GH-1828);
+see [`references/evidence.md`](references/evidence.md) § Freshness check.
 
 ## Where the pack lives
 
@@ -189,7 +193,10 @@ pack-only run hands the gaps on instead, as described below):
       merely correct.
 - [ ] Pack exists, is linked at the top of the PR body, renders, and the
       reviewer can open it.
-- [ ] Every video post-dates the last UI-changing commit.
+- [ ] Every video post-dates the last UI-changing commit:
+      `video-freshness.py` exits 0. On exit 1 the pack is **refused** —
+      re-record, or re-run it with `--override "<reason>"` and put the
+      reason in section 4.
 - [ ] Screenshots and footage are staging/seed data only.
 
 On a run that requests review, **REQUIRED: Call `AskUserQuestion`**
@@ -204,8 +211,8 @@ Options:
 - **Hold** — do not request review.
 
 **With `--no-request-review`, open boxes are handed on — except the
-staging box (GH-1878).** This run requests nothing — the caller's own
-review step does that — so a hard-coded prompt here only stalls a
+staging box (GH-1878) and a stale video (GH-1828).** This run requests
+nothing — the caller's own review step does that — so a hard-coded prompt here only stalls a
 walk-away session. The self-QA step runs after the review loop, yet
 fixups and grooming still move HEAD, so the first box is often
 unchecked at that point. A gap handed on reaches the reviewer through
@@ -222,7 +229,10 @@ own review step decides whether to send.
    - **Fix the gap first (Recommended)** — re-capture on staging or
      seed data, then re-run this gate.
    - **Hold** — return without the pack link.
-2. Otherwise call
+2. **A stale video is never handed on.** When `video-freshness.py`
+   exits 1, print its `message` and return without the pack link: the
+   caller re-records. Nobody is present to state an override reason.
+3. Otherwise call
    `mcp__plugin_dev10x_cli__resolve_gate(gate="artifact_preview", context={})`
    and branch on `effect`:
    - `ask` — **REQUIRED: Call `AskUserQuestion`**.
