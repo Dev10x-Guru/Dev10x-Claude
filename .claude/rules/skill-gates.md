@@ -56,6 +56,14 @@ something pending ⇒ the concrete next action leads; nothing pending ⇒
 stand-down leads. A gate that cannot derive its state should say so in
 the question rather than assert a default it has not established.
 
+**When the resolver errors.** Rules 1 and 2 still both apply.
+Keep exactly one `(Recommended)` option first, pick it by the mode's
+documented fallback (for example, a pack-only run hands gaps on), and
+say in the question that the resolver failed, so the default reads as
+the fallback and not as a resolved policy.
+`dev10x-qa:review-pack`'s pre-send gate `error` bullet is the worked
+example.
+
 ## Checklist for Skill Authors
 
 Before submitting a skill with decision gates, verify all three:
