@@ -854,6 +854,60 @@ def clean(
         )
 
 
+@permission.command(name="remove")
+@click.option("--pattern", required=True, help="Glob matched against the whole rule string")
+@click.option(
+    "--list",
+    "list_name",
+    type=click.Choice(["allow", "ask", "deny"]),
+    default=None,
+    help="Only remove from this permission list (default: all three)",
+)
+@click.option("--dry-run", is_flag=True, help="Show changes without modifying files")
+@click.option(
+    "--global",
+    "include_global",
+    is_flag=True,
+    help="Also remove from ~/.claude/settings.json, even when a dotfiles repo tracks it",
+)
+def remove(*, pattern: str, list_name: str | None, dry_run: bool, include_global: bool) -> None:
+    """Remove rules matching a glob from settings files (GH-1925)."""
+    from dev10x.core.skills.permission import remove_rules as mod
+    from dev10x.skills.permission.catalog_write import partition_writable
+
+    ctx = _require_context(include_user=False)
+    candidates = list(ctx.settings_files)
+    global_file = ClaudeDir.settings_json()
+    if include_global and global_file.is_file() and global_file not in candidates:
+        candidates.append(global_file)
+    if not candidates:
+        click.echo("No settings files found.")
+        return
+
+    writable, skip_messages = partition_writable(
+        sorted(candidates),
+        allow_tracked_paths=frozenset({global_file}) if include_global else frozenset(),
+    )
+    for message in skip_messages:
+        click.echo(message)
+    if dry_run:
+        click.echo("(dry run — no files will be modified)\n")
+
+    lists = (list_name,) if list_name else mod.PERMISSION_LISTS
+    total = 0
+    for path in writable:
+        outcome = mod.remove_from_file(path, pattern=pattern, lists=lists, dry_run=dry_run)
+        if outcome.skipped is None and outcome.count == 0:
+            continue
+        click.echo(f"\n{path}")
+        for line in mod.format_removal(outcome, dry_run=dry_run):
+            click.echo(line)
+        total += outcome.count
+
+    verb = "Would remove" if dry_run else "Removed"
+    click.echo(f"\n{verb} {total} rules matching {pattern!r}.")
+
+
 @permission.command(name="enumerate-mcp")
 @click.option("--dry-run", is_flag=True, help="Show changes without modifying files")
 @click.option("--quiet", is_flag=True, help="Suppress per-file details")
