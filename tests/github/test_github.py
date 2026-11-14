@@ -18,6 +18,8 @@ from __future__ import annotations
 
 import json
 import subprocess
+from collections.abc import Iterator
+from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -591,6 +593,109 @@ class TestResolveReviewThreadDirect:
 
         assert isinstance(result, ErrorResult)
         assert "thread_ids" in result.error
+
+
+_RESOLVED_T1 = {"thread": {"id": "PRRT_t1", "isResolved": True}}
+
+
+class TestResolveReviewThreadPartialBatch:
+    """GH-1913: a batch where some aliases failed reports which resolved."""
+
+    @pytest.fixture
+    def mock_api(self) -> Iterator[AsyncMock]:
+        with patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock) as api:
+            yield api
+
+    @pytest.mark.asyncio
+    async def test_full_success_lists_the_resolved_threads(self, mock_api: AsyncMock) -> None:
+        mock_api.return_value = _completed(stdout=json.dumps({"data": {"r0": _RESOLVED_T1}}))
+
+        result = await gh.resolve_review_thread(thread_ids=["PRRT_t1"])
+
+        assert result == SuccessResult(
+            value={"data": {"r0": _RESOLVED_T1}, "resolved": ["PRRT_t1"]}
+        )
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("error", "warning"),
+        [
+            (
+                {"message": "Could not resolve to a node", "path": ["r1"]},
+                "Could not resolve PRRT_t2: Could not resolve to a node",
+            ),
+            ({"message": "boom"}, "GitHub GraphQL error: boom"),
+            ({"message": "boom", "path": ["r9"]}, "GitHub GraphQL error: boom"),
+            ({"message": "boom", "path": ["data"]}, "GitHub GraphQL error: boom"),
+            ("bare string", "GitHub GraphQL error: bare string"),
+        ],
+        ids=["aliased", "no-path", "unknown-alias", "non-alias-path", "non-dict"],
+    )
+    async def test_partial_batch_reports_resolved_and_failed(
+        self,
+        mock_api: AsyncMock,
+        error: Any,
+        warning: str,
+    ) -> None:
+        mock_api.return_value = _completed(
+            stdout=json.dumps({"data": {"r0": _RESOLVED_T1, "r1": None}, "errors": [error]})
+        )
+
+        result = await gh.resolve_review_thread(thread_ids=["PRRT_t1", "PRRT_t2"])
+
+        assert result == SuccessResult(
+            value={
+                "data": {"r0": _RESOLVED_T1, "r1": None},
+                "resolved": ["PRRT_t1"],
+                "failed": ["PRRT_t2"],
+                "warnings": [warning],
+            }
+        )
+
+    @pytest.mark.asyncio
+    async def test_batch_where_nothing_resolved_is_an_error(self, mock_api: AsyncMock) -> None:
+        mock_api.return_value = _completed(
+            stdout=json.dumps(
+                {
+                    "data": {"r0": None, "r1": None},
+                    "errors": [{"message": "Forbidden", "path": ["r0"]}],
+                }
+            )
+        )
+
+        result = await gh.resolve_review_thread(thread_ids=["PRRT_t1", "PRRT_t2"])
+
+        assert result == ErrorResult(error="GitHub GraphQL error: Forbidden")
+
+    @pytest.mark.asyncio
+    async def test_comment_lookup_warnings_join_the_partial_batch_warnings(
+        self,
+        mock_api: AsyncMock,
+        mock_resolve_repo: AsyncMock,
+    ) -> None:
+        lookup = _thread_lookup_response("n0", db_id=7, thread_id="PRRT_t1")
+        lookup["data"]["n1"] = _thread_lookup_response("n1", db_id=8, thread_id="PRRT_t2")["data"][
+            "n1"
+        ]
+        mock_api.side_effect = [
+            _completed(stdout=json.dumps(lookup)),
+            _completed(
+                stdout=json.dumps(
+                    {
+                        "data": {"r0": _RESOLVED_T1, "r1": None},
+                        "errors": [{"message": "Forbidden", "path": ["r1"]}],
+                    }
+                )
+            ),
+        ]
+
+        result = await gh.resolve_review_thread(comment_ids=["PRRC_a", "PRRC_b", "PRRC_c"])
+
+        assert isinstance(result, SuccessResult)
+        assert result.value["resolved"] == ["PRRT_t1"]
+        assert result.value["failed"] == ["PRRT_t2"]
+        assert result.value["warnings"][0] == "Could not resolve PRRT_t2: Forbidden"
+        assert "PRRC_c" in result.value["warnings"][1]
 
 
 class TestPrCommentListFilters:

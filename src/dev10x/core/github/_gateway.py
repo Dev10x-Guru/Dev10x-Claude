@@ -231,6 +231,35 @@ async def _graphql(query: str, *, tolerate_not_found: bool = False) -> Result[di
     reading as "not found". A query GitHub rejected outright carries no
     ``data`` and is an error too (GH-1885).
     """
+    response = await _graphql_response(query)
+    if not isinstance(response, SuccessResult):
+        return response
+    data = response.value.data
+    tolerated = tolerate_not_found and data is not None
+    failing = [
+        entry for entry in response.value.errors if not (tolerated and _is_not_found(entry=entry))
+    ]
+    if failing:
+        return err(f"GitHub GraphQL error: {graphql_error_message(entry=failing[0])}")
+    return ok(data or {})
+
+
+@dataclass(frozen=True)
+class GraphQLResponse:
+    """A parsed GraphQL reply: ``data`` (None when absent) and every error."""
+
+    data: dict[str, Any] | None
+    errors: tuple[Any, ...]
+
+
+async def _graphql_response(query: str) -> Result[GraphQLResponse]:
+    """Run a GraphQL query and keep ``data`` and ``errors`` side by side (GH-1913).
+
+    A batched mutation can succeed for some aliases and fail for others;
+    the reply then carries both. ``_graphql`` turns any error into a
+    failure, so a caller that must report a partial write reads this
+    instead. Transport, JSON and shape failures are still errors here.
+    """
     result = await _gh_api_raw("graphql", fields={"query": query})
     if result.returncode != 0:
         return err(result.stderr.strip() or "GitHub GraphQL call failed")
@@ -243,16 +272,19 @@ async def _graphql(query: str, *, tolerate_not_found: bool = False) -> Result[di
     data = payload.get("data")
     errors = payload.get("errors") or []
     entries = errors if isinstance(errors, list) else [errors]
-    tolerated = tolerate_not_found and isinstance(data, dict)
-    failing = [entry for entry in entries if not (tolerated and _is_not_found(entry))]
-    if failing:
-        first = failing[0]
-        message = first.get("message", first) if isinstance(first, dict) else first
-        return err(f"GitHub GraphQL error: {message}")
-    return ok(data if isinstance(data, dict) else {})
+    return ok(
+        GraphQLResponse(
+            data=data if isinstance(data, dict) else None,
+            errors=tuple(entries),
+        )
+    )
 
 
-def _is_not_found(entry: Any) -> bool:
+def graphql_error_message(*, entry: Any) -> Any:
+    return entry.get("message", entry) if isinstance(entry, dict) else entry
+
+
+def _is_not_found(*, entry: Any) -> bool:
     return isinstance(entry, dict) and entry.get("type") == "NOT_FOUND"
 
 

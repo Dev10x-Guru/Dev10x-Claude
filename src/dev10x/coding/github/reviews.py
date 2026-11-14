@@ -291,7 +291,7 @@ async def _pr_comment_resolve(
     resolved = await _resolve_threads(thread_ids=thread_ids)
     if isinstance(resolved, ErrorResult) or not errors:
         return resolved
-    return ok({**resolved.value, "warnings": errors})
+    return ok({**resolved.value, "warnings": [*resolved.value.get("warnings", []), *errors]})
 
 
 def _thread_of_comment(*, node: Any) -> str | None:
@@ -316,10 +316,46 @@ async def _resolve_threads(*, thread_ids: list[str]) -> Result[dict[str, Any]]:
         f"{{ thread {{ id isResolved }} }}"
         for i, tid in enumerate(thread_ids)
     )
-    resolved = await _gateway._graphql(f"mutation {{ {resolve_fragments} }}")
-    if isinstance(resolved, ErrorResult):
-        return resolved
-    return ok({"data": resolved.value})
+    response = await _gateway._graphql_response(f"mutation {{ {resolve_fragments} }}")
+    if isinstance(response, ErrorResult):
+        return response
+    data = response.value.data or {}
+    errors = response.value.errors
+    resolved_ids = [
+        tid for i, tid in enumerate(thread_ids) if _alias_resolved(node=data.get(f"r{i}"))
+    ]
+    if errors and not resolved_ids:
+        message = _gateway.graphql_error_message(entry=errors[0])
+        return err(f"GitHub GraphQL error: {message}")
+    if not errors:
+        return ok({"data": data, "resolved": resolved_ids})
+    failed = [tid for tid in thread_ids if tid not in resolved_ids]
+    return ok(
+        {
+            "data": data,
+            "resolved": resolved_ids,
+            "failed": failed,
+            "warnings": [
+                _alias_error_warning(entry=entry, thread_ids=thread_ids) for entry in errors
+            ],
+        }
+    )
+
+
+def _alias_resolved(*, node: Any) -> bool:
+    thread = node.get("thread") if isinstance(node, dict) else None
+    return isinstance(thread, dict) and thread.get("isResolved") is True
+
+
+def _alias_error_warning(*, entry: Any, thread_ids: list[str]) -> str:
+    """Name the thread a per-alias mutation error belongs to (GH-1913)."""
+    message = _gateway.graphql_error_message(entry=entry)
+    path = entry.get("path") if isinstance(entry, dict) else None
+    alias = path[0] if isinstance(path, list) and path else None
+    index = int(alias[1:]) if isinstance(alias, str) and alias[1:].isdigit() else None
+    if index is None or index >= len(thread_ids):
+        return f"GitHub GraphQL error: {message}"
+    return f"Could not resolve {thread_ids[index]}: {message}"
 
 
 _PR_COMMENT_ACTIONS: dict[str, Any] = {
