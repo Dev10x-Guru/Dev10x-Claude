@@ -169,8 +169,9 @@ Stopping `serve` stops both pages, since the dev page runs under it;
   `/dev10x:overwatch relay` with `herdr agent prompt` to the herdr
   agent named `relay`, and to nothing else.
   The name alone is not enough: the pane's Claude session must look
-  like the relay, named after the relay mailbox (`overwatch-relay`) or
-  with the Overwatch state directory as its working directory; when
+  like the relay: named exactly like the configured relay mailbox
+  (`overwatch-relay` by default), or with the Overwatch state directory
+  as its working directory once both paths are resolved; when
   more than one pane qualifies the daemon logs a warning, sends to
   none and keeps waiting (GH-1805).
   It waits until that agent is `idle` or `done`, then skips the send

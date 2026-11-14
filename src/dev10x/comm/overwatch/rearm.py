@@ -57,7 +57,15 @@ def looks_like_relay(
     cwd: str,
 ) -> bool:
     session = session_of(pane=pane, sessions=sessions)
-    return session is not None and (session.name == mailbox or session.cwd == cwd)
+    if session is None:
+        return False
+    return session.name == mailbox or _same_dir(first=session.cwd, second=cwd)
+
+
+def _same_dir(*, first: str, second: str) -> bool:
+    if not first or not second:
+        return False
+    return Path(first).resolve() == Path(second).resolve()
 
 
 def find_relay(

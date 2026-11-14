@@ -50,7 +50,7 @@ def log_sent(
     detail: str,
     confirmed_by: str,
 ) -> None:
-    """Record an input that already reached the pane; a failed record must not undo it."""
+    """Record a delivery that already happened; a failed record must not undo it."""
     try:
         log_action(
             log_path=log_path,
@@ -121,7 +121,7 @@ def run_session_command(
     submitter: Callable[..., None] = submit_prompt,
 ) -> None:
     submitter(pane_id=pane_id, text=SESSION_COMMANDS[command])
-    log_action(
+    log_sent(
         log_path=log_path,
         action=f"command-{command}",
         target=session_name,
@@ -140,7 +140,7 @@ def rename_session(
     submitter: Callable[..., None] = submit_prompt,
 ) -> None:
     submitter(pane_id=pane_id, text=f"/rename {name}")
-    log_action(
+    log_sent(
         log_path=log_path,
         action="rename",
         target=session_name,
@@ -182,7 +182,7 @@ def request_preapproval(
         ),
         body=json.dumps(body, indent=2),
     )
-    log_action(
+    log_sent(
         log_path=log_path,
         action="preapprove",
         target=session_name,
@@ -258,7 +258,7 @@ def introduce(
             body=introduction(to=to, about=about),
         )
         paths.append(delivery.path)
-    log_action(
+    log_sent(
         log_path=log_path,
         action="introduce",
         target=f"{first.name} <-> {second.name}",
@@ -293,7 +293,7 @@ def deliver_relay(
         ),
         body=ANSWER_PREFIX + answer,
     )
-    log_action(
+    log_sent(
         log_path=log_path,
         action="relay",
         target=session_name,

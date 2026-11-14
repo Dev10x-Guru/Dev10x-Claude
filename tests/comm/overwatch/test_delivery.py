@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -323,3 +324,94 @@ class TestDeliverRelay:
 
     def test_logged(self, message: tuple[dict[str, str], str], log_path: Path) -> None:
         assert json.loads(log_path.read_text(encoding="utf-8"))["action"] == "relay"
+
+
+def _run_command(*, log_path: Path, bus_root: Path, submitter: RecordingSender) -> None:
+    run_session_command(
+        pane_id="w1:p1",
+        session_name="kb-2a",
+        command="reflect",
+        confirmed_by="janusz",
+        log_path=log_path,
+        submitter=submitter,
+    )
+
+
+def _rename(*, log_path: Path, bus_root: Path, submitter: RecordingSender) -> None:
+    rename_session(
+        pane_id="w1:p1",
+        session_name="kb-2a",
+        name="GH-1-x",
+        confirmed_by="janusz",
+        log_path=log_path,
+        submitter=submitter,
+    )
+
+
+def _preapprove(*, log_path: Path, bus_root: Path, submitter: RecordingSender) -> None:
+    request_preapproval(
+        bus_root=bus_root,
+        relay_mailbox="overwatch-relay",
+        session_name="kb-2a",
+        session_id="sid-1",
+        cwd="/home/janusz/KB",
+        request_id="sid-1-pre1",
+        pending=None,
+        commands=["git status"],
+        confirmed_by="janusz",
+        log_path=log_path,
+    )
+
+
+def _introduce(*, log_path: Path, bus_root: Path, submitter: RecordingSender) -> None:
+    introduce(
+        bus_root=bus_root,
+        relay_mailbox="overwatch-relay",
+        first=ALPHA,
+        second=BETA,
+        request_id="sid-a-sid-b",
+        confirmed_by="janusz",
+        log_path=log_path,
+    )
+
+
+def _relay(*, log_path: Path, bus_root: Path, submitter: RecordingSender) -> None:
+    deliver_relay(
+        bus_root=bus_root,
+        relay_mailbox="overwatch-relay",
+        session_name="kb-2a",
+        session_id="sid-1",
+        decision_id="sid-1-1234",
+        answer="Yes",
+        confirmed_by="janusz",
+        log_path=log_path,
+    )
+
+
+class TestAFailedLogDoesNotUndoTheDelivery:
+    @pytest.mark.parametrize(
+        ("deliver", "action"),
+        [
+            (_run_command, "command-reflect"),
+            (_rename, "rename"),
+            (_preapprove, "preapprove"),
+            (_introduce, "introduce"),
+            (_relay, "relay"),
+        ],
+    )
+    def test_warns_instead_of_raising(
+        self,
+        deliver: Callable[..., None],
+        action: str,
+        unwritable_log_path: Path,
+        tmp_path: Path,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        with caplog.at_level(logging.WARNING, logger="dev10x.comm.overwatch.delivery"):
+            deliver(
+                log_path=unwritable_log_path,
+                bus_root=tmp_path / "bus",
+                submitter=RecordingSender(),
+            )
+
+        assert f"overwatch sent {action} to" in caplog.text

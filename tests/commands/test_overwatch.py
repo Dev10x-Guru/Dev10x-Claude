@@ -235,34 +235,43 @@ def test_build_rearm_disabled_by_empty_name(config_home: Path, tmp_path: Path) -
 
 
 class FakeRelayRearm:
-    instances: list[FakeRelayRearm] = []
-
     def __init__(self, **kwargs: object) -> None:
         self.kwargs = kwargs
-        FakeRelayRearm.instances.append(self)
 
     def attempt(self) -> None:
         raise AssertionError("run_rearm is stubbed; attempt must not run")
+
+
+@pytest.fixture
+def fake_rearms(monkeypatch: pytest.MonkeyPatch) -> list[FakeRelayRearm]:
+    instances: list[FakeRelayRearm] = []
+
+    def build(**kwargs: object) -> FakeRelayRearm:
+        instance = FakeRelayRearm(**kwargs)
+        instances.append(instance)
+        return instance
+
+    monkeypatch.setattr(command, "RelayRearm", build)
+    return instances
 
 
 def test_build_rearm_wires_run_rearm_to_the_relay(
     config_home: Path,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    fake_rearms: list[FakeRelayRearm],
 ) -> None:
     app = command.build_app(
         kb_root=tmp_path / "kb", bus_root=tmp_path / "bus", relay_mailbox="relay", token="t"
     )
     stop = threading.Event()
     seen: dict[str, object] = {}
-    monkeypatch.setattr(FakeRelayRearm, "instances", [])
-    monkeypatch.setattr(command, "RelayRearm", FakeRelayRearm)
     monkeypatch.setattr(command, "run_rearm", lambda **kwargs: seen.update(kwargs))
 
     rearm = command.build_rearm(app=app, agent_name="relay", interval=2.0, stop=stop)
     assert rearm is not None
     rearm()
-    (relay,) = FakeRelayRearm.instances
+    (relay,) = fake_rearms
 
     assert (relay.kwargs, seen["attempt"], seen["interval"], seen["stop"]) == (
         {
