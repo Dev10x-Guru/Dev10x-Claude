@@ -1,3 +1,10 @@
+# Userspace plugin-load guard
+
+Read by SKILL.md Step 3 (GH-874). The guard is a userspace
+SessionStart hook that warns the user to reload when Claude Code's
+startup race skipped the plugin. Run all three steps; each is
+idempotent.
+
 1. **Copy the guard into userspace** (survives plugin-load failure —
    it must NOT live under the versioned plugin cache):
    - Source: `${CLAUDE_PLUGIN_ROOT}/hooks/scripts/plugin-load-guard.sh`
