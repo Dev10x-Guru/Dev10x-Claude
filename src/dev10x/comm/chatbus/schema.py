@@ -80,6 +80,22 @@ MIGRATIONS: tuple[tuple[str, ...], ...] = (
         )
         """,
     ),
+    (
+        # GH-1839: one verdict per event, so a replay returns the first
+        # verdict instead of authorizing the event a second time.
+        "CREATE UNIQUE INDEX commands_one_per_event ON commands (event_id)",
+        "ALTER TABLE commands ADD COLUMN outcome TEXT",
+        "ALTER TABLE commands ADD COLUMN work_item_id INTEGER REFERENCES work_items (id)",
+        """
+        CREATE TABLE approvals (
+            work_item_id INTEGER PRIMARY KEY REFERENCES work_items (id),
+            dm_message TEXT UNIQUE,
+            requested_at TEXT NOT NULL,
+            approved_by_event INTEGER REFERENCES events (id),
+            approved_at TEXT
+        )
+        """,
+    ),
 )
 
 SCHEMA_VERSION = len(MIGRATIONS)
