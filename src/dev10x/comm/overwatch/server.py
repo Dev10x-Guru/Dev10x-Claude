@@ -17,6 +17,15 @@ from typing import Any
 from urllib.parse import parse_qs, urlsplit
 from uuid import uuid4
 
+from dev10x.comm.overwatch.artifacts import (
+    CONTROL_EVENT,
+    SHARE_EVENT,
+    ArtifactStore,
+    ArtifactSummary,
+    check_value,
+    find_control,
+    new_event_id,
+)
 from dev10x.comm.overwatch.decisions import (
     ANSWERED,
     HOOK_CHANNEL,
@@ -29,8 +38,12 @@ from dev10x.comm.overwatch.decisions import (
 from dev10x.comm.overwatch.delivery import (
     SESSION_COMMANDS,
     Peer,
+    Recipient,
+    artifact_event_message,
+    artifact_share_message,
     deliver_keys,
     deliver_relay,
+    deliver_to_session,
     introduce,
     keys_for_option,
     log_action,
@@ -59,13 +72,20 @@ from dev10x.comm.overwatch.pending import (
     read_recent_tools,
     read_session_commands,
 )
-from dev10x.comm.overwatch.probes import ProbeError, Snapshot, read_pane, send_keys
+from dev10x.comm.overwatch.probes import (
+    ProbeError,
+    Snapshot,
+    read_pane,
+    send_keys,
+    submit_prompt,
+)
 from dev10x.comm.overwatch.prompts import (
     find_option,
     parse_prompt,
     parse_status_line_ansi,
     strip_ansi,
 )
+from dev10x.comm.overwatch.publishers import PublisherConfig, builtin_publishers
 from dev10x.comm.overwatch.session_tasks import SessionTask, read_session_tasks
 from dev10x.comm.overwatch.sessions import SessionView
 from dev10x.comm.overwatch.settings import PageSettings, SettingsStore
@@ -77,6 +97,7 @@ from dev10x.comm.overwatch.workspace import (
     read_workspace,
 )
 from dev10x.comm.skills.bus.maildir import InvalidMessageError
+from dev10x.domain.common.result import ErrorResult
 
 log = logging.getLogger(__name__)
 
@@ -134,6 +155,13 @@ class OverwatchApp:
     past_reader: Callable[..., list[PastSession]] = read_past_sessions
     opener: Callable[..., Launched] = open_session
     worktree_maker: Callable[..., Launched] = create_worktree
+    artifacts: ArtifactStore | None = None
+    publishers_reader: Callable[[], PublisherConfig] = builtin_publishers
+    prompt_sender: Callable[..., None] = submit_prompt
+    instance_flag: str = ""
+    artifact_index: list[ArtifactSummary] = field(default_factory=list)
+    publishers: PublisherConfig = field(default_factory=builtin_publishers)
+    artifact_lock: threading.Lock = field(default_factory=threading.Lock)
     auto_rename: bool = False
     auto_renamed: bool = False
     today: Callable[[], date] = date.today
@@ -213,6 +241,7 @@ def snapshot_payload(*, app: OverwatchApp) -> dict[str, Any]:
         snapshot, pane_text, version = app.snapshot, dict(app.pane_text), app.version
         previews, status_lines = dict(app.previews), dict(app.status_lines)
         workspaces = dict(app.workspaces)
+        artifacts, publishers = list(app.artifact_index), app.publishers
     open_decisions = [decision for decision in app.store.all() if decision.state == OPEN]
     now = app.now()
     held = {
@@ -244,13 +273,29 @@ def snapshot_payload(*, app: OverwatchApp) -> dict[str, Any]:
                 ],
             }
         )
+    live = {view.session_id for view in snapshot.sessions}
+    errors = dict(snapshot.errors)
+    if publishers.errors:
+        errors["artifact_publishers"] = "; ".join(publishers.errors)
     return {
         "version": version,
         "taken_at": snapshot.taken_at.isoformat(timespec="seconds"),
-        "errors": snapshot.errors,
+        "errors": errors,
         "sessions": sessions,
         "settings": asdict(app.page_settings()),
+        "artifacts": [
+            {**asdict(summary), "owner_live": summary.owner["session_id"] in live}
+            for summary in artifacts
+        ],
+        "publishers": [publisher.to_dict() for publisher in publishers.publishers],
     }
+
+
+def refresh_artifacts(*, app: OverwatchApp) -> None:
+    index = app.artifacts.index() if app.artifacts is not None else []
+    publishers = app.publishers_reader()
+    with app.changed:
+        app.artifact_index, app.publishers = index, publishers
 
 
 def _held_view(*, view: SessionView) -> SessionView:
@@ -334,6 +379,7 @@ def refresh(*, app: OverwatchApp, provider: Callable[[], Snapshot]) -> None:
         if view.status == "waiting"
         and (preview := app.preview_reader(session_id=view.session_id)) is not None
     }
+    refresh_artifacts(app=app)
     app.publish(
         snapshot=snapshot,
         pane_text=pane_text,
@@ -409,6 +455,7 @@ class OverwatchHandler(BaseHTTPRequestHandler):
                 "/api/events": self._events,
                 "/api/session": self._session_detail,
                 "/api/project": self._project_detail,
+                "/api/artifact": self._artifact_detail,
                 "/lessons": self._lessons,
             }
         )
@@ -429,6 +476,8 @@ class OverwatchHandler(BaseHTTPRequestHandler):
                 "/launch": self._post_launch,
                 "/preapprove": self._post_preapprove,
                 "/lessons": self._post_lesson,
+                "/artifact/event": self._post_artifact_event,
+                "/artifact/share": self._post_artifact_share,
             }
         )
 
@@ -1034,6 +1083,191 @@ class OverwatchHandler(BaseHTTPRequestHandler):
             today=self.app.today(),
         )
         self._json(status=HTTPStatus.CREATED, payload={"path": str(path)})
+
+    def _artifact_store(self) -> ArtifactStore:
+        if self.app.artifacts is None:
+            raise RequestError(
+                status=HTTPStatus.NOT_FOUND, message="This page keeps no artifacts."
+            )
+        return self.app.artifacts
+
+    def _artifact(self, *, artifact_id: str) -> dict[str, Any]:
+        document = self._artifact_store().get(artifact_id=artifact_id)
+        if document is None:
+            raise RequestError(
+                status=HTTPStatus.NOT_FOUND, message=f'No artifact "{artifact_id}".'
+            )
+        return document
+
+    def _artifact_owner(self, *, document: dict[str, Any]) -> SessionView:
+        owner = document.get("owner") or {}
+        view = self.app.session(session_id=str(owner.get("session_id", "")))
+        if view is None:
+            raise RequestError(
+                status=HTTPStatus.CONFLICT,
+                message="The session that owns this page is not running.",
+            )
+        return view
+
+    def _deliver_artifact(
+        self,
+        *,
+        view: SessionView,
+        message_id: str,
+        text: str,
+        action: str,
+    ) -> str:
+        try:
+            return deliver_to_session(
+                recipient=Recipient(
+                    name=view.name,
+                    session_id=view.session_id,
+                    pane_id=view.pane_id,
+                    idle=view.status == "idle",
+                ),
+                message_id=message_id,
+                text=text,
+                action=action,
+                bus_root=self.app.bus_root,
+                relay_mailbox=self.app.relay_mailbox,
+                confirmed_by=CONFIRMED_BY,
+                log_path=self.app.log_path,
+                sender=self.app.prompt_sender,
+            )
+        except (ProbeError, InvalidMessageError, OSError) as exc:
+            raise RequestError(status=HTTPStatus.BAD_GATEWAY, message=str(exc)) from exc
+
+    def _artifact_detail(self, params: dict[str, str]) -> None:
+        artifact_id = params.get("id", "")
+        document = self._artifact(artifact_id=artifact_id)
+        events = self._artifact_store().recent_events(artifact_id=artifact_id)
+        self._json(status=HTTPStatus.OK, payload={**document, "events": events})
+
+    def _post_artifact_event(self, params: dict[str, str]) -> None:
+        body = self._body()
+        artifact_id = str(body.get("artifact_id", ""))
+        control_id = str(body.get("control_id", ""))
+        with self.app.artifact_lock:
+            document = self._artifact(artifact_id=artifact_id)
+            control = find_control(document=document, control_id=control_id)
+            if control is None:
+                raise RequestError(
+                    status=HTTPStatus.NOT_FOUND, message="No such control on this page."
+                )
+            checked = check_value(control=control, value=body.get("value"))
+            if isinstance(checked, ErrorResult):
+                raise RequestError(status=HTTPStatus.BAD_REQUEST, message=checked.error)
+            revision = int(document.get("revision", 0))
+            if body.get("revision") != revision:
+                raise RequestError(
+                    status=HTTPStatus.CONFLICT, message="The page changed; reload it."
+                )
+            view = self._artifact_owner(document=document)
+            store = self._artifact_store()
+            if store.already_sent(
+                artifact_id=artifact_id, revision=revision, control_id=control_id
+            ):
+                raise RequestError(status=HTTPStatus.CONFLICT, message="Already sent.")
+            event_id = new_event_id()
+            label = str(control["label"])
+            channel = self._deliver_artifact(
+                view=view,
+                message_id=event_id,
+                text=artifact_event_message(
+                    title=str(document.get("title", "")),
+                    artifact_id=artifact_id,
+                    revision=revision,
+                    label=label,
+                    value=checked.value,
+                    instance_flag=self.app.instance_flag,
+                ),
+                action="artifact-event",
+            )
+            recorded = _record_event(
+                store=store,
+                event_id=event_id,
+                artifact_id=artifact_id,
+                kind=CONTROL_EVENT,
+                revision=revision,
+                channel=channel,
+                detail={"control_id": control_id, "label": label, "value": checked.value},
+            )
+        self.app.nudge()
+        self._ok(channel=channel, event_id=event_id, recorded=recorded)
+
+    def _post_artifact_share(self, params: dict[str, str]) -> None:
+        body = self._body()
+        artifact_id = str(body.get("artifact_id", ""))
+        document = self._artifact(artifact_id=artifact_id)
+        with self.app.changed:
+            publishers = self.app.publishers
+        publisher = publishers.find(publisher_id=str(body.get("publisher", "")))
+        if publisher is None:
+            raise RequestError(status=HTTPStatus.NOT_FOUND, message="No such publisher.")
+        view = self._artifact_owner(document=document)
+        store = self._artifact_store()
+        title = str(document.get("title", ""))
+        path = str(store.document_path(artifact_id=artifact_id))
+        event_id = new_event_id()
+        with self.app.artifact_lock:
+            channel = self._deliver_artifact(
+                view=view,
+                message_id=event_id,
+                text=artifact_share_message(
+                    title=title,
+                    artifact_id=artifact_id,
+                    path=path,
+                    publisher_id=publisher.id,
+                    publisher_label=publisher.label,
+                    instruction=publisher.instruction(
+                        path=path, artifact_id=artifact_id, title=title
+                    ),
+                    instance_flag=self.app.instance_flag,
+                ),
+                action="artifact-share",
+            )
+            recorded = _record_event(
+                store=store,
+                event_id=event_id,
+                artifact_id=artifact_id,
+                kind=SHARE_EVENT,
+                revision=int(document.get("revision", 0)),
+                channel=channel,
+                detail={"publisher": publisher.id},
+            )
+        self.app.nudge()
+        self._ok(channel=channel, event_id=event_id, recorded=recorded)
+
+
+def _record_event(
+    *,
+    store: ArtifactStore,
+    event_id: str,
+    artifact_id: str,
+    kind: str,
+    revision: int,
+    channel: str,
+    detail: dict[str, Any],
+) -> bool:
+    try:
+        store.append_event(
+            event_id=event_id,
+            artifact_id=artifact_id,
+            kind=kind,
+            revision=revision,
+            channel=channel,
+            detail=detail,
+        )
+    except OSError:
+        log.error(
+            "overwatch delivered artifact %s event %s but could not record it; "
+            "the page will not see it as sent",
+            artifact_id,
+            event_id,
+            exc_info=True,
+        )
+        return False
+    return True
 
 
 def _option_index(*, raw: object, decision: Decision) -> int:

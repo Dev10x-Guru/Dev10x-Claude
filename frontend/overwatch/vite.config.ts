@@ -15,6 +15,7 @@ export default defineConfig({
     proxy: {
       "/api": daemon,
       "/answer": daemon,
+      "/artifact": daemon,
       "/keys": daemon,
       "/reply": daemon,
     },

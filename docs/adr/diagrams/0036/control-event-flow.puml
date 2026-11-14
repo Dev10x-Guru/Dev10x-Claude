@@ -1,0 +1,31 @@
+@startuml control-event-flow
+!theme plain
+title A control press reaches the owning session and the page refreshes
+
+actor Supervisor
+participant "Svelte SPA" as spa
+participant "Overwatch server" as server
+participant "artifacts store" as store
+participant "delivery" as delivery
+participant "Owner session" as session
+
+Supervisor -> spa : press "Approve" (revision 3)
+spa -> server : POST /artifact/event\n{artifact_id, revision: 3, control_id, value}
+server -> store : current revision? owner?
+alt stale revision or owner not running
+  server --> spa : 409 + reason
+else current
+  server -> delivery : event message (value marked as data)
+  alt owner idle in a herdr pane
+    delivery -> session : submit_prompt
+  else
+    delivery -> session : overwatch-relay mail -> SendMessage
+  end
+  server -> store : append event, log actions.jsonl
+  server --> spa : 200 {channel}
+end
+session -> store : artifact put (revision 4)
+server -> spa : SSE snapshot (index changed)
+spa -> server : GET /api/artifact
+spa --> Supervisor : page shows revision 4
+@enduml

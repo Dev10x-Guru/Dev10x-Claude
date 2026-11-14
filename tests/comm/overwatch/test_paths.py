@@ -66,8 +66,9 @@ def test_read_token_missing_file(tmp_path: Path) -> None:
         (paths.decisions_path, "decisions.json"),
         (paths.settings_path, "settings.json"),
         (paths.actions_log_path, "actions.jsonl"),
+        (paths.artifacts_dir, "artifacts"),
     ],
-    ids=["token", "page-token", "decisions", "settings", "actions"],
+    ids=["token", "page-token", "decisions", "settings", "actions", "artifacts"],
 )
 class TestInstancePaths:
     def test_release_keeps_the_original_dir(

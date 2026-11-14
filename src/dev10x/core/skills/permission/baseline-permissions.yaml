@@ -314,6 +314,9 @@ groups:
       # GH-1765 — `dev` writes only ~/.config/Dev10x/overwatch.yaml
       # and the dev page's token file; it starts nothing
       - Bash(uvx dev10x overwatch dev:*)
+      # GH-1938 — writes only the overwatch artifacts directory; never
+      # delivers anything to a session or off the machine
+      - Bash(uvx dev10x overwatch artifact:*)
 
   # ─── TIER 2 ─────────────────────────────────────────────────────────
 
