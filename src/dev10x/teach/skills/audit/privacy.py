@@ -155,7 +155,7 @@ _NET_IMPORT_EXEMPT_PATHS: tuple[str, ...] = (
     # credentials against api.github.com before writing config. Covered
     # by the GitHub row in PRIVACY_POLICY.md.
     "src/dev10x/core/github/app_api.py",
-    # Google Chat transport: the `dev10x:gchat` bot mints a token and
+    # Google Chat transport: the `dev10x-comm:gchat` bot mints a token and
     # posts user-approved review-request messages to a configured Chat
     # space. User-invoked outbound integration covered by the Google
     # Chat row in PRIVACY_POLICY.md.

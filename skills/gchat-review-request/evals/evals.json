@@ -19,7 +19,7 @@
     {
       "id": "transport-delegation",
       "name": "Transport Delegation",
-      "description": "Sending goes through Skill(dev10x:gchat), never a direct gchat-send CLI call"
+      "description": "Sending goes through Skill(dev10x-comm:gchat), never a direct gchat-send CLI call"
     }
   ],
   "evals": [
@@ -75,7 +75,7 @@
     },
     {
       "id": "send-delegates-to-gchat-skill",
-      "name": "Sending delegates to dev10x:gchat",
+      "name": "Sending delegates to dev10x-comm:gchat",
       "description": "Step 4 must invoke the transport skill so transport rules stay centralized",
       "input": "/dev10x:gchat-review-request with the confirmation gate answered 'Post to Google Chat'",
       "assertions": [
@@ -83,7 +83,7 @@
           "dimension": "transport-delegation",
           "check": "tool_called",
           "tool": "Skill",
-          "signal": "skill1_uses_tool — Skill(dev10x:gchat) is invoked as a tool call"
+          "signal": "skill1_uses_tool — Skill(dev10x-comm:gchat) is invoked as a tool call"
         },
         {
           "dimension": "transport-delegation",
@@ -130,7 +130,7 @@
         {
           "dimension": "transport-delegation",
           "check": "behavioral",
-          "signal": "no_send_on_skip — Skill(dev10x:gchat) is not invoked for a skip-configured repo"
+          "signal": "no_send_on_skip — Skill(dev10x-comm:gchat) is not invoked for a skip-configured repo"
         }
       ]
     }
@@ -142,8 +142,8 @@
     ],
     "should_not_trigger": [
       "The review request should go to Slack (use dev10x:slack-review-request)",
-      "An arbitrary non-review message needs sending to a space (use dev10x:gchat)",
-      "Google Chat has no configured space or service-account key yet (run dev10x:gchat first-time setup)"
+      "An arbitrary non-review message needs sending to a space (use dev10x-comm:gchat)",
+      "Google Chat has no configured space or service-account key yet (run dev10x-comm:gchat first-time setup)"
     ]
   }
 }

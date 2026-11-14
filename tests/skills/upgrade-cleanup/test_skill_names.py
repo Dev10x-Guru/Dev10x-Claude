@@ -16,6 +16,7 @@ import pytest
 from dev10x.core.domain.common.result import ErrorResult, SuccessResult
 from dev10x.core.domain.deprecations import REGISTER
 from dev10x.core.domain.file_locks import LockTimeoutError
+from dev10x.core.plugin_map import load_plugin_map
 from dev10x.core.skills.upgrade_cleanup import skill_names
 from dev10x.core.skills.upgrade_cleanup.skill_names import (
     SKILL_NAME_ALIASES,
@@ -159,8 +160,65 @@ class TestAliasResolution:
     def test_old_name_resolves_to_new(self, name: str, expected: str) -> None:
         assert resolve_skill_alias(name=name, aliases=ALIASES) == expected
 
-    def test_shipped_table_resolves_every_name_to_itself(self) -> None:
-        assert resolve_skill_alias(name="dev10x:gog") == "dev10x:gog"
+    def test_shipped_table_leaves_a_core_name_alone(self) -> None:
+        assert resolve_skill_alias(name="dev10x:git") == "dev10x:git"
+
+
+MOVED_TO_COMM_IN_GH_1567 = (
+    "bus",
+    "gchat",
+    "gog",
+    "overwatch",
+    "slack",
+    "slack-setup",
+    "voice-channel",
+)
+
+
+class TestCommExtractionAliases:
+    @pytest.mark.parametrize("skill", MOVED_TO_COMM_IN_GH_1567)
+    def test_old_name_resolves_to_the_comm_plugin(self, skill: str) -> None:
+        assert resolve_skill_alias(name=f"dev10x:{skill}") == f"dev10x-comm:{skill}"
+
+    def test_every_comm_skill_keeps_its_old_name_as_an_alias(self) -> None:
+        plugin_map = load_plugin_map()
+
+        assert {(alias.old, alias.new) for alias in SKILL_NAME_ALIASES} == {
+            (f"dev10x:{skill}", f"dev10x-comm:{skill}") for skill in plugin_map.plugins["comm"]
+        }
+
+    def test_rewrites_a_moved_name_in_a_user_playbook(self) -> None:
+        assert migrate_text(
+            text="steps:\n  - skill: dev10x:slack\n", aliases=SKILL_NAME_ALIASES
+        ) == (
+            "steps:\n  - skill: dev10x-comm:slack\n",
+            1,
+        )
+
+    def test_leaves_a_core_name_that_shares_a_prefix(self) -> None:
+        text = "skill: dev10x:slack-review-request\n"
+
+        assert migrate_text(text=text, aliases=SKILL_NAME_ALIASES) == (text, 0)
+
+    @pytest.fixture
+    def migrated_home(self, tmp_path: Path) -> Path:
+        home = tmp_path / "config-home"
+        (home / "playbooks").mkdir(parents=True)
+        (home / "friction.yaml").write_text("defaults:\n  notify: dev10x:gchat\n")
+        (home / "playbooks" / "work-on.yaml").write_text(
+            "steps:\n  - skill: dev10x:slack\n  - skill: dev10x:slack-review-request\n"
+        )
+        result = migrate_user_configs(config_home=home, dry_run=False)
+        assert isinstance(result, SuccessResult)
+        return home
+
+    def test_shipped_table_migrates_a_temp_config_home(self, migrated_home: Path) -> None:
+        assert _texts(home=migrated_home) == {
+            "friction.yaml": "defaults:\n  notify: dev10x-comm:gchat\n",
+            "playbooks/work-on.yaml": (
+                "steps:\n  - skill: dev10x-comm:slack\n  - skill: dev10x:slack-review-request\n"
+            ),
+        }
 
 
 RETIRED_IN_GH_1865 = (

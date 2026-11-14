@@ -1,13 +1,13 @@
 ---
-name: dev10x:gchat
+name: dev10x-comm:gchat
 description: >
   Send notifications to a Google Chat space via a private Chat bot
-  (service-account app auth). Mirrors dev10x:slack.
+  (service-account app auth). Mirrors dev10x-comm:slack.
   TRIGGER when: sending a message to a Google Chat space.
   DO NOT TRIGGER when: posting a review request (use
-  dev10x:gchat-review-request), or sending to Slack (use dev10x:slack).
+  dev10x:gchat-review-request), or sending to Slack (use dev10x-comm:slack).
 user-invocable: true
-invocation-name: dev10x:gchat
+invocation-name: dev10x-comm:gchat
 allowed-tools:
   - Bash(uvx dev10x skill notify gchat-send:*)
   - Bash(uvx dev10x skill notify gchat-update:*)
@@ -19,9 +19,9 @@ allowed-tools:
   - AskUserQuestion
 ---
 
-# dev10x:gchat — Google Chat Notifications
+# dev10x-comm:gchat — Google Chat Notifications
 
-**Announce:** "Using dev10x:gchat to send a Google Chat notification."
+**Announce:** "Using dev10x-comm:gchat to send a Google Chat notification."
 
 ## Orchestration
 
@@ -45,7 +45,7 @@ If no credentials are found, walk the user through setup:
    Chat API and configure a Chat app. Publish it **privately** to your
    Workspace (not the Marketplace). Attach a service account.
    A GCP project can host **only one Chat app**, and the project defines the
-   bot's identity. To get the same per-engineer setup as `dev10x:slack`
+   bot's identity. To get the same per-engineer setup as `dev10x-comm:slack`
    (where each engineer posts as their own personal bot), each engineer
    creates their **own project** (e.g. `gchat-<name>`) with their own Chat
    app and service account. Projects are free and the Chat API needs no
@@ -190,7 +190,7 @@ thread) is not implemented; `thread.name` covers the reply case.
 
 The bot still cannot read, but a watch reads **through your own `gog`
 grant** and tells a session about new messages over the local
-`dev10x:bus` (GH-1612, GH-1682).
+`dev10x-comm:bus` (GH-1612, GH-1682).
 Arm one at post time with `--watch`, so the session that asked hears the
 reply:
 
@@ -217,7 +217,7 @@ uvx dev10x skill notify gchat-watch poll --once
 watch is armed), so re-launch it after handling its lines.
 That is why `--once` exists: a `Monitor` dies after 30 minutes, and a
 watcher nobody re-arms leaves the thread unwatched for a day.
-Use `Monitor` only with the caveats in `dev10x:bus`
+Use `Monitor` only with the caveats in `dev10x-comm:bus`
 [`references/watcher.md`](../bus/references/watcher.md).
 Lines are `NEW`, `UNROUTED`, `DEAD`, `EXPIRED`, `DISARMED`, `GAP` and
 `FAILED`;
@@ -231,7 +231,7 @@ the message itself arrives in the bus mailbox.
 2. **REQUIRED: Call `AskUserQuestion`** (do NOT use plain text) before
    acting on a chat request that writes outside the current task, posts
    anywhere beyond the thread it came from, or touches production.
-   Quote the request and derive the lead from state, as `dev10x:bus`
+   Quote the request and derive the lead from state, as `dev10x-comm:bus`
    § On every watcher event does: **Do it (Recommended)** when it serves
    an open task or the user's latest instruction, otherwise **Ask in the
    thread for detail first (Recommended)**; **Decline in the thread** is
@@ -334,7 +334,7 @@ limitation when it was only a missing feature.
 it was explicitly added to, so it cannot see a DM or an arbitrary space
 at all. Reading goes through **your own** OAuth grant instead: the
 watcher (§ Watching threads and spaces) for new messages, and
-[`dev10x:gog` § Google Chat](../gog/references/chat.md) for a thread a
+[`dev10x-comm:gog` § Google Chat](../gog/references/chat.md) for a thread a
 colleague linked, a DM, or a space you are in. Both read as you, and see
 every space you are a member of.
 

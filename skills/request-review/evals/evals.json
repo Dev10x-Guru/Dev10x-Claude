@@ -751,7 +751,7 @@
       },
       {
         "query": "post a message to the team channel about the outage",
-        "rationale": "General chat post, unrelated to a review request — use dev10x:slack or dev10x:gchat"
+        "rationale": "General chat post, unrelated to a review request — use dev10x-comm:slack or dev10x-comm:gchat"
       },
       {
         "query": "the PR is still a draft, hold off",

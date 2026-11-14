@@ -608,7 +608,7 @@ class TestGh1667GogGlobalFlagsFirst:
         assert _rule_by_name("gog-global-flags-first")["hook_block"] is False
 
     def test_names_the_gog_skill_as_related(self) -> None:
-        assert "dev10x:gog" in _rule_by_name("gog-global-flags-first")["related"]
+        assert "dev10x-comm:gog" in _rule_by_name("gog-global-flags-first")["related"]
 
 
 def _fallback_text(rule: dict[str, Any]) -> str:

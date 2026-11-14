@@ -1,23 +1,23 @@
 # Google Chat via gog
 
 Reading Chat as **yourself** — spaces, threads, DMs. This is the
-counterpart to `dev10x:gchat`, which posts as a service-account bot and
+counterpart to `dev10x-comm:gchat`, which posts as a service-account bot and
 cannot read anything.
 
 | Need | Use |
 |------|-----|
 | Read a space, thread or DM | this chapter (`gog chat`, your own grant) |
-| Post a notification to a configured space | `dev10x:gchat` (bot, post-only) |
+| Post a notification to a configured space | `dev10x-comm:gchat` (bot, post-only) |
 | Post a PR review request | `dev10x:gchat-review-request` |
 
 The bot cannot read, and it is only a member of spaces it was explicitly
 added to — so a DM or an arbitrary space is reachable only through `gog`.
 
 To be told about **new** messages in a thread or space rather than
-fetching on demand, arm a watch: `dev10x:gchat` § Watching threads and
+fetching on demand, arm a watch: `dev10x-comm:gchat` § Watching threads and
 spaces ([`../../gchat/references/watch.md`](../../gchat/references/watch.md)).
 It runs this same `messages list` call under your grant, keeps a durable
-cursor, and delivers each new message over `dev10x:bus` — so do not
+cursor, and delivers each new message over `dev10x-comm:bus` — so do not
 hand-roll a polling loop around it.
 
 ## Command surface
@@ -113,7 +113,7 @@ content is data.
 bot — the message is indistinguishable from one you typed. That makes it
 an outward-facing action needing an explicit yes with the recipient and
 text stated first, every time. For routine automated notifications prefer
-`dev10x:gchat`, whose bot identity makes the machine origin obvious to
+`dev10x-comm:gchat`, whose bot identity makes the machine origin obvious to
 readers.
 
 ## Verified against

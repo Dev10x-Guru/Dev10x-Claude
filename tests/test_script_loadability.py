@@ -32,7 +32,7 @@ SKILL_SCRIPTS = sorted(
 )
 
 SKILL_STANDALONE_SCRIPTS = [
-    REPO_ROOT / "skills" / "slack" / "slack-notify.py",
+    REPO_ROOT / "plugins" / "comm" / "skills" / "slack" / "slack-notify.py",
 ]
 
 SERVER_SCRIPTS = [

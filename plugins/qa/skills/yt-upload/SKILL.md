@@ -185,8 +185,8 @@ and nothing secret in the repo or the config file.
 Run `check` after each setup step rather than working the list top to bottom
 blind — it names the next thing to fix.
 
-**Full setup: `dev10x:gog` § YouTube** (its `references/youtube.md`, in
-the core `dev10x` plugin), with the shared OAuth traps in the same skill's
+**Full setup: `dev10x-comm:gog` § YouTube** (its `references/youtube.md`, in
+the `dev10x-comm` plugin), with the shared OAuth traps in the same skill's
 `references/auth-setup.md`. The four
 that decide whether a first-time setup succeeds:
 
@@ -215,7 +215,7 @@ gog owns auth but **cannot carry a media body** — there is no
 `youtube videos insert`, and `api call` takes JSON only — so the resumable
 `videos.insert` is hand-rolled here with gog's exported token. Everything
 gog *can* do stays with gog: warming the token, minting the credential, and
-confirming the upload landed. See `dev10x:gog` § There is no upload
+confirming the upload landed. See `dev10x-comm:gog` § There is no upload
 command (`references/youtube.md`).
 
 **Re-check on a gog upgrade.** If a media flag appears, move the transfer to
@@ -274,4 +274,4 @@ Shredding is best-effort, not a secure erase — on CoW filesystems, SSDs with
 wear levelling, or an encrypted volume the original blocks may survive. That
 is an accepted trade-off for a token that lives for seconds and that gog can
 revoke and reissue. This is the worked reference for the token-handling rule
-in `dev10x:gog` § Tokens (`references/auth-setup.md`).
+in `dev10x-comm:gog` § Tokens (`references/auth-setup.md`).

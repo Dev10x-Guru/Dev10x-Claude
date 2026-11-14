@@ -168,5 +168,5 @@ a polling failure; the journal names the phase that failed.
 | `Chat bus refused to start: ... exactly one user with bus_role: owner` | The allowlist names zero or several owners | Fix `users:` in `gchat-config.yaml` |
 | `chat_bus.bot_user must be the bot's users/<id>` | `bot_user` missing or not a user name | Set it to the bot's `users/<id>` |
 | Subscription `EXPIRED` in `status` | Renewal failed (scopes, API disabled) | Read the journal; re-run the ADC login with the scopes above |
-| `poll spaces/...` failures in the journal | The `gog` grant expired | Re-authorize with `gog auth add` (see `dev10x:gog`) |
+| `poll spaces/...` failures in the journal | The `gog` grant expired | Re-authorize with `gog auth add` (see `dev10x-comm:gog`) |
 | Open gap with `window_exceeded` | The machine was off longer than the 7-day backfill window | Read the space by hand for that window |

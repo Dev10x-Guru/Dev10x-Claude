@@ -63,6 +63,20 @@ The database skills (`db`, `db-psql`, `sql-handoff`) ship as
 claude plugin install dev10x-db@Dev10x-Guru
 ```
 
+The communication skills (`slack`, `slack-setup`, `gchat`, `gog`, `bus`,
+`overwatch`, `voice-channel`) ship as `dev10x-comm`.
+Install it where you post to Slack or Google Chat, or link sessions over
+the local bus; it also brings `dev10x` with it.
+The Chat bus MCP tools, the `dev10x skill notify` commands and the
+Overwatch hook stay in `dev10x` under their old names.
+`slack-review-request` and `gchat-review-request` stay in `dev10x` and
+hand the post to `dev10x-comm:slack` / `dev10x-comm:gchat`, so a review
+notification needs both plugins:
+
+```bash
+claude plugin install dev10x-comm@Dev10x-Guru
+```
+
 Upgrading from a release where those skills were part of `dev10x`
 and carried its `dev10x:` prefix: install each `dev10x-*` plugin whose
 skills you used, then run `/dev10x:upgrade-cleanup` to rewrite the old

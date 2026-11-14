@@ -1,6 +1,6 @@
 ---
-name: dev10x:overwatch
-invocation-name: dev10x:overwatch
+name: dev10x-comm:overwatch
+invocation-name: dev10x-comm:overwatch
 description: >
   Run the localhost Overwatch page that lists every local Claude Code
   session with its state, queues the questions sessions wait on, and
@@ -11,8 +11,8 @@ description: >
   Overwatch page", "start the relay", or asks for one page showing
   which sessions need them.
   DO NOT TRIGGER when: the user wants a spoken status turn (use
-  dev10x:voice-channel), or only needs the bus wiring (use
-  dev10x:bus).
+  dev10x-comm:voice-channel), or only needs the bus wiring (use
+  dev10x-comm:bus).
 user-invocable: true
 allowed-tools:
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/bus/scripts/:*)
@@ -32,9 +32,9 @@ allowed-tools:
   - Monitor
 ---
 
-# dev10x:overwatch — One Page for Every Session
+# dev10x-comm:overwatch — One Page for Every Session
 
-**Announce:** "Using dev10x:overwatch to <serve the page | relay
+**Announce:** "Using dev10x-comm:overwatch to <serve the page | relay
 answers>."
 
 ## Orchestration
@@ -51,7 +51,7 @@ the user says `stop`.
 ## Overview
 
 `dev10x overwatch serve` polls `claude agents --json`, `herdr agent
-list` and the `dev10x:bus` status board every 5 s.
+list` and the `dev10x-comm:bus` status board every 5 s.
 It serves the release page on `127.0.0.1:8765` behind a per-boot token,
 and while a checkout is pinned (see `dev`) a dev page on `:8766`.
 A `PreToolUse` hook on `AskUserQuestion` posts each session's open
@@ -115,7 +115,7 @@ restart.
 
 ### `relay`
 
-1. Open the bus mailbox as `dev10x:bus start overwatch-relay
+1. Open the bus mailbox as `dev10x-comm:bus start overwatch-relay
    overwatch-relay` with callsign `answer relay`, including its
    self-test.
 2. On each `NEW` message:
@@ -170,7 +170,7 @@ Stopping `serve` stops both pages, since the dev page runs under it;
 - Input reaches a session only from a button press on the page, with
   one exception.
   Once per daemon start, the release daemon sends the fixed prompt
-  `/dev10x:overwatch relay` with `herdr agent prompt` to the herdr
+  `/dev10x-comm:overwatch relay` with `herdr agent prompt` to the herdr
   agent named `relay`, and to nothing else.
   The name alone is not enough: the pane's Claude session must look
   like the relay: named exactly like the configured relay mailbox
@@ -196,5 +196,5 @@ Stopping `serve` stops both pages, since the dev page runs under it;
 
 ## Related
 
-- `dev10x:bus` — mailboxes, watcher, status board.
-- `dev10x:voice-channel` — spoken turns over the same state.
+- `dev10x-comm:bus` — mailboxes, watcher, status board.
+- `dev10x-comm:voice-channel` — spoken turns over the same state.

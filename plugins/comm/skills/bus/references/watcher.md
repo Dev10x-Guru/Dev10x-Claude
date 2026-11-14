@@ -1,6 +1,6 @@
 # Watcher Details
 
-Reference for `dev10x:bus` — non-gating detail moved out of
+Reference for `dev10x-comm:bus` — non-gating detail moved out of
 `SKILL.md` under its 200-line budget (GH-1624).
 
 ## Why `--once` under background Bash

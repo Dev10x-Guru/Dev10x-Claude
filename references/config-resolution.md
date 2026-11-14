@@ -156,8 +156,8 @@ that is renamed or comes from elsewhere is listed by hand in
 | `dev10x:gh-pr-request-review` | reviewers | 2 |
 | `dev10x-db:db` | schema, databases | 2 |
 | `dev10x-db:db-psql` | databases | 2 |
-| `dev10x:slack` | slack-config | 2 |
-| `dev10x:slack-setup` | slack-config | 2 |
+| `dev10x-comm:slack` | slack-config | 2 |
+| `dev10x-comm:slack-setup` | slack-config | 2 |
 | `dev10x:slack-review-request` | slack-config | 2 |
 | `dev10x:request-review` | reviewers, slack-config | 2 |
 | `dev10x:fanout` | session | 1 |

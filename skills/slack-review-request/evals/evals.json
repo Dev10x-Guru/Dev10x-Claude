@@ -22,7 +22,7 @@
         {
           "dimension": "unconfigured-project-gate",
           "check": "behavioral",
-          "signal": "AskUserQuestion is NOT called; Skill(dev10x:slack) is NOT invoked; skill reports 'Slack notification skipped'"
+          "signal": "AskUserQuestion is NOT called; Skill(dev10x-comm:slack) is NOT invoked; skill reports 'Slack notification skipped'"
         }
       ]
     },
@@ -54,7 +54,7 @@
         {
           "dimension": "unconfigured-project-gate",
           "check": "behavioral",
-          "signal": "Skill(dev10x:slack) is NOT invoked; no message is posted"
+          "signal": "Skill(dev10x-comm:slack) is NOT invoked; no message is posted"
         }
       ]
     },
@@ -78,20 +78,20 @@
         {
           "dimension": "pre-post-confirm-gate",
           "check": "behavioral",
-          "signal": "Skill(dev10x:slack) is not invoked until AskUserQuestion returns a response"
+          "signal": "Skill(dev10x-comm:slack) is not invoked until AskUserQuestion returns a response"
         }
       ]
     },
     {
       "id": "skip-at-confirm-does-not-send",
       "name": "Choosing Skip at the confirm gate does not send the message",
-      "description": "If the user chooses 'Skip' at Step 3, the skill ends without delegating to dev10x:slack.",
+      "description": "If the user chooses 'Skip' at Step 3, the skill ends without delegating to dev10x-comm:slack.",
       "input": "/dev10x:slack-review-request --pr 42 --repo org/repo → user selects 'Skip'",
       "assertions": [
         {
           "dimension": "pre-post-confirm-gate",
           "check": "behavioral",
-          "signal": "Skill(dev10x:slack) is NOT invoked when the user selects Skip"
+          "signal": "Skill(dev10x-comm:slack) is NOT invoked when the user selects Skip"
         }
       ]
     },

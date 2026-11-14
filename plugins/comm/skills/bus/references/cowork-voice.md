@@ -1,7 +1,7 @@
 # Cowork, Voice and the Bus
 
 How a Claude Desktop / claude.ai chat — typed or spoken — drives work
-in Claude Code sessions through `dev10x:bus`. Verified 2026-10-09/10 on
+in Claude Code sessions through `dev10x-comm:bus`. Verified 2026-10-09/10 on
 one Linux host running both Claude Desktop and Claude Code.
 
 ## Who is who
@@ -58,7 +58,7 @@ When a request carries `Voice: yes`, the reply is read aloud:
   `--- for the text session (do not read aloud) ---`.
 
 A voice hub that supervises several sessions follows
-`dev10x:voice-channel` (one decision per turn, screen-only work
+`dev10x-comm:voice-channel` (one decision per turn, screen-only work
 kept off the voice channel).
 
 ## Merging work requested over the bus
@@ -83,7 +83,7 @@ exception the supervisor named), through `dev10x:gh-pr-merge`.
 ## For the Desktop chat
 
 Paste this block into the Claude Desktop project instructions
-(`dev10x:bus prompt` prints it).
+(`dev10x-comm:bus prompt` prints it).
 
 ```markdown
 ## claude-bus (local Maildir on this computer)

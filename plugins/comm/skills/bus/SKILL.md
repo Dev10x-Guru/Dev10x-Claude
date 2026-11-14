@@ -1,6 +1,6 @@
 ---
-name: dev10x:bus
-invocation-name: dev10x:bus
+name: dev10x-comm:bus
+invocation-name: dev10x-comm:bus
 description: >
   Let this session exchange messages with other Claude sessions on the
   same machine through a local Maildir bus — other Claude Code
@@ -14,7 +14,7 @@ description: >
   the bus", or asks for the instructions a Desktop chat needs.
   DO NOT TRIGGER when: messaging a session SendMessage can already
   reach and no Desktop chat is involved, or sending Slack / Google Chat
-  (use dev10x:slack / dev10x:gchat).
+  (use dev10x-comm:slack / dev10x-comm:gchat).
 user-invocable: true
 allowed-tools:
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/bus/scripts/:*)
@@ -32,9 +32,9 @@ allowed-tools:
   - mcp__plugin_dev10x_cli__chat_queue_ack
 ---
 
-# dev10x:bus — Local Maildir Bus Between Claude Sessions
+# dev10x-comm:bus — Local Maildir Bus Between Claude Sessions
 
-**Announce:** "Using dev10x:bus to open a mailbox for other sessions."
+**Announce:** "Using dev10x-comm:bus to open a mailbox for other sessions."
 
 A file-only bus in `/tmp` (mode 0700): no server, emptied by a reboot.
 **Native first (GH-1624):** reach a Claude Code session with
@@ -63,7 +63,7 @@ before talking to a `cowork` mailbox.
   words for the work (`login fix`), never a ticket or PR number.
   An optional `Domain` header (`short description: keyword, keyword`)
   lets a dispatcher route chat to the session by area of work.
-- **Dispatching** (`gchat-watch --route`, see `dev10x:gchat`): explicit
+- **Dispatching** (`gchat-watch --route`, see `dev10x-comm:gchat`): explicit
   address (a message naming one Role) first, then a configured
   space/thread → Role map, then `Domain` keywords matching exactly one
   Role. Anything else is summarized for the user, never answered by a
@@ -210,7 +210,7 @@ new id) or the monitor; do not restart it. Mailboxes stay until reboot.
   machines are reached natively through Remote Control, not the bus.
   See `references/cowork-voice.md` § Limits.
 - **The watcher dies with the session.** After a restart run
-  `dev10x:bus start` again, with `Supersedes=<old name>`.
+  `dev10x-comm:bus start` again, with `Supersedes=<old name>`.
 - **Labels lie.** Senders mis-tag voice/text; judge from content.
 - **Never start a Telegram poller** (`getUpdates`) for a peer — the
   token's polling is exclusive.
