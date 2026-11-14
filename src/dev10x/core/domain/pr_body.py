@@ -6,6 +6,7 @@ bold markers, and `Fixes:` must be the literal last line.
 """
 
 import re
+import unicodedata
 from dataclasses import dataclass
 
 from dev10x.core.fixes_trailer import (
@@ -84,15 +85,29 @@ _GITHUB_SHAPED = re.compile(
     r"(?:fixes|closes|resolves):?\s*(?:#|GH-|https?://github\.com/)",
     re.IGNORECASE,
 )
+_FORMAT_CATEGORY = "Cf"
+_GITHUB_REFERENCE = re.compile(
+    r"https?://github\.com/[^\s/]+/[^\s/]+/issues/\d"
+    r"|(?<![\w&/])(?:#|GH-)\d",
+    re.IGNORECASE,
+)
 # GH-1896: the case patterns create-pr.sh uses to split a trailer.
 _SPLITTABLE_REFERENCE = re.compile(r"https?://.*|#[0-9].*|[A-Z].*-[0-9].*", re.ASCII)
 _IFS = re.compile(r"[ \t\n]+")
 MISSING_REFERENCE_HINT = (
     "the trailer built from fixes_url, issue_id and closes names no reference; "
-    "pass an issue reference, or fixes_url='none — <reason>'"
+    "a fixes_url that is set replaces issue_id rather than adding to it, so "
+    "pass an issue reference in fixes_url, or fixes_url='none — <reason>'"
 )
 MULTILINE_REFERENCE_HINT = (
-    "the issue reference from fixes_url or issue_id spans several lines; pass it on one line"
+    "the fixes_url or issue_id value spans several lines; pass it on one line"
+)
+SEVERAL_REFERENCES_HINT = (
+    "a closing line names more GitHub issues than close-issues closes — it "
+    "reads one reference per keyword, so the rest stay open. Pass one "
+    "reference per comma- or space-separated token in fixes_url (e.g. "
+    "'#12 #13', with no other words), or write one 'Fixes:' line per issue "
+    "in the body"
 )
 UNREADABLE_REFERENCE_HINT = (
     "a GitHub reference must name an ASCII issue number on its own, e.g. "
@@ -199,19 +214,33 @@ def malformed_trailer_error(*, body: str) -> str | None:
     (`Fixes`, `Closes`, `Resolves`) shaped as a GitHub reference (`#`,
     `GH-`, a github.com URL) must
     yield an issue close-issues reads; one that does not, such as a
-    non-ASCII number, is refused whatever the tracker (GH-1896).
+    non-ASCII number, is refused whatever the tracker (GH-1896). One that
+    names more GitHub issues than close-issues reads from it, such as
+    `Fixes: #12, #13`, is refused too: only the first would close
+    (GH-1936).
     """
     none_error = none_trailer_error(body=body)
     if none_error is not None:
         return none_error
-    unreadable = (
-        line
-        for line in visible_lines(body=body)
-        if _GITHUB_SHAPED.match(line) and not references_in_line(line=line, repo="")
-    )
-    if next(unreadable, None) is None:
-        return None
-    return f"Fixes: trailer is malformed — {UNREADABLE_REFERENCE_HINT}"
+    closing = [line for line in visible_lines(body=body) if _is_github_shaped(line=line)]
+    read = [len(references_in_line(line=line, repo="")) for line in closing]
+    if 0 in read:
+        return f"Fixes: trailer is malformed — {UNREADABLE_REFERENCE_HINT}"
+    named = [len(_GITHUB_REFERENCE.findall(line)) for line in closing]
+    if any(n > r for n, r in zip(named, read, strict=True)):
+        return f"Fixes: trailer is malformed — {SEVERAL_REFERENCES_HINT}"
+    return None
+
+
+def _is_github_shaped(*, line: str) -> bool:
+    """Whether ``line`` opens with a closing keyword and a GitHub reference.
+
+    Format characters are dropped first: a zero-width space between the
+    keyword and the number hides the reference from close-issues, and the
+    line must still be judged rather than pass as non-GitHub (GH-1936).
+    """
+    shown = "".join(ch for ch in line if unicodedata.category(ch) != _FORMAT_CATEGORY)
+    return _GITHUB_SHAPED.match(shown) is not None
 
 
 def built_trailer_lines(*, references: str) -> list[str]:
