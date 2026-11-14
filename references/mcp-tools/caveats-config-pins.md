@@ -74,3 +74,19 @@ Parameter Shapes (GH-1606).
   The durable project pin lives at git-tracked
   `.dev10x/gate-policy.yaml` (legacy `.claude/Dev10x/gate-policy.yaml`
   still read as a fallback, #752).
+- Every `resolve_gate` payload also carries `run_mode` (GH-1921):
+  `{mode, basis, plan_step?}`, whatever `gate` was asked.
+  `mode` is `unattended` when the `afk` overlay survived the
+  `allowed_overlays` guard (`basis: afk-overlay`) or when the plan-sync
+  mirror for the current branch has an `in_progress` task carrying
+  `type` / `skills` / `agent` metadata — a `dev10x:work-on` plan step
+  (`basis: plan-step-in-progress`, `plan_step` names it).
+  It is `attended` when that mirror has tasks but no such step is in
+  progress.
+  It is `undetermined` when the mirror is missing (`no-plan-mirror`),
+  holds no tasks (`plan-mirror-has-no-tasks` — a session without the
+  task tools mirrors none, GH-1055), or was recorded on another branch
+  (`plan-mirror-other-branch`).
+  A caller's own `--unattended` flag wins over this field.
+  Treat `undetermined` as attended and say so in the output — never
+  report it as a settled `attended`.

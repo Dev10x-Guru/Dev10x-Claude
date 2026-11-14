@@ -39,6 +39,18 @@ def _write_project_policy(toplevel: Path, body: str) -> None:
 
 class TestResolveGateForToplevel:
     @pytest.mark.asyncio
+    async def test_payload_carries_the_run_mode(self, tmp_path: Path) -> None:
+        # GH-1921: callees read the run mode off the gate they already resolve.
+        result = await resolve_gate_for_toplevel(
+            gate="external_notify", context={}, toplevel=str(tmp_path)
+        )
+
+        assert result.to_dict()["run_mode"] == {
+            "mode": "undetermined",
+            "basis": "no-plan-mirror",
+        }
+
+    @pytest.mark.asyncio
     async def test_adaptive_solo_maintainer_session_auto_merges(self, tmp_path: Path) -> None:
         _write_session_yaml(
             tmp_path,
