@@ -17,10 +17,11 @@ from dev10x.core.github import _gateway
 from dev10x.core.paths import skill_script
 from dev10x.domain.common.result import ErrorResult, Result, err, ok
 from dev10x.domain.pr_body import (
+    built_trailer_error,
     fixes_references,
     fixes_trailer_error,
     job_story_error,
-    none_trailer_error,
+    malformed_trailer_error,
     normalize_pr_body,
 )
 from dev10x.subprocess_utils import parse_key_value_output
@@ -156,8 +157,10 @@ async def create_pr(
         else fixes_references(issue_id=issue_id, fixes_url=fixes_url, closes=closes)
     )
     # GH-1873
-    trailer_error = none_trailer_error(
-        body=normalize_pr_body(body=body) if body is not None else f"Fixes: {references}"
+    trailer_error = (
+        malformed_trailer_error(body=normalize_pr_body(body=body))
+        if body is not None
+        else built_trailer_error(job_story=job_story, references=references)
     )
     if trailer_error:
         return err(f"create_pr: {trailer_error}")

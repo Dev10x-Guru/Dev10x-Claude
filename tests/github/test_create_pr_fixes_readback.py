@@ -186,8 +186,21 @@ class TestCreatePrRefusesUnclosableNoneTrailer:
             {"body": f"{_JOB_STORY}\n\nFixes: none — <reason>"},
             {"job_story": _JOB_STORY, "fixes_url": "none"},
             {"job_story": _JOB_STORY, "fixes_url": "none — —"},
+            {"job_story": f"{_JOB_STORY}\n\nFixes: none", "fixes_url": "LIN-42"},
+            {"job_story": _JOB_STORY, "fixes_url": "#١٢٣"},
+            {"job_story": f"{_JOB_STORY}\n\n```\nunclosed", "fixes_url": "#12"},
+            {"job_story": f"{_JOB_STORY}\n\n<!-- unclosed", "fixes_url": "#12"},
         ],
-        ids=["body-bare", "body-placeholder", "fixes-url-bare", "fixes-url-punctuation"],
+        ids=[
+            "body-bare",
+            "body-placeholder",
+            "fixes-url-bare",
+            "fixes-url-punctuation",
+            "job-story-bare",
+            "fixes-url-non-ascii-number",
+            "job-story-open-fence-hides-the-trailer",
+            "job-story-open-comment-hides-the-trailer",
+        ],
     )
     @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
     async def test_no_pr_is_opened(self, mock_run: AsyncMock, kwargs: dict[str, str]) -> None:

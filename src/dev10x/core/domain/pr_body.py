@@ -8,7 +8,15 @@ bold markers, and `Fixes:` must be the literal last line.
 import re
 from dataclasses import dataclass
 
-from dev10x.core.fixes_trailer import EXIT_MISSING, NONE_TRAILER_HINT, declares_none, verdict
+from dev10x.core.fixes_trailer import (
+    EXIT_MISSING,
+    NONE_TRAILER_HINT,
+    declares_none,
+    references_in_line,
+    verdict,
+    visible_lines,
+    visible_lines_by_index,
+)
 
 WHEN_MARKER = "**When**"
 WANTS_MARKER = "**<actor> wants**"
@@ -72,6 +80,29 @@ DIALECTS: tuple[JobStoryDialect, ...] = (_ENGLISH, _POLISH)
 
 _SEPARATOR_PATTERN = re.compile(r"^\s*(-{3,}|\*{3,}|_{3,})\s*$")
 _FIXES_PATTERN = re.compile(r"^Fixes:", re.IGNORECASE)
+_GITHUB_SHAPED = re.compile(
+    r"(?:fixes|closes|resolves):?\s*(?:#|GH-|https?://github\.com/)",
+    re.IGNORECASE,
+)
+# GH-1896: the case patterns create-pr.sh uses to split a trailer.
+_SPLITTABLE_REFERENCE = re.compile(r"https?://.*|#[0-9].*|[A-Z].*-[0-9].*", re.ASCII)
+_IFS = re.compile(r"[ \t\n]+")
+MISSING_REFERENCE_HINT = (
+    "the trailer built from fixes_url, issue_id and closes names no reference; "
+    "pass an issue reference, or fixes_url='none — <reason>'"
+)
+MULTILINE_REFERENCE_HINT = (
+    "the issue reference from fixes_url or issue_id spans several lines; pass it on one line"
+)
+UNREADABLE_REFERENCE_HINT = (
+    "a GitHub reference must name an ASCII issue number on its own, e.g. "
+    "'Fixes: #123', 'Fixes: GH-123' or 'Fixes: https://github.com/<owner>/"
+    "<repo>/issues/123'; close-issues cannot read this one and fails the merge"
+)
+HIDDEN_TRAILER_HINT = (
+    "job_story leaves a code fence or HTML comment open, which hides the "
+    "Fixes: trailer appended after it; close the fence or comment"
+)
 
 
 def _missing_for(dialect: JobStoryDialect, *, job_story: str) -> list[str]:
@@ -149,14 +180,11 @@ def none_trailer_error(*, body: str) -> str | None:
     Only a body whose trailer declares `none` is judged, and then by the
     same verdict() close-issues runs. A reference-only trailer is left
     alone: whether it closes anything depends on the repo's tracker,
-    which create_pr does not know.
+    which create_pr does not know. The trailer is found on the lines
+    close-issues reads (GH-1896), so indentation does not hide it and a
+    fenced or commented example does not stand in for it.
     """
-    lines = body.rstrip().split("\n")
-    start = _fixes_block_start(lines=lines)
-    if start is None:
-        return None
-    block = lines[start : _fixes_block_end(lines=lines, start=start) + 1]
-    if not any(declares_none(line=line) for line in block):
+    if not any(declares_none(line=line) for line in visible_lines(body=body)):
         return None
     code, _ = verdict(body=body, repo="")
     if code != EXIT_MISSING:
@@ -164,10 +192,70 @@ def none_trailer_error(*, body: str) -> str | None:
     return f"Fixes: trailer is malformed — {NONE_TRAILER_HINT}"
 
 
+def malformed_trailer_error(*, body: str) -> str | None:
+    """Refuse a trailer close-issues cannot act on, before the PR opens.
+
+    A `none` trailer is judged by none_trailer_error(). A closing line
+    (`Fixes`, `Closes`, `Resolves`) shaped as a GitHub reference (`#`,
+    `GH-`, a github.com URL) must
+    yield an issue close-issues reads; one that does not, such as a
+    non-ASCII number, is refused whatever the tracker (GH-1896).
+    """
+    none_error = none_trailer_error(body=body)
+    if none_error is not None:
+        return none_error
+    unreadable = (
+        line
+        for line in visible_lines(body=body)
+        if _GITHUB_SHAPED.match(line) and not references_in_line(line=line, repo="")
+    )
+    if next(unreadable, None) is None:
+        return None
+    return f"Fixes: trailer is malformed — {UNREADABLE_REFERENCE_HINT}"
+
+
+def built_trailer_lines(*, references: str) -> list[str]:
+    """The ``Fixes:`` lines create-pr.sh appends for ``references``.
+
+    Mirrors the script: one line per reference when every comma- or
+    whitespace-separated token is a reference, else the whole string on
+    one line (so prose such as ``none — self-motivated`` stays intact).
+    Tokens split on space, tab and newline only, as bash's IFS does.
+    """
+    tokens = [token for token in _IFS.split(references.replace(",", " ")) if token]
+    if not tokens:
+        return []
+    if all(_SPLITTABLE_REFERENCE.fullmatch(token) for token in tokens):
+        return [f"Fixes: {token}" for token in tokens]
+    return [f"Fixes: {references.rstrip(chr(10))}"]
+
+
+def built_trailer_error(*, job_story: str, references: str) -> str | None:
+    """Judge the body create_pr assembles from ``job_story`` and a built trailer.
+
+    The job story, the separator and the trailer lines are laid out as
+    create-pr.sh lays them out. Every appended trailer line must be
+    visible; a hidden one means the job story left a fence or comment
+    open. The commit list and checklist between them are not known yet,
+    so the read-back after create judges those.
+    """
+    trailer = built_trailer_lines(references=references)
+    if not trailer:
+        return f"Fixes: trailer is missing — {MISSING_REFERENCE_HINT}"
+    if any("\n" in line for line in trailer):
+        return f"Fixes: trailer is malformed — {MULTILINE_REFERENCE_HINT}"
+    body = "\n".join([job_story, "", "---", "", *trailer])
+    last = body.count("\n")
+    appended = set(range(last - len(trailer) + 1, last + 1))
+    if not appended <= _trailer_indices(body=body):
+        return f"Fixes: trailer is malformed — {HIDDEN_TRAILER_HINT}"
+    return malformed_trailer_error(body=body)
+
+
 def fixes_trailer_error(*, body: str) -> str | None:
-    if _last_fixes_index(lines=body.rstrip().split("\n")) is None:
+    if not _trailer_indices(body=body):
         return "body carries no Fixes: trailer"
-    return none_trailer_error(body=body)
+    return malformed_trailer_error(body=body)
 
 
 def has_fixes_trailer(*, body: str) -> bool:
@@ -187,12 +275,14 @@ def normalize_pr_body(*, body: str) -> str:
     a single trailer — splitting the run with a blank line would leave
     the earlier entries stranded in the body.
     """
-    lines = body.rstrip().split("\n")
-    fixes_start = _fixes_block_start(lines=lines)
+    trimmed = body.rstrip()
+    lines = trimmed.split("\n")
+    trailer = _trailer_indices(body=trimmed)
+    fixes_start = _fixes_block_start(trailer=trailer)
     if fixes_start is None:
         return "\n".join(lines)
 
-    fixes_end = _fixes_block_end(lines=lines, start=fixes_start)
+    fixes_end = _fixes_block_end(trailer=trailer, start=fixes_start)
     head = lines[:fixes_start]
     fixes_block = [line.rstrip() for line in lines[fixes_start : fixes_end + 1]]
     relocated = _relocatable_trailer(lines=lines[fixes_end + 1 :])
@@ -207,27 +297,28 @@ def normalize_pr_body(*, body: str) -> str:
     return "\n".join([*head, "", *fixes_block])
 
 
-def _last_fixes_index(*, lines: list[str]) -> int | None:
-    for index in range(len(lines) - 1, -1, -1):
-        if _FIXES_PATTERN.match(lines[index]):
-            return index
-    return None
+def _trailer_indices(*, body: str) -> set[int]:
+    """Indices of the visible ``Fixes:`` lines in ``body.split("\\n")``."""
+    return {
+        index
+        for index, text in visible_lines_by_index(body=body).items()
+        if _FIXES_PATTERN.match(text)
+    }
 
 
-def _fixes_block_start(*, lines: list[str]) -> int | None:
+def _fixes_block_start(*, trailer: set[int]) -> int | None:
     """Index of the first line in the trailing run of ``Fixes:`` lines."""
-    last = _last_fixes_index(lines=lines)
-    if last is None:
+    if not trailer:
         return None
-    start = last
-    while start > 0 and _FIXES_PATTERN.match(lines[start - 1]):
+    start = max(trailer)
+    while start - 1 in trailer:
         start -= 1
     return start
 
 
-def _fixes_block_end(*, lines: list[str], start: int) -> int:
+def _fixes_block_end(*, trailer: set[int], start: int) -> int:
     end = start
-    while end + 1 < len(lines) and _FIXES_PATTERN.match(lines[end + 1]):
+    while end + 1 in trailer:
         end += 1
     return end
 
