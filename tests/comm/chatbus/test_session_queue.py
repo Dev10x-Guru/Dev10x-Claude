@@ -16,6 +16,8 @@ from dev10x.comm.skills.notifications.gchat_notify import PostedMessage
 from tests.comm.chatbus.factories import NOW, SPACE, expect_error, unwrap
 
 LEASE = timedelta(minutes=15)
+CONTEXT_LIMIT = 20
+CONTEXT_MAX_AGE = timedelta(hours=24)
 THREAD = f"{SPACE}/threads/t001"
 
 
@@ -46,10 +48,22 @@ def item_ids(conn: sqlite3.Connection) -> list[int]:
     return [reply.id, privileged.id]
 
 
-def _claim(*, path: Path, kind: str = "reply") -> dict[str, Any]:
-    return unwrap(
-        session_queue.claim_item(claimer="session-a", kind=kind, lease=LEASE, now=NOW, path=path)
+def _claim_result(
+    *, path: Path, kind: str = "reply", claimer: str = "session-a"
+) -> Result[dict[str, Any]]:
+    return session_queue.claim_item(
+        claimer=claimer,
+        kind=kind,
+        lease=LEASE,
+        now=NOW,
+        context_limit=CONTEXT_LIMIT,
+        context_max_age=CONTEXT_MAX_AGE,
+        path=path,
     )
+
+
+def _claim(*, path: Path, kind: str = "reply") -> dict[str, Any]:
+    return unwrap(_claim_result(path=path, kind=kind))
 
 
 class TestRoundTrip:
@@ -137,25 +151,65 @@ class TestClaimItem:
         assert _claim(path=db_path) == {"claimed": False}
 
     def test_rejects_an_unknown_kind(self, db_path: Path) -> None:
-        result = session_queue.claim_item(
-            claimer="session-a", kind="any", lease=LEASE, now=NOW, path=db_path
-        )
+        result = _claim_result(path=db_path, kind="any")
         assert expect_error(result).details == {"kind": "any"}
 
     def test_reports_a_claim_error(self, db_path: Path) -> None:
-        result = session_queue.claim_item(
-            claimer=" ", kind="reply", lease=LEASE, now=NOW, path=db_path
-        )
-        expect_error(result)
+        expect_error(_claim_result(path=db_path, claimer=" "))
 
     def test_reports_a_failed_read_back(
         self, db_path: Path, item_ids: list[int], monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(worklist, "get_view", lambda **_: err("read failed"))
-        result = session_queue.claim_item(
-            claimer="session-a", kind="reply", lease=LEASE, now=NOW, path=db_path
+        assert expect_error(_claim_result(path=db_path)).error == "read failed"
+
+
+class TestClaimThreadContext:
+    """The claim hands over the thread as untrusted context (GH-1950)."""
+
+    @pytest.fixture
+    def follow_up(self, conn: sqlite3.Connection, item_ids: list[int]) -> str:
+        name = f"{SPACE}/messages/m002"
+        event = ChatEvent(
+            type=MESSAGE_CREATED,
+            resource_name=name,
+            space=SPACE,
+            sender="users/111",
+            event_time=NOW,
+            payload={
+                "message": {"name": name, "text": "context only", "thread": {"name": THREAD}}
+            },
+            source=EventSource.POLL,
         )
-        assert expect_error(result).error == "read failed"
+        unwrap(ingest_events(conn=conn, space=SPACE, events=[event], now=NOW))
+        return name
+
+    def test_claim_carries_the_threads_other_posts(self, db_path: Path, follow_up: str) -> None:
+        claimed = _claim(path=db_path)
+        assert [
+            (post["label"], post["message"], post["untrusted_text"])
+            for post in claimed["thread_context"]
+        ] == [(worklist.CONTEXT_LABEL, follow_up, "context only")]
+
+    def test_context_stays_apart_from_the_post_to_answer(
+        self, db_path: Path, follow_up: str
+    ) -> None:
+        claimed = _claim(path=db_path)
+        assert (claimed["item"]["untrusted_text"], claimed["thread_context_notice"]) == (
+            "hi",
+            worklist.THREAD_CONTEXT_NOTICE,
+        )
+
+    def test_context_read_failure_keeps_the_claim(
+        self, db_path: Path, item_ids: list[int], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(worklist, "thread_context", lambda **_: err("context failed"))
+        claimed = _claim(path=db_path)
+        assert (
+            claimed["claim_verified"],
+            claimed["thread_context"],
+            claimed["thread_context_error"],
+        ) == (True, [], "context failed")
 
 
 class TestReplyToItem:
