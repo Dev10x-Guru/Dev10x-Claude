@@ -34,6 +34,11 @@ class PluginMap:
     def plugin_name(self, *, key: str) -> str | None:
         return self.plugin_names.get(key)
 
+    def installed_name(self, *, key: str) -> str:
+        """The name a key installs under: its ``plugin_names`` entry, else
+        the ``dev10x-<key>`` scheme (GH-1886)."""
+        return self.plugin_names.get(key) or expected_plugin_name(key=key)
+
     def is_extracted(self, *, key: str) -> bool:
         return key in self.extracted
 
@@ -72,8 +77,7 @@ class PluginMap:
         if key == CORE_KEY:
             return []
         hard = [
-            self.plugin_names.get(dependency, expected_plugin_name(key=dependency))
-            for dependency in self.dependencies.get(key, ())
+            self.installed_name(key=dependency) for dependency in self.dependencies.get(key, ())
         ]
         return [CORE_PLUGIN_NAME, *hard]
 

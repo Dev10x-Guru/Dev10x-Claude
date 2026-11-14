@@ -13,8 +13,8 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from dev10x.core.paths import SATELLITES_DIR
-from dev10x.core.plugin_map import PluginMap, expected_plugin_name
+from dev10x.core.paths import satellite_cache_dir, satellite_subdir
+from dev10x.core.plugin_map import PluginMap
 from dev10x.domain.common.allow_rule import AllowRule
 from dev10x.domain.common.mktmp_path import MKTMP_GENERALIZE_PATTERN
 from dev10x.skills.permission.catalog_load import detect_latest_version, extract_cache_publisher
@@ -108,15 +108,16 @@ def satellite_script_roots(*, cache_dir: Path, plugin_map: PluginMap) -> list[Sc
     """
     roots: list[ScriptRoot] = []
     for key in plugin_map.extracted:
-        plugin_name = plugin_map.plugin_name(key=key) or expected_plugin_name(key=key)
-        satellite_cache = cache_dir.parent / plugin_name
+        satellite_cache = satellite_cache_dir(
+            core_cache_dir=cache_dir, plugin_name=plugin_map.installed_name(key=key)
+        )
         version = detect_latest_version(satellite_cache)
         if not version:
             continue
         roots.append(
             ScriptRoot(
                 plugin_root=satellite_cache / version,
-                marketplace_subdir=f"{SATELLITES_DIR}/{key}",
+                marketplace_subdir=satellite_subdir(key=key),
             )
         )
     return roots

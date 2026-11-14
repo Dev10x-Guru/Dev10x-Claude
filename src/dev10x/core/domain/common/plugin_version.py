@@ -22,6 +22,8 @@ import re
 from dataclasses import dataclass
 from functools import total_ordering
 
+from dev10x.core.paths import version_sort_key
+
 SEMVER_PATTERN = r"\d+\.\d+\.\d+"
 SEMVER_RE = re.compile(rf"^{SEMVER_PATTERN}$")
 
@@ -59,11 +61,10 @@ class PluginVersion:
         ``.``, cast each segment to ``int``, and fall back to ``(0,)`` on
         any non-numeric segment. Use this when sorting directory names
         that may not be strict semver (e.g. scanning the plugin cache).
+        The key itself lives in the stdlib-only ``dev10x.core.paths``, so
+        the satellite resolver there sorts versions the same way (GH-1886).
         """
-        try:
-            return tuple(int(part) for part in value.split("."))
-        except ValueError:
-            return (0,)
+        return version_sort_key(value)
 
     def as_tuple(self) -> tuple[int, int, int]:
         return (self.major, self.minor, self.patch)

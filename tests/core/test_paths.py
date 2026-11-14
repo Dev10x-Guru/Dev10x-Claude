@@ -14,10 +14,14 @@ from dev10x.comm.skills.notifications.slack_review_request import SLACK_NOTIFY_S
 from dev10x.core.db_script import DB_KEY, DB_PLUGIN_NAME, DB_SCRIPT_SKILL, db_script
 from dev10x.core.paths import (
     PLUGIN_MANIFEST,
+    latest_version,
+    satellite_cache_dir,
     satellite_script,
+    satellite_subdir,
     skill_files,
     skill_roots,
     skill_script,
+    version_sort_key,
 )
 from dev10x.core.plugin_map import PluginMap, load_plugin_map
 from dev10x.subprocess_utils import get_plugin_root
@@ -155,6 +159,67 @@ class TestSatelliteScript:
 
     def test_names_the_in_core_path_when_nothing_is_installed(self, core_root: Path) -> None:
         assert self._resolve(core_root=core_root) == self.IN_CORE
+
+    @pytest.mark.parametrize("version", ["0.113.0", "0.115.0"], ids=["lags-core", "leads-core"])
+    def test_finds_a_satellite_at_its_own_newest_version(
+        self,
+        core_root: Path,
+        version: str,
+    ) -> None:
+        satellite_root = core_root.parent.parent / "dev10x-db" / version
+        self._write(path=core_root.parent.parent / "dev10x-db" / "0.112.0" / "x", text="")
+        script = satellite_root / "skills/db-psql/scripts/db.sh"
+        self._write(path=script, text="")
+        self._write_manifest(satellite_root=satellite_root, text='{"name": "dev10x-db"}')
+
+        assert self._resolve(core_root=core_root) == str(script)
+
+
+class TestSatelliteLayout:
+    """GH-1886: one owner for each satellite layout rule."""
+
+    def test_satellite_subdir(self) -> None:
+        assert satellite_subdir(key="qa") == "plugins/qa"
+
+    def test_satellite_cache_dir_sits_beside_core(self, tmp_path: Path) -> None:
+        core_cache = tmp_path / "cache" / "Dev10x-Guru" / "dev10x"
+
+        assert satellite_cache_dir(core_cache_dir=core_cache, plugin_name="dev10x-qa") == (
+            tmp_path / "cache" / "Dev10x-Guru" / "dev10x-qa"
+        )
+
+    @pytest.mark.parametrize(
+        ("names", "expected"),
+        [
+            pytest.param(["0.9.0", "0.10.0", "0.2.1"], "0.10.0", id="numeric-not-lexical"),
+            pytest.param(["dev", "0.1.0"], "0.1.0", id="non-numeric-sorts-first"),
+            pytest.param([], None, id="empty"),
+        ],
+    )
+    def test_latest_version(
+        self,
+        tmp_path: Path,
+        names: list[str],
+        expected: str | None,
+    ) -> None:
+        for name in names:
+            (tmp_path / name).mkdir()
+
+        assert latest_version(versions_dir=tmp_path) == expected
+
+    def test_latest_version_of_a_missing_dir(self, tmp_path: Path) -> None:
+        assert latest_version(versions_dir=tmp_path / "absent") is None
+
+    @pytest.mark.parametrize(
+        ("name", "expected"),
+        [("1.2.3", (1, 2, 3)), ("1.2.rc1", (0,))],
+    )
+    def test_version_sort_key(
+        self,
+        name: str,
+        expected: tuple[int, ...],
+    ) -> None:
+        assert version_sort_key(name) == expected
 
 
 class TestDbScriptConstants:

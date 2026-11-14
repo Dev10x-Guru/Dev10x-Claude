@@ -10,8 +10,9 @@ matching. This rewrites both spellings Claude Code stores:
   ``plugins/marketplaces/<marketplace>/plugins/<key>/skills/<skill>/``
 
 The moved skills come from ``plugins.yaml`` ``extracted:``, so the next
-extraction is covered without touching this module. Satellites version
-in lockstep with core, so the cache version segment is kept as is.
+extraction is covered without touching this module. A rewrite cannot
+see what is installed, so the cache version segment is kept as is;
+``ensure-scripts`` seeds the satellite's own newest version (GH-1886).
 
 An ``allow`` rule is replaced. A ``deny`` or ``ask`` rule is kept and the
 relocated copy added next to it: losing a restriction costs more than
@@ -25,7 +26,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from dev10x.core.plugin_map import PluginMap, expected_plugin_name, load_plugin_map
+from dev10x.core.paths import satellite_subdir
+from dev10x.core.plugin_map import PluginMap, load_plugin_map
 from dev10x.domain.common.plugin_version import SEMVER_PATTERN
 from dev10x.domain.plugin_identity import CORE_PLUGIN_NAMES
 from dev10x.skills.permission.backup import backed_up_write
@@ -56,8 +58,7 @@ class SatelliteRelocator:
             skill: key for key in plugin_map.extracted for skill in plugin_map.plugins.get(key, ())
         }
         self._plugin_names = {
-            key: plugin_map.plugin_name(key=key) or expected_plugin_name(key=key)
-            for key in set(self._moved.values())
+            key: plugin_map.installed_name(key=key) for key in set(self._moved.values())
         }
         self._marketplace_pattern = re.compile(
             rf"(plugins/marketplaces/{re.escape(plugin_map.marketplace)}/)skills/([^/)]+)/"
@@ -84,7 +85,7 @@ class SatelliteRelocator:
         key = self._moved.get(match.group(2))
         if key is None:
             return match.group(0)
-        return f"{match.group(1)}plugins/{key}/skills/{match.group(2)}/"
+        return f"{match.group(1)}{satellite_subdir(key=key)}/skills/{match.group(2)}/"
 
     def relocate_list(
         self,

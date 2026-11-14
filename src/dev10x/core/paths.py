@@ -21,11 +21,38 @@ SATELLITES_DIR = "plugins"
 SKILL_FILE = "SKILL.md"
 
 
+def satellite_subdir(*, key: str) -> str:
+    """Where a satellite's tree sits inside a checkout or marketplace clone
+    of core: ``plugins/<key>`` (ADR-0034 Stage B, GH-1886)."""
+    return f"{SATELLITES_DIR}/{key}"
+
+
+def satellite_cache_dir(*, core_cache_dir: Path, plugin_name: str) -> Path:
+    """A satellite caches beside core: ``<cache>/<publisher>/<plugin_name>``
+    next to ``core_cache_dir`` = ``<cache>/<publisher>/<core>`` (GH-1886)."""
+    return core_cache_dir.parent / plugin_name
+
+
+def version_sort_key(name: str) -> tuple[int, ...]:
+    """Lenient: a name with a non-numeric segment sorts first as ``(0,)``."""
+    try:
+        return tuple(int(part) for part in name.split("."))
+    except ValueError:
+        return (0,)
+
+
+def latest_version(*, versions_dir: Path) -> str | None:
+    if not versions_dir.is_dir():
+        return None
+    versions = sorted(versions_dir.iterdir(), key=lambda path: version_sort_key(path.name))
+    return versions[-1].name if versions else None
+
+
 def skill_script(*, skill: str, rel: str, plugin: str | None = None) -> str:
     """``plugin`` names the satellite a skill moved to (GH-1564); the path
     is then relative to the repo checkout rather than a plugin root."""
     path = f"{SKILLS_DIR}/{skill}/{SCRIPTS_DIR}/{rel}"
-    return f"{SATELLITES_DIR}/{plugin}/{path}" if plugin else path
+    return f"{satellite_subdir(key=plugin)}/{path}" if plugin else path
 
 
 def satellite_script(
@@ -42,15 +69,22 @@ def satellite_script(
     root, so the plugin-relative path is returned and stays subject to the
     working-tree preference of ``resolve_script_path``. An installed core
     sits at ``<cache>/<publisher>/<core>/<version>``; the satellite installs
-    beside it at the same version, since versions move in lockstep, and is
-    trusted only when its manifest names ``plugin_name``. When
-    neither exists the plugin-relative path is returned, so the caller's
-    missing-script error names where the script was expected.
+    beside it and is read at its own newest installed version, the policy
+    permission seeding uses too (ADR-0034, GH-1886). It is trusted only when
+    its manifest names ``plugin_name``. When neither exists the
+    plugin-relative path is returned, so the caller's missing-script error
+    names where the script was expected.
     """
     in_core = skill_script(skill=skill, rel=rel, plugin=key)
     if (plugin_root / in_core).is_file():
         return in_core
-    satellite_root = plugin_root.parent.parent / plugin_name / plugin_root.name
+    satellite_cache = satellite_cache_dir(
+        core_cache_dir=plugin_root.parent, plugin_name=plugin_name
+    )
+    version = latest_version(versions_dir=satellite_cache)
+    if version is None:
+        return in_core
+    satellite_root = satellite_cache / version
     beside = satellite_root / skill_script(skill=skill, rel=rel)
     if beside.is_file() and _manifest_names(root=satellite_root, plugin_name=plugin_name):
         return str(beside)
@@ -86,8 +120,12 @@ __all__ = [
     "SCRIPTS_DIR",
     "SKILLS_DIR",
     "SKILL_FILE",
+    "latest_version",
+    "satellite_cache_dir",
     "satellite_script",
+    "satellite_subdir",
     "skill_files",
     "skill_roots",
     "skill_script",
+    "version_sort_key",
 ]
