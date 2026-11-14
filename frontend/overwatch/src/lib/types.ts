@@ -134,6 +134,7 @@ export interface Snapshot {
   errors: Record<string, string>;
   sessions: Session[];
   settings?: PageSettings;
+  artifacts?: ArtifactSummary[];
 }
 
 export interface ActionResult {
@@ -142,4 +143,45 @@ export interface ActionResult {
   sent?: string;
   channel?: string;
   commands?: number;
+  event_id?: string;
+}
+
+export type Tone = "ok" | "warn" | "bad" | "info";
+
+export interface ArtifactSummary {
+  id: string;
+  title: string;
+  session: string;
+  revision: number;
+  updated_at: string;
+}
+
+export interface FormField {
+  name: string;
+  label: string;
+  kind?: "text" | "textarea";
+  required?: boolean;
+}
+
+export type ArtifactBlock = { id?: string } & (
+  | { type: "summary"; title?: string; text: string }
+  | { type: "claim"; text: string; tone?: Tone }
+  | { type: "decisions"; title?: string; items: { question: string; owner?: string; status?: string; tone?: Tone }[] }
+  | { type: "kv"; title?: string; items: { key: string; value: string }[] }
+  | { type: "table"; title?: string; columns: string[]; rows: string[][] }
+  | { type: "pills"; items: { label: string; tone: Tone }[] }
+  | { type: "stats"; title?: string; items: { label: string; value: string; tone?: Tone }[] }
+  | { type: "draft"; title?: string; text: string }
+  | { type: "evidence"; title?: string; items: { claim: string; source: string; checked?: string }[] }
+  | ArtifactControl
+);
+
+export type ArtifactControl = { id: string } & (
+  | { type: "button"; label: string; tone?: Tone }
+  | { type: "choice"; prompt: string; options: string[]; multiple?: boolean }
+  | { type: "form"; title?: string; fields: FormField[]; submit?: string }
+);
+
+export interface ArtifactDocument extends ArtifactSummary {
+  blocks: ArtifactBlock[];
 }

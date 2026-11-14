@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ArtifactView from "./components/ArtifactView.svelte";
   import DetailPane from "./components/DetailPane.svelte";
   import PageSettings from "./components/PageSettings.svelte";
   import SessionPane from "./components/SessionPane.svelte";
@@ -31,6 +32,7 @@
     questionKey,
     type SentAnswers,
   } from "./lib/selection";
+  import { parseRoute, routeHash, type Route } from "./lib/route";
   import type { ActionResult, SessionDetail, Snapshot, View } from "./lib/types";
 
   const TOAST_MS = 5000;
@@ -48,7 +50,10 @@
 
   let snapshot = $state<Snapshot | null>(null);
   let connection = $state<Connection>("connecting");
-  let chosen = $state(decodeURIComponent(location.hash.slice(1)));
+  const landing = parseRoute(location.hash);
+
+  let route = $state<Route>(landing);
+  let chosen = $state(landing.kind === "session" ? landing.sessionId : "");
   let detail = $state<SessionDetail | null>(null);
   let pins = $state(loadPins());
   let view = $state<View>(loadView());
@@ -76,6 +81,17 @@
     }).length,
   );
   const ackSince = $derived(current ? (awaitingAck(current, sent)?.at ?? null) : null);
+  const artifacts = $derived(snapshot?.artifacts ?? []);
+  const shownArtifact = $derived(route.kind === "artifact" ? route.artifactId : "");
+
+  $effect(() => {
+    const follow = (): void => {
+      route = parseRoute(location.hash);
+      if (route.kind === "session" && route.sessionId) chosen = route.sessionId;
+    };
+    addEventListener("hashchange", follow);
+    return () => removeEventListener("hashchange", follow);
+  });
 
   $effect(() => {
     const timer = setInterval(() => (now = Date.now()), ACK_TICK_MS);
@@ -117,10 +133,11 @@
   });
 
   function select(sessionId: string): void {
-    if (sessionId === current?.session_id) return;
+    if (sessionId === current?.session_id && route.kind === "session") return;
+    if (sessionId !== current?.session_id) detail = null;
     chosen = sessionId;
-    detail = null;
-    history.replaceState(null, "", `${location.search}#${encodeURIComponent(sessionId)}`);
+    route = { kind: "session", sessionId };
+    history.replaceState(null, "", `${location.search}${routeHash(route)}`);
   }
 
   function pin(sessionId: string): void {
@@ -243,6 +260,24 @@
       {#if snapshot?.settings}
         <PageSettings settings={snapshot.settings} {pending} {run} />
       {/if}
+      {#if artifacts.length}
+        <nav class="pages" aria-label="Artifact pages">
+          <p class="eyebrow">Pages</p>
+          <ul>
+            {#each artifacts as artifact (artifact.id)}
+              <li>
+                <a
+                  href={routeHash({ kind: "artifact", artifactId: artifact.id })}
+                  aria-current={shownArtifact === artifact.id ? "page" : undefined}
+                >
+                  {artifact.title}
+                </a>
+                <span class="owner">{artifact.session}</span>
+              </li>
+            {/each}
+          </ul>
+        </nav>
+      {/if}
       {#if errors.length}
         <ul class="errors" role="status">
           {#each errors as [source, message] (source)}
@@ -269,7 +304,17 @@
     {@render handle("side", "details panel")}
 
     <main class="center">
-      {#if current}
+      {#if shownArtifact}
+        {#key shownArtifact}
+          <ArtifactView
+            artifactId={shownArtifact}
+            {token}
+            summary={artifacts.find((artifact) => artifact.id === shownArtifact)}
+            {pending}
+            {run}
+          />
+        {/key}
+      {:else if current}
         {@const own = detail?.session_id === current.session_id ? detail : null}
         {#key current.session_id}
           <SessionPane
@@ -498,6 +543,49 @@
 
   .conn-lost {
     background: var(--danger);
+  }
+
+  .pages {
+    margin: var(--space-3) 0 0;
+    padding: var(--space-2) 0 0;
+    border-top: 1px solid var(--rule);
+  }
+
+  .pages ul {
+    margin: var(--space-1) 0 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: var(--space-1);
+    max-height: 9rem;
+    overflow-y: auto;
+  }
+
+  .pages li {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-2);
+    font-size: 0.8rem;
+  }
+
+  .pages a {
+    color: var(--ink);
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .pages a[aria-current="page"] {
+    color: var(--amber-ink);
+    text-decoration-color: var(--amber);
+  }
+
+  .pages .owner {
+    flex: none;
+    color: var(--ink-faint);
+    font-size: 0.7rem;
   }
 
   .errors {
