@@ -114,20 +114,19 @@ semantics: the Accepted-Findings section of
 
 Check for missing protection on known destructive operations.
 
-**IMPORTANT: Deny rules are absolute — they cannot be overridden
-by skills, hooks, or user approval. Only recommend deny rules
-for operations that should NEVER be permitted. For operations
-that are sometimes legitimate (e.g., via skills), recommend
-"ask" rules or note that hook protection is sufficient.**
+**IMPORTANT: Deny rules are absolute — no skill, hook or user
+approval overrides them. Recommend deny only where the matrix says
+deny. A reversible or sometimes-legitimate operation gets ask; a
+popular broad allow keeps its allow plus a narrow ask on the
+dangerous form instead of removal (GH-1868). Never copy a global
+deny into a project file for an operation the matrix marks skip,
+and give each copied rule its own finding.**
 
-Inventory hook/skill coverage first, then classify each
-destructive operation as **deny**, **ask**, **hook-protected**,
-or **skip**.
-
-See [`references/agents/permission-auditor/destructive-ops.md`](../references/agents/permission-auditor/destructive-ops.md)
-for the full inventory steps, the per-operation matrix
-(`git reset --hard`, force-push, settings writes, `rm -rf`,
-`gh pr merge`, etc.), and the classification key.
+Inventory hook/skill coverage first, then classify each operation
+as **deny**, **ask**, **hook-protected**, or **skip**. See
+[`destructive-ops.md`](../references/agents/permission-auditor/destructive-ops.md)
+for the inventory steps, the per-operation matrix, the narrow-ask
+shapes (`awk`, `find`), and the classification key.
 
 ### Phase 6: Instruction File Path Audit
 
@@ -176,7 +175,8 @@ Present findings in a structured report:
 
 **End with one fenced `json` block of findings** per
 [`finding-schema.md`](../references/agents/permission-auditor/finding-schema.md)
-— `dev10x:permission-audit-apply` applies it one finding at a time.
+— list every rule a finding covers (`rule` or `rules`), never a family
+named only in `note`: `dev10x:permission-audit-apply` decides per rule.
 
 **IMPORTANT**: Do NOT modify any files. Present all proposals to the user and wait for explicit confirmation before making changes.
 
@@ -189,7 +189,7 @@ Present findings in a structured report:
 
 ## Key Heuristics
 
-1. **Prefer ask rules over deny rules** — deny rules are absolute and block even legitimate skill usage. Use ask rules for operations that are dangerous but sometimes needed (git force-push, settings writes). Reserve deny rules for operations that should truly never succeed (rm -rf /, gh repo delete)
+1. **Prefer ask rules over deny rules** — deny rules are absolute and block even legitimate skill usage. Use ask rules for operations that are dangerous but sometimes needed (`rm -rf`, `helmfile destroy`, `sudo apt purge`). Reserve deny rules for what the matrix marks deny (`gh repo delete`); never propose any rule for what it marks skip (force-push, `git checkout`, `git stash drop`)
 2. **Hooks are the last line of defense** — if a hook blocks a pattern, the allow rule is dead code (MEDIUM, not CRITICAL)
 3. **Plugin hooks run alongside user hooks** — check for double execution and version drift
 4. **Variable assignment prefixes are wildcards** — `Bash(VAR=:*)` matches anything starting with `VAR=`, including `VAR=x; destructive_command`
