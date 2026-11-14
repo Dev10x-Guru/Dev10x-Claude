@@ -21,7 +21,6 @@ from dev10x.domain.pr_body import (
     fixes_references,
     fixes_trailer_error,
     job_story_error,
-    malformed_trailer_error,
     normalize_pr_body,
 )
 from dev10x.subprocess_utils import parse_key_value_output
@@ -156,9 +155,9 @@ async def create_pr(
         if body is not None
         else fixes_references(issue_id=issue_id, fixes_url=fixes_url, closes=closes)
     )
-    # GH-1873
+    # GH-1873, GH-1935
     trailer_error = (
-        malformed_trailer_error(body=normalize_pr_body(body=body))
+        fixes_trailer_error(body=normalize_pr_body(body=body))
         if body is not None
         else built_trailer_error(job_story=job_story, references=references)
     )

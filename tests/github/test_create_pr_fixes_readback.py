@@ -211,6 +211,28 @@ class TestCreatePrRefusesUnclosableNoneTrailer:
         mock_run.assert_not_awaited()
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "body",
+        [
+            f"{_JOB_STORY}",
+            f"{_JOB_STORY}\n\n<!-- Fixes: #12 -->",
+            f"{_JOB_STORY}\n\n```\nFixes: #12\n```",
+            f"{_JOB_STORY}\n\nRefs: #12",
+        ],
+        ids=["no-trailer", "commented-trailer", "fenced-trailer", "refs-only"],
+    )
+    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
+    async def test_a_body_without_a_visible_trailer_opens_no_pr(
+        self, mock_run: AsyncMock, body: str
+    ) -> None:
+        # GH-1935
+        result = await gh.create_pr(title="t", issue_id="GH-1", body=body)
+
+        assert isinstance(result, ErrorResult)
+        assert result.error == "create_pr: body carries no Fixes: trailer"
+        mock_run.assert_not_awaited()
+
+    @pytest.mark.asyncio
     @patch("dev10x.github.pulls.pr_get", new_callable=AsyncMock)
     @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
     async def test_a_reasoned_none_trailer_is_opened(
