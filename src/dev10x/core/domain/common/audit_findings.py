@@ -50,6 +50,14 @@ class ProposedFix:
     rule: str | None
     replacement: str | None
     note: str
+    rules: tuple[str, ...] = ()
+
+    @property
+    def targets(self) -> tuple[str, ...]:
+        """Every rule this fix edits, one decision each (GH-1868)."""
+        if self.rules:
+            return self.rules
+        return (self.rule,) if self.rule else ()
 
 
 @dataclass(frozen=True)
@@ -67,6 +75,7 @@ class AuditFinding:
         data = asdict(self)
         fix = data.pop("proposed_fix")
         fix["list"] = fix.pop("rule_list")
+        fix["rules"] = list(fix["rules"])
         data["proposed_fix"] = fix
         return data
 
@@ -113,8 +122,15 @@ def _parse_fix(*, raw: object, where: str) -> Result[ProposedFix]:
         if isinstance(value, ErrorResult):
             return value
         strings[key] = value.value
-    if action is not FixAction.MANUAL and (rule_list is None or not strings["rule"]):
-        return err(f"{where}: a '{action.value}' fix needs 'list' and 'rule'")
+    rules = _parse_rules(raw=raw.get("rules"), where=where)
+    if isinstance(rules, ErrorResult):
+        return rules
+    if action is not FixAction.MANUAL and (
+        rule_list is None or not (strings["rule"] or rules.value)
+    ):
+        return err(f"{where}: a '{action.value}' fix needs 'list' and 'rule' or 'rules'")
+    if action is FixAction.REPLACE and rules.value:
+        return err(f"{where}: a 'replace' fix takes one 'rule', not 'rules'")
     if action is FixAction.REPLACE and not strings["replacement"]:
         return err(f"{where}: a 'replace' fix needs 'replacement'")
     return ok(
@@ -124,8 +140,21 @@ def _parse_fix(*, raw: object, where: str) -> Result[ProposedFix]:
             rule=strings["rule"],
             replacement=strings["replacement"],
             note=strings["note"] or "",
+            rules=rules.value,
         )
     )
+
+
+def _parse_rules(*, raw: object, where: str) -> Result[tuple[str, ...]]:
+    if raw is None:
+        return ok(())
+    if not isinstance(raw, list) or not all(
+        isinstance(rule, str) and rule.strip() for rule in raw
+    ):
+        return err(f"{where}: proposed_fix.rules must be a list of non-empty strings")
+    if len(set(raw)) != len(raw):
+        return err(f"{where}: proposed_fix.rules lists a rule twice")
+    return ok(tuple(raw))
 
 
 def _parse_finding(*, raw: object, index: int) -> Result[AuditFinding]:

@@ -20,6 +20,16 @@
       "id": "single-edit-fix",
       "name": "One Edit per Fix",
       "description": "Each applied finding is exactly one Edit to one permissions list; inapplicable and manual findings are reported, never edited"
+    },
+    {
+      "id": "per-rule-gate",
+      "name": "Per-Rule Gate",
+      "description": "A finding covering several rules is decided one rule at a time, never as one bundled answer (GH-1868)"
+    },
+    {
+      "id": "deferral-survives",
+      "name": "Deferral Survives the Run",
+      "description": "Rules deferred to the end of the session are written to a validated findings block and recorded in a task, never applied in this run and never dropped (GH-1868)"
     }
   ],
   "evals": [
@@ -72,6 +82,27 @@
       "assertions": [
         {"dimension": "single-edit-fix", "check": "behavioral", "signal": "F1 is reported inapplicable without an Edit"},
         {"dimension": "single-edit-fix", "check": "behavioral", "signal": "F2's note is shown, 'Done by hand (Recommended)' leads the gate, and no Edit is made for it"}
+      ]
+    },
+    {
+      "id": "multi-rule-finding-decided-per-rule",
+      "name": "A family of rules is decided one rule at a time",
+      "description": "A remove finding listing three rules in proposed_fix.rules gets one question per rule, and only the approved rules are removed (GH-1868)",
+      "input": "/dev10x:permission-audit-apply with F1 remove of rules Bash(python3:*), Bash(node:*), Bash(ruby:*); the user applies python3, skips node, defers ruby",
+      "assertions": [
+        {"dimension": "per-rule-gate", "check": "tool_called", "tool": "AskUserQuestion", "assertion": "per_rule_gate_uses_tool", "signal": "AskUserQuestion carries one question per rule, each offering Apply (Recommended) / Skip / Defer to end of session / Stop"},
+        {"dimension": "single-edit-fix", "check": "behavioral", "signal": "Exactly one Edit removes Bash(python3:*); no Edit touches Bash(node:*) or Bash(ruby:*)"},
+        {"dimension": "deferral-survives", "check": "behavioral", "signal": "A deferred findings block holding only Bash(ruby:*) is written and validated, and a TaskCreate names it"}
+      ]
+    },
+    {
+      "id": "manual-finding-naming-rules-gets-apply-path",
+      "name": "A manual finding that names rules can be applied as rule edits",
+      "description": "A manual finding whose note names stale allow rules leads with 'Apply as rule edits (Recommended)' and, on that answer, goes rule by rule (GH-1868)",
+      "input": "/dev10x:permission-audit-apply with F1 manual: 'remove the 0.105.0-pinned allow rules from ~/.claude/settings.json'",
+      "assertions": [
+        {"dimension": "per-rule-gate", "check": "behavioral", "signal": "The first option is 'Apply as rule edits (Recommended)' and the rules found in the file are listed before any edit"},
+        {"dimension": "single-edit-fix", "check": "behavioral", "signal": "Each approved rule is removed with its own Edit"}
       ]
     }
   ]

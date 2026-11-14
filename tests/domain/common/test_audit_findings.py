@@ -89,6 +89,79 @@ class TestParseFindings:
     def test_empty_list_is_valid(self) -> None:
         assert _parse() == ()
 
+    def test_single_rule_fix_targets_its_rule(self) -> None:
+        (finding,) = _parse(_finding())
+
+        assert finding.proposed_fix.targets == ("Bash(rm:*)",)
+        assert finding.to_dict()["proposed_fix"]["rules"] == []
+
+    def test_manual_fix_without_rules_targets_nothing(self) -> None:
+        (finding,) = _parse(_finding(proposed_fix={"action": "manual", "note": "register"}))
+
+        assert finding.proposed_fix.targets == ()
+
+
+class TestMultiRuleFindings:
+    """GH-1868: a family of rules is decided one rule at a time."""
+
+    @pytest.fixture
+    def finding(self) -> AuditFinding:
+        (finding,) = _parse(
+            _finding(
+                current_rule=None,
+                proposed_fix={
+                    "action": "remove",
+                    "list": "allow",
+                    "rules": ["Bash(python3:*)", "Bash(node:*)"],
+                    "note": "interpreter wildcards",
+                },
+            )
+        )
+        return finding
+
+    def test_targets_every_listed_rule(self, finding: AuditFinding) -> None:
+        assert finding.proposed_fix.targets == ("Bash(python3:*)", "Bash(node:*)")
+
+    def test_round_trips_rules_as_a_list(self, finding: AuditFinding) -> None:
+        assert finding.to_dict()["proposed_fix"]["rules"] == [
+            "Bash(python3:*)",
+            "Bash(node:*)",
+        ]
+
+    @pytest.mark.parametrize(
+        ("fix", "message"),
+        [
+            (
+                {"action": "remove", "list": "allow", "rules": "Bash(x:*)"},
+                "rules must be a list of non-empty strings",
+            ),
+            (
+                {"action": "remove", "list": "allow", "rules": ["Bash(x:*)", ""]},
+                "rules must be a list of non-empty strings",
+            ),
+            (
+                {"action": "remove", "list": "allow", "rules": ["Bash(x:*)", "Bash(x:*)"]},
+                "lists a rule twice",
+            ),
+            (
+                {"action": "remove", "list": "allow", "rules": []},
+                "needs 'list' and 'rule' or 'rules'",
+            ),
+            (
+                {
+                    "action": "replace",
+                    "list": "allow",
+                    "rule": "Bash(x:*)",
+                    "rules": ["Bash(x:*)"],
+                    "replacement": "Bash(x y:*)",
+                },
+                "takes one 'rule', not 'rules'",
+            ),
+        ],
+    )
+    def test_rejects_malformed_rules(self, fix: dict[str, Any], message: str) -> None:
+        assert message in _error({"findings": [_finding(proposed_fix=fix)]})
+
     @pytest.mark.parametrize(
         ("payload", "message"),
         [
