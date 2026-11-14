@@ -883,6 +883,10 @@ context={})` before posting.
 3. `effect == "skip"` → Do not post. Skip straight to Phase 3.
 4. Response has an `error` key → fail safe: treat as `ask`.
 
+In an unattended run (the test in Phase 3 Step 3a), the `ask`
+branch posts nothing and fires no widget: treat it as `skip` and
+report `Re-review notification: skipped — unattended run`.
+
 ### Step 4: Post the notification
 
 If the gate resolved to post (user approved the `ask` widget, or
@@ -962,6 +966,14 @@ context={})`.
    directly to Step 4 (checklist-only, no Slack, no reviewer
    assignment).
 4. Response has an `error` key → fail safe: treat as `ask`.
+
+**Unattended run (GH-1911):** the `ask` branch above, including an
+`error` treated as `ask`, never fires its widget when this run is
+unattended (the test Step 3a spells out). Nobody is there to answer
+it, so a widget would stall the run. Treat it as `skip` instead: go
+to Step 4 (checklist-only) and report
+`Notification: skipped — external_notify asked in an unattended run`,
+so the caller can request review once someone is watching.
 
 ### Step 3: Execute (if user approves)
 

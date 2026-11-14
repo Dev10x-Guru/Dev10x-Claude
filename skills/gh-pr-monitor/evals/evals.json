@@ -217,6 +217,36 @@
           "signal": "dev10x:request-review is invoked with '--pr {n} --repo {repo}' and no --unattended"
         }
       ]
+    },
+    {
+      "id": "unattended-notify-ask-skips-widget",
+      "name": "An unattended monitor never fires the notification widget",
+      "description": "GH-1911: the monitor was invoked with --unattended and resolve_gate(external_notify) returns effect=ask. Nobody is watching, so Phase 3 Step 2 treats ask as skip: no AskUserQuestion, checklist-only Step 4, and a 'Notification: skipped' report line.",
+      "input": "/dev10x:gh-pr-monitor 123 --unattended",
+      "assertions": [
+        {
+          "dimension": "notify-gate-escalation",
+          "check": "tool_called",
+          "tool": "mcp__plugin_dev10x_cli__resolve_gate",
+          "signal": "resolve_gate(gate=\"external_notify\") is still called before deciding"
+        },
+        {
+          "dimension": "notify-gate-escalation",
+          "check": "behavioral",
+          "signal": "AskUserQuestion is NOT called for the notification when the run is unattended"
+        },
+        {
+          "dimension": "notify-gate-escalation",
+          "check": "output_contains",
+          "value": "Notification: skipped",
+          "signal": "The skip is reported so the caller can request review later"
+        },
+        {
+          "dimension": "notify-gate-escalation",
+          "check": "behavioral",
+          "signal": "pr_detect receives '123' without the --unattended flag"
+        }
+      ]
     }
   ],
   "trigger_evals": {
