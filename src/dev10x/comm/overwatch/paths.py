@@ -73,6 +73,10 @@ def actions_log_path(*, instance: Instance = Instance.RELEASE) -> Path:
     return state_dir(instance=instance) / "actions.jsonl"
 
 
+def artifacts_dir(*, instance: Instance = Instance.RELEASE) -> Path:
+    return state_dir(instance=instance) / "artifacts"
+
+
 def read_token(*, path: Path) -> str:
     try:
         return path.read_text(encoding="utf-8").strip()

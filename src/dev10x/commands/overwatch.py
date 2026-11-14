@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import secrets
 import shutil
@@ -10,26 +11,32 @@ import threading
 from collections.abc import Callable
 from pathlib import Path
 from types import FrameType
+from typing import Any
 
 import click
 
 from dev10x.comm.overwatch import paths
+from dev10x.comm.overwatch.artifacts import ArtifactStore
 from dev10x.comm.overwatch.decisions import DecisionStore
 from dev10x.comm.overwatch.delivery import RELAY_MAILBOX
 from dev10x.comm.overwatch.dev_checkout import (
     DevCheckout,
     DevCheckoutError,
+    load_dev_checkout,
     pin_dev_checkout,
     read_dev_checkout,
     unpin_dev_checkout,
 )
 from dev10x.comm.overwatch.dev_watcher import DevPinWatcher, launcher_factory
 from dev10x.comm.overwatch.lessons import DEFAULT_KB_ROOT
+from dev10x.comm.overwatch.owner import ArtifactOwner, find_owner
 from dev10x.comm.overwatch.probes import Snapshot, take_snapshot
+from dev10x.comm.overwatch.publishers import load_publishers
 from dev10x.comm.overwatch.rearm import RELAY_AGENT, RelayRearm, run_rearm
 from dev10x.comm.overwatch.server import HOST, OverwatchApp, make_server, run_collector
 from dev10x.comm.overwatch.settings import SettingsStore
 from dev10x.comm.skills.bus.maildir import BUS_ROOT
+from dev10x.domain.common.result import ErrorResult, SuccessResult
 from dev10x.domain.file_locks import atomic_write_text
 
 UNIT_TEMPLATE = """\
@@ -69,6 +76,10 @@ def page_url(*, port: int) -> str:
     return f"http://{HOST}:{port}/"
 
 
+def instance_flag(*, instance: paths.Instance) -> str:
+    return "" if instance is paths.Instance.RELEASE else f" --instance {instance.value}"
+
+
 def build_app(
     *,
     kb_root: Path,
@@ -81,6 +92,9 @@ def build_app(
     return OverwatchApp(
         store=DecisionStore(path=paths.decisions_path(instance=instance)),
         settings=SettingsStore(path=paths.settings_path(instance=instance)),
+        artifacts=ArtifactStore(root=paths.artifacts_dir(instance=instance)),
+        publishers_reader=load_publishers,
+        instance_flag=instance_flag(instance=instance),
         bus_root=bus_root,
         kb_root=kb_root,
         log_path=paths.actions_log_path(instance=instance),
@@ -357,3 +371,95 @@ def dev_rotate_token() -> None:
         "Dev page token dropped; the dev page issues a new one when it next starts "
         "(a new commit in the checkout, or `dev unpin` then `dev pin`)."
     )
+
+
+def artifact_url(*, artifact_id: str, instance: paths.Instance) -> str:
+    port = paths.profile(instance=instance).default_port
+    if instance is paths.Instance.DEV:
+        pinned = load_dev_checkout()
+        port = pinned.port if pinned is not None else port
+    token = paths.read_token(path=paths.page_token_path(instance=instance))
+    query = f"?token={token}" if token else ""
+    return f"{page_url(port=port)}{query}#/a/{artifact_id}"
+
+
+def _unwrap(*, result: SuccessResult[Any] | ErrorResult) -> Any:
+    if isinstance(result, ErrorResult):
+        raise click.ClickException(result.error)
+    return result.value
+
+
+def _store(*, instance: str) -> ArtifactStore:
+    return ArtifactStore(root=paths.artifacts_dir(instance=paths.Instance(instance)))
+
+
+def _read_document(*, file: Path) -> object:
+    try:
+        return json.loads(file.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise click.ClickException(f"{file} is not a readable JSON document: {exc}") from exc
+
+
+instance_option = click.option(
+    "--instance",
+    type=click.Choice([instance.value for instance in paths.Instance]),
+    default=paths.Instance.RELEASE.value,
+    show_default=True,
+    help="Which Overwatch page holds the artifact.",
+)
+
+
+@overwatch.group(name="artifact")
+def artifact_group() -> None:
+    """Show an interactive artifact on the Overwatch page (GH-1938)."""
+
+
+@artifact_group.command(name="put")
+@click.argument("file", type=click.Path(path_type=Path, dir_okay=False, exists=True))
+@click.option("--session", default="", help="Owning session name or id; found from PIDs if unset.")
+@instance_option
+def artifact_put(*, file: Path, session: str, instance: str) -> None:
+    """Validate FILE and publish it as the next revision of its artifact."""
+    document = _read_document(file=file)
+    owner: ArtifactOwner = _unwrap(result=find_owner(start_pid=os.getpid(), session=session))
+    saved = _unwrap(result=_store(instance=instance).put(document=document, owner=owner.to_dict()))
+    url = artifact_url(artifact_id=saved["id"], instance=paths.Instance(instance))
+    click.echo(f"Artifact {saved['id']} revision {saved['revision']}: {url}")
+
+
+@artifact_group.command(name="url")
+@click.argument("artifact_id")
+@instance_option
+def artifact_url_command(*, artifact_id: str, instance: str) -> None:
+    """Print the page URL that opens ARTIFACT_ID."""
+    click.echo(artifact_url(artifact_id=artifact_id, instance=paths.Instance(instance)))
+
+
+@artifact_group.command(name="list")
+@instance_option
+def artifact_list(*, instance: str) -> None:
+    """List artifacts, newest first."""
+    summaries = _store(instance=instance).index()
+    if not summaries:
+        click.echo("No artifacts.")
+        return
+    for summary in summaries:
+        owner = summary.owner["name"] or summary.owner["session_id"]
+        click.echo(f"{summary.id}\tr{summary.revision}\t{summary.title}\t{owner}")
+
+
+@artifact_group.command(name="shared")
+@click.argument("artifact_id")
+@click.option("--publisher", required=True, help="Publisher id from the share menu.")
+@click.option("--url", "link", required=True, help="Where the artifact was published.")
+@instance_option
+def artifact_shared(*, artifact_id: str, publisher: str, link: str, instance: str) -> None:
+    """Record where ARTIFACT_ID was published."""
+    if load_publishers().find(publisher_id=publisher) is None:
+        raise click.ClickException(f'No publisher "{publisher}"; see the page\'s share menu.')
+    saved = _unwrap(
+        result=_store(instance=instance).add_share(
+            artifact_id=artifact_id, publisher=publisher, url=link
+        )
+    )
+    click.echo(f"Artifact {artifact_id} revision {saved['revision']}: shared at {link}")

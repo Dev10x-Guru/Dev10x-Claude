@@ -5,27 +5,16 @@ from __future__ import annotations
 import http.client
 import stat
 import threading
-from collections.abc import Iterator
 from pathlib import Path
 from urllib.parse import urlsplit
 
 import pytest
 from click.testing import CliRunner, Result
-from dev10x.domain.dev10x_paths import CONFIG_HOME_ENV_VAR, Dev10xConfigDir
 
 from dev10x.cli import cli
 from dev10x.comm.overwatch import paths
 from dev10x.comm.overwatch.probes import Snapshot
 from dev10x.commands import overwatch as command
-
-
-@pytest.fixture
-def config_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
-    home = tmp_path / "config"
-    monkeypatch.setenv(CONFIG_HOME_ENV_VAR, str(home))
-    Dev10xConfigDir.reset_cache()
-    yield home
-    Dev10xConfigDir.reset_cache()
 
 
 @pytest.mark.parametrize(
