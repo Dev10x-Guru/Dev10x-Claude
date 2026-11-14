@@ -202,5 +202,5 @@ branch_exists = git_branch("-r").find(branch_name) >= 0
 
 - `references/resilience-patterns.md` — the contract that tests
   verify (Rules 1-4)
-- `references/orchestration/subagent-status-protocol.md` — agent
-  status reporting that orchestrators parse when resuming
+- `references/orchestration/subagent-status-operations.md` — the
+  resume-first rule and non-resumable cases orchestrators apply

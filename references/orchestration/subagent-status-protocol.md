@@ -4,19 +4,9 @@ Structured status reporting for subagents dispatched via `Agent()`,
 adapted from the implementer/spec-reviewer pattern in
 [obra/superpowers](https://github.com/obra/superpowers).
 
-> **Size-budget override (GH-848, per `.claude/rules/INDEX.md`
-> § Budget Overrides).** This file exceeds the 200-line
-> `references/**` budget. The status protocol is a single cohesive
-> contract — the four statuses, the prompt/delivery templates, the
-> escalation ladder, the non-resumable cases, and the addressing
-> quirks are read *together* by every orchestration hub (work-on,
-> fanout, gh-pr-monitor, skill-audit, adr-evaluate), and splitting
-> them would scatter one contract across files that must stay in
-> sync. **Split due, tracked in GH-1892.** The file has passed its
-> 300-line trigger. Split the core protocol (statuses, prompt
-> template, delivery channel) from the operational guidance
-> (escalation ladder, non-resumable cases, addressing quirks,
-> adoption checklist).
+This is the core contract. Addressing quirks, the silent-agent
+ladder, resume rules and adoption live in
+[`subagent-status-operations.md`](subagent-status-operations.md).
 
 ## Why a status protocol
 
@@ -90,6 +80,13 @@ importable source is `BACKGROUND_DELIVERY_TEMPLATE` in
 `dev10x.skills.orchestration.subagent_protocol` (sibling of
 `STATUS_PROMPT_TEMPLATE`).
 
+An `idle_notification` with no content means the agent finished
+without delivering. Escalate per the
+[escalation ladder](subagent-status-operations.md#escalation-ladder-for-a-silent-agent),
+and see
+[§ Delivery quirks](subagent-status-operations.md#delivery-quirks)
+when `to="main"` is rejected or `TaskOutput` finds no task.
+
 ## Controller parse pattern
 
 Pseudo-code for the controller side:
@@ -129,6 +126,10 @@ with free-form prose as its last line. This is NOT `DONE`.
 Orchestrators MUST treat it as `NEEDS_CONTEXT` — unless that last
 line mentions a hook, which the controller checks first and surfaces
 as a hook denial (see § Hook denials, GH-1874).
+
+Before re-dispatching, try a resume — unless the agent is one of the
+non-resumable cases. Both rules are in
+[§ Recovering an unfinished agent](subagent-status-operations.md#recovering-an-unfinished-agent).
 
 ## When to use which status
 

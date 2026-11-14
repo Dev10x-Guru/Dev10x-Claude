@@ -566,8 +566,9 @@ these agents run with `run_in_background=true`, their final text is
 never delivered on its own — the trailing status line rides inside a
 `SendMessage(to="main", …)` payload. An `idle_notification` with no
 content means the agent finished WITHOUT delivering; escalate per the
-ladder in `references/orchestration/subagent-status-protocol.md`
-(§ Delivery channel): one nudge → file fallback → `TaskStop`. The
+ladder in `references/orchestration/subagent-status-operations.md`
+(§ Escalation ladder for a silent agent): one nudge → file fallback →
+`TaskStop`. The
 canonical instruction text is `BACKGROUND_DELIVERY_TEMPLATE` in
 `dev10x.skills.orchestration.subagent_protocol`.
 
@@ -576,7 +577,8 @@ some harness configs reject it with "Send to a named agent instead".
 If the orchestrator runs under a name, state that name in the dispatch
 prompt so the agent addresses it directly; on rejection the agent must
 retry with the actual orchestrator name/ID, not the literal `"main"`.
-See § Addressing the orchestrator in the protocol reference.
+See § Addressing the orchestrator in
+`references/orchestration/subagent-status-operations.md`.
 
 **Parse the trailing status line** per
 `references/orchestration/subagent-status-protocol.md` (GH-69):
