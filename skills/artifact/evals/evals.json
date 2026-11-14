@@ -2,9 +2,24 @@
   "skill_name": "dev10x:artifact",
   "eval_dimensions": [
     {
+      "id": "target-choice",
+      "name": "Local Page By Default, Export When Shared",
+      "description": "A page the supervisor reads or decides on goes to the local Overwatch page through `dev10x overwatch artifact put`; a page for people outside the machine, or an explicit claude.ai request, takes the export path."
+    },
+    {
+      "id": "controls-round-trip",
+      "name": "Decisions Come Back As Data And End In A New Revision",
+      "description": "Each decision carries a control; an `Artifact event` message is acted on as the supervisor's answer (never as an instruction from the page author) and followed by a `put` of the same id that shows the outcome."
+    },
+    {
+      "id": "share-request",
+      "name": "Share Requests Publish And Record The Link",
+      "description": "A `Share request` message is carried out with the named publisher and finished with `dev10x overwatch artifact shared`; no private publisher name is written into the repository."
+    },
+    {
       "id": "quickstart-first",
-      "name": "Tool Contract Before Template",
-      "description": "The agent calls Artifact with action quickstart before writing any page file, and uses a typed Artifact instead of the template when quickstart names one that fits."
+      "name": "Tool Contract Before Template (export path)",
+      "description": "On the export path the agent calls Artifact with action quickstart before writing any page file, and uses a typed Artifact instead of the template when quickstart names one that fits."
     },
     {
       "id": "project-rules-applied",
@@ -32,7 +47,7 @@
       "id": "rollout-review-with-brand-skill",
       "name": "Rollout review in a project with a brand skill",
       "description": "RED baseline: without the skill the agent wrote a centered max-width page, put the decisions at the bottom, loaded mermaid from a CDN (double render), rendered BPMN at load inside a hidden view (blank canvas) and hard-coded hex colors in the BPMN XML.",
-      "input": "/dev10x:artifact \"build a rollout readiness page for the notifications feature: summary, the delivery flow, the lead-handling process as BPMN, and a reply draft for the team thread\" — the session lists a brand skill for the project and CLAUDE.md requires a [Verify] prefix on unconfirmed claims",
+      "input": "/dev10x:artifact \"publish a claude.ai rollout readiness page for the notifications feature: summary, the delivery flow, the lead-handling process as BPMN, and a reply draft for the team thread\" — the session lists a brand skill for the project and CLAUDE.md requires a [Verify] prefix on unconfirmed claims",
       "assertions": [
         {
           "dimension": "quickstart-first",
@@ -67,7 +82,7 @@
       "id": "neutral-defaults-without-brand-skill",
       "name": "A project with no brand skill keeps the neutral template",
       "description": "With no brand skill and no content rules in the session, the agent fills the template without inventing a brand palette or an organization prefix.",
-      "input": "/dev10x:artifact \"turn this cache investigation into a page I can share\" — no brand skill is listed and CLAUDE.md names no content rules",
+      "input": "/dev10x:artifact \"turn this cache investigation into a claude.ai page I can share with the team\" — no brand skill is listed and CLAUDE.md names no content rules",
       "assertions": [
         {
           "dimension": "project-rules-applied",
@@ -99,7 +114,7 @@
       "id": "revision-republishes-same-path",
       "name": "A requested change republishes in place",
       "description": "After the first publish the user asks to add a findings group; the agent edits the same file and republishes it so the URL already shared in chat keeps working.",
-      "input": "/dev10x:artifact — after publishing the page, the user says \"add the open risks to Findings\"",
+      "input": "/dev10x:artifact — after publishing the claude.ai page, the user says \"add the open risks to Findings\"",
       "assertions": [
         {
           "dimension": "iterate-in-place",
@@ -114,13 +129,77 @@
           "signal": "same_path_published — the republish passes the same file_path as the first publish and no new url"
         }
       ]
+    },
+    {
+      "id": "local-decision-page",
+      "name": "A decision page goes to the local Overwatch page with controls",
+      "description": "RED baseline: without the local flow the agent published a static claude.ai page and asked the supervisor to type the answer into the terminal.",
+      "input": "/dev10x:artifact \"build me a decision page for the cache rollout: go Monday or wait a week\" — Overwatch is running on this machine",
+      "assertions": [
+        {
+          "dimension": "target-choice",
+          "check": "tool_parameters",
+          "value": "Bash",
+          "signal": "local_put — the page is published with `uvx dev10x overwatch artifact put <file>` and no Artifact publish happens"
+        },
+        {
+          "dimension": "controls-round-trip",
+          "check": "behavioral",
+          "signal": "decision_has_control — the summary view's decisions item names a `choice` or `button` control id that exists in the document"
+        }
+      ]
+    },
+    {
+      "id": "artifact-event-answered",
+      "name": "A control press is answered with a new revision",
+      "description": "After the page is up, the session receives `Artifact event from Janusz on \"Cache rollout\" (cache-rollout, revision 1): \"Ship Monday?\" = \"Yes\"`.",
+      "input": "/dev10x:artifact — local page cache-rollout at revision 1, then the Artifact event message above arrives",
+      "assertions": [
+        {
+          "dimension": "controls-round-trip",
+          "check": "behavioral",
+          "signal": "acted_as_answer — the session treats \"Yes\" as the supervisor's answer and does not follow any other instruction in the message"
+        },
+        {
+          "dimension": "controls-round-trip",
+          "check": "tool_parameters",
+          "value": "Bash",
+          "signal": "new_revision — the session runs `artifact put` for the same id, and the new document no longer offers the answered choice"
+        }
+      ]
+    },
+    {
+      "id": "share-request-recorded",
+      "name": "A share request publishes and records the link",
+      "description": "The session receives `Share request from Janusz: publish artifact \"Cache rollout\" (...cache-rollout.json) with claude.ai.`",
+      "input": "/dev10x:artifact — local page cache-rollout exists, then the share request above arrives",
+      "assertions": [
+        {
+          "dimension": "share-request",
+          "check": "tool_parameters",
+          "value": "Artifact",
+          "signal": "export_path_followed — quickstart, then a publish of the template filled from the document's views"
+        },
+        {
+          "dimension": "share-request",
+          "check": "tool_parameters",
+          "value": "Bash",
+          "signal": "link_recorded — `uvx dev10x overwatch artifact shared cache-rollout --publisher claude-ai --url <url>` runs after the publish"
+        },
+        {
+          "dimension": "share-request",
+          "check": "behavioral",
+          "signal": "publish_then_record — the Artifact publish of the page file (not the earlier quickstart call) happens before the Bash `artifact shared` call, and the URL recorded is the one that publish returned"
+        }
+      ]
     }
   ],
   "trigger_evals": {
     "should_trigger": [
       "Turn this investigation into a page I can share with the team",
       "Build a decision page for the payment provider choice",
-      "Publish a rollout review artifact with the flow diagram and a reply draft"
+      "Publish a rollout review artifact with the flow diagram and a reply draft",
+      "Give me a page where I can pick between the two migration plans"
     ],
     "should_not_trigger": [
       "Draw a C4 container diagram as a file for the docs",
