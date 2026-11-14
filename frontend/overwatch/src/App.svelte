@@ -3,7 +3,18 @@
   import PageSettings from "./components/PageSettings.svelte";
   import SessionPane from "./components/SessionPane.svelte";
   import Sidebar from "./components/Sidebar.svelte";
-  import { fetchDetail, post, readToken, subscribe, type Connection } from "./lib/api";
+  import ArtifactView from "./components/artifact/ArtifactView.svelte";
+  import {
+    browserStorage,
+    checkToken,
+    fetchDetail,
+    forgetToken,
+    post,
+    resolveToken,
+    subscribe,
+    type Connection,
+  } from "./lib/api";
+  import { fetchArtifact, parseRoute, type ArtifactDocument } from "./lib/artifact";
   import { bucket, clockTime, headline } from "./lib/format";
   import {
     ASIDE,
@@ -44,11 +55,47 @@
 
   type Edge = keyof typeof PANELS;
 
-  const token = readToken();
+  const storage = browserStorage();
+  const found = resolveToken(location.search, storage);
+
+  const mustCheck = found.remembered && found.token !== "";
+
+  let token = $state(found.remembered ? "" : found.token);
+  let checking = $state(mustCheck);
+  let expired = $state(false);
+
+  async function adoptRemembered(): Promise<void> {
+    const verdict = await checkToken(found.token);
+    checking = false;
+    if (verdict === "rejected") {
+      drop();
+      return;
+    }
+    token = found.token;
+  }
+
+  function drop(): void {
+    forgetToken(storage);
+    token = "";
+    expired = true;
+  }
+
+  async function recheck(state: Connection): Promise<void> {
+    if (state === "live" || !token) return;
+    if ((await checkToken(token)) === "rejected") drop();
+  }
+
+  if (mustCheck) adoptRemembered();
 
   let snapshot = $state<Snapshot | null>(null);
   let connection = $state<Connection>("connecting");
-  let chosen = $state(decodeURIComponent(location.hash.slice(1)));
+  const initialRoute = parseRoute(location.hash);
+
+  let route = $state(initialRoute);
+  let chosen = $state(initialRoute ? "" : sessionFromHash(location.hash));
+  let artifact = $state<ArtifactDocument | null>(null);
+  let artifactError = $state("");
+  let artifactReloads = $state(0);
   let detail = $state<SessionDetail | null>(null);
   let pins = $state(loadPins());
   let view = $state<View>(loadView());
@@ -76,6 +123,47 @@
     }).length,
   );
   const ackSince = $derived(current ? (awaitingAck(current, sent)?.at ?? null) : null);
+  const artifacts = $derived(snapshot?.artifacts ?? []);
+  const artifactEntry = $derived(route ? (artifacts.find((each) => each.id === route?.id) ?? null) : null);
+  const artifactRevision = $derived(artifactEntry?.revision ?? 0);
+
+  function sessionFromHash(hash: string): string {
+    try {
+      return decodeURIComponent(hash.slice(1));
+    } catch {
+      return "";
+    }
+  }
+
+  $effect(() => {
+    const follow = (): void => {
+      route = parseRoute(location.hash);
+      if (!route) chosen = sessionFromHash(location.hash);
+    };
+    window.addEventListener("hashchange", follow);
+    return () => window.removeEventListener("hashchange", follow);
+  });
+
+  $effect(() => {
+    const id = route?.id;
+    void artifactRevision;
+    void artifactReloads;
+    if (!id || !token) return;
+    let live = true;
+    fetchArtifact(id, token).then((next) => {
+      if (!live) return;
+      if (typeof next === "string") {
+        artifactError = next;
+        if (artifact?.id !== id) artifact = null;
+      } else {
+        artifactError = "";
+        artifact = next;
+      }
+    });
+    return () => {
+      live = false;
+    };
+  });
 
   $effect(() => {
     const timer = setInterval(() => (now = Date.now()), ACK_TICK_MS);
@@ -92,7 +180,10 @@
     return subscribe(
       token,
       (next) => (snapshot = next),
-      (state) => (connection = state),
+      (state) => {
+        connection = state;
+        recheck(state);
+      },
     );
   });
 
@@ -117,7 +208,8 @@
   });
 
   function select(sessionId: string): void {
-    if (sessionId === current?.session_id) return;
+    if (sessionId === current?.session_id && !route) return;
+    route = null;
     chosen = sessionId;
     detail = null;
     history.replaceState(null, "", `${location.search}#${encodeURIComponent(sessionId)}`);
@@ -198,7 +290,16 @@
 {#if !token}
   <main class="empty">
     <h1>Session Overwatch</h1>
-    <p>Open the link printed by <code>dev10x overwatch serve</code>; it carries the access token.</p>
+    {#if checking}
+      <p>Checking the remembered access token…</p>
+    {:else if expired}
+      <p>
+        Overwatch restarted, so the remembered access token no longer works. Open the fresh link printed by
+        <code>dev10x overwatch serve</code>.
+      </p>
+    {:else}
+      <p>Open the link printed by <code>dev10x overwatch serve</code>; it carries the access token.</p>
+    {/if}
   </main>
 {:else}
   {#snippet handle(edge: Edge, what: string)}
@@ -259,6 +360,8 @@
         {pins}
         {token}
         {pending}
+        {artifacts}
+        artifact={route?.id ?? ""}
         onselect={select}
         onpin={pin}
         {run}
@@ -269,7 +372,25 @@
     {@render handle("side", "details panel")}
 
     <main class="center">
-      {#if current}
+      {#if route}
+        {#if artifact?.id === route.id}
+          {#key artifact.id}
+            <ArtifactView
+              {artifact}
+              entry={artifactEntry}
+              publishers={snapshot?.publishers ?? []}
+              view={route.view}
+              {token}
+              onreport={report}
+              onstale={() => artifactReloads++}
+            />
+          {/key}
+        {:else if artifactError}
+          <p class="calm">This page did not load: {artifactError}</p>
+        {:else}
+          <p class="calm">Loading the page…</p>
+        {/if}
+      {:else if current}
         {@const own = detail?.session_id === current.session_id ? detail : null}
         {#key current.session_id}
           <SessionPane

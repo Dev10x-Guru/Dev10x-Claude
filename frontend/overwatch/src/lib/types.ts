@@ -1,4 +1,6 @@
-export type Group = "needs-you" | "working" | "done";
+import type { ArtifactIndexEntry, Publisher } from "./artifact";
+
+export type Group ="needs-you" | "working" | "done";
 
 export type View = "transcript" | "screen";
 
@@ -134,6 +136,8 @@ export interface Snapshot {
   errors: Record<string, string>;
   sessions: Session[];
   settings?: PageSettings;
+  artifacts?: ArtifactIndexEntry[];
+  publishers?: Publisher[];
 }
 
 export interface ActionResult {
@@ -142,4 +146,5 @@ export interface ActionResult {
   sent?: string;
   channel?: string;
   commands?: number;
+  recorded?: boolean;
 }
