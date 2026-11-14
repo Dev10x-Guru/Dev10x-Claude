@@ -63,8 +63,8 @@ class TestLoad:
 
     @pytest.mark.parametrize(
         "port",
-        [True, 0, 70000, "x", 8765],
-        ids=["bool", "zero", "too-big", "string", "release-port"],
+        [True, 0, -1, 65536, 70000, "x", 8765],
+        ids=["bool", "zero", "negative", "just-past-max", "too-big", "string", "release-port"],
     )
     def test_invalid_port_means_no_dev_page(
         self, store: Path, checkout: Path, port: object
@@ -90,6 +90,13 @@ class TestRead:
 
     def test_no_dev_key_is_not_an_error(self, store: Path) -> None:
         _write(path=store, doc={"other": 1})
+
+        assert dev_checkout.read_dev_checkout() is None
+
+    @pytest.mark.parametrize("text", ["", "\n"], ids=["empty", "blank"])
+    def test_an_empty_file_means_no_pin(self, store: Path, text: str) -> None:
+        store.parent.mkdir(parents=True, exist_ok=True)
+        store.write_text(text, encoding="utf-8")
 
         assert dev_checkout.read_dev_checkout() is None
 

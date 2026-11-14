@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import signal
 import subprocess
+import sys
 import threading
+import time
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -54,11 +56,22 @@ class Recorder:
         self.signals.append((pid, signum))
 
 
+TICK_SECONDS = 5.0
+
+
 def _heads(*, values: list[str | None], stop: threading.Event) -> Iterator[str | None]:
     yield from values
     stop.set()
     while True:
         yield values[-1]
+
+
+class TickClock:
+    def __init__(self) -> None:
+        self.now = 0.0
+
+    def __call__(self) -> float:
+        return self.now
 
 
 def _launch(
@@ -68,13 +81,20 @@ def _launch(
 ) -> DevLauncher:
     stop = threading.Event()
     sequence = _heads(values=heads, stop=stop)
+    clock = TickClock()
+
+    def read_head(*, checkout: Path) -> str | None:
+        clock.now += TICK_SECONDS
+        return next(sequence)
+
     launcher = DevLauncher(
         command=["uv", "run"],
         checkout=CHECKOUT,
         announce=recorder.lines.append,
         spawner=recorder.spawn,  # type: ignore[arg-type]
-        head_reader=lambda *, checkout: next(sequence),
+        head_reader=read_head,
         killer=recorder.kill,
+        clock=clock,
     )
     launcher.run(stop=stop, interval=0)
     return launcher
@@ -162,12 +182,30 @@ class TestRun:
             ]
         )
 
+        _launch(recorder=recorder, heads=["a"] * 7)
+
+        assert (len(recorder.spawned), recorder.lines[1:]) == (
+            3,
+            [
+                "Dev page exited with 1 (1 in a row); restarting in 0s",
+                "Dev page exited with 1 (2 in a row); restarting in 5s",
+                "Dev page exited with 1 (3 in a row); restarting in 15s",
+            ],
+        )
+
+    def test_restarts_once_the_backoff_deadline_passes(self) -> None:
+        recorder = Recorder(
+            children=[
+                FakeChild(pid=10, exit_code=1),
+                FakeChild(pid=11, exit_code=1),
+                FakeChild(pid=12, exit_code=1),
+                FakeChild(pid=13),
+            ]
+        )
+
         _launch(recorder=recorder, heads=["a"] * 8)
 
-        assert (len(recorder.spawned), recorder.lines[-1]) == (
-            3,
-            "Dev page exited with 1 (3 in a row); restarting in 0s",
-        )
+        assert len(recorder.spawned) == 4
 
     def test_backs_off_a_spawn_that_keeps_failing(self) -> None:
         recorder = Recorder(children=[OSError("no uv")] * 4 + [FakeChild(pid=13)])
@@ -219,11 +257,77 @@ def test_an_exited_child_is_not_signalled_on_shutdown() -> None:
 
 
 @pytest.mark.parametrize(
-    ("failures", "ticks"),
-    [(0, 0), (1, 0), (2, 1), (3, 3), (4, 7), (5, 11), (20, 11)],
+    ("failures", "seconds"),
+    [(0, 0.0), (1, 0.0), (2, 5.0), (3, 15.0), (4, 35.0), (5, 60.0), (20, 60.0), (10**6, 60.0)],
 )
-def test_backoff_doubles_up_to_the_cap(failures: int, ticks: int) -> None:
-    assert dev_launcher.backoff_ticks(failures=failures) == ticks
+def test_backoff_doubles_up_to_a_cap_in_seconds(failures: int, seconds: float) -> None:
+    assert dev_launcher.backoff_seconds(failures=failures) == seconds
+
+
+def test_the_backoff_cap_does_not_scale_with_the_poll_interval() -> None:
+    recorder = Recorder(children=[FakeChild(pid=10, exit_code=1)] * 9)
+    stop = threading.Event()
+    clock = TickClock()
+    sequence = _heads(values=["a"] * 80, stop=stop)
+
+    def read_head(*, checkout: Path) -> str | None:
+        clock.now += 0.5
+        return next(sequence)
+
+    DevLauncher(
+        command=["uv", "run"],
+        checkout=CHECKOUT,
+        announce=recorder.lines.append,
+        spawner=recorder.spawn,  # type: ignore[arg-type]
+        head_reader=read_head,
+        killer=recorder.kill,
+        clock=clock,
+    ).run(stop=stop, interval=0)
+
+    assert recorder.lines[-1] == "Dev page exited with 1 (4 in a row); restarting in 35s"
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="reads /proc")
+def test_stopping_reaches_a_grandchild(tmp_path: Path) -> None:
+    pid_file = tmp_path / "grandchild.pid"
+    stop = threading.Event()
+    launcher = DevLauncher(
+        command=["sh", "-c", f"sleep 300 & echo $! > {pid_file}; wait"],
+        checkout=tmp_path,
+        announce=lambda line: None,
+        head_reader=lambda *, checkout: "a",
+    )
+    thread = threading.Thread(target=launcher.run, kwargs={"stop": stop, "interval": 0.05})
+    thread.start()
+    pid = _wait_for_pid(path=pid_file)
+    stop.set()
+    thread.join(timeout=dev_launcher.STOP_TIMEOUT_SECONDS + 5)
+
+    assert _is_gone(pid=pid)
+
+
+def _wait_for_pid(*, path: Path) -> int:
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        text = path.read_text(encoding="utf-8").strip() if path.exists() else ""
+        if text:
+            return int(text)
+        time.sleep(0.02)
+    raise AssertionError(f"{path} never received the grandchild pid")
+
+
+def _is_gone(*, pid: int) -> bool:
+    deadline = time.monotonic() + 5
+    stat = Path(f"/proc/{pid}/stat")
+    while time.monotonic() < deadline:
+        try:
+            state = stat.read_text(encoding="utf-8").rsplit(")", 1)[1].split()[0]
+        except (FileNotFoundError, ProcessLookupError):
+            return True
+        if state == "Z":
+            return True
+        time.sleep(0.02)
+    return False
 
 
 class TestReadHead:
@@ -239,7 +343,7 @@ class TestReadHead:
             calls.append({"args": args, **kwargs})
             return subprocess.CompletedProcess(args=args, returncode=returncode, stdout=stdout)
 
-        head = dev_launcher.read_head(checkout=CHECKOUT, runner=runner)
+        head = dev_launcher.get_head(checkout=CHECKOUT, runner=runner)
 
         assert (head, calls[0]["args"], calls[0]["cwd"], calls[0]["timeout"]) == (
             expected,
@@ -257,7 +361,7 @@ class TestReadHead:
         def runner(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
             raise error
 
-        assert dev_launcher.read_head(checkout=CHECKOUT, runner=runner) is None
+        assert dev_launcher.get_head(checkout=CHECKOUT, runner=runner) is None
 
 
 def test_child_command_runs_the_checkout_code(tmp_path: Path) -> None:

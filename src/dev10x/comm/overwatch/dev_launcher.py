@@ -12,8 +12,9 @@ import os
 import signal
 import subprocess
 import threading
+import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from dev10x.comm.overwatch import paths
@@ -22,14 +23,15 @@ from dev10x.subprocess_utils import run
 
 HEAD_TIMEOUT_SECONDS = 10.0
 STOP_TIMEOUT_SECONDS = 10.0
-MAX_BACKOFF_TICKS = 11
+BACKOFF_STEP_SECONDS = 5.0
+MAX_BACKOFF_SECONDS = 60.0
 
 Runner = Callable[..., subprocess.CompletedProcess[str]]
 Spawner = Callable[..., subprocess.Popen[bytes]]
 Killer = Callable[[int, int], None]
 
 
-def read_head(*, checkout: Path, runner: Runner = run) -> str | None:
+def get_head(*, checkout: Path, runner: Runner = run) -> str | None:
     try:
         result = runner(
             ["git", "rev-parse", "HEAD"],
@@ -83,15 +85,29 @@ class DevLauncher:
     checkout: Path
     announce: Callable[[str], None]
     spawner: Spawner = subprocess.Popen
-    head_reader: Callable[..., str | None] = read_head
+    head_reader: Callable[..., str | None] = get_head
     killer: Killer = os.killpg
+    clock: Callable[[], float] = time.monotonic
+    _failures: int = field(default=0, init=False)
+    _next_start_at: float = field(default=0.0, init=False)
 
     def _start(self) -> subprocess.Popen[bytes] | None:
         try:
             return self.spawner(self.command, cwd=str(self.checkout), start_new_session=True)
         except OSError as exc:
             self.announce(f"Cannot start the dev page: {exc}; retrying")
+            self._schedule_retry()
             return None
+
+    def _schedule_retry(self) -> float:
+        self._failures += 1
+        delay = backoff_seconds(failures=self._failures)
+        self._next_start_at = self.clock() + delay
+        return delay
+
+    def _reset_backoff(self) -> None:
+        self._failures = 0
+        self._next_start_at = 0.0
 
     def _signal(self, *, child: subprocess.Popen[bytes], signum: int) -> None:
         try:
@@ -122,9 +138,8 @@ class DevLauncher:
         head = self.head_reader(checkout=self.checkout)
         self.announce(f"Dev Overwatch page from {self.checkout} at {head or 'unknown HEAD'}")
         previous = head
+        self._reset_backoff()
         child = self._start()
-        failures = 0
-        wait_ticks = 0
         try:
             while not stop.wait(interval):
                 current = self.head_reader(checkout=self.checkout)
@@ -136,28 +151,23 @@ class DevLauncher:
                     self.announce(f"Checkout moved to {current}; restarting the dev page")
                     self._stop(child=child)
                     head = current
-                    failures = wait_ticks = 0
+                    self._reset_backoff()
                     child = self._start()
                 elif child is not None and child.poll() is None:
-                    failures = 0
+                    self._failures = 0
                 elif child is not None:
-                    failures += 1
-                    wait_ticks = backoff_ticks(failures=failures)
+                    delay = self._schedule_retry()
                     self.announce(
-                        f"Dev page exited with {child.returncode} ({failures} in a row); "
-                        f"restarting in {(wait_ticks + 1) * interval:g}s"
+                        f"Dev page exited with {child.returncode} ({self._failures} in a row); "
+                        f"restarting in {delay:g}s"
                     )
                     child = None
-                elif wait_ticks > 0:
-                    wait_ticks -= 1
-                else:
+                elif self.clock() >= self._next_start_at:
                     child = self._start()
-                    if child is None:
-                        failures += 1
-                        wait_ticks = backoff_ticks(failures=failures)
         finally:
             self._stop(child=child)
 
 
-def backoff_ticks(*, failures: int) -> int:
-    return min(2 ** max(failures - 1, 0) - 1, MAX_BACKOFF_TICKS)
+def backoff_seconds(*, failures: int) -> float:
+    steps = 2 ** min(max(failures - 1, 0), 16) - 1
+    return min(BACKOFF_STEP_SECONDS * steps, MAX_BACKOFF_SECONDS)
