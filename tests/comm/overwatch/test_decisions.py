@@ -16,6 +16,7 @@ from dev10x.comm.overwatch.decisions import (
     Decision,
     DecisionStore,
     is_held,
+    is_held_elsewhere,
 )
 from dev10x.comm.overwatch.decisions import (
     HOOK_CHANNEL as HOOK,
@@ -151,6 +152,24 @@ class TestHold:
 
     def test_unheld_without_a_wait(self, added: list[Decision]) -> None:
         assert [is_held(decision=decision, now=NOW) for decision in added] == [False, False]
+
+    @pytest.mark.parametrize(
+        ("seconds_later", "expected"),
+        [(29, True), (31, False)],
+        ids=["inside-the-wait", "after-the-wait"],
+    )
+    def test_held_elsewhere_until_that_wait_ends(
+        self, store: DecisionStore, seconds_later: int, expected: bool
+    ) -> None:
+        mirrored = store.add_from_hook(
+            session_id=SESSION, cwd="/w", questions=QUESTIONS, held_elsewhere_seconds=30, now=NOW
+        )
+        now = NOW + timedelta(seconds=seconds_later)
+
+        assert [
+            (is_held_elsewhere(decision=decision, now=now), is_held(decision=decision, now=now))
+            for decision in mirrored
+        ] == [(expected, False), (expected, False)]
 
     def test_collect_waits_for_every_part(
         self, store: DecisionStore, held: list[Decision]

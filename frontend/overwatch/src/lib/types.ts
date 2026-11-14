@@ -33,6 +33,7 @@ export interface Decision {
   multi_select: boolean;
   created: string;
   held_until?: string;
+  held_elsewhere_until?: string;
 }
 
 export interface Session {

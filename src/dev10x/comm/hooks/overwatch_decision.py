@@ -58,7 +58,13 @@ class _Daemon:
         return payload if isinstance(payload, dict) else None
 
 
-def _mirror_to_dev(*, body: dict[str, Any], timeout: float, opener: Opener) -> None:
+def _mirror_to_dev(
+    *,
+    body: dict[str, Any],
+    held_seconds: float,
+    timeout: float,
+    opener: Opener,
+) -> None:
     dev = load_dev_checkout()
     if dev is None:
         return
@@ -66,7 +72,32 @@ def _mirror_to_dev(*, body: dict[str, Any], timeout: float, opener: Opener) -> N
     if not token:
         return
     daemon = _Daemon(port=dev.port, token=token, timeout=timeout, opener=opener)
-    daemon.post(path="/decisions", body={**body, "hold": False})
+    daemon.post(
+        path="/decisions",
+        body={**body, "hold": False, "held_elsewhere_seconds": held_seconds},
+    )
+
+
+def _ask_release(
+    *,
+    body: dict[str, Any],
+    port: int,
+    hold: bool,
+    timeout: float,
+    opener: Opener,
+) -> tuple[_Daemon, list[str], float] | None:
+    token = paths.read_token(path=paths.token_path())
+    if not token:
+        return None
+    daemon = _Daemon(port=port, token=token, timeout=timeout, opener=opener)
+    reply = daemon.post(path="/decisions", body={**body, "hold": hold})
+    if not reply:
+        return None
+    decision_ids = [str(item) for item in reply.get("decision_ids") or []]
+    wait_seconds = reply.get("wait_seconds") or 0
+    if not decision_ids or not isinstance(wait_seconds, int | float) or wait_seconds <= 0:
+        return None
+    return daemon, decision_ids, float(wait_seconds)
 
 
 def _wait_for_answers(
@@ -124,18 +155,22 @@ def overwatch_decision(
         "cwd": payload.get("cwd", ""),
         "questions": questions,
     }
-    _mirror_to_dev(body=body, timeout=timeout, opener=opener)
-    token = paths.read_token(path=paths.token_path())
-    if not token:
+    held = _ask_release(
+        body=body,
+        port=port or _port(),
+        hold=not in_herdr(),
+        timeout=timeout,
+        opener=opener,
+    )
+    _mirror_to_dev(
+        body=body,
+        held_seconds=held[2] if held else 0,
+        timeout=timeout,
+        opener=opener,
+    )
+    if held is None:
         return
-    daemon = _Daemon(port=port or _port(), token=token, timeout=timeout, opener=opener)
-    reply = daemon.post(path="/decisions", body={**body, "hold": not in_herdr()})
-    if not reply:
-        return
-    decision_ids = [str(item) for item in reply.get("decision_ids") or []]
-    wait_seconds = reply.get("wait_seconds") or 0
-    if not decision_ids or not isinstance(wait_seconds, int | float) or wait_seconds <= 0:
-        return
+    daemon, decision_ids, wait_seconds = held
     answers = _wait_for_answers(
         daemon=daemon,
         decision_ids=decision_ids,
