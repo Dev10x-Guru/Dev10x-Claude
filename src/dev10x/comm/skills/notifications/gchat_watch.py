@@ -142,11 +142,15 @@ def parse_message(raw: Mapping[str, Any]) -> ChatMessage | None:
     )
 
 
-def parse_messages(payload: Any) -> list[ChatMessage]:
+def message_items(payload: Any) -> list[Mapping[str, Any]]:
     items = payload.get("messages") if isinstance(payload, Mapping) else payload
     if not isinstance(items, list):
         return []
-    parsed = (parse_message(raw=item) for item in items if isinstance(item, Mapping))
+    return [item for item in items if isinstance(item, Mapping)]
+
+
+def parse_messages(payload: Any) -> list[ChatMessage]:
+    parsed = (parse_message(raw=item) for item in message_items(payload=payload))
     return [message for message in parsed if message is not None]
 
 
@@ -156,6 +160,20 @@ def gog_reader(
     thread: str | None,
     max_results: int,
 ) -> Result[list[ChatMessage]]:
+    listed = gog_list_messages(space=space, thread=thread, max_results=max_results)
+    if isinstance(listed, ErrorResult):
+        return listed
+    parsed = (parse_message(raw=item) for item in listed.value)
+    return ok([message for message in parsed if message is not None])
+
+
+def gog_list_messages(
+    *,
+    space: str,
+    thread: str | None,
+    max_results: int,
+) -> Result[list[Mapping[str, Any]]]:
+    """List the newest messages as gog prints them, newest first (GH-1840)."""
     command = [
         "gog",
         "chat",
@@ -201,7 +219,7 @@ def gog_reader(
         payload = json.loads(completed.stdout or "[]")
     except json.JSONDecodeError as ex:
         return err(f"gog chat messages list {space} printed invalid JSON: {ex}")
-    return ok(parse_messages(payload=payload))
+    return ok(message_items(payload=payload))
 
 
 def _user_name(*, raw: str) -> str:

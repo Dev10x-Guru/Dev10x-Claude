@@ -140,6 +140,7 @@ reached through a new `Dev10xConfigDir.chat_bus_db()` accessor.
 | `cursors` | per space: `last_event_time`, `last_resource_name`, `updated_at` |
 | `reaction_snapshot` | reactions the daemon has seen, used to infer deletions |
 | `gaps` | windows the daemon could not recover, shown in Overwatch |
+| `subscriptions` | the Workspace Events subscription the daemon renews: `target`, `name`, `expire_time`, `renewed_at` (GH-1840) |
 
 `PRAGMA user_version` carries the schema version. Migrations run at
 open time, in order, inside one transaction.
@@ -287,7 +288,7 @@ accessors.
 | `ingest_events` | `src/dev10x/comm/chatbus/ingest.py` | Insert each event exactly once and advance the cursor in the same transaction | 1 (GH-1838) |
 | `enqueue` / `claim` / `ack` / `release` | `src/dev10x/comm/chatbus/queue.py` | Lease-based work queue | 1 (GH-1838) |
 | `Authorizer` (planned) | `src/dev10x/comm/chatbus/authz.py` | Map sender, event and `bus_role` to a command verdict | 2 (GH-1839) |
-| Pub/Sub and poll sources (planned) | `src/dev10x/comm/chatbus/sources/` | Produce Pub/Sub-shaped events | 3 (GH-1840) |
+| Pub/Sub and poll sources | `src/dev10x/comm/chatbus/sources/` | Produce Pub/Sub-shaped events | 3 (GH-1840) |
 | Backfill (planned) | `src/dev10x/comm/chatbus/backfill.py` | Recover events missed during downtime | 4 (GH-1841) |
 | `chat_queue_*` tools (planned) | `src/dev10x/comm/mcp/` | list / claim / reply / ack for sessions | 5 (GH-1842) |
 | `Dispatcher` (planned) | `src/dev10x/comm/chatbus/dispatch.py` | Hand approved privileged items to bus routing or herdr | 6 (GH-1843) |

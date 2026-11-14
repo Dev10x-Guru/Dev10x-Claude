@@ -24,6 +24,7 @@ RESOURCE_NAME_PATTERNS: Mapping[str, re.Pattern[str]] = {
     REACTION_DELETED: re.compile(_REACTION_NAME),
 }
 EVENT_TYPES = frozenset(RESOURCE_NAME_PATTERNS)
+DB_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
 
 
 def resource_space(*, event_type: str, resource_name: str) -> str | None:
@@ -44,7 +45,11 @@ def to_db_time(*, moment: datetime) -> str:
     # Fixed width and UTC, so stored times compare correctly as text.
     if moment.tzinfo is None:
         raise ValueError(f"Chat bus times must be timezone-aware, got {moment!r}")
-    return moment.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+    return moment.astimezone(UTC).strftime(DB_TIME_FORMAT)
+
+
+def from_db_time(*, value: str) -> datetime:
+    return datetime.strptime(value, DB_TIME_FORMAT).replace(tzinfo=UTC)
 
 
 @dataclass(frozen=True)
