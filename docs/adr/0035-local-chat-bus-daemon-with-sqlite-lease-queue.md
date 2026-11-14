@@ -92,8 +92,9 @@ Reactions and messages arrive with no public endpoint:
   period.
   Whether they reach the `spaces/-` target is as unconfirmed as the
   single events (next bullet).
-  The source must expand each into single-type events (D5).
-  It does not yet: today it acks and drops them
+  The source expands each into single-type events (D5) and acks the
+  message once every space it touches has committed; a bad member is
+  skipped and counted, not silently lost
   ([GH-1948](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1948)).
 - Google documents reaction events only for subscriptions to one
   space.
@@ -207,8 +208,8 @@ claim held by a session that died with a restart is never stuck.
   `google.workspace.chat.reaction.v1.created`,
   `google.workspace.chat.reaction.v1.deleted`) and the same
   `includeResource` payload.
-  A batch event is to be stored as its member events, never under a
-  batch type (GH-1948).
+  A batch event is stored as its member events, never under a batch
+  type (GH-1948).
   `source` exists for diagnostics only.
   No consumer branches on it.
 - A cursor advances in the same transaction that commits its event
@@ -410,7 +411,7 @@ D3's fail-closed rules and visibility mitigate the coupling.
 | Reaction deletions missed outside the tracked set | Medium | Low | The tracked-message cap is configurable; deletions only cancel triggers |
 | Writer contention | Low | Low | WAL, `busy_timeout`, short `BEGIN IMMEDIATE` transactions |
 | The `spaces/-` subscription delivers no reaction events (unconfirmed by Google's docs) | Medium | High | Verify on first live run; fall back to one subscription per watched space, within D8's space cap |
-| Reactions arrive as a batch event the source drops today | Medium | High | Expand batch events into single events ([GH-1948](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1948)) |
+| A batch member is malformed | Low | Medium | The rest of the batch is stored; the member is logged and counted in `PullReport.skipped_members_by_type`. A batch with no usable member is dropped and counted in `dropped_by_type` instead ([GH-1948](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1948)) |
 
 ## Implementation Plan
 
