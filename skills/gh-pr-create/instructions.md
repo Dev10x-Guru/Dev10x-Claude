@@ -433,6 +433,30 @@ This script:
 4. Updates the body with linked commits (using `generate-commit-list.sh`)
 5. Outputs the PR number
 
+**When `create_pr` refuses the trailer (GH-1896).** An error that
+starts `create_pr: Fixes: trailer is malformed` means **no PR was
+opened** — the check runs before the push to GitHub, on the `body`
+you passed or, without one, on `job_story` plus the trailer built
+from `fixes_url` / `issue_id` / `closes`. Fix the trailer where it
+came from: the `Fixes:` line in `body` or `job_story`, an open fence
+or comment in `job_story` that hides it, or the `fixes_url` /
+`issue_id` value. Without `body`, `create_pr: Fixes: trailer is
+missing` means the trailer built from those values names no reference
+(a `fixes_url` such as `,` wins over `issue_id`). With `body`, a
+missing trailer is only caught by the read-back after the PR opens
+(see below).
+It needs a usable `Fixes: none — <reason>` or an ASCII issue
+reference, on a visible line outside code and comments. Then call
+`create_pr` again. In unattended mode this is a retry, not a gate.
+An error that starts `PR #<N> (<url>) was created, but its` is the
+trailer read-back after the PR opened: repair that body with
+`update_pr`. `…was created, but assigning milestone` is a milestone
+failure: set it with `update_pr(milestone=…)`, not the body.
+Never fall back to `create-pr.sh` to get past it: the script does not
+run the Python trailer guard, accepts a bare `Fixes: none`, and opens
+a PR that close-issues fails on merge. The script stays the fallback
+only for when the MCP server is unreachable.
+
 ### Step 6b: Cross-Fork PRs (GH-473)
 
 When contributing to an external repo from your own fork (the head

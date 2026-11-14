@@ -17,6 +17,7 @@
 #     parity with merge_pr / pr_get / update_pr, which all accept it. Omit to
 #     keep detecting the repo from the checkout.
 # Outputs the PR number on success.
+# The Fixes: trailer is not validated here; create_pr does it (GH-1896).
 set -euo pipefail
 
 TITLE="$1"

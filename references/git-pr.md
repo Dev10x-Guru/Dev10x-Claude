@@ -89,7 +89,9 @@ The body should be **compact** to avoid cluttering Slack previews.
    - `Fixes: none — self-motivated refactor` (for internal improvements,
      features, or experiments without a tracking issue)
    - The reason after the dash needs a letter or digit; `create_pr` refuses
-     a bare one, a `<reason>` placeholder, or one inside code or a comment.
+     a bare one or a `<reason>` placeholder.
+   - Only visible lines count: a trailer or reference inside fenced code
+     or an HTML comment closes nothing and satisfies nothing (GH-1896).
    - Do NOT manually add `---`, blank lines, or separators after `Fixes:`
      (Note: The `create-pr.sh` template automatically adds separators as
      part of standard formatting. Do not remove them.)
@@ -116,26 +118,6 @@ the project or ticket language. When PR text includes BDD or
 Gherkin-derived keywords, use Cucumber's official language reference:
 https://cucumber.io/docs/gherkin/languages/
 
-**WRONG** — Header before JTBD (breaks release notes parsing):
-```markdown
-## Summary
-
-**When** reviewing code, **the admin wants to** have automated checks, **so the team can** catch issues.
-
-[Details...]
-
-Fixes: ...
-```
-
-**CORRECT** — JTBD as absolute first element:
-```markdown
-**When** reviewing code, **the admin wants to** have automated checks, **so the team can** catch issues.
-
-[Details or commit list — optional...]
-
-Fixes: ...
-```
-
 ### Proper Format
 
 ```markdown
@@ -149,7 +131,8 @@ Fixes: https://github.com/Dev10x-Guru/dev10x-claude/issues/7
 ```
 
 *Why?* The JTBD Job Story must be the first paragraph because the
-release notes process parses PR descriptions by position.
+release notes process parses PR descriptions by position. A heading
+such as `## Summary` above it breaks that parsing.
 
 *Bootstrapping exception:* A PR that introduces a new PR body
 requirement may not follow that requirement itself — the rule
