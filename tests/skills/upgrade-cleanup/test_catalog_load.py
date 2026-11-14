@@ -78,13 +78,6 @@ class TestFindSettingsFilesUserGlobal:
     when include_user=True (Dev10x-Claude2#982). Both user-global files must
     be discovered so versioned plugin paths are rewritten there too."""
 
-    @pytest.fixture()
-    def fake_home(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-        home = tmp_path / "home"
-        (home / ".claude").mkdir(parents=True)
-        monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
-        return home
-
     def test_includes_both_user_global_files_when_include_user(
         self,
         fake_home: Path,

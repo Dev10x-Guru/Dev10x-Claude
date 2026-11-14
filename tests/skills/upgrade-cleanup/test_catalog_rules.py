@@ -2,6 +2,7 @@
 script/Read rule builders, coverage checks, generalization, and stale-MCP-
 wildcard expansion. No writes happen here (GH-1432, GH-1449)."""
 
+from collections.abc import Callable
 from pathlib import Path
 from unittest.mock import patch
 
@@ -173,18 +174,6 @@ class TestBuildMarketplacesScriptRules:
         assert rules == [f"Bash(~/{rel}:*)", f"Bash({home}/{rel}:*)"]
 
 
-def _plugin_map(*, extracted: tuple[str, ...], plugin_names: dict[str, str]) -> PluginMap:
-    return PluginMap(
-        plugins={key: ("skill",) for key in extracted},
-        plugin_names=plugin_names,
-        marketplace="Dev10x-Guru",
-        extracted=extracted,
-    )
-
-
-_QA_PLUGIN_MAP = _plugin_map(extracted=("qa",), plugin_names={"qa": "dev10x-qa"})
-
-
 def _satellite_root(*, cache_dir: Path, key: str) -> ScriptRoot:
     return ScriptRoot(
         plugin_root=cache_dir.parent / f"dev10x-{key}" / "0.115.0",
@@ -194,46 +183,72 @@ def _satellite_root(*, cache_dir: Path, key: str) -> ScriptRoot:
 
 class TestSatelliteScriptRoots:
     @pytest.fixture()
-    def cache_dir(self, tmp_path: Path) -> Path:
-        publisher = tmp_path / "cache" / "Dev10x-Guru"
-        (publisher / "dev10x" / "0.115.0").mkdir(parents=True)
-        return publisher / "dev10x"
+    def cache_dir(self, make_plugin_cache: Callable[..., Path]) -> Path:
+        return make_plugin_cache(plugin_name="dev10x", version="0.115.0").parent
 
-    def test_installed_satellite_resolves_beside_core(self, cache_dir: Path) -> None:
-        (cache_dir.parent / "dev10x-qa" / "0.115.0").mkdir(parents=True)
+    @pytest.fixture()
+    def qa_plugin_map(self, make_plugin_map: Callable[..., PluginMap]) -> PluginMap:
+        return make_plugin_map(plugins={"qa": ["skill"]}, plugin_names={"qa": "dev10x-qa"})
 
-        roots = satellite_script_roots(cache_dir=cache_dir, plugin_map=_QA_PLUGIN_MAP)
+    def test_installed_satellite_resolves_beside_core(
+        self,
+        cache_dir: Path,
+        qa_plugin_map: PluginMap,
+        make_plugin_cache: Callable[..., Path],
+    ) -> None:
+        make_plugin_cache(plugin_name="dev10x-qa", version="0.115.0")
+
+        roots = satellite_script_roots(cache_dir=cache_dir, plugin_map=qa_plugin_map)
 
         assert roots == [_satellite_root(cache_dir=cache_dir, key="qa")]
 
-    def test_only_installed_satellite_resolves(self, cache_dir: Path) -> None:
-        plugin_map = _plugin_map(
-            extracted=("qa", "infra"),
+    def test_only_installed_satellite_resolves(
+        self,
+        cache_dir: Path,
+        make_plugin_map: Callable[..., PluginMap],
+        make_plugin_cache: Callable[..., Path],
+    ) -> None:
+        plugin_map = make_plugin_map(
+            plugins={"qa": ["skill"], "infra": ["skill"]},
             plugin_names={"qa": "dev10x-qa", "infra": "dev10x-infra"},
         )
-        (cache_dir.parent / "dev10x-infra" / "0.115.0").mkdir(parents=True)
+        make_plugin_cache(plugin_name="dev10x-infra", version="0.115.0")
 
         roots = satellite_script_roots(cache_dir=cache_dir, plugin_map=plugin_map)
 
         assert roots == [_satellite_root(cache_dir=cache_dir, key="infra")]
 
-    def test_empty_satellite_cache_dir_is_skipped(self, cache_dir: Path) -> None:
+    def test_empty_satellite_cache_dir_is_skipped(
+        self,
+        cache_dir: Path,
+        qa_plugin_map: PluginMap,
+    ) -> None:
         (cache_dir.parent / "dev10x-qa").mkdir()
 
-        assert satellite_script_roots(cache_dir=cache_dir, plugin_map=_QA_PLUGIN_MAP) == []
+        assert satellite_script_roots(cache_dir=cache_dir, plugin_map=qa_plugin_map) == []
 
-    def test_latest_satellite_version_wins(self, cache_dir: Path) -> None:
+    def test_latest_satellite_version_wins(
+        self,
+        cache_dir: Path,
+        qa_plugin_map: PluginMap,
+        make_plugin_cache: Callable[..., Path],
+    ) -> None:
         for version in ("0.114.0", "0.115.0", "0.99.0"):
-            (cache_dir.parent / "dev10x-qa" / version).mkdir(parents=True)
+            make_plugin_cache(plugin_name="dev10x-qa", version=version)
 
-        roots = satellite_script_roots(cache_dir=cache_dir, plugin_map=_QA_PLUGIN_MAP)
+        roots = satellite_script_roots(cache_dir=cache_dir, plugin_map=qa_plugin_map)
 
         assert roots == [_satellite_root(cache_dir=cache_dir, key="qa")]
 
-    def test_lagging_satellite_uses_its_own_version(self, cache_dir: Path) -> None:
-        (cache_dir.parent / "dev10x-qa" / "0.114.0").mkdir(parents=True)
+    def test_lagging_satellite_uses_its_own_version(
+        self,
+        cache_dir: Path,
+        qa_plugin_map: PluginMap,
+        make_plugin_cache: Callable[..., Path],
+    ) -> None:
+        make_plugin_cache(plugin_name="dev10x-qa", version="0.114.0")
 
-        roots = satellite_script_roots(cache_dir=cache_dir, plugin_map=_QA_PLUGIN_MAP)
+        roots = satellite_script_roots(cache_dir=cache_dir, plugin_map=qa_plugin_map)
 
         assert roots == [
             ScriptRoot(
@@ -242,16 +257,25 @@ class TestSatelliteScriptRoots:
             )
         ]
 
-    def test_unnamed_key_falls_back_to_scheme_name(self, cache_dir: Path) -> None:
-        (cache_dir.parent / "dev10x-db" / "0.115.0").mkdir(parents=True)
-        plugin_map = _plugin_map(extracted=("db",), plugin_names={})
+    def test_unnamed_key_falls_back_to_scheme_name(
+        self,
+        cache_dir: Path,
+        make_plugin_map: Callable[..., PluginMap],
+        make_plugin_cache: Callable[..., Path],
+    ) -> None:
+        make_plugin_cache(plugin_name="dev10x-db", version="0.115.0")
+        plugin_map = make_plugin_map(plugins={"db": ["skill"]})
 
         roots = satellite_script_roots(cache_dir=cache_dir, plugin_map=plugin_map)
 
         assert roots == [_satellite_root(cache_dir=cache_dir, key="db")]
 
-    def test_no_extracted_keys_yields_no_roots(self, cache_dir: Path) -> None:
-        plugin_map = _plugin_map(extracted=(), plugin_names={})
+    def test_no_extracted_keys_yields_no_roots(
+        self,
+        cache_dir: Path,
+        make_plugin_map: Callable[..., PluginMap],
+    ) -> None:
+        plugin_map = make_plugin_map(plugins={})
 
         assert satellite_script_roots(cache_dir=cache_dir, plugin_map=plugin_map) == []
 

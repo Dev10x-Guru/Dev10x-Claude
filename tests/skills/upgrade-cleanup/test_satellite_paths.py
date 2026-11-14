@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -13,7 +14,7 @@ from dev10x.skills.permission.satellite_paths import (
     relocate_rule,
 )
 
-from dev10x.core.plugin_map import PluginMap, load_plugin_map, parse_plugin_map
+from dev10x.core.plugin_map import PluginMap, load_plugin_map
 
 CACHE = "~/.claude/plugins/cache/Dev10x-Guru"
 MARKET = "~/.claude/plugins/marketplaces/Dev10x-Guru"
@@ -28,14 +29,11 @@ INFRA_K8S = f"Bash({CACHE}/dev10x-infra/0.113.0/skills/k8s/scripts/k8s.sh:*)"
 
 
 @pytest.fixture
-def plugin_map() -> PluginMap:
-    return parse_plugin_map(
-        data={
-            "marketplace": "Dev10x-Guru",
-            "extracted": ["infra"],
-            "plugin_names": {"infra": "dev10x-infra", "db": "dev10x-db", "core": "dev10x"},
-            "plugins": {"infra": ["aws-vault", "k8s"], "db": ["db"], "core": ["git"]},
-        }
+def plugin_map(make_plugin_map: Callable[..., PluginMap]) -> PluginMap:
+    return make_plugin_map(
+        plugins={"infra": ["aws-vault", "k8s"], "db": ["db"], "core": ["git"]},
+        plugin_names={"infra": "dev10x-infra", "db": "dev10x-db", "core": "dev10x"},
+        extracted=["infra"],
     )
 
 
@@ -118,8 +116,11 @@ class TestRelocateRule:
     def test_leaves_other_rules_alone(self, plugin_map: PluginMap, rule: str) -> None:
         assert relocate_rule(rule=rule, plugin_map=plugin_map) == rule
 
-    def test_falls_back_to_the_expected_plugin_name(self) -> None:
-        unnamed = parse_plugin_map(data={"extracted": ["infra"], "plugins": {"infra": ["k8s"]}})
+    def test_falls_back_to_the_expected_plugin_name(
+        self,
+        make_plugin_map: Callable[..., PluginMap],
+    ) -> None:
+        unnamed = make_plugin_map(plugins={"infra": ["k8s"]})
 
         assert relocate_rule(rule=CORE_K8S, plugin_map=unnamed) == INFRA_K8S
 
