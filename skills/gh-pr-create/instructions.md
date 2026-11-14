@@ -442,9 +442,10 @@ came from: the `Fixes:` line in `body` or `job_story`, an open fence
 or comment in `job_story` that hides it, or the `fixes_url` /
 `issue_id` value. Without `body`, `create_pr: Fixes: trailer is
 missing` means the trailer built from those values names no reference
-(a `fixes_url` such as `,` wins over `issue_id`). With `body`, a
-missing trailer is only caught by the read-back after the PR opens
-(see below).
+(a `fixes_url` such as `,` wins over `issue_id`). With `body`,
+`create_pr: body carries no Fixes: trailer` means no visible `Fixes:`
+line was found: one inside a code block or HTML comment, or only a
+`Refs:` line, does not count, and no PR was opened (GH-1935).
 It needs a usable `Fixes: none — <reason>` or an ASCII issue
 reference, on a visible line outside code and comments. Then call
 `create_pr` again. In unattended mode this is a retry, not a gate.
