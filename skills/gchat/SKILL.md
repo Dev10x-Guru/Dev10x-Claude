@@ -246,6 +246,8 @@ the message itself arrives in the bus mailbox.
 
 Configuration (`watch:` block), the dispatcher (`--route`) and the
 event shapes: [`references/watch.md`](references/watch.md).
+The Chat bus service that turns Chat events into queued work for
+sessions (`dev10x chatbus`): [`references/chat-bus.md`](references/chat-bus.md).
 
 ## Updating and Deleting
 
