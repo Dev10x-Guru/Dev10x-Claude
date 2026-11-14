@@ -142,6 +142,7 @@ plugins:
     - git
     - git-alias-setup
     - git-branch-prune
+    - git-worktree-prune
     - git-commit
     - git-commit-split
     - git-fixup

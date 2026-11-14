@@ -23,7 +23,7 @@ ADR_0034_COUNTS = {
     "tasks": 8,
     "scoping": 19,
     "core": 17,
-    "coding": 39,
+    "coding": 40,
 }
 
 

@@ -149,7 +149,10 @@ the batch on a single failure.
 ### Step 7: Cleanup
 
 Run `git worktree prune` to remove stale worktree administrative
-files.
+files. It never removes a live checkout — branches still checked out
+in merged worktrees stay protected in Step 4. Run
+`dev10x:git-worktree-prune` first to remove those checkouts, then
+re-run this skill to delete their branches.
 
 If `git` warned about unreachable loose objects during any of the
 above steps, suggest the user run `git prune` separately (do not
