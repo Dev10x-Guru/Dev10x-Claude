@@ -1,6 +1,6 @@
 # Voice Narration Examples
 
-Worked examples for `dev10x:voice-channel` Step 2. Each pair shows
+Worked examples for `dev10x-comm:voice-channel` Step 2. Each pair shows
 the same board read aloud two ways.
 
 ## "What needs me?"
@@ -60,4 +60,4 @@ The other two stay as `Decide:` tasks for the next turns.
 | your review is waiting | review requested on #412 |
 
 A callsign is two or three words for the work, set once and kept
-across restarts (`dev10x:bus` § Registry).
+across restarts (`dev10x-comm:bus` § Registry).

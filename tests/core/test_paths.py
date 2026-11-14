@@ -10,7 +10,6 @@ from pathlib import Path
 
 import pytest
 
-from dev10x.comm.skills.notifications.slack_review_request import SLACK_NOTIFY_SCRIPT
 from dev10x.core.db_script import DB_KEY, DB_PLUGIN_NAME, DB_SCRIPT_SKILL, db_script
 from dev10x.core.paths import (
     PLUGIN_MANIFEST,
@@ -284,7 +283,6 @@ def test_every_resolved_script_exists() -> None:
 @pytest.mark.parametrize(
     "build_script",
     [
-        pytest.param(lambda: SLACK_NOTIFY_SCRIPT, id="slack-notify"),
         pytest.param(
             lambda: get_plugin_root() / db_script(plugin_root=get_plugin_root()),
             id="db.sh",

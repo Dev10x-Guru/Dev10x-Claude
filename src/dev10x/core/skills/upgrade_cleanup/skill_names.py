@@ -10,8 +10,10 @@ rows, a ``SKILL_NAME_ALIASES`` entry in
 
 The table is empty between extractions. The B1–B3 rows (``dev10x-qa``,
 ``dev10x-infra``, ``dev10x-db``) shipped in 0.114.0 and 0.115.0 and were
-retired at 0.116.0 (GH-1865). Every write takes the file's lock and lands
-atomically, and a second run finds nothing left to rewrite.
+retired at 0.116.0 (GH-1865). B4 (GH-1567) adds the seven skills that moved
+to ``dev10x-comm``; they ship in 0.116.0, so their rows end two releases
+later. Every write takes the file's lock and lands atomically, and a second
+run finds nothing left to rewrite.
 """
 
 from __future__ import annotations
@@ -40,7 +42,29 @@ class SkillNameAlias:
         return _invocation(text=self.old), _invocation(text=self.new)
 
 
-SKILL_NAME_ALIASES: tuple[SkillNameAlias, ...] = ()
+COMM_EXTRACTION_ALIAS_REMOVED_IN = "0.118.0"
+
+_MOVED_IN_COMM_EXTRACTION: dict[str, tuple[str, ...]] = {
+    "dev10x-comm": (
+        "bus",
+        "gchat",
+        "gog",
+        "overwatch",
+        "slack",
+        "slack-setup",
+        "voice-channel",
+    ),
+}
+
+SKILL_NAME_ALIASES: tuple[SkillNameAlias, ...] = tuple(
+    SkillNameAlias(
+        old=f"dev10x:{skill}",
+        new=f"{plugin}:{skill}",
+        removed_in=COMM_EXTRACTION_ALIAS_REMOVED_IN,
+    )
+    for plugin, skills in _MOVED_IN_COMM_EXTRACTION.items()
+    for skill in skills
+)
 
 
 @dataclass(frozen=True)

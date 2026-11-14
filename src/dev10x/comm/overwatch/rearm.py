@@ -23,7 +23,7 @@ from dev10x.comm.skills.bus.maildir import SessionStatus
 log = logging.getLogger(__name__)
 
 RELAY_AGENT = "relay"
-REARM_PROMPT = "/dev10x:overwatch relay"
+REARM_PROMPT = "/dev10x-comm:overwatch relay"
 READY_STATES = ("idle", "done")
 CONFIRMED_BY = "daemon-boot"
 BACKOFF_AFTER = 12

@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from dev10x.skills.permission.catalog_rules import scan_plugin_scripts
 
-PLUGIN_ROOT = Path(__file__).resolve().parents[3]
+PLUGIN_ROOT = Path(__file__).resolve().parents[3] / "plugins" / "comm"
 BUS_SCRIPTS = [
     PLUGIN_ROOT / "skills" / "bus" / "scripts" / name
     for name in ("send.py", "watch.py", "done.py", "status.py", "board.py")

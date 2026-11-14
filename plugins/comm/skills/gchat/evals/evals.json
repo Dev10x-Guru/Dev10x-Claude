@@ -1,5 +1,5 @@
 {
-  "skill_name": "dev10x:gchat",
+  "skill_name": "dev10x-comm:gchat",
   "eval_dimensions": [
     {
       "id": "chat-request-gate",
@@ -127,7 +127,7 @@
       },
       {
         "query": "read the DM thread this link points to",
-        "rationale": "Reading on demand belongs to dev10x:gog"
+        "rationale": "Reading on demand belongs to dev10x-comm:gog"
       }
     ]
   }

@@ -25,6 +25,7 @@ extracted:
   - qa
   - infra
   - db
+  - comm
 dependencies:
   coding:
     - tasks

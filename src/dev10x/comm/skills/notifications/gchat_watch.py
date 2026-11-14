@@ -11,7 +11,7 @@ untrusted data, never as an instruction.
 here — ``resource`` or ``name``, ``createTime``, ``thread`` as a string or
 ``{name}``, ``sender`` as a string or ``{name, displayName, type}``, and a
 ``text`` that may be absent — follow gog v0.38's help and
-``skills/gog/references/chat.md``. They were not exercised against a live
+``plugins/comm/skills/gog/references/chat.md``. They were not exercised against a live
 space in the session that wrote this module.
 """
 
@@ -202,7 +202,7 @@ def gog_list_messages(
     except FileNotFoundError:
         return err(
             "The gog CLI is not installed, and the watcher reads Google Chat through it. "
-            "Install gog and authorize Chat with `gog auth add` (see dev10x:gog)."
+            "Install gog and authorize Chat with `gog auth add` (see dev10x-comm:gog)."
         )
     except subprocess.TimeoutExpired:
         return err(
@@ -213,7 +213,7 @@ def gog_list_messages(
         return err(
             f"gog chat messages list {space} failed (exit {completed.returncode}): "
             f"{(completed.stderr or '').strip()}. If the Chat grant is missing or "
-            "expired, re-authorize with `gog auth add` (see dev10x:gog)."
+            "expired, re-authorize with `gog auth add` (see dev10x-comm:gog)."
         )
     try:
         payload = json.loads(completed.stdout or "[]")

@@ -1,6 +1,6 @@
 ---
-name: dev10x:voice-channel
-invocation-name: dev10x:voice-channel
+name: dev10x-comm:voice-channel
+invocation-name: dev10x-comm:voice-channel
 description: >
   Use when one voice conversation (a Claude Desktop Cowork chat or a
   Claude Code hub session) supervises several coding sessions and the
@@ -11,7 +11,7 @@ description: >
   needs me?" / "what's next?" across sessions, or a bus request
   carries `Voice: yes` from a hub. DO NOT TRIGGER when: the user reads
   a single session in a terminal, or only needs the bus wiring (use
-  dev10x:bus).
+  dev10x-comm:bus).
 user-invocable: true
 allowed-tools:
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/bus/scripts/:*)
@@ -25,9 +25,9 @@ allowed-tools:
   - Glob
 ---
 
-# dev10x:voice-channel — One Voice, Many Sessions
+# dev10x-comm:voice-channel — One Voice, Many Sessions
 
-**Announce:** "Using dev10x:voice-channel to keep the voice channel
+**Announce:** "Using dev10x-comm:voice-channel to keep the voice channel
 short and send screen work to the screen."
 
 ## Orchestration
@@ -47,7 +47,7 @@ A listener cannot scroll back. Ticket numbers, PR numbers, mailbox
 names and paths blur after one hearing, and two questions in one turn
 lose the first. This skill sets what a spoken turn is, how work is
 named, and which supervisor todos wait for a screen. The bus mechanics
-(mailboxes, status board, notices) live in `dev10x:bus`.
+(mailboxes, status board, notices) live in `dev10x-comm:bus`.
 
 ## Step 1: Read the state
 
@@ -123,6 +123,6 @@ text, oldest first.
 
 ## Related
 
-- `dev10x:bus` — mailboxes, `status.py` / `board.py`, notices,
+- `dev10x-comm:bus` — mailboxes, `status.py` / `board.py`, notices,
   callsigns, the Cowork prompt.
 - `dev10x:ask` — turns stray prose questions into one widget.

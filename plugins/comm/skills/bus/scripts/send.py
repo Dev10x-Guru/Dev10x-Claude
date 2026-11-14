@@ -7,7 +7,11 @@
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "lib"))
+
+from core_src import add_core_src  # noqa: E402
+
+add_core_src(script=Path(__file__))
 
 from dev10x.skills.bus.send import main  # noqa: E402
 

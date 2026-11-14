@@ -7,7 +7,7 @@
 ## Problem
 
 PR review requests are posted to Slack today via `dev10x:request-review`
-→ `dev10x:slack-review-request` → `dev10x:slack`. The team also wants the
+→ `dev10x:slack-review-request` → `dev10x-comm:slack`. The team also wants the
 same review request delivered to a **Google Chat** space, in parallel with
 Slack (Slack stays as-is).
 
@@ -69,7 +69,7 @@ of keeping the `uvx`-distributed base env lean, and the direct-HTTP-client
 approach preferred for App-JWT flows (GH-499). `google-auth` was considered
 and rejected as an unnecessary dependency for two well-understood calls.
 
-**Setup (documented in the `dev10x:gchat` skill):**
+**Setup (documented in the `dev10x-comm:gchat` skill):**
 
 - Create a Chat app in a Google Cloud project, publish it **privately** to the
   Workspace (not the Marketplace), and attach a service account.
@@ -88,7 +88,7 @@ the target space.
 
 ## Architecture (mirrors the Slack pair)
 
-### 1. `dev10x:gchat` — transport (mirrors `dev10x:slack`)
+### 1. `dev10x-comm:gchat` — transport (mirrors `dev10x-comm:slack`)
 
 - Resolves the SA-key JSON from the keyring (`service=gchat`, `key=sa_key`).
 - Resolves the space alias → space ID from `gchat-config.yaml`.
@@ -114,14 +114,14 @@ Flow, mirroring the Slack skill:
    (`src/dev10x/skills/notifications/gchat_review_request.py`) reads
    `gchat-config-code-review-requests.yaml`, resolves the space + mentions,
    fetches PR title + JTBD from the body, formats the message.
-4. **Confirm + post** — delegate to `dev10x:gchat` to send.
+4. **Confirm + post** — delegate to `dev10x-comm:gchat` to send.
 
 Returns `skip` / `ask` / posted, same JSON shape as the Slack prepare output
 (`{skip, ask, space, message, reason}`).
 
 ### 3. Config files (in `~/.claude/memory/Dev10x/`, same location as Slack)
 
-Kept alongside the Slack config for parity — the current `dev10x:slack` skill
+Kept alongside the Slack config for parity — the current `dev10x-comm:slack` skill
 still reads its config from `~/.claude/memory/Dev10x/`.
 
 `gchat-config.yaml`:

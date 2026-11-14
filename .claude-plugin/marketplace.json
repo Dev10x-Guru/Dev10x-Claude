@@ -11,7 +11,7 @@
     {
       "name": "dev10x",
       "source": "./",
-      "description": "v0.116.0.dev0 — 98 skills for structured commits, PR lifecycle, branch hygiene, ticket management, task tracking, code review, and scoping in Claude Code.",
+      "description": "v0.116.0.dev0 — 91 skills for structured commits, PR lifecycle, branch hygiene, ticket management, task tracking, code review, and scoping in Claude Code.",
       "version": "0.116.0.dev0",
       "keywords": [
         "git", "commits", "pull-requests", "code-review",
@@ -41,6 +41,13 @@
       "description": "v0.116.0.dev0 — 3 skills for read-only database work: query planning, a validated psql wrapper, and SQL handoff for changes a person runs.",
       "version": "0.116.0.dev0",
       "keywords": ["database", "postgres", "psql", "sql", "read-only"]
+    },
+    {
+      "name": "dev10x-comm",
+      "source": "./plugins/comm",
+      "description": "v0.116.0.dev0 — 7 skills for team and session messaging: Slack and Google Chat notifications, the gog Workspace CLI, the local session bus, Overwatch, and voice supervision.",
+      "version": "0.116.0.dev0",
+      "keywords": ["slack", "google-chat", "gog", "bus", "notifications"]
     }
   ]
 }

@@ -1,6 +1,6 @@
 # Watching Google Chat
 
-Depth for `dev10x:gchat` § Watching threads and spaces (GH-1612,
+Depth for `dev10x-comm:gchat` § Watching threads and spaces (GH-1612,
 GH-1682).
 Code: `dev10x.comm.skills.notifications.gchat_watch`.
 
@@ -40,7 +40,7 @@ Code: `dev10x.comm.skills.notifications.gchat_watch`.
 
 A watch `gog` cannot read (missing binary, refused grant, timeout)
 reports `FAILED` and does not stop the others; install gog and run
-`gog auth add` (see `dev10x:gog`) when it persists.
+`gog auth add` (see `dev10x-comm:gog`) when it persists.
 `poll` exits non-zero with `ERROR <reason>` on stderr only when the
 watch store cannot be read or written.
 
@@ -98,7 +98,7 @@ Each message is classified deterministically, in order:
 
 Several matches, or none, leave the message `UNROUTED`.
 The matched Role resolves to the newest registry hello's `Reply-To`, as
-`dev10x:bus` § Protocol describes.
+`dev10x-comm:bus` § Protocol describes.
 
 ## Limits
 

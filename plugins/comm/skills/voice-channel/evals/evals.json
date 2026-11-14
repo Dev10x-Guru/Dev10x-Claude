@@ -1,5 +1,5 @@
 {
-  "skill_name": "dev10x:voice-channel",
+  "skill_name": "dev10x-comm:voice-channel",
   "eval_dimensions": [
     {
       "id": "spoken-turn-shape",
@@ -101,7 +101,7 @@
     "should_not_trigger": [
       {
         "query": "connect this session to the bus",
-        "rationale": "Bus wiring only — use dev10x:bus"
+        "rationale": "Bus wiring only — use dev10x-comm:bus"
       },
       {
         "query": "review this PR diff with me",

@@ -11,7 +11,7 @@ user-invocable: true
 invocation-name: dev10x:slack-review-request
 allowed-tools:
   - AskUserQuestion
-  - Skill(dev10x:slack)
+  - Skill(dev10x-comm:slack)
   - Bash(uvx dev10x skill notify slack-review-prepare:*)
   - Bash(gh pr view:*)
 ---
@@ -148,10 +148,10 @@ If user chooses "Skip", done. If "Post to Slack", proceed to Step 4.
 
 ### Step 4: Send
 
-Delegate to `Skill(dev10x:slack)` for posting. Write the message to
+Delegate to `Skill(dev10x-comm:slack)` for posting. Write the message to
 a temporary file and pass it:
 
-`Skill(skill="dev10x:slack", args="--channel {channel} --message-file {temp_file}")`
+`Skill(skill="dev10x-comm:slack", args="--channel {channel} --message-file {temp_file}")`
 
 **NEVER call `slack-review-request.py send` or `slack-notify.py`
 directly** — delegate to the slack skill (which now invokes

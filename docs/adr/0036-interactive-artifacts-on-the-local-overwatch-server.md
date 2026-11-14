@@ -9,7 +9,7 @@ return channel, the fate of the claude.ai path and the pluggable
 share menu before acceptance.
 
 Related: GH-1938, ADR-0011 (file atomicity), ADR-0035 (local chat
-bus), `dev10x:overwatch`, `dev10x:bus`, `dev10x:artifact`.
+bus), `dev10x-comm:overwatch`, `dev10x-comm:bus`, `dev10x:artifact`.
 
 ## Context
 

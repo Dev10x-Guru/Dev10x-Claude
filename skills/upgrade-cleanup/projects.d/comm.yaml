@@ -19,3 +19,5 @@ base_permissions:
   - "mcp__plugin_dev10x_cli__chat_queue_list"
   - "mcp__plugin_dev10x_cli__chat_queue_claim"
   - "mcp__plugin_dev10x_cli__chat_queue_ack"
+  # --- dev10x-comm skills (GH-1567) ---
+  - "Skill(dev10x-comm:*)"

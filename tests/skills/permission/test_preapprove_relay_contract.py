@@ -1,6 +1,7 @@
 """Overwatch pre-approve writes only triaged rules, never a blanket (GH-1799).
 
-The relay subagent briefed by `skills/overwatch/references/preapprove.md`
+The relay subagent briefed by
+`plugins/comm/skills/overwatch/references/preapprove.md`
 is the only writer on the pre-approve path. These tests pin the two halves
 of that contract: the brief routes every target through
 `permission_triage` and keeps only a `grant` verdict, and triage refuses
@@ -14,7 +15,9 @@ from pathlib import Path
 import pytest
 from dev10x.skills.permission.grant import Verdict, triage
 
-_BRIEF = Path(__file__).resolve().parents[3] / "skills/overwatch/references/preapprove.md"
+_BRIEF = (
+    Path(__file__).resolve().parents[3] / "plugins/comm/skills/overwatch/references/preapprove.md"
+)
 
 
 @pytest.fixture

@@ -1,11 +1,12 @@
 """Importable Slack notification helpers (GH-442).
 
-Extracted from ``skills/slack/slack-notify.py`` so the logic is available
-when dev10x is installed via ``uvx`` — where the ``skills/`` data files are
-not part of the wheel and cannot be located via filesystem traversal.
+Extracted from the slack skill's ``slack-notify.py`` so the logic is
+available when dev10x is installed via ``uvx`` — where the ``skills/`` data
+files are not part of the wheel and cannot be located via filesystem
+traversal.
 
-The standalone ``skills/slack/slack-notify.py`` uv-script remains the entry
-point for direct plugin-checkout invocations; this module powers the
+The standalone ``slack-notify.py`` uv-script, shipped by ``dev10x-comm``
+under ``skills/slack/``, remains the entry point for direct invocations; this module powers the
 ``dev10x skill notify slack-send`` CLI command and any in-process callers.
 
 ``slack_sdk`` is an optional fast path (GH-917). The in-process callers —

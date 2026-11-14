@@ -505,6 +505,21 @@ The supervisor decided the Stage B open decisions on 2026-10-19
      (`…/dev10x-db/<ver>/`, its newest version). With neither present,
      `query` returns an error that names `dev10x-db`. B9's coding
      scripts, which `cli` tools run, can use the same resolver.
+   - B4 (GH-1567) moves all seven skills `plugins.yaml` assigns to
+     `comm`: the five in the target table plus `overwatch` and
+     `voice-channel`, which were mapped to comm later and call the bus
+     scripts through `${CLAUDE_PLUGIN_ROOT}`. Its fragments
+     (`command-skill-map.d/comm.yaml`, `projects.d/comm.yaml`,
+     `hooks/hooks.d/comm.json`) stay in core, and `projects.d/comm.yaml`
+     gains `Skill(dev10x-comm:*)`. The Chat bus, Overwatch and
+     notification Python stays in `dev10x.comm`.
+   - Core no longer reaches into the satellite: the slack-review-request
+     `send` path posts through the in-package `slack_notify` module, and
+     the investigate `reply.sh` calls `dev10x skill notify slack-send`,
+     instead of running `slack-notify.py` by path. The bus shims find
+     core's `src/` through `skills/bus/lib/core_src.py`: under their own
+     root, under a checkout's root, or beside the installed satellite in
+     the cache at core's newest version.
 5. **Old names stay readable for two releases (GH-1564).** Each moved
    skill gets one `SKILL_NAME_ALIASES` row, and
    `dev10x config migrate-skill-names` rewrites user configs. QA ships
@@ -518,6 +533,10 @@ The supervisor decided the Stage B open decisions on 2026-10-19
      after that release.
    - B3 (GH-1566) also lands before `0.114.0`, so its three rows end
      at `0.116.0` and the register entry stays put.
+   - GH-1865 retired those rows and the register entry at `0.116.0`.
+     B4 (GH-1567) ships in `0.116.0`, so its seven rows end at
+     `0.118.0` and the register entry returns with that removal
+     version.
 
 ### Open decisions (record before the dependent step)
 

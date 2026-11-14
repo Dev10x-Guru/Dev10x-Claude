@@ -1,24 +1,24 @@
 ---
-name: dev10x:slack
+name: dev10x-comm:slack
 description: >
   Send notifications to Slack channels with support for threads,
   file uploads, message updates, and user group mentions.
   TRIGGER when: sending messages, uploading files, or updating
   messages in Slack channels.
   DO NOT TRIGGER when: setting up Slack integration (use
-  dev10x:slack-setup), or posting review requests (use
+  dev10x-comm:slack-setup), or posting review requests (use
   dev10x:slack-review-request).
 user-invocable: true
-invocation-name: dev10x:slack
+invocation-name: dev10x-comm:slack
 allowed-tools:
   - AskUserQuestion
   - Bash(uvx dev10x skill notify slack-send:*)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/slack/slack-notify.py:*)
 ---
 
-# dev10x:slack — Slack Notifications
+# dev10x-comm:slack — Slack Notifications
 
-**Announce:** "Using dev10x:slack to send a Slack notification."
+**Announce:** "Using dev10x-comm:slack to send a Slack notification."
 
 ## Orchestration
 

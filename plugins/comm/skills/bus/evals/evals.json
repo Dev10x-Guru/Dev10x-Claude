@@ -1,5 +1,5 @@
 {
-  "skill_name": "dev10x:bus",
+  "skill_name": "dev10x-comm:bus",
   "eval_dimensions": [
     {
       "id": "peer-request-gate",
@@ -129,8 +129,8 @@
     {
       "id": "start-runs-background-watcher-and-self-tests",
       "name": "start runs the background watcher and self-tests",
-      "description": "/dev10x:bus start registers, watches and self-tests.",
-      "input": "/dev10x:bus start",
+      "description": "/dev10x-comm:bus start registers, watches and self-tests.",
+      "input": "/dev10x-comm:bus start",
       "assertions": [
         {
           "dimension": "sanctioned-watcher",

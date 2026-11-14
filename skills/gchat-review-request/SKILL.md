@@ -13,7 +13,7 @@ allowed-tools:
   - Bash(uvx dev10x skill notify gchat-review-prepare:*)
   - Bash(gh pr view:*)
   - AskUserQuestion
-  - Skill(dev10x:gchat)
+  - Skill(dev10x-comm:gchat)
 ---
 
 # Google Chat Review Request
@@ -141,17 +141,17 @@ by hand on this path.
 
 ### Step 4: Send
 
-Delegate to `Skill(dev10x:gchat)` — write the message to a temp file and pass it:
+Delegate to `Skill(dev10x-comm:gchat)` — write the message to a temp file and pass it:
 
-`Skill(skill="dev10x:gchat", args="--space {space} --message-file {temp_file}")`
+`Skill(skill="dev10x-comm:gchat", args="--space {space} --message-file {temp_file}")`
 
 When `card` is non-null, write that JSON to a second temp file and pass
 both halves so the mentions still notify:
 
-`Skill(skill="dev10x:gchat", args="--space {space} --message-file {temp_file} --card-file {card_file} --fallback-text {fallback_text}")`
+`Skill(skill="dev10x-comm:gchat", args="--space {space} --message-file {temp_file} --card-file {card_file} --fallback-text {fallback_text}")`
 
 **NEVER** call the CLI `gchat-send` directly from here — delegate to the
-`dev10x:gchat` skill so transport rules stay centralized.
+`dev10x-comm:gchat` skill so transport rules stay centralized.
 
 Report success: space alias and returned message name.
 

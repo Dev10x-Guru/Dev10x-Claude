@@ -326,7 +326,7 @@ def _collect_uv_shebang_scripts() -> list[Path]:
             first_line = p.read_text().split("\n", 1)[0]
             if "uv run" in first_line:
                 scripts.append(p)
-    standalone = REPO_ROOT / "skills" / "slack" / "slack-notify.py"
+    standalone = REPO_ROOT / "plugins" / "comm" / "skills" / "slack" / "slack-notify.py"
     if standalone.exists() and "uv run" in standalone.read_text().split("\n", 1)[0]:
         scripts.append(standalone)
     return scripts

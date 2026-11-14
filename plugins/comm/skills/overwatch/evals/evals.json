@@ -1,5 +1,5 @@
 {
-  "skill_name": "dev10x:overwatch",
+  "skill_name": "dev10x-comm:overwatch",
   "eval_dimensions": [
     {
       "id": "verbatim-relay",
@@ -103,7 +103,7 @@
       "id": "serve-reports-url",
       "name": "Serve starts in the background",
       "description": "The user says 'start overwatch'.",
-      "input": "/dev10x:overwatch serve",
+      "input": "/dev10x-comm:overwatch serve",
       "assertions": [
         {
           "dimension": "serve-in-background",
