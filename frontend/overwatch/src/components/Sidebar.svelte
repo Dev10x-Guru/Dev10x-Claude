@@ -15,6 +15,7 @@
     saveList,
     togglePin,
   } from "../lib/prefs";
+  import { formatRoute, type ArtifactIndexEntry } from "../lib/artifact";
   import { arrange, buildTree, isActive, markOf, matches } from "../lib/tree";
   import type { Session } from "../lib/types";
 
@@ -24,12 +25,31 @@
     pins: string[];
     token: string;
     pending: boolean;
+    artifacts?: ArtifactIndexEntry[];
+    artifact?: string;
     onselect: (sessionId: string) => void;
     onpin: (sessionId: string) => void;
     run: (path: string, body: Record<string, unknown>, what: string) => Promise<boolean>;
   }
 
-  let { sessions, selected, pins, token, pending, onselect, onpin, run }: Props = $props();
+  let {
+    sessions,
+    selected,
+    pins,
+    token,
+    pending,
+    artifacts = [],
+    artifact = "",
+    onselect,
+    onpin,
+    run,
+  }: Props = $props();
+
+  const pages = $derived(
+    artifacts.filter((each) =>
+      `${each.title} ${each.owner.name} ${each.id}`.toLowerCase().includes(query.trim().toLowerCase()),
+    ),
+  );
 
   let query = $state("");
   let collapsed = $state<Record<string, boolean>>({});
@@ -186,6 +206,29 @@
   </div>
 
   <div class="scroll">
+    {#if pages.length}
+      <section class="group" aria-label="Artifacts">
+        <p class="group-head">Artifacts</p>
+        <ul class="sessions flat">
+          {#each pages as page (page.id)}
+            <li class={["leaf", { current: page.id === artifact }]}>
+              <a
+                class="pick page"
+                href={formatRoute(page.id)}
+                title={`${page.title} · ${page.owner.name} · revision ${page.revision}`}
+                aria-current={page.id === artifact ? "page" : undefined}
+              >
+                <span class={["page-dot", { live: page.owner_live }]} aria-hidden="true"></span>
+                <span class="leaf-name">{page.title}</span>
+                <span class="leaf-project">{page.owner.name}</span>
+              </a>
+              <span class="refs">r{page.revision}</span>
+            </li>
+          {/each}
+        </ul>
+      </section>
+    {/if}
+
     {#if pinned.length}
       <section class="group" aria-label="Pinned">
         <p class="group-head">Pinned</p>
@@ -517,6 +560,23 @@
     text-decoration: underline;
     text-decoration-color: var(--rule-strong);
     text-underline-offset: 3px;
+  }
+
+  .page {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .page-dot {
+    flex: none;
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 50%;
+    background: var(--ink-faint);
+  }
+
+  .page-dot.live {
+    background: var(--working);
   }
 
   .leaf-name {

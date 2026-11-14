@@ -2,8 +2,55 @@ import type { ActionResult, ProjectDetail, SessionDetail, Snapshot } from "./typ
 
 export type Connection = "connecting" | "live" | "lost";
 
+export type TokenCheck = "ok" | "rejected" | "down";
+
+export interface FoundToken {
+  token: string;
+  remembered: boolean;
+}
+
+const TOKEN_KEY = "overwatch.token";
+
 export function readToken(search: string = location.search): string {
   return new URLSearchParams(search).get("token") ?? "";
+}
+
+export function browserStorage(): Storage | null {
+  try {
+    return globalThis.localStorage ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export function resolveToken(search: string, storage: Storage | null): FoundToken {
+  const given = readToken(search);
+  try {
+    if (given) {
+      storage?.setItem(TOKEN_KEY, given);
+      return { token: given, remembered: false };
+    }
+    return { token: storage?.getItem(TOKEN_KEY) ?? "", remembered: true };
+  } catch {
+    return { token: given, remembered: false };
+  }
+}
+
+export function forgetToken(storage: Storage | null): void {
+  try {
+    storage?.removeItem(TOKEN_KEY);
+  } catch {
+    // A blocked storage has nothing to forget.
+  }
+}
+
+export async function checkToken(token: string): Promise<TokenCheck> {
+  try {
+    const response = await fetch("/api/sessions", { headers: { "X-Overwatch-Token": token } });
+    return response.status === 403 ? "rejected" : "ok";
+  } catch {
+    return "down";
+  }
 }
 
 export async function post(
