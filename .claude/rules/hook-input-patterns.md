@@ -1,7 +1,6 @@
 ---
 paths:
   - "hooks/**"
-  - "src/dev10x/hooks/**"
   - "src/dev10x/*/hooks/**"
   - "src/dev10x/core/validators/**"
 ---

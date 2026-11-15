@@ -39,7 +39,7 @@ after `EnterWorktree`.
   argument" from "the server broke".
 - **Domain code resolves CWD via the domain seam, not `subprocess_utils`**
   (GH-584, audit N21): `domain/` modules (e.g. `domain/git_context.py`)
-  call `dev10x.domain.cwd_resolver.resolve_cwd()` instead of importing
+  call `dev10x.core.domain.cwd_resolver.resolve_cwd()` instead of importing
   `subprocess_utils.effective_cwd` — ADR-0008 Rule #1 keeps `domain/`
   free of outward dependencies. The infra layer (`subprocess_utils`)
   wires the concrete `effective_cwd` resolver into that seam at import

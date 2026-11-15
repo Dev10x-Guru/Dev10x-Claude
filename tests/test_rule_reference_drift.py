@@ -69,12 +69,6 @@ _SPECULATIVE_GLOBS: frozenset[tuple[str, str]] = frozenset(
     {
         # The alternate workflow extension; no workflow uses it yet.
         ("github-workflows.md", ".github/workflows/**/*.yaml"),
-        # GH-1976: NS-33 deleted the src/dev10x/{hooks,validators} shim
-        # packages; the rules' paths: need a supervisor .claude/ edit.
-        ("hook-dispatch-patterns.md", "src/dev10x/hooks/**"),
-        ("hook-input-patterns.md", "src/dev10x/hooks/**"),
-        ("hook-state-schema.md", "src/dev10x/hooks/**"),
-        ("hook-validator-profiles.md", "src/dev10x/validators/**"),
     }
 )
 

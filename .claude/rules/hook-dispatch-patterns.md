@@ -1,7 +1,6 @@
 ---
 paths:
   - "hooks/**"
-  - "src/dev10x/hooks/**"
   - "src/dev10x/*/hooks/**"
   - "tests/hooks/**"
 ---
@@ -117,7 +116,7 @@ full CLI import cost — even for trivial hooks. SessionStart fired
 - The Python script uses a PEP 723 inline-metadata shebang
   (`#!/usr/bin/env -S uv run --script`)
 - The orchestrator imports feature functions from
-  `dev10x.hooks.*` and runs them in-process
+  `dev10x.core.hooks.*` and runs them in-process
 
 ### Consolidation checklist
 
