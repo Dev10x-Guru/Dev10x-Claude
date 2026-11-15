@@ -3,7 +3,6 @@ paths:
   - "hooks/scripts/validate-*.py"
   - "src/dev10x/core/hooks/hook_transport.py"
   - "src/dev10x/core/validators/**"
-  - "src/dev10x/validators/**"
   - "tests/hooks/test_hook_transport.py"
   - "tests/validators/**"
 ---
@@ -325,13 +324,13 @@ stable, flip the flag to `False` and bump the tier appropriately.
 Register the tier by appending a `ValidatorSpec` to `_SPECS` in
 `src/dev10x/core/validators/__init__.py` (the typed dataclass replaced the
 old `_VALIDATOR_SPECS` 5-tuple — see
-`dev10x.validators.registry.ValidatorSpec`):
+`dev10x.core.validators.registry.ValidatorSpec`):
 
 ```python
 _SPECS: list[ValidatorSpec] = [
     ...
     ValidatorSpec(
-        module_path="dev10x.validators.new_rule",
+        module_path="dev10x.core.validators.new_rule",
         class_name="NewRuleValidator",
         rule_id="DX009",
         profile=ProfileTier.STANDARD,

@@ -53,7 +53,7 @@ registration:
 
 All MCP tools follow a two-layer pattern: internal functions return a
 typed `Result[T]` (`SuccessResult` or `ErrorResult` from
-`dev10x.domain.common.result`), and the `@server.tool()` handler at the
+`dev10x.core.domain.common.result`), and the `@server.tool()` handler at the
 MCP boundary routes the result through `to_wire()` — which asserts
 `isinstance(result, ResultProtocol)` then calls `.to_dict()` — to
 produce the wire-format dict (ADR-0009).
@@ -61,7 +61,7 @@ produce the wire-format dict (ADR-0009).
 ```python
 # Internal module (audit/release/monitor/permission/plan/skill_index/
 # utilities/github/db): public functions return Result[T].
-from dev10x.domain.common.result import Result, err, ok
+from dev10x.core.domain.common.result import Result, err, ok
 
 async def collect_prs(...) -> Result[dict[str, Any]]:
     if error_occurs:
@@ -71,7 +71,7 @@ async def collect_prs(...) -> Result[dict[str, Any]]:
 # MCP server boundary (src/dev10x/mcp/server_cli.py): route through
 # to_wire() so external consumers see the uniform wire format and a
 # handler that forgot to return a Result fails loud at the boundary.
-from dev10x.domain.common.result import to_wire
+from dev10x.core.domain.common.result import to_wire
 
 @server.tool()
 async def collect_prs(...) -> dict:
@@ -114,7 +114,7 @@ behind it) touches shared state, it MUST follow the write-safety model:
 
 - **New shared-state file** — a JSON/YAML store or log under
   `~/.config/Dev10x/`, a repo's `.claude/`, or a home cache — routes
-  through `dev10x.domain.file_locks`, never a bare `Path.write_text` /
+  through `dev10x.core.domain.file_locks`, never a bare `Path.write_text` /
   `open(…, "w"|"a")`: `locked_json_update` / `locked_yaml_update` for a
   read-modify-write cycle (or `file_lock` wrapping a typed load/save
   when the store deserializes to a dataclass), `atomic_write_text` for
@@ -138,7 +138,7 @@ behind it) touches shared state, it MUST follow the write-safety model:
   one that spawns its own subprocess does not, which is another reason
   not to.
 - **Transient external failures retry once or twice (GH-1423).**
-  `dev10x.domain.retry` holds the policy — `is_retryable`,
+  `dev10x.core.domain.retry` holds the policy — `is_retryable`,
   `is_retryable_status`, `RetryPolicy.delay_for` — and `_gh_api_raw`
   and `call_slack_api` adopt it. It is pure policy, not a driver,
   because the two paths are async-over-subprocess and sync-urllib
@@ -301,7 +301,7 @@ So a new tool needs **three** edits, not two:
 1. the `@server.tool()` registration,
 2. a row in `references/mcp-tools/availability.md`,
 3. an entry in `base_permissions` — or, for a tool that mutates state,
-   an entry in `dev10x.skills.permission.enumerate_mcp.WRITE_TOOLS_NOT_SEEDED`
+   an entry in `dev10x.core.skills.permission.enumerate_mcp.WRITE_TOOLS_NOT_SEEDED`
    so it keeps prompting on purpose.
 
 `permission enumerate-mcp` reports un-catalogued tools at runtime from

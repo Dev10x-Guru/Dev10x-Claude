@@ -28,7 +28,7 @@ all dev10x subcommands.
 
 ## Config Cache Is Not Committed (GH-1075)
 
-`dev10x.config.loader.load_config` caches the parsed
+`dev10x.core.config.loader.load_config` caches the parsed
 `command-skill-map.yaml` as a sibling `.msgpack`. That cache is
 **git-ignored**, so the first load in a fresh checkout pays a cold
 YAML parse — `test_cold_start_yaml_plus_compile` measures ~15.7ms
