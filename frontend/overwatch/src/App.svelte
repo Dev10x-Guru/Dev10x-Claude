@@ -117,7 +117,10 @@
   const groups = $derived(bucket(sessions));
   const waitingCount = $derived(groups["needs-you"].length);
   const listed = $derived(needsOnly && waitingCount ? groups["needs-you"] : sessions);
-  const current = $derived(pickSession(sessions, chosen));
+  const artifactOwner = $derived(
+    route ? (snapshot?.artifacts?.find((each) => each.id === route?.id)?.owner.session_id ?? "") : "",
+  );
+  const current = $derived(pickSession(sessions, artifactOwner || chosen));
   const errors = $derived(Object.entries(snapshot?.errors ?? {}));
   const otherQuestions = $derived(
     sessions.filter((session) => {

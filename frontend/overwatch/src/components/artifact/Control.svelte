@@ -4,13 +4,13 @@
   import FormControl from "./FormControl.svelte";
   import type { ControlBlock } from "../../lib/artifact";
 
-  let { block }: { block: ControlBlock } = $props();
+  let { block, nested = false }: { block: ControlBlock; nested?: boolean } = $props();
 </script>
 
 {#if block.type === "button"}
   <ButtonControl {block} />
 {:else if block.type === "choice"}
-  <ChoiceControl {block} />
+  <ChoiceControl {block} {nested} />
 {:else}
-  <FormControl {block} />
+  <FormControl {block} {nested} />
 {/if}

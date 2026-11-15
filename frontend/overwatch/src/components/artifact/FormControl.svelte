@@ -3,7 +3,7 @@
   import type { FormBlock } from "../../lib/artifact";
   import { getControlHost } from "../../lib/artifact-host";
 
-  let { block }: { block: FormBlock } = $props();
+  let { block, nested = false }: { block: FormBlock; nested?: boolean } = $props();
 
   const host = getControlHost();
   const status = $derived(host.status(block.id));
@@ -29,7 +29,7 @@
 
 <form class="control" onsubmit={submit} aria-busy={status.state === "sending"}>
   <fieldset disabled={!usable}>
-    <legend>{block.label}</legend>
+    <legend class:hidden={nested}>{block.label}</legend>
     {#each block.fields as field (field.name)}
       <label class="field">
         <span class="field-label">{field.label}</span>
@@ -82,6 +82,15 @@
   legend {
     padding: 0 var(--space-1);
     font-weight: 650;
+  }
+
+  legend.hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 
   .field {

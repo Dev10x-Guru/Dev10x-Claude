@@ -3,7 +3,7 @@
   import type { ChoiceBlock } from "../../lib/artifact";
   import { getControlHost } from "../../lib/artifact-host";
 
-  let { block }: { block: ChoiceBlock } = $props();
+  let { block, nested = false }: { block: ChoiceBlock; nested?: boolean } = $props();
 
   const host = getControlHost();
   const status = $derived(host.status(block.id));
@@ -13,7 +13,7 @@
 </script>
 
 <fieldset class="control" disabled={!usable} aria-busy={status.state === "sending"}>
-  <legend>{block.label}</legend>
+  <legend class:hidden={nested}>{block.label}</legend>
   {#if block.multi}
     <ul class="checks">
       {#each block.options as option, index (index)}
@@ -56,6 +56,15 @@
     margin-bottom: var(--space-2);
     font-weight: 650;
     overflow-wrap: anywhere;
+  }
+
+  legend.hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 
   .options,
