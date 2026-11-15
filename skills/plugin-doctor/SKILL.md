@@ -4,9 +4,9 @@ description: >
   Diagnose drift between user intent and observed agent behavior in
   Dev10x sessions. Runs pluggable strategies that each detect one
   drift category (MCP-vs-script confusion, missing dir coverage,
-  stale memories, monorepo uv-run-project friction, missing local
-  skill pre-approvals), explain the root cause, and propose a
-  remediation patch — never auto-applied; always confirmed via
+  stale memories, uv-run-project friction, missing local skill
+  pre-approvals, a satellite enabled without core), explain the
+  root cause, and propose a remediation patch — never auto-applied; always confirmed via
   AskUserQuestion.
   TRIGGER when: user hits repeated permission friction despite prior
   cleanup, notices the agent reaching for shell-script fallbacks
