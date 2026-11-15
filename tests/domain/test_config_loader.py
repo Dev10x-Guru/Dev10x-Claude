@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from dev10x.domain.config_loader import ConfigLoader
-from dev10x.domain.documents.config_document import Config
+from dev10x.core.domain.config_loader import ConfigLoader
+from dev10x.core.domain.documents.config_document import Config
 
 
 class TestConfigLoaderProtocol:

@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
-from dev10x.domain.common.result import Result, err, ok
 
 from dev10x.cli import cli
+from dev10x.core.domain.common.result import Result, err, ok
 
 
 @pytest.fixture()
@@ -58,7 +58,7 @@ class TestSlackReviewPrepare:
             captured["pr"] = args.pr  # type: ignore[attr-defined]
             captured["repo"] = args.repo  # type: ignore[attr-defined]
 
-        from dev10x.skills.notifications import slack_review_request
+        from dev10x.comm.skills.notifications import slack_review_request
 
         monkeypatch.setattr(slack_review_request, "cmd_prepare", fake_cmd_prepare)
 
@@ -100,7 +100,7 @@ class TestSlackSend:
             captured["thread_ts"] = thread_ts
             return ok("1234567890.123456")
 
-        from dev10x.skills.notifications import slack_notify
+        from dev10x.comm.skills.notifications import slack_notify
 
         monkeypatch.setattr(slack_notify, "send_slack_message", fake_send)
         monkeypatch.setattr(slack_notify, "set_workspace", lambda name: None)
@@ -140,7 +140,7 @@ class TestSlackSend:
             captured["message"] = message
             return ok("ts")
 
-        from dev10x.skills.notifications import slack_notify
+        from dev10x.comm.skills.notifications import slack_notify
 
         monkeypatch.setattr(slack_notify, "send_slack_message", fake_send)
 
@@ -168,7 +168,7 @@ class TestSlackSend:
         runner: CliRunner,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        from dev10x.skills.notifications import slack_notify
+        from dev10x.comm.skills.notifications import slack_notify
 
         monkeypatch.setattr(
             slack_notify,
@@ -191,7 +191,7 @@ class TestSlackSend:
         tmp_path: Path,
     ) -> None:
         """GH-442: command must succeed even when skills/ dir is absent (uvx install)."""
-        from dev10x.skills.notifications import slack_notify
+        from dev10x.comm.skills.notifications import slack_notify
 
         monkeypatch.setattr(
             slack_notify,
@@ -322,7 +322,7 @@ class TestGchatSend:
             )
             return ok("spaces/A/messages/X")
 
-        from dev10x.skills.notifications import gchat_notify
+        from dev10x.comm.skills.notifications import gchat_notify
 
         monkeypatch.setattr(gchat_notify, "notify_gchat", fake_notify)
 
@@ -490,7 +490,7 @@ class TestGchatSend:
         runner: CliRunner,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        from dev10x.skills.notifications import gchat_notify
+        from dev10x.comm.skills.notifications import gchat_notify
 
         monkeypatch.setattr(
             gchat_notify,
@@ -612,7 +612,7 @@ class TestGchatUpdate:
             )
             return ok(message_name)
 
-        from dev10x.skills.notifications import gchat_notify
+        from dev10x.comm.skills.notifications import gchat_notify
 
         monkeypatch.setattr(gchat_notify, "update_gchat_message", fake_update)
 
@@ -689,7 +689,7 @@ class TestGchatUpdate:
         runner: CliRunner,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        from dev10x.skills.notifications import gchat_notify
+        from dev10x.comm.skills.notifications import gchat_notify
 
         monkeypatch.setattr(
             gchat_notify,
@@ -722,7 +722,7 @@ class TestGchatDelete:
     ) -> None:
         captured: dict[str, object] = {}
 
-        from dev10x.skills.notifications import gchat_notify
+        from dev10x.comm.skills.notifications import gchat_notify
 
         monkeypatch.setattr(
             gchat_notify,
@@ -755,7 +755,7 @@ class TestGchatDelete:
         runner: CliRunner,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        from dev10x.skills.notifications import gchat_notify
+        from dev10x.comm.skills.notifications import gchat_notify
 
         monkeypatch.setattr(
             gchat_notify,
@@ -779,8 +779,8 @@ class TestGchatDelete:
 
 
 def test_gchat_review_prepare_invokes_cmd_prepare(monkeypatch: pytest.MonkeyPatch) -> None:
+    from dev10x.comm.skills.notifications import gchat_review_request
     from dev10x.commands import skill as skill_cmd
-    from dev10x.skills.notifications import gchat_review_request
 
     called: dict = {}
 
@@ -800,8 +800,8 @@ def test_gchat_review_prepare_invokes_cmd_prepare(monkeypatch: pytest.MonkeyPatc
 
 
 def test_gchat_review_prepare_maps_gh_error_to_exit_1(monkeypatch: pytest.MonkeyPatch) -> None:
+    from dev10x.comm.skills.notifications import gchat_review_request
     from dev10x.commands import skill as skill_cmd
-    from dev10x.skills.notifications import gchat_review_request
 
     def boom(args) -> None:  # noqa: ANN001
         raise gchat_review_request.GhCommandError("gh pr view: not found")

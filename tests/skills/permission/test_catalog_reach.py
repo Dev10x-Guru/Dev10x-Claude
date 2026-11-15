@@ -8,17 +8,17 @@ from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
-from dev10x.domain.claude_paths import ClaudeDir
-from dev10x.domain.common.result import ErrorResult, SuccessResult
-from dev10x.domain.file_locks import LockTimeoutError
-from dev10x.skills.permission.catalog_paths import load_catalog_document
-from dev10x.skills.permission.catalog_prune import (
+
+from dev10x.core.domain.claude_paths import ClaudeDir
+from dev10x.core.domain.common.result import ErrorResult, SuccessResult
+from dev10x.core.domain.file_locks import LockTimeoutError
+from dev10x.core.skills.permission import catalog_prune, enumerate_mcp
+from dev10x.core.skills.permission import catalog_write as mod
+from dev10x.core.skills.permission.catalog_paths import load_catalog_document
+from dev10x.core.skills.permission.catalog_prune import (
     prune_messages,
     prune_unmatchable_catalog_rules,
 )
-
-from dev10x.skills.permission import catalog_prune, enumerate_mcp
-from dev10x.skills.permission import catalog_write as mod
 
 CONFIG = {"base_permissions": ["Bash(ls:*)", "Bash(uptime:*)"]}
 

@@ -5,8 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR, ClaudeDir
-from dev10x.domain.dev10x_paths import (
+
+from dev10x.core.domain.claude_paths import CLAUDE_HOME_ENV_VAR, ClaudeDir
+from dev10x.core.domain.dev10x_paths import (
     CONFIG_HOME_ENV_VAR,
     Dev10xConfigDir,
     migrate_all,
@@ -150,7 +151,7 @@ def test_migrate_path_rechecks_inside_lock_when_current_appears(
         current.write_text("winner")
         yield
 
-    monkeypatch.setattr("dev10x.domain.dev10x_paths.file_lock", racing_lock)
+    monkeypatch.setattr("dev10x.core.domain.dev10x_paths.file_lock", racing_lock)
     assert migrate_path(legacy=legacy, current=current) is False
     assert current.read_text() == "winner"
 

@@ -7,10 +7,10 @@ from pathlib import Path
 import pytest
 
 strategy_mod = pytest.importorskip(
-    "dev10x.skills.doctor.strategies.mcp_vs_script_drift",
+    "dev10x.core.skills.doctor.strategies.mcp_vs_script_drift",
     reason="dev10x not installed",
 )
-from dev10x.skills.doctor.strategy import Context  # noqa: E402
+from dev10x.core.skills.doctor.strategy import Context  # noqa: E402
 
 
 class TestDetect:
@@ -169,7 +169,7 @@ class TestDetect:
 
 class TestRemediate:
     def test_memory_finding_maps_to_edit_memory(self) -> None:
-        from dev10x.skills.doctor.strategy import Finding
+        from dev10x.core.skills.doctor.strategy import Finding
 
         finding = Finding(
             strategy_id="mcp-vs-script-drift",
@@ -190,7 +190,7 @@ class TestRemediate:
         assert remediation.action["mcp_tool"] == "mcp__plugin_dev10x_cli__mktmp"
 
     def test_skill_md_finding_maps_to_file_issue(self) -> None:
-        from dev10x.skills.doctor.strategy import Finding
+        from dev10x.core.skills.doctor.strategy import Finding
 
         finding = Finding(
             strategy_id="mcp-vs-script-drift",

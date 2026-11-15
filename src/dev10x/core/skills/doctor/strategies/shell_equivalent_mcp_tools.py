@@ -23,9 +23,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from dev10x.domain.common.mcp_tool_name import looks_shell_equivalent
-from dev10x.skills.doctor.strategy import Context, Finding, Remediation, Strategy
-from dev10x.skills.permission.enumerate_mcp import discover_all_mcp_servers
+from dev10x.core.domain.common.mcp_tool_name import looks_shell_equivalent
+from dev10x.core.skills.doctor.strategy import Context, Finding, Remediation, Strategy
+from dev10x.core.skills.permission.enumerate_mcp import discover_all_mcp_servers
 
 # What stops being enforceable. Named rather than described, because the
 # point is the size of the hole, not the existence of one.

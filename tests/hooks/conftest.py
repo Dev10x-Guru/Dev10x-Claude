@@ -1,7 +1,7 @@
 """Shared fixtures for the hook tests.
 
 ``test_stop_verdict.py`` and ``test_stop_verdict_audience.py`` both
-drive :func:`dev10x.hooks.stop_verdict.decide`, so they need the same
+drive :func:`dev10x.core.hooks.stop_verdict.decide`, so they need the same
 two things: the audit attribution slot emptied around each test, and
 both on-disk markers pointed somewhere other than the real
 ``/tmp/Dev10x``. ``test_block_attribution.py`` needs the first of
@@ -25,7 +25,8 @@ import subprocess
 from pathlib import Path
 
 import pytest
-from dev10x.hooks.audit_emit import clear_decision_attribution
+
+from dev10x.core.hooks.audit_emit import clear_decision_attribution
 
 
 @pytest.fixture(autouse=True)
@@ -78,15 +79,15 @@ def isolated_markers(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Point the cooldown, standby and stand-down markers at a temp dir."""
     marker_dir = tmp_path / "markers"
     monkeypatch.setattr(
-        "dev10x.hooks.stop_verdict._marker_path",
+        "dev10x.core.hooks.stop_verdict._marker_path",
         lambda *, session_id: marker_dir / f"{session_id or 'unknown'}.marker",
     )
     monkeypatch.setattr(
-        "dev10x.hooks.stop_verdict._standby_path",
+        "dev10x.core.hooks.stop_verdict._standby_path",
         lambda *, session_id: marker_dir / f"{session_id or 'unknown'}.standby",
     )
     monkeypatch.setattr(
-        "dev10x.hooks.stop_verdict._stand_down_path",
+        "dev10x.core.hooks.stop_verdict._stand_down_path",
         lambda *, session_id: marker_dir / f"{session_id or 'unknown'}.standdown",
     )
     return marker_dir

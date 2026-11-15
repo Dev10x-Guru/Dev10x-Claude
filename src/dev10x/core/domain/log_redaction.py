@@ -20,7 +20,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from dev10x.domain.sensitivity import name_is_sensitive
+from dev10x.core.domain.sensitivity import name_is_sensitive
 
 REDACTED = "[REDACTED]"
 

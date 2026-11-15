@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import pytest
-from dev10x.domain.project_match import (
+
+from dev10x.core.domain.project_match import (
     MatchScheme,
     ProjectsStatus,
     describe,

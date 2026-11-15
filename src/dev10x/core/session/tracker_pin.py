@@ -3,23 +3,23 @@
 The write half of tracker-aware seeding: the onboarding tracker-choice
 gate calls :func:`pin_tracker` once, and every later ``ensure-base`` /
 ``seed_worktree`` run reads the answer back through
-:mod:`dev10x.skills.permission.tracker_resolve`.
+:mod:`dev10x.core.skills.permission.tracker_resolve`.
 
 Keyed by the repo stem from the git **common dir**, so a choice made
 inside ``<repo>-3`` also covers ``<repo>`` and a ``<repo>-9`` created
-next month — the same identity :func:`~dev10x.session.preset_pin.
+next month — the same identity :func:`~dev10x.core.session.preset_pin.
 pin_preset` uses, via the shared
-:func:`~dev10x.session.preset_pin.pin_project_prefs` writer.
+:func:`~dev10x.core.session.preset_pin.pin_project_prefs` writer.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from dev10x.domain.common.result import ErrorResult, Result, err, ok
-from dev10x.domain.common.tracker_choice import Tracker, parse_tracker
-from dev10x.domain.documents.friction_yaml import FrictionYamlDocument, PinScope
-from dev10x.session.preset_pin import (
+from dev10x.core.domain.common.result import ErrorResult, Result, err, ok
+from dev10x.core.domain.common.tracker_choice import Tracker, parse_tracker
+from dev10x.core.domain.documents.friction_yaml import FrictionYamlDocument, PinScope
+from dev10x.core.session.preset_pin import (
     pin_project_prefs,
     probe_path,
     resolve_repo_identity,

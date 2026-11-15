@@ -25,7 +25,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from dev10x.core.paths import skill_roots  # noqa: E402
-from dev10x.skills.audit import eval_gaps  # noqa: E402
+from dev10x.teach.skills.audit import eval_gaps  # noqa: E402
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:

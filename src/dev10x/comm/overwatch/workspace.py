@@ -6,7 +6,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import PurePath
 
-from dev10x.subprocess_utils import run
+from dev10x.core.subprocess_utils import run
 
 GIT_TIMEOUT_SECONDS = 5
 REV_PARSE = [

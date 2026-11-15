@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dev10x.skills.playbook.compare import (
+from dev10x.core.skills.playbook.compare import (
     MISSING,
     DiffStatus,
     FieldDiff,

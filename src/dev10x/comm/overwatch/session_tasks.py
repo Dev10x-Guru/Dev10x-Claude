@@ -4,7 +4,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from dev10x.domain.claude_paths import ClaudeDir
+from dev10x.core.domain.claude_paths import ClaudeDir
 
 STORE_PREFIX = "session-"
 STORE_ID_CHARS = 8

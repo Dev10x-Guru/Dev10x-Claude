@@ -20,7 +20,7 @@ from dev10x.comm.chatbus.events import MESSAGE_CREATED, to_db_time
 from dev10x.comm.chatbus.queue import WorkItem, WorkStatus
 from dev10x.comm.skills.notifications import gchat_notify
 from dev10x.comm.skills.notifications.gchat_notify import PostedMessage
-from dev10x.domain.common.result import ErrorResult, Result, err, ok
+from dev10x.core.domain.common.result import ErrorResult, Result, err, ok
 
 log = logging.getLogger(__name__)
 

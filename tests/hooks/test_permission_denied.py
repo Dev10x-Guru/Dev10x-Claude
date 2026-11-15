@@ -5,9 +5,9 @@ from __future__ import annotations
 import json
 
 import pytest
-from dev10x.domain.events.hook_input import HookRetry
-from dev10x.hooks.hook_transport import emit
 
+from dev10x.core.domain.events.hook_input import HookRetry
+from dev10x.core.hooks.hook_transport import emit
 from tests.fakers import BashHookInputFaker
 
 
@@ -60,7 +60,7 @@ class TestHookRetry:
 class TestSkillRedirectCorrect:
     @pytest.fixture()
     def validator(self):
-        from dev10x.validators.skill_redirect import SkillRedirectValidator
+        from dev10x.core.validators.skill_redirect import SkillRedirectValidator
 
         return SkillRedirectValidator()
 
@@ -102,7 +102,7 @@ class TestSkillRedirectCorrect:
 class TestPrefixFrictionCorrect:
     @pytest.fixture()
     def validator(self):
-        from dev10x.validators.prefix_friction import PrefixFrictionValidator
+        from dev10x.core.validators.prefix_friction import PrefixFrictionValidator
 
         return PrefixFrictionValidator()
 
@@ -131,19 +131,19 @@ class TestPrefixFrictionCorrect:
 
 class TestCorrectorProtocol:
     def test_skill_redirect_is_corrector(self) -> None:
-        from dev10x.validators.base import Corrector
-        from dev10x.validators.skill_redirect import SkillRedirectValidator
+        from dev10x.core.validators.base import Corrector
+        from dev10x.core.validators.skill_redirect import SkillRedirectValidator
 
         assert isinstance(SkillRedirectValidator(), Corrector)
 
     def test_prefix_friction_is_corrector(self) -> None:
-        from dev10x.validators.base import Corrector
-        from dev10x.validators.prefix_friction import PrefixFrictionValidator
+        from dev10x.core.validators.base import Corrector
+        from dev10x.core.validators.prefix_friction import PrefixFrictionValidator
 
         assert isinstance(PrefixFrictionValidator(), Corrector)
 
     def test_non_corrector_validator_is_not_corrector(self) -> None:
-        from dev10x.validators.base import Corrector
-        from dev10x.validators.execution_safety import ExecutionSafetyValidator
+        from dev10x.core.validators.base import Corrector
+        from dev10x.core.validators.execution_safety import ExecutionSafetyValidator
 
         assert not isinstance(ExecutionSafetyValidator(), Corrector)

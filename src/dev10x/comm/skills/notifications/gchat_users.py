@@ -15,7 +15,7 @@ from typing import Any
 
 import yaml
 
-from dev10x.domain.common.result import Result, err, ok
+from dev10x.core.domain.common.result import Result, err, ok
 
 log = logging.getLogger(__name__)
 

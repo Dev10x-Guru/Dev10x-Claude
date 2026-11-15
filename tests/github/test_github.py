@@ -1,4 +1,4 @@
-"""Unit tests for dev10x.github (GH-386).
+"""Unit tests for dev10x.coding.github (GH-386).
 
 Contract class: mock
   All tests in this module patch the API boundary (``_gh_api_raw``,
@@ -23,13 +23,13 @@ from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from dev10x.domain.common.repository_ref import RepositoryRef
-from dev10x.domain.common.result import ErrorResult, SuccessResult, ok
 
+from dev10x.core.domain.common.repository_ref import RepositoryRef
+from dev10x.core.domain.common.result import ErrorResult, SuccessResult, ok
 from tests.fakers.process import completed as _completed
 
-gh = pytest.importorskip("dev10x.github", reason="dev10x not installed")
-_gateway = pytest.importorskip("dev10x.github._gateway", reason="dev10x not installed")
+gh = pytest.importorskip("dev10x.coding.github", reason="dev10x not installed")
+_gateway = pytest.importorskip("dev10x.core.github._gateway", reason="dev10x not installed")
 
 # create_pr rejects a Job Story missing any JTBD marker (GH-945), so
 # every create_pr test that expects the script to run passes this one.
@@ -96,7 +96,7 @@ class TestPrCommentsResolveSingle:
         )
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_resolves_single_comment(
         self,
         mock_api: AsyncMock,
@@ -118,7 +118,7 @@ class TestPrCommentsResolveSingle:
         assert mock_api.call_count == 2
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_query_uses_database_id_lookup(
         self,
         mock_api: AsyncMock,
@@ -141,7 +141,7 @@ class TestPrCommentsResolveSingle:
         assert "pullRequestReviewThread" not in query_str
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_converts_int_comment_id_to_string(
         self,
         mock_api: AsyncMock,
@@ -216,7 +216,7 @@ class TestPrCommentsResolveBatch:
         )
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_resolves_multiple_comments_in_two_calls(
         self,
         mock_api: AsyncMock,
@@ -242,7 +242,7 @@ class TestPrCommentsResolveBatch:
         assert "r2" in result.value["data"]
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_batch_query_uses_aliased_nodes(
         self,
         mock_api: AsyncMock,
@@ -265,7 +265,7 @@ class TestPrCommentsResolveBatch:
         assert "n2:" in query_str
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_comment_ids_takes_precedence_over_comment_id(
         self,
         mock_api: AsyncMock,
@@ -295,7 +295,7 @@ class TestPrCommentsResolveBatch:
 
 class TestPrCommentsResolveErrors:
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_returns_error_when_query_fails(
         self,
         mock_api: AsyncMock,
@@ -315,7 +315,7 @@ class TestPrCommentsResolveErrors:
         assert result.error == "GraphQL error"
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_returns_error_when_thread_not_found(
         self,
         mock_api: AsyncMock,
@@ -334,7 +334,7 @@ class TestPrCommentsResolveErrors:
         assert "Could not find thread" in result.error
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_returns_error_when_no_matching_thread(
         self,
         mock_api: AsyncMock,
@@ -372,7 +372,7 @@ class TestPrCommentsResolveErrors:
         assert "Could not find thread" in result.error
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_partial_failure_includes_warnings(
         self,
         mock_api: AsyncMock,
@@ -418,7 +418,7 @@ class TestPrCommentsResolveErrors:
         assert any("PRRC_bad" in w for w in result.value["warnings"])
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_mutation_error_returns_error(
         self,
         mock_api: AsyncMock,
@@ -440,7 +440,7 @@ class TestPrCommentsResolveErrors:
         assert result.error == "Mutation failed"
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_rejected_query_reports_the_graphql_error(
         self,
         mock_api: AsyncMock,
@@ -456,7 +456,7 @@ class TestPrCommentsResolveErrors:
         assert result.error == "GitHub GraphQL error: Field 'nodeX' doesn't exist"
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_null_pull_request_reads_as_thread_not_found(
         self,
         mock_api: AsyncMock,
@@ -472,7 +472,7 @@ class TestPrCommentsResolveErrors:
         assert "Could not find thread for comment PRRC_abc" in result.error
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_unknown_node_alongside_a_known_one_is_a_warning(
         self,
         mock_api: AsyncMock,
@@ -500,7 +500,7 @@ class TestPrCommentsResolveErrors:
         ]
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_forbidden_node_lookup_reports_the_graphql_error(
         self,
         mock_api: AsyncMock,
@@ -521,7 +521,7 @@ class TestPrCommentsResolveErrors:
         assert result.error == "GitHub GraphQL error: Resource protected by SAML"
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_mutation_graphql_error_is_an_error(
         self,
         mock_api: AsyncMock,
@@ -542,7 +542,7 @@ class TestPrCommentsResolveErrors:
 
 class TestResolveReviewThreadDirect:
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_resolves_by_thread_ids(
         self,
         mock_api: AsyncMock,
@@ -565,7 +565,7 @@ class TestResolveReviewThreadDirect:
         assert "must start with PRRT_" in result.error
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_resolves_by_comment_ids(
         self,
         mock_api: AsyncMock,
@@ -603,7 +603,7 @@ class TestResolveReviewThreadPartialBatch:
 
     @pytest.fixture
     def mock_api(self) -> Iterator[AsyncMock]:
-        with patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock) as api:
+        with patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock) as api:
             yield api
 
     @pytest.mark.asyncio
@@ -700,7 +700,7 @@ class TestResolveReviewThreadPartialBatch:
 
 class TestPrCommentListFilters:
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_filters_by_review_id(
         self,
         mock_api: AsyncMock,
@@ -728,7 +728,7 @@ class TestPrCommentListFilters:
         assert {c["id"] for c in result.value["value"]} == {1, 3}
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_returns_all_when_no_review_id(
         self,
         mock_api: AsyncMock,
@@ -749,7 +749,7 @@ class TestPrCommentListFilters:
         assert len(result.value["value"]) == 2
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_non_json_output_passes_through_as_dict(
         self,
         mock_api: AsyncMock,
@@ -766,7 +766,7 @@ class TestPrCommentListFilters:
         assert result.value == {"raw_output": "not json"}
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_unresolved_only_uses_graphql(
         self,
         mock_api: AsyncMock,
@@ -840,7 +840,7 @@ class TestPrCommentListFilters:
         assert mock_api.call_args.args[0] == "graphql"
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_unresolved_thread_bot_author_classified(
         self,
         mock_api: AsyncMock,
@@ -898,7 +898,7 @@ class TestPrCommentListFilters:
         [{"pullRequest": None}, {}, None],
         ids=["null-pull-request", "missing-pull-request", "null-repository"],
     )
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_unknown_pr_is_an_error_not_zero_threads(
         self,
         mock_api: AsyncMock,
@@ -918,7 +918,7 @@ class TestPrCommentListFilters:
         assert "PR #42 not found" in result.error
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_null_thread_list_reads_as_zero_threads(
         self,
         mock_api: AsyncMock,
@@ -1002,7 +1002,7 @@ class TestMinimizeComments:
         )
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_batches_into_single_request(
         self,
         mock_api: AsyncMock,
@@ -1023,7 +1023,7 @@ class TestMinimizeComments:
         assert "classifier: OUTDATED" in query
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_accepts_alternate_classifier(
         self,
         mock_api: AsyncMock,
@@ -1059,7 +1059,7 @@ class TestMinimizeComments:
         assert "Invalid classifier" in result.error
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_returns_error_on_api_failure(
         self,
         mock_api: AsyncMock,
@@ -1088,7 +1088,7 @@ class TestResolveRepo:
 
 class TestPrCommentReply:
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_posts_reply(
         self,
         mock_api: AsyncMock,
@@ -1114,7 +1114,7 @@ class TestPrCommentReply:
         assert call_kwargs["repo"] == "owner/repo"
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_returns_error_on_api_failure(
         self,
         mock_api: AsyncMock,
@@ -1134,7 +1134,7 @@ class TestPrCommentReply:
         assert isinstance(result, ErrorResult)
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_coerces_numeric_string_comment_id_to_int(
         self,
         mock_api: AsyncMock,
@@ -1152,7 +1152,7 @@ class TestPrCommentReply:
         assert mock_api.call_args.kwargs["fields"]["in_reply_to"] == 3130499018
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_rejects_non_numeric_comment_id(
         self,
         mock_api: AsyncMock,
@@ -1171,7 +1171,7 @@ class TestPrCommentReply:
 
 class TestPrIssueComment:
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_posts_top_level_comment(
         self,
         mock_api: AsyncMock,
@@ -1197,7 +1197,7 @@ class TestPrIssueComment:
         assert call_kwargs["repo"] == "owner/repo"
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_returns_error_on_api_failure(
         self,
         mock_api: AsyncMock,
@@ -1218,7 +1218,7 @@ class TestPrIssueComment:
 
 class TestPrCommentsActionReply:
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_coerces_numeric_string_to_int(
         self,
         mock_api: AsyncMock,
@@ -1256,7 +1256,7 @@ class TestPrCommentsActionReply:
 
 class TestPrCommentsActionEdit:
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_patches_comment_body(
         self,
         mock_api: AsyncMock,
@@ -1279,7 +1279,7 @@ class TestPrCommentsActionEdit:
         assert mock_api.call_args.kwargs["as_bot"] is True
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_coerces_numeric_string_to_int(
         self,
         mock_api: AsyncMock,
@@ -1331,7 +1331,7 @@ class TestGhApiFieldSerialisation:
     """
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_list_field_is_sent_as_a_json_body(self, mock_run: AsyncMock) -> None:
         mock_run.return_value = _completed(stdout="{}")
 
@@ -1349,7 +1349,7 @@ class TestGhApiFieldSerialisation:
         }
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_list_field_never_uses_bracket_flag_syntax(self, mock_run: AsyncMock) -> None:
         mock_run.return_value = _completed(stdout="{}")
 
@@ -1363,7 +1363,7 @@ class TestGhApiFieldSerialisation:
         assert not any("[]" in arg for arg in argv)
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_scalar_fields_still_use_flags_and_no_stdin(self, mock_run: AsyncMock) -> None:
         mock_run.return_value = _completed(stdout="{}")
 
@@ -1376,7 +1376,7 @@ class TestGhApiFieldSerialisation:
         assert mock_run.call_args.kwargs["input_text"] is None
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_mixed_payload_sends_every_field_in_the_body(self, mock_run: AsyncMock) -> None:
         # With `--input`, gh moves field flags to the query string, so a
         # mixed payload must not be split across the two mechanisms.
@@ -1400,7 +1400,7 @@ class TestGhApiFieldSerialisation:
 
 class TestRequestReview:
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_requests_user_reviewers(
         self,
         mock_api: AsyncMock,
@@ -1420,7 +1420,7 @@ class TestRequestReview:
         assert fields["reviewers"] == ["alice"]
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_requests_team_reviewers(
         self,
         mock_api: AsyncMock,
@@ -1454,7 +1454,7 @@ class TestPrCommentsStrategyDispatch:
         assert "get, list, reply, edit, resolve" in result.error
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_get_action_requires_comment_id(
         self,
         mock_api: AsyncMock,
@@ -1466,7 +1466,7 @@ class TestPrCommentsStrategyDispatch:
         assert "comment_id required" in result.error
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_list_action_requires_pr_number(
         self,
         mock_api: AsyncMock,
@@ -1478,7 +1478,7 @@ class TestPrCommentsStrategyDispatch:
         assert "pr_number required" in result.error
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_get_action_fetches_comment(
         self,
         mock_api: AsyncMock,
@@ -1493,7 +1493,7 @@ class TestPrCommentsStrategyDispatch:
         assert isinstance(result, SuccessResult)
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_list_action_fetches_comments(
         self,
         mock_api: AsyncMock,
@@ -1508,7 +1508,7 @@ class TestPrCommentsStrategyDispatch:
         assert isinstance(result, SuccessResult)
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_reply_action_posts_comment(
         self,
         mock_api: AsyncMock,
@@ -1552,7 +1552,7 @@ class TestPrCommentsStrategyDispatch:
 
 class TestMilestoneClose:
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_closes_milestone(
         self,
         mock_api: AsyncMock,
@@ -1574,7 +1574,7 @@ class TestMilestoneClose:
         assert call.kwargs["fields"] == {"state": "closed"}
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_returns_error_when_repo_unresolved(
         self,
         mock_api: AsyncMock,
@@ -1586,7 +1586,7 @@ class TestMilestoneClose:
         mock_api.assert_not_awaited()
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_returns_error_on_api_failure(
         self,
         mock_api: AsyncMock,
@@ -1603,7 +1603,7 @@ class TestMilestoneClose:
 @pytest.mark.usefixtures("no_prefix_registry")
 class TestMilestoneCreate:
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_creates_milestone(
         self,
         mock_api: AsyncMock,
@@ -1628,7 +1628,7 @@ class TestMilestoneCreate:
         assert call.kwargs["fields"]["description"] == "desc"
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_returns_error_on_api_failure(
         self,
         mock_api: AsyncMock,
@@ -1662,7 +1662,7 @@ class TestMilestonePrefixGuard:
         ],
         ids=["unregistered", "no-prefix"],
     )
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_refuses_before_calling_the_api(
         self,
         mock_api: AsyncMock,
@@ -1692,7 +1692,7 @@ class TestMilestonePrefixGuard:
 
     @pytest.mark.asyncio
     @pytest.mark.usefixtures("registry", "checkout_is_owner_repo")
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_explicit_repo_matching_the_checkout_is_guarded(
         self,
         mock_api: AsyncMock,
@@ -1704,7 +1704,7 @@ class TestMilestonePrefixGuard:
 
     @pytest.mark.asyncio
     @pytest.mark.usefixtures("registry", "checkout_is_owner_repo")
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_another_repo_is_not_held_to_this_checkouts_registry(
         self,
         mock_api: AsyncMock,
@@ -1718,7 +1718,7 @@ class TestMilestonePrefixGuard:
     @pytest.mark.asyncio
     @pytest.mark.usefixtures("registry")
     @pytest.mark.parametrize("title", ["DX: Green CI", "ARCH-M6: Make the gates real"])
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_registered_prefix_reaches_the_api(
         self,
         mock_api: AsyncMock,
@@ -1734,7 +1734,7 @@ class TestMilestonePrefixGuard:
 
 class TestMilestoneReopen:
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_reopens_milestone(
         self,
         mock_api: AsyncMock,
@@ -1756,7 +1756,7 @@ class TestMilestoneReopen:
         assert call.kwargs["fields"] == {"state": "open"}
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_returns_error_when_repo_unresolved(
         self,
         mock_api: AsyncMock,
@@ -1768,7 +1768,7 @@ class TestMilestoneReopen:
         mock_api.assert_not_awaited()
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_returns_error_on_api_failure(
         self,
         mock_api: AsyncMock,
@@ -1784,7 +1784,7 @@ class TestMilestoneReopen:
 
 class TestMilestoneEdit:
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_edits_title_and_description(
         self,
         mock_api: AsyncMock,
@@ -1809,7 +1809,7 @@ class TestMilestoneEdit:
         assert call.kwargs["fields"] == {"title": "New Title", "description": "New desc"}
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_edits_state_and_due_on(
         self,
         mock_api: AsyncMock,
@@ -1830,7 +1830,7 @@ class TestMilestoneEdit:
         }
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_rejects_invalid_state(
         self,
         mock_api: AsyncMock,
@@ -1843,7 +1843,7 @@ class TestMilestoneEdit:
         mock_api.assert_not_awaited()
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_requires_at_least_one_field(
         self,
         mock_api: AsyncMock,
@@ -1856,7 +1856,7 @@ class TestMilestoneEdit:
         mock_api.assert_not_awaited()
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_returns_error_when_repo_unresolved(
         self,
         mock_api: AsyncMock,
@@ -1868,7 +1868,7 @@ class TestMilestoneEdit:
         mock_api.assert_not_awaited()
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_returns_error_on_api_failure(
         self,
         mock_api: AsyncMock,
@@ -1882,7 +1882,7 @@ class TestMilestoneEdit:
         assert "404" in result.error
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_guards_malformed_json(
         self,
         mock_api: AsyncMock,
@@ -1900,7 +1900,7 @@ class TestMilestoneList:
     """GH-1319: the general-purpose counterpart to triage_roster's read."""
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_returns_milestones(self, mock_run: AsyncMock) -> None:
         mock_run.return_value = _completed(
             stdout=json.dumps(
@@ -1925,7 +1925,7 @@ class TestMilestoneList:
         ]
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_empty_roster_returns_empty_list(self, mock_run: AsyncMock) -> None:
         mock_run.return_value = _completed(stdout="[]")
 
@@ -1935,7 +1935,7 @@ class TestMilestoneList:
         assert result.value["milestones"] == []
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_defaults_to_open_state(self, mock_run: AsyncMock) -> None:
         mock_run.return_value = _completed(stdout="[]")
 
@@ -1945,7 +1945,7 @@ class TestMilestoneList:
         assert any("state=open" in arg for arg in args)
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_explicit_repo_and_state_scope_the_query(self, mock_run: AsyncMock) -> None:
         mock_run.return_value = _completed(stdout="[]")
 
@@ -1963,7 +1963,7 @@ class TestMilestoneList:
         assert "frozen" in result.error
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_returns_error_on_api_failure(self, mock_run: AsyncMock) -> None:
         mock_run.return_value = _completed(returncode=1, stderr="rate limit")
 
@@ -1973,7 +1973,7 @@ class TestMilestoneList:
         assert "rate limit" in result.error
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_guards_malformed_json(self, mock_run: AsyncMock) -> None:
         mock_run.return_value = _completed(stdout="not json")
 
@@ -1985,7 +1985,7 @@ class TestMilestoneList:
 
 class TestIssueEdit:
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_edits_title(
         self,
         mock_run: AsyncMock,
@@ -2009,7 +2009,7 @@ class TestIssueEdit:
         assert "at least one of" in result.error
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_returns_error_on_failure(
         self,
         mock_run: AsyncMock,
@@ -2024,7 +2024,7 @@ class TestIssueEdit:
 
 class TestIssueComment:
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_posts_comment(
         self,
         mock_run: AsyncMock,
@@ -2042,7 +2042,7 @@ class TestIssueComment:
         assert "--body-file" in args_called
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_returns_error_on_failure(
         self,
         mock_run: AsyncMock,
@@ -2056,7 +2056,7 @@ class TestIssueComment:
 
 class TestIssueCommentEdit:
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_edits_comment(
         self,
         mock_run: AsyncMock,
@@ -2087,7 +2087,7 @@ class TestIssueCommentEdit:
         assert args_called[-1] == "/repos/owner/repo/issues/comments/99"
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_returns_error_when_repo_missing(
         self,
         mock_run: AsyncMock,
@@ -2105,7 +2105,7 @@ class TestIssueCommentEdit:
         mock_run.assert_not_called()
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_returns_error_on_api_failure(
         self,
         mock_run: AsyncMock,
@@ -2119,7 +2119,7 @@ class TestIssueCommentEdit:
         assert "Not Found" in result.error
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_returns_error_on_invalid_json(
         self,
         mock_run: AsyncMock,
@@ -2135,7 +2135,7 @@ class TestIssueCommentEdit:
 
 class TestIssueCommentDelete:
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_deletes_comment(
         self,
         mock_run: AsyncMock,
@@ -2157,7 +2157,7 @@ class TestIssueCommentDelete:
         ]
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_returns_error_when_repo_missing(
         self,
         mock_run: AsyncMock,
@@ -2174,7 +2174,7 @@ class TestIssueCommentDelete:
         mock_run.assert_not_called()
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_returns_error_on_api_failure(
         self,
         mock_run: AsyncMock,
@@ -2190,7 +2190,7 @@ class TestIssueCommentDelete:
 
 class TestIssueList:
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_lists_issues(
         self,
         mock_run: AsyncMock,
@@ -2221,7 +2221,7 @@ class TestIssueList:
         assert "--json" in args_called
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_filters_by_milestone_and_labels(
         self,
         mock_run: AsyncMock,
@@ -2236,7 +2236,7 @@ class TestIssueList:
         assert "bug" in args_called and "regression" in args_called
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_returns_error_on_failure(
         self,
         mock_run: AsyncMock,
@@ -2268,7 +2268,7 @@ class TestTriageRoster:
         return [_completed(stdout=milestones), _completed(stdout=labels)]
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_returns_open_milestones_and_labels(self, mock_run: AsyncMock) -> None:
         mock_run.side_effect = self._roster_responses()
 
@@ -2283,7 +2283,7 @@ class TestTriageRoster:
         assert result.value["labels"][0]["name"] == "skill:fanout"
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_null_descriptions_become_empty_strings(self, mock_run: AsyncMock) -> None:
         # GitHub returns null, not "", for an unset description; a caller
         # matching a ticket's theme against descriptions should not have to
@@ -2297,7 +2297,7 @@ class TestTriageRoster:
         assert result.value["labels"][1]["description"] == ""
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_requests_only_open_milestones(self, mock_run: AsyncMock) -> None:
         mock_run.side_effect = self._roster_responses()
 
@@ -2307,7 +2307,7 @@ class TestTriageRoster:
         assert any("state=open" in arg for arg in milestone_args)
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_explicit_repo_scopes_both_lookups(self, mock_run: AsyncMock) -> None:
         mock_run.side_effect = self._roster_responses()
 
@@ -2319,7 +2319,7 @@ class TestTriageRoster:
         assert "--repo" in label_args and "owner/name" in label_args
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_label_lookup_failure_surfaces_as_error(self, mock_run: AsyncMock) -> None:
         mock_run.side_effect = [
             _completed(stdout="[]"),
@@ -2334,7 +2334,7 @@ class TestTriageRoster:
 
 class TestUpdatePr:
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_updates_body(
         self,
         mock_api: AsyncMock,
@@ -2342,7 +2342,7 @@ class TestUpdatePr:
     ) -> None:
         mock_api.return_value = _completed(stdout="{}")
 
-        with patch("dev10x.github.pulls.pr_get", new_callable=AsyncMock) as mock_get:
+        with patch("dev10x.coding.github.pulls.pr_get", new_callable=AsyncMock) as mock_get:
             mock_get.return_value = ok({"body": "new body"})
             result = await gh.update_pr(pr_number=42, body="new body")
 
@@ -2360,7 +2360,7 @@ class TestUpdatePr:
         assert call.kwargs["fields"] == {"body": "new body"}
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_normalizes_separator_trailing_the_fixes_line(
         self,
         mock_api: AsyncMock,
@@ -2378,7 +2378,7 @@ class TestUpdatePr:
         }
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_updates_title_and_base(
         self,
         mock_api: AsyncMock,
@@ -2406,7 +2406,7 @@ class TestUpdatePr:
         assert "at least one" in result.error.lower()
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_returns_error_when_repo_unresolved(
         self,
         mock_api: AsyncMock,
@@ -2418,7 +2418,7 @@ class TestUpdatePr:
         mock_api.assert_not_awaited()
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_returns_error_on_api_failure(
         self,
         mock_api: AsyncMock,
@@ -2432,7 +2432,7 @@ class TestUpdatePr:
         assert "422" in result.error
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_uses_explicit_repo_when_provided(
         self,
         mock_api: AsyncMock,
@@ -2454,7 +2454,7 @@ class TestUpdatePrMilestone:
     """GH-1098 — assigning a milestone through the MCP surface."""
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_resolves_milestone_title_and_patches_issues_endpoint(
         self,
         mock_api: AsyncMock,
@@ -2475,7 +2475,7 @@ class TestUpdatePrMilestone:
         assert patch_call.kwargs["fields"] == {"milestone": 56}
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_numeric_milestone_skips_the_lookup(
         self,
         mock_api: AsyncMock,
@@ -2490,7 +2490,7 @@ class TestUpdatePrMilestone:
         assert mock_api.call_args.args[0] == "repos/owner/repo/issues/42"
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_milestone_alone_skips_the_pulls_patch(
         self,
         mock_api: AsyncMock,
@@ -2504,7 +2504,7 @@ class TestUpdatePrMilestone:
         assert "repos/owner/repo/pulls/42" not in patched
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_body_and_milestone_patch_both_endpoints(
         self,
         mock_api: AsyncMock,
@@ -2519,7 +2519,7 @@ class TestUpdatePrMilestone:
         assert patched == ["repos/owner/repo/pulls/42", "repos/owner/repo/issues/42"]
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_unknown_milestone_title_fails_loud(
         self,
         mock_api: AsyncMock,
@@ -2533,7 +2533,7 @@ class TestUpdatePrMilestone:
         assert "PRW-M1" in result.error
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_milestone_lookup_failure_surfaces(
         self,
         mock_api: AsyncMock,
@@ -2547,7 +2547,7 @@ class TestUpdatePrMilestone:
         assert "403" in result.error
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_unparseable_milestone_listing_fails_loud(
         self,
         mock_api: AsyncMock,
@@ -2563,8 +2563,8 @@ class TestUpdatePrMilestone:
 
 class TestGhApiBotIdentity:
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
-    @patch("dev10x.github._gateway.get_bot_token", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.get_bot_token", new_callable=AsyncMock)
     async def test_swaps_env_when_as_bot_and_token_available(
         self,
         mock_token: AsyncMock,
@@ -2587,8 +2587,8 @@ class TestGhApiBotIdentity:
         assert env["GITHUB_TOKEN"] == "ghs_bot_token"
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
-    @patch("dev10x.github._gateway.get_bot_token", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.get_bot_token", new_callable=AsyncMock)
     async def test_falls_back_to_user_auth_when_token_unavailable(
         self,
         mock_token: AsyncMock,
@@ -2607,9 +2607,9 @@ class TestGhApiBotIdentity:
         assert mock_run.call_args.kwargs["env"] is None
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
-    @patch("dev10x.github._gateway.AppConfig.load")
-    @patch("dev10x.github._gateway.get_bot_token", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.AppConfig.load")
+    @patch("dev10x.core.github._gateway.get_bot_token", new_callable=AsyncMock)
     async def test_warns_when_app_configured_but_token_exchange_fails(
         self,
         mock_token: AsyncMock,
@@ -2621,7 +2621,7 @@ class TestGhApiBotIdentity:
         mock_load.return_value = object()
         mock_run.return_value = _completed(stdout="{}")
 
-        with caplog.at_level("WARNING", logger="dev10x.github"):
+        with caplog.at_level("WARNING", logger="dev10x.coding.github"):
             await gh._gh_api(
                 "repos/x/y/pulls/1/comments",
                 repo="x/y",
@@ -2633,9 +2633,9 @@ class TestGhApiBotIdentity:
         )
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
-    @patch("dev10x.github._gateway.AppConfig.load")
-    @patch("dev10x.github._gateway.get_bot_token", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.AppConfig.load")
+    @patch("dev10x.core.github._gateway.get_bot_token", new_callable=AsyncMock)
     async def test_silent_when_app_not_configured(
         self,
         mock_token: AsyncMock,
@@ -2647,7 +2647,7 @@ class TestGhApiBotIdentity:
         mock_load.return_value = None
         mock_run.return_value = _completed(stdout="{}")
 
-        with caplog.at_level("WARNING", logger="dev10x.github"):
+        with caplog.at_level("WARNING", logger="dev10x.coding.github"):
             await gh._gh_api(
                 "repos/x/y/pulls/1/comments",
                 repo="x/y",
@@ -2657,8 +2657,8 @@ class TestGhApiBotIdentity:
         assert not any("bot token exchange failed" in r.message for r in caplog.records)
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
-    @patch("dev10x.github._gateway.get_bot_token", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.get_bot_token", new_callable=AsyncMock)
     async def test_does_not_call_token_resolver_when_not_as_bot(
         self,
         mock_token: AsyncMock,
@@ -2672,8 +2672,8 @@ class TestGhApiBotIdentity:
         assert mock_run.call_args.kwargs["env"] is None
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
-    @patch("dev10x.github._gateway.get_bot_token", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.get_bot_token", new_callable=AsyncMock)
     async def test_does_not_call_token_resolver_without_repo(
         self,
         mock_token: AsyncMock,
@@ -2688,10 +2688,12 @@ class TestGhApiBotIdentity:
 
 class TestPostSummaryComment:
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
-    @patch("dev10x.github._gateway._bot_env", new_callable=AsyncMock, return_value=None)
+    @patch("dev10x.core.github._gateway.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._bot_env", new_callable=AsyncMock, return_value=None)
     @patch(
-        "dev10x.github._gateway._detect_repo", new_callable=AsyncMock, return_value="owner/repo"
+        "dev10x.core.github._gateway._detect_repo",
+        new_callable=AsyncMock,
+        return_value="owner/repo",
     )
     async def test_posts_summary_successfully(
         self,
@@ -2713,10 +2715,12 @@ class TestPostSummaryComment:
         assert "- Did the thing\n- And another" in called_args
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
-    @patch("dev10x.github._gateway._bot_env", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._bot_env", new_callable=AsyncMock)
     @patch(
-        "dev10x.github._gateway._detect_repo", new_callable=AsyncMock, return_value="owner/repo"
+        "dev10x.core.github._gateway._detect_repo",
+        new_callable=AsyncMock,
+        return_value="owner/repo",
     )
     async def test_passes_bot_env_when_available(
         self,
@@ -2737,10 +2741,12 @@ class TestPostSummaryComment:
         assert env_vars["GH_TOKEN"] == "ghs_bot"
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
-    @patch("dev10x.github._gateway._bot_env", new_callable=AsyncMock, return_value=None)
+    @patch("dev10x.core.github._gateway.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._bot_env", new_callable=AsyncMock, return_value=None)
     @patch(
-        "dev10x.github._gateway._detect_repo", new_callable=AsyncMock, return_value="owner/repo"
+        "dev10x.core.github._gateway._detect_repo",
+        new_callable=AsyncMock,
+        return_value="owner/repo",
     )
     async def test_returns_error_on_script_failure(
         self,
@@ -2759,7 +2765,7 @@ class TestPostSummaryComment:
 @pytest.mark.usefixtures("stub_feature_branch", "stub_fixes_trailer_readback")
 class TestCreatePr:
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run_script", new_callable=AsyncMock)
     async def test_creates_pr_and_parses_number_and_url(
         self,
         mock_run: AsyncMock,
@@ -2780,7 +2786,7 @@ class TestCreatePr:
         assert result.value["url"] == "https://github.com/owner/repo/pull/42"
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run_script", new_callable=AsyncMock)
     async def test_passes_blank_fixes_url_and_base_when_omitted(
         self,
         mock_run: AsyncMock,
@@ -2801,7 +2807,7 @@ class TestCreatePr:
         assert called_args[-8:] == ("GH-1", "", "", "true", "", "", "", "")
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run_script", new_callable=AsyncMock)
     async def test_emits_closes_csv_and_draft_false(
         self,
         mock_run: AsyncMock,
@@ -2821,7 +2827,7 @@ class TestCreatePr:
         assert called_args[-6:] == ("184,185,186", "false", "", "", "", "")
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run_script", new_callable=AsyncMock)
     async def test_closes_members_also_reach_the_fixes_argument(
         self,
         mock_run: AsyncMock,
@@ -2839,7 +2845,7 @@ class TestCreatePr:
         assert mock_run.call_args.args[4] == "GH-1 #184 #185"
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run_script", new_callable=AsyncMock)
     async def test_emits_head_repo_for_cross_fork_pr(
         self,
         mock_run: AsyncMock,
@@ -2858,7 +2864,7 @@ class TestCreatePr:
         assert called_args[-4] == "octocat"
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run_script", new_callable=AsyncMock)
     async def test_falls_back_to_synthetic_url_when_stdout_lacks_http(
         self,
         mock_run: AsyncMock,
@@ -2872,7 +2878,7 @@ class TestCreatePr:
         assert result.value["url"] == "PR #99"
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run_script", new_callable=AsyncMock)
     async def test_returns_error_on_script_failure(
         self,
         mock_run: AsyncMock,
@@ -2885,7 +2891,7 @@ class TestCreatePr:
         assert "branch not pushed" in result.error
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run_script", new_callable=AsyncMock)
     async def test_refuses_job_story_missing_jtbd_marker(
         self,
         mock_run: AsyncMock,
@@ -2920,7 +2926,7 @@ class TestCreatePrBodyOverride:
     """GH-1073 — a caller-supplied body reaches GitHub intact."""
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run_script", new_callable=AsyncMock)
     async def test_multi_paragraph_body_is_passed_through_verbatim(
         self,
         mock_run: AsyncMock,
@@ -2938,7 +2944,7 @@ class TestCreatePrBodyOverride:
         assert "- Batch 2: GH-1085" in passed
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run_script", new_callable=AsyncMock)
     async def test_body_keeps_every_fixes_line(
         self,
         mock_run: AsyncMock,
@@ -2952,7 +2958,7 @@ class TestCreatePrBodyOverride:
         assert passed.endswith("Fixes: https://github.com/o/r/issues/1098")
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run_script", new_callable=AsyncMock)
     async def test_body_trailing_content_is_relocated_above_fixes(
         self,
         mock_run: AsyncMock,
@@ -2970,7 +2976,7 @@ class TestCreatePrBodyOverride:
         )
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run_script", new_callable=AsyncMock)
     async def test_body_is_validated_for_jtbd_markers_instead_of_job_story(
         self,
         mock_run: AsyncMock,
@@ -2994,7 +3000,7 @@ class TestCreatePrBodyOverride:
             ({"closes": [12, 14]}, "closes"),
         ],
     )
-    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run_script", new_callable=AsyncMock)
     async def test_refuses_body_combined_with_template_only_arguments(
         self,
         mock_run: AsyncMock,
@@ -3014,7 +3020,7 @@ class TestCreatePrBodyOverride:
         mock_run.assert_not_called()
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run_script", new_callable=AsyncMock)
     async def test_empty_template_arguments_do_not_block_a_body(
         self,
         mock_run: AsyncMock,
@@ -3037,7 +3043,7 @@ class TestCreatePrHead:
     """GH-1073 — naming the head branch instead of deriving it from CWD."""
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run_script", new_callable=AsyncMock)
     async def test_emits_explicit_head_branch(
         self,
         mock_run: AsyncMock,
@@ -3054,7 +3060,7 @@ class TestCreatePrHead:
         assert mock_run.call_args.args[-2] == "janusz/GH-1073/worker/fix"
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run_script", new_callable=AsyncMock)
     async def test_refuses_a_head_naming_a_base_branch(
         self,
         mock_run: AsyncMock,
@@ -3076,8 +3082,8 @@ class TestCreatePrMilestone:
     """GH-1098 — the created PR carries a milestone."""
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
-    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run_script", new_callable=AsyncMock)
     async def test_assigns_milestone_to_the_new_pr(
         self,
         mock_run: AsyncMock,
@@ -3099,8 +3105,8 @@ class TestCreatePrMilestone:
         assert mock_api.call_args.args[0] == "repos/owner/repo/issues/8"
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
-    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run_script", new_callable=AsyncMock)
     async def test_milestone_failure_surfaces_after_the_pr_is_open(
         self,
         mock_run: AsyncMock,
@@ -3124,8 +3130,8 @@ class TestCreatePrMilestone:
         assert "https://github.com/o/r/pull/8" in result.error
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
-    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run_script", new_callable=AsyncMock)
     async def test_unresolvable_repo_stops_before_the_milestone_write(
         self,
         mock_run: AsyncMock,
@@ -3147,7 +3153,7 @@ class TestCreatePrMilestone:
 
 class TestMergePr:
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_merges_pr_with_defaults(
         self,
         mock_run: AsyncMock,
@@ -3189,7 +3195,7 @@ class TestMergePr:
         assert "--auto" not in called_args
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_squash_strategy_without_delete_branch(
         self,
         mock_run: AsyncMock,
@@ -3211,7 +3217,7 @@ class TestMergePr:
         assert "--delete-branch" not in called_args
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_admin_flag_appended(
         self,
         mock_run: AsyncMock,
@@ -3229,7 +3235,7 @@ class TestMergePr:
         assert "--auto" not in called_args
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_auto_flag_appended(
         self,
         mock_run: AsyncMock,
@@ -3254,7 +3260,7 @@ class TestMergePr:
         assert "Invalid merge strategy" in result.error
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_returns_error_on_gh_failure(
         self,
         mock_run: AsyncMock,
@@ -3273,7 +3279,7 @@ class TestMergePr:
 
 class TestGenerateCommitList:
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run_script", new_callable=AsyncMock)
     async def test_returns_commit_list_on_success(
         self,
         mock_run: AsyncMock,
@@ -3287,7 +3293,7 @@ class TestGenerateCommitList:
         assert result.value == {"commit_list": commit_list}
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run_script", new_callable=AsyncMock)
     async def test_passes_base_branch_when_supplied(
         self,
         mock_run: AsyncMock,
@@ -3301,7 +3307,7 @@ class TestGenerateCommitList:
         assert "main" in called_args
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run_script", new_callable=AsyncMock)
     async def test_returns_error_on_script_failure(
         self,
         mock_run: AsyncMock,
@@ -3316,7 +3322,7 @@ class TestGenerateCommitList:
 
 class TestPrGet:
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run_script", new_callable=AsyncMock)
     async def test_parses_pr_json(self, mock_run: AsyncMock) -> None:
         # ``merged`` was removed from gh-pr-get.sh (GH-329).
         # Derive merged-ness from state == "MERGED" or mergedAt != null.
@@ -3359,7 +3365,7 @@ class TestPrGet:
         assert "mergedAt" in content
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run_script", new_callable=AsyncMock)
     async def test_returns_error_on_script_failure(self, mock_run: AsyncMock) -> None:
         mock_run.return_value = _completed(returncode=1, stderr="not found")
 
@@ -3371,7 +3377,7 @@ class TestPrGet:
 
 class TestPrClose:
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_closes_pr(
         self,
         mock_run: AsyncMock,
@@ -3391,7 +3397,7 @@ class TestPrClose:
         assert called_args == ["gh", "pr", "close", "872", "--repo", "owner/repo"]
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_posts_comment_before_closing(
         self,
         mock_run: AsyncMock,
@@ -3414,8 +3420,8 @@ class TestPrClose:
         assert close_args == ["gh", "pr", "close", "872", "--repo", "owner/repo"]
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_posts_comment_as_bot(
         self,
         mock_api: AsyncMock,
@@ -3437,7 +3443,7 @@ class TestPrClose:
         assert call_kwargs["repo"] == "owner/repo"
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_returns_error_when_comment_post_fails(
         self,
         mock_run: AsyncMock,
@@ -3452,7 +3458,7 @@ class TestPrClose:
         assert mock_run.call_count == 1
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_returns_error_on_gh_failure(
         self,
         mock_run: AsyncMock,
@@ -3466,7 +3472,7 @@ class TestPrClose:
         assert "not found" in result.error
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_returns_error_when_repo_unresolvable(
         self,
         mock_run: AsyncMock,
@@ -3480,7 +3486,7 @@ class TestPrClose:
 
 class TestPrList:
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_returns_prs(self, mock_run: AsyncMock) -> None:
         mock_run.return_value = _completed(
             stdout=json.dumps(
@@ -3514,7 +3520,7 @@ class TestPrList:
         ]
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_empty_list_returns_empty(self, mock_run: AsyncMock) -> None:
         mock_run.return_value = _completed(stdout="[]")
 
@@ -3524,7 +3530,7 @@ class TestPrList:
         assert result.value["prs"] == []
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_defaults_to_open_state(self, mock_run: AsyncMock) -> None:
         mock_run.return_value = _completed(stdout="[]")
 
@@ -3536,7 +3542,7 @@ class TestPrList:
         assert args[args.index("--state") + 1] == "open"
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_explicit_repo_state_limit_and_search_scope_the_query(
         self, mock_run: AsyncMock
     ) -> None:
@@ -3559,7 +3565,7 @@ class TestPrList:
         assert "frozen" in result.error
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_returns_error_on_api_failure(self, mock_run: AsyncMock) -> None:
         mock_run.return_value = _completed(returncode=1, stderr="rate limit")
 
@@ -3569,7 +3575,7 @@ class TestPrList:
         assert "rate limit" in result.error
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_guards_malformed_json(self, mock_run: AsyncMock) -> None:
         mock_run.return_value = _completed(stdout="not json")
 
@@ -3581,7 +3587,7 @@ class TestPrList:
 
 class TestIssueClose:
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_closes_with_default_reason(
         self,
         mock_run: AsyncMock,
@@ -3608,7 +3614,7 @@ class TestIssueClose:
         ]
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_signposts_pull_request_number(
         self,
         mock_run: AsyncMock,
@@ -3628,7 +3634,7 @@ class TestIssueClose:
         assert "pr_close" in result.error
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_closes_plain_issue_when_pull_request_key_absent(
         self,
         mock_run: AsyncMock,
@@ -3647,7 +3653,7 @@ class TestIssueClose:
         assert result.value["state"] == "closed"
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_translates_not_planned_to_gh_spelling(
         self,
         mock_run: AsyncMock,
@@ -3671,7 +3677,7 @@ class TestIssueClose:
         assert "completed" in result.error and "not_planned" in result.error
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_passes_comment_when_provided(
         self,
         mock_run: AsyncMock,
@@ -3691,7 +3697,7 @@ class TestIssueClose:
         assert "Done — see PR #99" in called_args
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_returns_error_on_failure(
         self,
         mock_run: AsyncMock,
@@ -3706,7 +3712,7 @@ class TestIssueClose:
 
 class TestIssueReopen:
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_reopens_issue(
         self,
         mock_run: AsyncMock,
@@ -3726,7 +3732,7 @@ class TestIssueReopen:
         assert called_args[:4] == ["gh", "issue", "reopen", "42"]
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_returns_error_on_failure(
         self,
         mock_run: AsyncMock,
@@ -3803,7 +3809,7 @@ class TestNormalizeReactionGroups:
 
 class TestUnresolvedThreadsIncludesReactions:
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_reactions_normalized_from_reaction_groups(
         self,
         mock_api: AsyncMock,
@@ -3868,7 +3874,7 @@ class TestUnresolvedThreadsIncludesReactions:
         assert "reactionGroups" not in thread
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_no_reaction_groups_leaves_reactions_absent(
         self,
         mock_api: AsyncMock,
@@ -3919,7 +3925,7 @@ class TestUnresolvedThreadsIncludesReactions:
         assert "reactionGroups" not in thread
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_graphql_query_includes_reaction_groups(
         self,
         mock_api: AsyncMock,
@@ -3981,7 +3987,7 @@ class TestIssueCommentBodyFile:
     """GH-484: issue_comment / issue_comment_edit honor body_file."""
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_issue_comment_posts_file_contents(self, mock_run: AsyncMock, tmp_path) -> None:
         path = tmp_path / "body.md"
         path.write_text("file body", encoding="utf-8")
@@ -3994,7 +4000,7 @@ class TestIssueCommentBodyFile:
         mock_run.assert_awaited_once()
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_issue_comment_both_sources_errors_without_api_call(
         self, mock_run: AsyncMock
     ) -> None:
@@ -4003,8 +4009,8 @@ class TestIssueCommentBodyFile:
         mock_run.assert_not_awaited()
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._resolve_repo", new_callable=AsyncMock)
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._resolve_repo", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_issue_comment_edit_uses_file_contents(
         self, mock_run: AsyncMock, mock_repo: AsyncMock, tmp_path
     ) -> None:
@@ -4021,7 +4027,7 @@ class TestIssueCommentBodyFile:
         assert result.value["id"] == 9
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock)
     async def test_issue_comment_edit_neither_source_errors(self, mock_run: AsyncMock) -> None:
         result = await gh.issue_comment_edit(comment_id=9, repo="o/r")
         assert isinstance(result, ErrorResult)
@@ -4038,7 +4044,7 @@ class TestMalformedJsonGuards:
     """
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_unresolved_threads_guards_malformed_json(
         self,
         mock_api: AsyncMock,
@@ -4052,7 +4058,7 @@ class TestMalformedJsonGuards:
         assert "Invalid JSON" in result.error
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_resolve_query_guards_malformed_json(
         self,
         mock_api: AsyncMock,
@@ -4066,7 +4072,7 @@ class TestMalformedJsonGuards:
         assert "Invalid JSON" in result.error
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_resolve_mutation_guards_malformed_json(
         self,
         mock_api: AsyncMock,
@@ -4085,7 +4091,7 @@ class TestMalformedJsonGuards:
         assert "Invalid JSON" in result.error
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_minimize_comments_guards_malformed_json(
         self,
         mock_api: AsyncMock,
@@ -4099,7 +4105,7 @@ class TestMalformedJsonGuards:
         assert "Invalid JSON" in result.error
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_resolve_review_thread_guards_malformed_json(
         self,
         mock_api: AsyncMock,
@@ -4112,7 +4118,7 @@ class TestMalformedJsonGuards:
         assert "Invalid JSON" in result.error
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock)
     async def test_milestone_create_guards_malformed_json(
         self,
         mock_api: AsyncMock,
@@ -4133,8 +4139,8 @@ class TestCreatePrBaseBranchGuard:
     omitted cwd= and resolved to the orchestrator's CWD)."""
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
-    @patch("dev10x.domain.git_context.GitContext")
+    @patch("dev10x.core.github._gateway.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.core.domain.git_context.GitContext")
     async def test_refuses_pr_from_base_branch(
         self,
         mock_git_context: object,
@@ -4149,8 +4155,8 @@ class TestCreatePrBaseBranchGuard:
         mock_run_script.assert_not_called()
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
-    @patch("dev10x.domain.git_context.GitContext")
+    @patch("dev10x.core.github._gateway.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.core.domain.git_context.GitContext")
     async def test_creates_pr_from_feature_branch(
         self,
         mock_git_context: object,
@@ -4177,7 +4183,7 @@ class TestIssueComments:
     """
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run_script", new_callable=AsyncMock)
     async def test_returns_comments_under_mapping_key(
         self,
         mock_run_script: AsyncMock,
@@ -4192,7 +4198,7 @@ class TestIssueComments:
         assert result.value["comments"][0]["body"] == "hi"
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run_script", new_callable=AsyncMock)
     async def test_wire_conversion_survives_a_comment_with_many_keys(
         self,
         mock_run_script: AsyncMock,
@@ -4208,7 +4214,7 @@ class TestIssueComments:
         assert result.to_dict() == {"comments": [comment]}
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run_script", new_callable=AsyncMock)
     async def test_empty_comment_list_stays_an_explicit_empty_list(
         self,
         mock_run_script: AsyncMock,
@@ -4227,7 +4233,7 @@ class TestRunAndParseMappingContract:
     """GH-993 — non-object JSON fails loud instead of at the wire boundary."""
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run_script", new_callable=AsyncMock)
     async def test_rejects_a_bare_json_array(
         self,
         mock_run_script: AsyncMock,
@@ -4241,7 +4247,7 @@ class TestRunAndParseMappingContract:
         assert "gh-issue-comments.sh" in result.error
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run_script", new_callable=AsyncMock)
     async def test_rejects_a_bare_json_scalar(
         self,
         mock_run_script: AsyncMock,
@@ -4254,7 +4260,7 @@ class TestRunAndParseMappingContract:
         assert "JSON int" in result.error
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run_script", new_callable=AsyncMock)
     async def test_non_json_still_reaches_the_fallback(
         self,
         mock_run_script: AsyncMock,
@@ -4268,7 +4274,7 @@ class TestRunAndParseMappingContract:
         assert result.value["tracker"] == "github"
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run_script", new_callable=AsyncMock)
     async def test_non_json_without_fallback_wraps_raw_output(
         self,
         mock_run_script: AsyncMock,

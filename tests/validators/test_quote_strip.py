@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import pytest
-from dev10x.validators._quote_strip import quote_strip
+
+from dev10x.core.validators._quote_strip import quote_strip
 
 
 class TestQuoteStrip:

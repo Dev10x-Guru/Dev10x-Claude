@@ -9,12 +9,12 @@ from unittest.mock import patch
 import pytest
 import yaml
 from click.testing import CliRunner
-from dev10x.domain.dev10x_paths import Dev10xConfigDir
 
 from dev10x.commands.hook import hook
-from dev10x.validators import reset_registry
+from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.core.validators import reset_registry
 
-_RUN = "dev10x.validators.review_stamp.subprocess_utils.run"
+_RUN = "dev10x.core.validators.review_stamp.subprocess_utils.run"
 GH_PAYLOAD = json.dumps(
     {
         "headRefOid": "a" * 40,

@@ -7,12 +7,12 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
-from dev10x.domain.common.result import err, ok
-from dev10x.skills.permission.declined_catalog import declined_path, load_declined_rules
 
 from dev10x.commands.permission import merge_worktree
-from dev10x.skills.permission import declined_catalog
-from dev10x.skills.permission import merge_worktree_permissions as mod
+from dev10x.core.domain.common.result import err, ok
+from dev10x.core.skills.permission import declined_catalog
+from dev10x.core.skills.permission import merge_worktree_permissions as mod
+from dev10x.core.skills.permission.declined_catalog import declined_path, load_declined_rules
 
 MAIN = Path("/work/proj")
 WORKTREE = Path("/work/proj/.worktrees/wt-1")

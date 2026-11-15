@@ -3,7 +3,8 @@ import tomllib
 from pathlib import Path
 
 import pytest
-from dev10x.domain.deprecations import (
+
+from dev10x.core.domain.deprecations import (
     REGISTER,
     WINDOW_MINOR_VERSIONS,
     Audience,
@@ -110,7 +111,7 @@ class TestRegisterIsEnforced:
         assert not entry.is_due(version=_current_version()), (
             f"{entry.name} ({entry.audience}, {entry.issue}) reached its removal "
             f"version {entry.removed_in}. Remove the shim and its register entry, "
-            f"or push removed_in out in dev10x.domain.deprecations (ADR-0028)."
+            f"or push removed_in out in dev10x.core.domain.deprecations (ADR-0028)."
         )
 
     @pytest.mark.parametrize("entry", REGISTER, ids=_entry_id)
@@ -124,7 +125,7 @@ class TestRegisterIsEnforced:
     @pytest.mark.parametrize("path", _files_carrying_a_shim_marker())
     def test_marked_shim_is_registered(self, path: str) -> None:
         assert path in _registered_locations(), (
-            f"{path} carries a deprecation marker but no dev10x.domain.deprecations "
+            f"{path} carries a deprecation marker but no dev10x.core.domain.deprecations "
             f"entry names it. Register the shim with a removal version (ADR-0028)."
         )
 

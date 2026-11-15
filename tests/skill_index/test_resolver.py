@@ -5,9 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from dev10x.skill_index.builder import SkillEntry
-from dev10x.skill_index.catalog import SkillCatalog
-from dev10x.skill_index.resolver import (
+
+from dev10x.teach.skill_index.builder import SkillEntry
+from dev10x.teach.skill_index.catalog import SkillCatalog
+from dev10x.teach.skill_index.resolver import (
     ResolvedSkill,
     SkillPathResolver,
     SkillResolution,

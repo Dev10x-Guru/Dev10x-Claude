@@ -13,7 +13,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from dev10x.domain.file_locks import locked_json_update
+from dev10x.core.domain.file_locks import locked_json_update
 
 
 def _migrate_rules(

@@ -7,10 +7,10 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from dev10x.domain.documents.session_state import PlanSummary
-from dev10x.domain.file_locks import atomic_write_text
 
-from dev10x.domain import session_document
+from dev10x.core.domain import session_document
+from dev10x.core.domain.documents.session_state import PlanSummary
+from dev10x.core.domain.file_locks import atomic_write_text
 
 
 class TestWriteStateIsAtomic:
@@ -54,7 +54,7 @@ class TestWriteStateIsAtomic:
 
 
 class TestReadPlanSummaryHasNoHookImport:
-    """D1: read_plan_summary must not lazy-import from dev10x.hooks."""
+    """D1: read_plan_summary must not lazy-import from dev10x.core.hooks."""
 
     def test_uses_domain_plan_directly(self, tmp_path: Path) -> None:
         toplevel = str(tmp_path)
@@ -74,10 +74,10 @@ class TestReadPlanSummaryHasNoHookImport:
         assert result == {}
 
     def test_no_hooks_import_in_source(self) -> None:
-        """Source must not import from dev10x.hooks — domain->hooks inversion."""
+        """Source must not import from dev10x.core.hooks — domain->hooks inversion."""
         src = Path(session_document.__file__).read_text()
-        assert "from dev10x.hooks" not in src
-        assert "import dev10x.hooks" not in src
+        assert "from dev10x.core.hooks" not in src
+        assert "import dev10x.core.hooks" not in src
 
 
 class TestReadPlanIdentity:
@@ -164,7 +164,7 @@ class TestAtomicWriteTextRoundtrip:
         target = tmp_path / "out.json"
         target.write_text("original")
 
-        with patch("dev10x.domain.file_locks.os.rename", side_effect=OSError("disk full")):
+        with patch("dev10x.core.domain.file_locks.os.rename", side_effect=OSError("disk full")):
             with pytest.raises(OSError):
                 atomic_write_text(target, "new")
 

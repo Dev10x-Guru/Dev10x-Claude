@@ -13,19 +13,20 @@ from pathlib import Path
 
 import pytest
 import yaml
-from dev10x.domain.common.policy import (
+
+from dev10x.core.domain.common.policy import (
     Policy,
     PolicyEffect,
     PolicySensitivity,
     PolicySource,
 )
-from dev10x.domain.common.policy_resolution import resolve_effect
-from dev10x.domain.common.tracker_choice import Tracker, apply_tracker_selection
-from dev10x.skills.permission.catalog_paths import (
+from dev10x.core.domain.common.policy_resolution import resolve_effect
+from dev10x.core.domain.common.tracker_choice import Tracker, apply_tracker_selection
+from dev10x.core.skills.permission.catalog_paths import (
     load_catalog_document,
     shipped_projects_catalog,
 )
-from dev10x.skills.permission.policy_catalog_migration import (
+from dev10x.core.skills.permission.policy_catalog_migration import (
     CLAUDE_AI_MCP_GROUP,
     DEFAULT_TIER,
     FENCE_TOOL_PROBE_GROUP,

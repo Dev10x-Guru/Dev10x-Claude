@@ -8,9 +8,9 @@ package-runner call. See tracker #796.
 
 from __future__ import annotations
 
-from dev10x.domain.common.result import to_wire
-from dev10x.domain.usage import blocks_report
-from dev10x.mcp._app import server
+from dev10x.core.domain.common.result import to_wire
+from dev10x.core.domain.usage import blocks_report
+from dev10x.core.mcp._app import server
 
 
 @server.tool()

@@ -24,7 +24,7 @@ from __future__ import annotations
 import subprocess
 from functools import cached_property
 
-from dev10x.domain.cwd_resolver import resolve_cwd
+from dev10x.core.domain.cwd_resolver import resolve_cwd
 
 #: Default bound on an accessor's git subprocess (GH-1412).
 #:

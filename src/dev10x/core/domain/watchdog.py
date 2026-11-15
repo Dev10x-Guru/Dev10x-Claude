@@ -33,8 +33,8 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from dev10x.domain.common.result import ErrorResult, Result, err, ok
-from dev10x.domain.cwd_resolver import resolve_cwd
+from dev10x.core.domain.common.result import ErrorResult, Result, err, ok
+from dev10x.core.domain.cwd_resolver import resolve_cwd
 
 log = logging.getLogger(__name__)
 
@@ -110,7 +110,7 @@ def _parse_iso(raw: object) -> datetime | None:
 
 
 def _state_path() -> Path:
-    from dev10x.domain.dev10x_paths import Dev10xConfigDir
+    from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
 
     return Dev10xConfigDir.home() / "watchdog-state.json"
 
@@ -128,7 +128,7 @@ def quota_state(*, now: datetime | None = None) -> Result[dict[str, Any]]:
     means capacity the paused run could be using. :func:`wake` combines
     the two — see :meth:`RunCandidate.wake_reason`.
     """
-    from dev10x.domain.usage import blocks_report
+    from dev10x.core.domain.usage import blocks_report
 
     moment = now or datetime.now(UTC)
     # Forward the injected clock: blocks_report decides activeness from
@@ -318,7 +318,7 @@ def _wake_candidates(
     woken", both fire, and the run is double-nudged — defeating the only
     correctness guarantee this module offers.
     """
-    from dev10x.domain.file_locks import atomic_write_text, file_lock
+    from dev10x.core.domain.file_locks import atomic_write_text, file_lock
 
     path = _state_path()
     woken: list[dict[str, Any]] = []

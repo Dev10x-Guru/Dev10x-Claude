@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from dev10x.domain.common.result import Result, err, ok
 
 from dev10x.comm.chatbus import service
 from dev10x.comm.chatbus.approval_dm import ChatApprovalNotifier
@@ -26,6 +25,7 @@ from dev10x.comm.chatbus.service import (
 from dev10x.comm.chatbus.sources.google_http import ChatRest, PubSubRest, WorkspaceEventsRest
 from dev10x.comm.chatbus.sources.poll import WatchedSpace
 from dev10x.comm.skills.notifications.gchat_watch import Watch
+from dev10x.core.domain.common.result import Result, err, ok
 from tests.comm.chatbus.factories import NOW, expect_error, unwrap
 
 CONFIG = Path("/config/gchat-config.yaml")

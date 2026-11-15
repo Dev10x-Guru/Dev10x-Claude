@@ -12,13 +12,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from dev10x.core.subprocess_utils import get_plugin_root
 from dev10x.dependency_pins import (
     find_unbounded_pep723_requirements,
     find_unbounded_pyproject_requirements,
     scan_repository,
     scanned_files,
 )
-from dev10x.subprocess_utils import get_plugin_root
 
 
 def test_every_dependency_requirement_is_upper_bounded() -> None:

@@ -570,7 +570,7 @@ ladder in `references/orchestration/subagent-status-operations.md`
 (§ Escalation ladder for a silent agent): one nudge → file fallback →
 `TaskStop`. The
 canonical instruction text is `BACKGROUND_DELIVERY_TEMPLATE` in
-`dev10x.skills.orchestration.subagent_protocol`.
+`dev10x.coding.skills.orchestration.subagent_protocol`.
 
 **Recipient addressing (GH-848 F1).** `to="main"` is the default, but
 some harness configs reject it with "Send to a named agent instead".
@@ -1166,7 +1166,7 @@ The structured-spec play differs from `feature` in two ways:
 2. **Two drift-detection gates bracket Implement** — the
    spec-update gate (4.4) catches behaviour changes mid-flight;
    the spec-sync gate (4.9) catches structural drift before
-   merge. Both use `dev10x.spec.drift_detector` so they agree.
+   merge. Both use `dev10x.core.spec.drift_detector` so they agree.
 
 **Plan the commit sequence (4.5, GH-904 F1).** Same contract as
 the `feature` play: an explicit ordered per-commit plan (gitmoji,
@@ -1842,7 +1842,7 @@ are unmet.
 gate recommendation is computed from the verify-acc-dod result, never
 overridden by gate framing. While **any** blocking DoD check is
 failing/pending —
-`dev10x.domain.session_rules.completion_gate_recommendation()` returns
+`dev10x.core.domain.session_rules.completion_gate_recommendation()` returns
 `GO_BACK` — you MUST NOT label, present, or auto-select "Work complete"
 as Recommended. "The requested fix is done" is not "the PR is
 merge-ready": a still-red check (e.g. open review threads) makes
@@ -1906,7 +1906,7 @@ in review on this project?* The `review-deferred` mode string is still
 **merged** state — "shippable / handed off to review" is NOT
 terminal. Resolve the PR merge state (via
 `mcp__plugin_dev10x_cli__pr_detect` / `verify_pr_state`) and apply
-`dev10x.domain.session_rules.completion_gate_recommendation()`:
+`dev10x.core.domain.session_rules.completion_gate_recommendation()`:
 
 - **Merged / no PR**, checks green → recommend **"Work complete"**.
 - **Open, awaiting review** (CI green, comments addressed) →

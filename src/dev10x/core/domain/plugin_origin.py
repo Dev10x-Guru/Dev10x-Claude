@@ -29,8 +29,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from dev10x.domain.claude_paths import ClaudeDir
-from dev10x.domain.common.result import Result, SuccessResult, err, ok
+from dev10x.core.domain.claude_paths import ClaudeDir
+from dev10x.core.domain.common.result import Result, SuccessResult, err, ok
 
 _CACHE_ROOT = "cache"
 _MARKETPLACE_ROOT = "marketplaces"

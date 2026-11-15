@@ -4,8 +4,8 @@ The normalized audit transcript (produced by ``extract_session.py``) is
 parsed by two places that each used to define their own copy of these
 regexes:
 
-- ``dev10x.audit.friction_transcript_model`` (Phase 4 permission friction)
-- ``dev10x.skills.audit.analyze_actions`` (Phase 1 action inventory)
+- ``dev10x.teach.audit.friction_transcript_model`` (Phase 4 permission friction)
+- ``dev10x.teach.skills.audit.analyze_actions`` (Phase 1 action inventory)
 
 The copies drifted — the actions parser captured a trailing group on
 ``TURN_RE`` that the permissions parser discarded — so the same transcript

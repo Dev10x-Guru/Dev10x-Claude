@@ -1,4 +1,4 @@
-"""Unit tests for dev10x.github.rule_authoring (GH-349).
+"""Unit tests for dev10x.coding.github.rule_authoring (GH-349).
 
 Contract class: mock
   Doc rendering and routing are pure functions tested without mocks. The
@@ -12,9 +12,10 @@ from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from dev10x.domain.common.result import ErrorResult, SuccessResult, err, ok
 
-ra = pytest.importorskip("dev10x.github.rule_authoring", reason="dev10x not installed")
+from dev10x.core.domain.common.result import ErrorResult, SuccessResult, err, ok
+
+ra = pytest.importorskip("dev10x.coding.github.rule_authoring", reason="dev10x not installed")
 
 
 def _validated(
@@ -102,7 +103,7 @@ class TestWriteRuleDocs:
 class TestAuthorReferenceRules:
     @pytest.mark.asyncio
     @patch(
-        "dev10x.github.pattern_validation.validate_candidate_patterns",
+        "dev10x.coding.github.pattern_validation.validate_candidate_patterns",
         new_callable=AsyncMock,
     )
     async def test_happy_path_authors_and_summarizes(self, mock_validate: AsyncMock) -> None:
@@ -123,7 +124,7 @@ class TestAuthorReferenceRules:
 
     @pytest.mark.asyncio
     @patch(
-        "dev10x.github.pattern_validation.validate_candidate_patterns",
+        "dev10x.coding.github.pattern_validation.validate_candidate_patterns",
         new_callable=AsyncMock,
     )
     async def test_propagates_validation_error(self, mock_validate: AsyncMock) -> None:

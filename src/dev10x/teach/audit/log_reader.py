@@ -1,10 +1,10 @@
 """Audit log reader and append API (GH-143).
 
 Owns the JSONL audit log surface: path resolution, record iteration,
-and the append API consumed by `dev10x.hooks.audit_emit` (the write
-side). Record summarization lives in `dev10x.audit.summarizer` and
-retention/pruning in `dev10x.audit.log_pruner` (GH-530) — both
-re-exported through the `dev10x.audit` package.
+and the append API consumed by `dev10x.core.hooks.audit_emit` (the write
+side). Record summarization lives in `dev10x.teach.audit.summarizer` and
+retention/pruning in `dev10x.teach.audit.log_pruner` (GH-530) — both
+re-exported through the `dev10x.teach.audit` package.
 
 Two-layer observability:
 
@@ -30,7 +30,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from dev10x.domain.hook_telemetry import HookOutcome
+from dev10x.core.domain.hook_telemetry import HookOutcome
 from dev10x.teach.audit.summarizer import summarize  # noqa: F401  (re-export — audit finding D4)
 
 SPAN_ID_ENV = "DEV10X_HOOK_SPAN_ID"

@@ -8,8 +8,8 @@ from __future__ import annotations
 # `from __future__ import annotations`.
 from mcp.server.fastmcp import Context  # noqa: F401
 
-from dev10x.domain.common.result import Result, to_wire
-from dev10x.mcp._app import mcp_tool, server
+from dev10x.core.domain.common.result import Result, to_wire
+from dev10x.core.mcp._app import mcp_tool, server
 
 
 @mcp_tool
@@ -45,7 +45,7 @@ async def push_safe(
         returns `{"error": "<message>"}` — branch on the `error`
         key, not on emptiness.
     """
-    from dev10x import git as git_tools
+    from dev10x.coding import git as git_tools
 
     return await git_tools.push_safe(args=args, protected_branches=protected_branches)
 
@@ -68,8 +68,8 @@ async def rebase_groom(
     Returns:
         Dictionary with keys: success (bool), commits_rewritten (int)
     """
-    from dev10x import git as git_tools
-    from dev10x.subprocess_utils import use_cwd
+    from dev10x.coding import git as git_tools
+    from dev10x.core.subprocess_utils import use_cwd
 
     if ctx is not None:
         await ctx.report_progress(
@@ -117,8 +117,8 @@ async def create_worktree(
     Returns:
         Dictionary with keys: worktree_path, branch, created (bool)
     """
-    from dev10x import git as git_tools
-    from dev10x.subprocess_utils import use_cwd
+    from dev10x.coding import git as git_tools
+    from dev10x.core.subprocess_utils import use_cwd
 
     with use_cwd(cwd):
         result = to_wire(await git_tools.create_worktree(branch=branch, base=base, path=path))
@@ -140,8 +140,8 @@ def _seed_worktree_defaults(result: dict) -> None:
     if "error" in result or not worktree_path:
         return
 
+    from dev10x.core.domain.common.result import SuccessResult
     from dev10x.core.skills.permission import update_paths as paths_mod
-    from dev10x.domain.common.result import SuccessResult
 
     try:
         config_path = paths_mod.find_config()
@@ -173,8 +173,8 @@ async def mass_rewrite(
     Returns:
         Dictionary with keys: success (bool), output (str), error (str if failed)
     """
-    from dev10x import git as git_tools
-    from dev10x.subprocess_utils import use_cwd
+    from dev10x.coding import git as git_tools
+    from dev10x.core.subprocess_utils import use_cwd
 
     if ctx is not None:
         await ctx.report_progress(progress=0, total=100, message="Starting mass-rewrite")
@@ -212,7 +212,7 @@ async def start_split_rebase(
     Returns:
         Dictionary with keys: success (bool), output (str), error (str if failed)
     """
-    from dev10x import git as git_tools
+    from dev10x.coding import git as git_tools
 
     return await git_tools.start_split_rebase(commit_hash=commit_hash, base_branch=base_branch)
 
@@ -229,7 +229,7 @@ async def next_worktree_name(base_dir: str | None = None, cwd: str | None = None
     Returns:
         Dictionary with keys: path (str)
     """
-    from dev10x import git as git_tools
+    from dev10x.coding import git as git_tools
 
     return await git_tools.next_worktree_name(base_dir=base_dir)
 
@@ -255,7 +255,7 @@ async def find_fixup_target(base: str | None = None, cwd: str | None = None) -> 
         every hunk blames to base history) or ``no_staged`` — plus
         ``base`` and ``orphan_hunks``. A failure returns ``{"error": ...}``.
     """
-    from dev10x import git as git_tools
+    from dev10x.coding import git as git_tools
 
     return await git_tools.find_fixup_target(base=base)
 
@@ -299,6 +299,6 @@ async def setup_aliases() -> Result[dict]:
     Returns:
         Dictionary with keys: success (bool), output (str)
     """
-    from dev10x import git as git_tools
+    from dev10x.coding import git as git_tools
 
     return await git_tools.setup_aliases()

@@ -1,7 +1,7 @@
 """Tests for the SessionStart reload context builder (GH-545).
 
 Repointed from the removed ``session-start-reload.py`` shim to the live
-in-process path: ``dev10x.hooks.session.build_reload_context``. The
+in-process path: ``dev10x.core.hooks.session.build_reload_context``. The
 ``session-start.py`` orchestrator invokes this directly as the
 ``session-reload`` feature (GH-959), so it is the function that actually
 runs at SessionStart — the standalone shim was unwired dead code.
@@ -12,9 +12,9 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from dev10x.domain.session_document import state_path_for_toplevel, write_state
 
-from dev10x.hooks import session, session_dispatch
+from dev10x.core.domain.session_document import state_path_for_toplevel, write_state
+from dev10x.core.hooks import session, session_dispatch
 
 
 def _write_state(*, toplevel: str, session_id: str) -> Path:

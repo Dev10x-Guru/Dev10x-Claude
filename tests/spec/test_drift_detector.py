@@ -1,11 +1,12 @@
-"""Unit tests for dev10x.spec.drift_detector (GH-172)."""
+"""Unit tests for dev10x.core.spec.drift_detector (GH-172)."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
 import pytest
-from dev10x.spec.drift_detector import DriftKind, detect_drift
+
+from dev10x.core.spec.drift_detector import DriftKind, detect_drift
 
 
 @pytest.fixture

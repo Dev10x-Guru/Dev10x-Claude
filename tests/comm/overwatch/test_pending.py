@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR, ClaudeDir
 
 from dev10x.comm.overwatch import pending
 from dev10x.comm.overwatch.pending import (
@@ -23,6 +22,7 @@ from dev10x.comm.overwatch.pending import (
     read_recent_tools,
     read_session_commands,
 )
+from dev10x.core.domain.claude_paths import CLAUDE_HOME_ENV_VAR, ClaudeDir
 
 SESSION = "47a1ef74-ca1e-4876-bdb1-83dd7a452919"
 

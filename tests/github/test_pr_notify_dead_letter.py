@@ -7,9 +7,9 @@ from pathlib import Path
 
 import pytest
 import pytest_asyncio
-from dev10x.domain.common.result import ErrorResult, SuccessResult
 
-import dev10x.github as gh
+import dev10x.coding.github as gh
+from dev10x.core.domain.common.result import ErrorResult, SuccessResult
 from dev10x.core.github import _gateway
 
 

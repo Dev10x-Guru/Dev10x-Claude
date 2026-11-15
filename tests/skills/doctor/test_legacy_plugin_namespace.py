@@ -6,9 +6,10 @@ import json
 from pathlib import Path
 
 import pytest
-from dev10x.skills.doctor.registry import load_strategies
-from dev10x.skills.doctor.strategies.legacy_plugin_namespace import STRATEGY, detect
-from dev10x.skills.doctor.strategy import Context
+
+from dev10x.core.skills.doctor.registry import load_strategies
+from dev10x.core.skills.doctor.strategies.legacy_plugin_namespace import STRATEGY, detect
+from dev10x.core.skills.doctor.strategy import Context
 
 
 def _context(tmp_path: Path, data: dict) -> Context:

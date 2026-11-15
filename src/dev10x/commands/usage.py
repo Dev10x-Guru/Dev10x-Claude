@@ -6,7 +6,7 @@ from typing import Any
 
 import click
 
-from dev10x.domain.common.result import ErrorResult
+from dev10x.core.domain.common.result import ErrorResult
 
 
 @click.group()
@@ -32,7 +32,7 @@ def blocks(*, active_only: bool, as_json: bool) -> None:
     Cost is an OFFLINE estimate derived from token counts; the token
     counts themselves are read verbatim from the session logs.
     """
-    from dev10x.domain.usage import blocks_report
+    from dev10x.core.domain.usage import blocks_report
 
     result = blocks_report(active_only=active_only)
     if isinstance(result, ErrorResult):

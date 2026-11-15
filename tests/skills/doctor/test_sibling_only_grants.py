@@ -5,13 +5,13 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from dev10x.skills.doctor.registry import load_strategies
-from dev10x.skills.doctor.strategies import sibling_only_grants
-from dev10x.skills.doctor.strategies.sibling_only_grants import GRANT_TOOL, STRATEGY, detect
-from dev10x.skills.doctor.strategy import Context, Finding
-from dev10x.skills.permission.declined_catalog import decline_rules
-from dev10x.skills.permission.granted_catalog import granted_path, remember_granted_rule
 
+from dev10x.core.skills.doctor.registry import load_strategies
+from dev10x.core.skills.doctor.strategies import sibling_only_grants
+from dev10x.core.skills.doctor.strategies.sibling_only_grants import GRANT_TOOL, STRATEGY, detect
+from dev10x.core.skills.doctor.strategy import Context, Finding
+from dev10x.core.skills.permission.declined_catalog import decline_rules
+from dev10x.core.skills.permission.granted_catalog import granted_path, remember_granted_rule
 from tests.skills.doctor.conftest import WriteSettings
 
 

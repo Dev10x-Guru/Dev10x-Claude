@@ -1,6 +1,6 @@
 """Find core's ``src/`` from a bus script, wherever dev10x-comm sits (GH-1567).
 
-The bus scripts are thin shims over ``dev10x.skills.bus``, which ships
+The bus scripts are thin shims over ``dev10x.comm.skills.bus``, which ships
 with core. Before ADR-0034 B4 they lived under core's own root, so
 ``<root>/src`` was always beside them. In ``dev10x-comm`` they can run
 from three layouts, tried in order:

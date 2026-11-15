@@ -9,11 +9,11 @@ schema existed.
 
 from __future__ import annotations
 
-from dev10x.domain.common.command_spellings import (
+from dev10x.core.domain.common.command_spellings import (
     expand_spellings,
     render_spelling_rules,
 )
-from dev10x.skills.permission.catalog_merge import (
+from dev10x.core.skills.permission.catalog_merge import (
     compute_drift,
     merge_catalogs,
     unclassified_shipped_keys,

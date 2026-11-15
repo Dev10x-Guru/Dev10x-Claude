@@ -7,10 +7,10 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
-from dev10x.permission.service import PermissionContext
 
 from dev10x.commands import permission as permission_cmd
-from dev10x.skills.permission import enumerate_mcp
+from dev10x.core.permission.service import PermissionContext
+from dev10x.core.skills.permission import enumerate_mcp
 
 
 @pytest.fixture

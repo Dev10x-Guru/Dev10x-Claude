@@ -38,7 +38,7 @@ def ctx() -> AsyncMock:
 
 class TestRunTestsNotifications:
     @pytest.mark.asyncio
-    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.runner.async_run", new_callable=AsyncMock)
     async def test_emits_start_and_done_progress(
         self,
         mock_run: AsyncMock,
@@ -59,7 +59,7 @@ class TestRunTestsNotifications:
         ctx.info.assert_awaited_once()
 
     @pytest.mark.asyncio
-    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.runner.async_run", new_callable=AsyncMock)
     async def test_failed_run_logs_warning(
         self,
         mock_run: AsyncMock,
@@ -75,7 +75,7 @@ class TestRunTestsNotifications:
         assert ctx.log.await_args.kwargs["level"] == "warning"
 
     @pytest.mark.asyncio
-    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.runner.async_run", new_callable=AsyncMock)
     async def test_args_summarised_in_start_message(
         self,
         mock_run: AsyncMock,
@@ -88,7 +88,7 @@ class TestRunTestsNotifications:
         assert "-k foo" in ctx.report_progress.await_args_list[0].kwargs["message"]
 
     @pytest.mark.asyncio
-    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.runner.async_run", new_callable=AsyncMock)
     async def test_no_notifications_without_ctx(
         self,
         mock_run: AsyncMock,
@@ -102,7 +102,7 @@ class TestRunTestsNotifications:
 
 class TestRebaseGroomNotifications:
     @pytest.mark.asyncio
-    @patch("dev10x.git.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.coding.git.async_run_script", new_callable=AsyncMock)
     async def test_success_emits_progress_and_info(
         self,
         mock_run: AsyncMock,
@@ -122,7 +122,7 @@ class TestRebaseGroomNotifications:
         assert ctx.info.await_count == 2
 
     @pytest.mark.asyncio
-    @patch("dev10x.git.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.coding.git.async_run_script", new_callable=AsyncMock)
     async def test_failure_logs_error(
         self,
         mock_run: AsyncMock,
@@ -140,7 +140,7 @@ class TestRebaseGroomNotifications:
         assert ctx.log.await_args.kwargs["level"] == "error"
 
     @pytest.mark.asyncio
-    @patch("dev10x.git.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.coding.git.async_run_script", new_callable=AsyncMock)
     async def test_no_notifications_without_ctx(
         self,
         mock_run: AsyncMock,
@@ -154,7 +154,7 @@ class TestRebaseGroomNotifications:
 
 class TestMassRewriteNotifications:
     @pytest.mark.asyncio
-    @patch("dev10x.git.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.coding.git.async_run_script", new_callable=AsyncMock)
     async def test_success_emits_progress_and_info(
         self,
         mock_run: AsyncMock,
@@ -169,7 +169,7 @@ class TestMassRewriteNotifications:
         assert ctx.info.await_count == 2
 
     @pytest.mark.asyncio
-    @patch("dev10x.git.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.coding.git.async_run_script", new_callable=AsyncMock)
     async def test_failure_logs_error(
         self,
         mock_run: AsyncMock,
@@ -183,7 +183,7 @@ class TestMassRewriteNotifications:
         assert ctx.log.await_args.kwargs["level"] == "error"
 
     @pytest.mark.asyncio
-    @patch("dev10x.git.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.coding.git.async_run_script", new_callable=AsyncMock)
     async def test_no_notifications_without_ctx(
         self,
         mock_run: AsyncMock,
@@ -198,7 +198,7 @@ class TestMassRewriteNotifications:
 @pytest.mark.usefixtures("stub_feature_branch", "stub_fixes_trailer_readback")
 class TestCreatePrNotifications:
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run_script", new_callable=AsyncMock)
     async def test_success_emits_progress_and_info(
         self,
         mock_run: AsyncMock,
@@ -219,7 +219,7 @@ class TestCreatePrNotifications:
         assert ctx.info.await_count == 2
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run_script", new_callable=AsyncMock)
     async def test_failure_logs_error(
         self,
         mock_run: AsyncMock,
@@ -238,7 +238,7 @@ class TestCreatePrNotifications:
         assert ctx.log.await_args.kwargs["level"] == "error"
 
     @pytest.mark.asyncio
-    @patch("dev10x.github._gateway.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.core.github._gateway.async_run_script", new_callable=AsyncMock)
     async def test_no_notifications_without_ctx(
         self,
         mock_run: AsyncMock,

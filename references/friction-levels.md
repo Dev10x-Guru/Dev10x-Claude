@@ -206,7 +206,7 @@ merge signal is a **gate input, not a pass/fail check** — an
 unmerged-but-green PR is the normal awaiting-review state, so a
 failing "PR merged" check would loop on "Go back" forever. The matrix
 is encoded once in
-`dev10x.domain.session_rules.completion_gate_recommendation()`, which
+`dev10x.core.domain.session_rules.completion_gate_recommendation()`, which
 `dev10x-coding:verify-acc-dod` and work-on's Plan Completion Gate defer to;
 whether the gate *fires* is `resolve_gate(gate="completion_signoff")`.
 

@@ -6,20 +6,20 @@ import re
 from pathlib import Path
 
 import pytest
-from dev10x.domain.common.accepted_findings import (
+
+from dev10x.core.domain.common.accepted_findings import (
     DEFAULT_ACCEPTED_FINDINGS,
     AcceptedFinding,
     find_acceptance,
 )
-
-from dev10x.skills.permission import accepted_findings
+from dev10x.core.skills.permission import accepted_findings
 
 
 @pytest.fixture
 def catalog_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     path = tmp_path / "accepted-findings.yaml"
     monkeypatch.setattr(
-        "dev10x.skills.permission.accepted_findings.Dev10xConfigDir.accepted_findings_yaml",
+        "dev10x.core.skills.permission.accepted_findings.Dev10xConfigDir.accepted_findings_yaml",
         classmethod(lambda cls: path),
     )
     return path

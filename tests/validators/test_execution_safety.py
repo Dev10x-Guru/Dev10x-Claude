@@ -5,14 +5,14 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from dev10x.validators.execution_safety import (
+
+from dev10x.core.validators.execution_safety import (
     INPLACE_EDIT_MSG,
     PYTHON3_INLINE_MSG,
     SHELL_INTERP_MSG,
     SHELL_WRITE_MSG,
     ExecutionSafetyValidator,
 )
-
 from tests.fakers import BashHookInputFaker
 
 
@@ -508,7 +508,7 @@ class TestInplaceEditHelpers:
     """Unit tests for module-level helpers in execution_safety."""
 
     def test_has_inplace_flag_returns_false_for_unknown_cmd(self) -> None:
-        from dev10x.validators.execution_safety import _has_inplace_flag
+        from dev10x.core.validators.execution_safety import _has_inplace_flag
 
         assert _has_inplace_flag(argv=["-i", "file.txt"], cmd="unknown") is False
 

@@ -28,7 +28,7 @@ import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
-from dev10x.repo_scan import SKIPPED_DIRS, walk_repository
+from dev10x.repo_scan import walk_repository
 
 _logger = logging.getLogger(__name__)
 

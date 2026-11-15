@@ -2,7 +2,7 @@
 
 Houses the parsers, classifiers, hygiene auditor, and report writer
 that power Phase 4 permission-friction analysis. Previously this logic
-lived in ``dev10x.skills.audit.analyze_permissions`` and the audit layer
+lived in ``dev10x.teach.skills.audit.analyze_permissions`` and the audit layer
 imported 12 symbols *up* into the skills layer — a context-boundary
 inversion (audit → skills). The analysis logic is a domain concern of the
 audit context, so it lives here; the skills script is now a thin CLI
@@ -19,11 +19,11 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TextIO
 
-from dev10x.domain.common.allow_rule import AllowRule, AllowRuleLoader
-from dev10x.domain.common.bash_tokens import GIT_C_PREFIX_RE
-from dev10x.domain.common.mktmp_path import MktmpPath
-from dev10x.domain.common.tool_signature import ToolSignature
-from dev10x.subprocess_utils import effective_cwd
+from dev10x.core.domain.common.allow_rule import AllowRule, AllowRuleLoader
+from dev10x.core.domain.common.bash_tokens import GIT_C_PREFIX_RE
+from dev10x.core.domain.common.mktmp_path import MktmpPath
+from dev10x.core.domain.common.tool_signature import ToolSignature
+from dev10x.core.subprocess_utils import effective_cwd
 from dev10x.teach.audit.transcript_grammar import TOOL_INPUT_BLOCK_RE, TOOL_RE, TURN_RE
 
 PERMISSION_TOOLS = {"Bash", "Read", "Write", "Edit"}
@@ -34,7 +34,7 @@ CHAIN_RE = re.compile(r"&&|;\s")
 SUBSHELL_RE = re.compile(r"\$\(")
 ENV_PREFIX_RE = re.compile(r"^[A-Z_]+=\S+\s")
 # Re-exported under the historical name; canonical definition lives in
-# dev10x.domain.common.bash_tokens (GH-583).
+# dev10x.core.domain.common.bash_tokens (GH-583).
 GIT_C_RE = GIT_C_PREFIX_RE
 COMMENT_PREFIX_RE = re.compile(r"^#")
 HEREDOC_RE = re.compile(r"cat\s+<<|cat\s+>|echo\s+>|printf\s+>")

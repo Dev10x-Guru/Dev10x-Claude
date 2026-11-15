@@ -12,9 +12,9 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from click.testing import CliRunner
-from dev10x.domain.common.result import err, ok
 
 from dev10x.cli import cli
+from dev10x.core.domain.common.result import err, ok
 
 
 @pytest.fixture()
@@ -39,7 +39,7 @@ class TestLearnCommandRegistration:
 
 
 class TestLearnCommand:
-    @patch("dev10x.github.learn_loop.run_learning_loop", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.learn_loop.run_learning_loop", new_callable=AsyncMock)
     def test_opened_pr_prints_url(self, mock_loop: AsyncMock, runner: CliRunner) -> None:
         mock_loop.return_value = ok(
             {
@@ -61,7 +61,7 @@ class TestLearnCommand:
         assert mock_loop.await_args.kwargs["repo"] == "o/r"
         assert mock_loop.await_args.kwargs["base_dir"] == "/tmp/work"
 
-    @patch("dev10x.github.learn_loop.run_learning_loop", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.learn_loop.run_learning_loop", new_callable=AsyncMock)
     def test_no_pr_prints_reason(self, mock_loop: AsyncMock, runner: CliRunner) -> None:
         mock_loop.return_value = ok(
             {
@@ -77,7 +77,7 @@ class TestLearnCommand:
         assert result.exit_code == 0, result.output
         assert "no validated review patterns" in result.output
 
-    @patch("dev10x.github.learn_loop.run_learning_loop", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.learn_loop.run_learning_loop", new_callable=AsyncMock)
     def test_default_base_dir_is_cwd(self, mock_loop: AsyncMock, runner: CliRunner) -> None:
         import os
 
@@ -91,7 +91,7 @@ class TestLearnCommand:
         assert mock_loop.await_args.kwargs["base_dir"] == os.getcwd()
         assert mock_loop.await_args.kwargs["repo"] is None
 
-    @patch("dev10x.github.learn_loop.run_learning_loop", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.learn_loop.run_learning_loop", new_callable=AsyncMock)
     def test_error_exits_nonzero(self, mock_loop: AsyncMock, runner: CliRunner) -> None:
         mock_loop.return_value = err("git push failed")
 

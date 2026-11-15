@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from dev10x.domain.common.result import to_wire
-from dev10x.mcp._app import server
+from dev10x.core.domain.common.result import to_wire
+from dev10x.core.mcp._app import server
 
 
 @server.tool()
@@ -24,7 +24,7 @@ async def collect_prs(
     Returns:
         Dictionary with keys: success (bool), output (str)
     """
-    from dev10x import release as rel
+    from dev10x.coding import release as rel
 
     return to_wire(
         await rel.collect_prs(

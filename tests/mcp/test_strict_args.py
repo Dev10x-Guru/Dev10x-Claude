@@ -8,7 +8,7 @@ import pytest
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.exceptions import ToolError
 
-from dev10x.mcp.strict_args import (
+from dev10x.core.mcp.strict_args import (
     UnknownToolParameterError,
     enforce_strict_arguments,
 )
@@ -93,7 +93,7 @@ class TestEnforceStrictArguments:
         # rejecting it would break a legitimate call rather than a typo'd one.
         from pydantic import BaseModel, Field
 
-        from dev10x.mcp.strict_args import _accepted_names
+        from dev10x.core.mcp.strict_args import _accepted_names
 
         class Aliased(BaseModel):
             pr_number: int = Field(alias="prNumber")
@@ -114,8 +114,8 @@ class TestEnforceStrictArguments:
 
 class TestRealServerIsCovered:
     def test_cli_server_tools_are_strict_on_import(self) -> None:
+        from dev10x.core.mcp.strict_args import StrictFuncMetadata
         from dev10x.mcp.server_cli import server
-        from dev10x.mcp.strict_args import StrictFuncMetadata
 
         tools = server._tool_manager.list_tools()
 

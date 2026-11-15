@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 import yaml
-from dev10x.domain.common.result import ErrorResult, SuccessResult
 
-from dev10x.session import tracker_pin
+from dev10x.core.domain.common.result import ErrorResult, SuccessResult
+from dev10x.core.session import tracker_pin
 
 
 @pytest.fixture
@@ -18,22 +18,24 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     root.mkdir()
     friction = tmp_path / "friction.yaml"
     monkeypatch.setattr(
-        "dev10x.domain.documents.friction_yaml.Dev10xConfigDir.friction_yaml",
+        "dev10x.core.domain.documents.friction_yaml.Dev10xConfigDir.friction_yaml",
         classmethod(lambda cls: friction),
     )
     monkeypatch.setattr(
-        "dev10x.session.preset_pin.resolve_repo_identity",
+        "dev10x.core.session.preset_pin.resolve_repo_identity",
         lambda *, cwd=None: SuccessResult(
             value={"name": "acme-repo", "root": str(root), "source": "test"}
         ),
     )
     monkeypatch.setattr(
-        "dev10x.session.tracker_pin.resolve_repo_identity",
+        "dev10x.core.session.tracker_pin.resolve_repo_identity",
         lambda *, cwd=None: SuccessResult(
             value={"name": "acme-repo", "root": str(root), "source": "test"}
         ),
     )
-    monkeypatch.setattr("dev10x.session.preset_pin._bounded_toplevel", lambda *, cwd=None: None)
+    monkeypatch.setattr(
+        "dev10x.core.session.preset_pin._bounded_toplevel", lambda *, cwd=None: None
+    )
     return friction
 
 
@@ -116,7 +118,7 @@ class TestTrackerStatus:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.setattr(
-            "dev10x.session.tracker_pin.resolve_repo_identity",
+            "dev10x.core.session.tracker_pin.resolve_repo_identity",
             lambda *, cwd=None: ErrorResult(error="Not in a git repository"),
         )
         assert isinstance(tracker_pin.tracker_status(), ErrorResult)

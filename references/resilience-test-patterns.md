@@ -14,7 +14,7 @@ Test orchestrators by mocking this failure after agent spawn:
 @pytest.fixture
 def mock_session_death():
     """Mock SendMessage failure that signals session death."""
-    with patch("dev10x.domain.github.SendMessage") as mock_send:
+    with patch("dev10x.core.domain.github.SendMessage") as mock_send:
         mock_send.side_effect = Exception("No transcript found for agent ID: ...")
         yield mock_send
 ```

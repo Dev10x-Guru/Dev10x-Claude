@@ -8,7 +8,8 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from dev10x.domain.git_context import GIT_TIMEOUT_SECONDS, GitContext
+
+from dev10x.core.domain.git_context import GIT_TIMEOUT_SECONDS, GitContext
 
 
 class _Recorder:

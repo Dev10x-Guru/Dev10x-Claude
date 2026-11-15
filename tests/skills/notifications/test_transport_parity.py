@@ -13,10 +13,9 @@ from __future__ import annotations
 
 import inspect
 
-from dev10x.domain.dead_letter import record_undelivered
-from dev10x.domain.retry import RetryPolicy
-
-from dev10x.skills.notifications import gchat_notify, slack_notify
+from dev10x.comm.skills.notifications import gchat_notify, slack_notify
+from dev10x.core.domain.dead_letter import record_undelivered
+from dev10x.core.domain.retry import RetryPolicy
 
 
 class TestRetryPolicyParity:

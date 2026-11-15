@@ -16,11 +16,11 @@ from typing import Any
 
 import pytest
 import yaml
-from dev10x.config.loader import fragment_dir, load_config, load_document
-from dev10x.domain.rules.rule_engine import RuleEngine
-from dev10x.validators.skill_redirect import _YAML_PATH
 
 from dev10x.core.config.fragments import CORE_PLUGIN, discover_fragments, plugin_order
+from dev10x.core.config.loader import fragment_dir, load_config, load_document
+from dev10x.core.domain.rules.rule_engine import RuleEngine
+from dev10x.core.validators.skill_redirect import _YAML_PATH
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PRE_SPLIT = REPO_ROOT / "tests" / "fixtures" / "command_skill_map_pre_split.json"

@@ -253,7 +253,7 @@ class TestPlaybookDiffCliProjectsList:
         override.write_text(yaml.dump(document))
         monkeypatch.chdir(project_root)
         monkeypatch.setattr(
-            "dev10x.session.repo_address.resolve_name_with_owner",
+            "dev10x.core.session.repo_address.resolve_name_with_owner",
             lambda **_: address,
         )
         return CliRunner().invoke(
@@ -265,7 +265,7 @@ class TestPlaybookDiffCliProjectsList:
     def test_matching_list_is_confirmed(
         self, plugin_root: Path, project_root: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from dev10x.domain.common.result import ok
+        from dev10x.core.domain.common.result import ok
 
         result = self._run_with(
             projects=[{"match_repo": ["org/*"]}],
@@ -279,7 +279,7 @@ class TestPlaybookDiffCliProjectsList:
     def test_non_matching_list_is_reported(
         self, plugin_root: Path, project_root: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from dev10x.domain.common.result import ok
+        from dev10x.core.domain.common.result import ok
 
         result = self._run_with(
             projects=[{"match_repo": ["other/*"]}],
@@ -294,7 +294,7 @@ class TestPlaybookDiffCliProjectsList:
     def test_retired_match_key_no_longer_selects_and_is_reported(
         self, plugin_root: Path, project_root: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from dev10x.domain.common.result import ok
+        from dev10x.core.domain.common.result import ok
 
         result = self._run_with(
             projects=[{"match": ["org/*"]}],
@@ -309,7 +309,7 @@ class TestPlaybookDiffCliProjectsList:
     def test_unresolved_repo_is_not_reported_as_no_match(
         self, plugin_root: Path, project_root: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from dev10x.domain.common.result import err
+        from dev10x.core.domain.common.result import err
 
         result = self._run_with(
             projects=[{"match_repo": ["org/*"]}],

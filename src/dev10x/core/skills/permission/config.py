@@ -12,9 +12,9 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from dev10x.domain.common.command_spellings import expand_spellings
-from dev10x.domain.common.result import Result, err, ok
-from dev10x.skills.permission.catalog_paths import load_catalog_document
+from dev10x.core.domain.common.command_spellings import expand_spellings
+from dev10x.core.domain.common.result import Result, err, ok
+from dev10x.core.skills.permission.catalog_paths import load_catalog_document
 
 log = logging.getLogger(__name__)
 

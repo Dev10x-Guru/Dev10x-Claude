@@ -2,7 +2,7 @@
 
 Document archetype: pure I/O over the persisted session state JSON
 and the plan YAML. Callers compose these documents into queries
-(``dev10x.domain.documents.session_context.SessionContextQuery``) rather than calling
+(``dev10x.core.domain.documents.session_context.SessionContextQuery``) rather than calling
 ``json.load`` / ``Path.read_text`` directly.
 """
 
@@ -14,9 +14,9 @@ import os
 from pathlib import Path
 from typing import Any
 
-from dev10x.domain.claude_paths import ClaudeDir
-from dev10x.domain.documents.session_state import PlanContext
-from dev10x.domain.file_locks import atomic_write_text  # noqa: F401
+from dev10x.core.domain.claude_paths import ClaudeDir
+from dev10x.core.domain.documents.session_state import PlanContext
+from dev10x.core.domain.file_locks import atomic_write_text  # noqa: F401
 
 
 def state_path_for_toplevel(*, toplevel: str) -> Path:
@@ -72,11 +72,11 @@ def read_plan_summary(*, toplevel: str) -> dict[str, Any]:
     """Read the persisted plan as a dict via the Plan domain object.
 
     Direct domain → domain access; the previous lazy import into
-    ``dev10x.hooks.task_plan_sync`` inverted the dependency direction
+    ``dev10x.tasks.hooks.task_plan_sync`` inverted the dependency direction
     (domain should never reach into hooks). Hooks compose this query
     via the CLI adapter, not the other way around.
     """
-    from dev10x.domain.documents.plan import Plan, get_plan_path
+    from dev10x.core.domain.documents.plan import Plan, get_plan_path
 
     plan_path = get_plan_path(toplevel=toplevel)
     return Plan.load(path=plan_path).to_dict()

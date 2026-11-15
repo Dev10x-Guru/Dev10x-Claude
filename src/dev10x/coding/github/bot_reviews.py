@@ -24,9 +24,9 @@ import json
 from typing import Any
 
 from dev10x.coding.github import bot_review_config
+from dev10x.core.domain.common.repository_ref import RepositoryRef
+from dev10x.core.domain.common.result import ErrorResult, Result, SuccessResult, err, ok
 from dev10x.core.github import _gateway
-from dev10x.domain.common.repository_ref import RepositoryRef
-from dev10x.domain.common.result import ErrorResult, Result, SuccessResult, err, ok
 
 KIND_REVIEW = "review"
 KIND_COMMENT = "comment"

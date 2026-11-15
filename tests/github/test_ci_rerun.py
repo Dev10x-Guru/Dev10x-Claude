@@ -10,10 +10,10 @@ from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from dev10x.domain.common.repository_ref import RepositoryRef
-from dev10x.domain.common.result import ErrorResult, SuccessResult, err, ok
 
-import dev10x.github as gh
+import dev10x.coding.github as gh
+from dev10x.core.domain.common.repository_ref import RepositoryRef
+from dev10x.core.domain.common.result import ErrorResult, SuccessResult, err, ok
 from dev10x.core.github import _gateway
 from dev10x.mcp import server_cli as cli_server
 from tests.fakers.process import completed as _completed
@@ -482,7 +482,7 @@ class TestThirdPartyCap:
 
 class TestMcpHandler:
     @pytest.mark.asyncio
-    @patch("dev10x.github.ci_rerun", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.ci_rerun", new_callable=AsyncMock)
     async def test_delegates_and_wires_result(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = ok({"retried": []})
 
@@ -500,7 +500,7 @@ class TestMcpHandler:
         )
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.ci_rerun", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.ci_rerun", new_callable=AsyncMock)
     async def test_error_becomes_error_payload(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = err("nope")
 

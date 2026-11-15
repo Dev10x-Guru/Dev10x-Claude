@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dev10x.domain.usage.reader import (
+from dev10x.core.domain.usage.reader import (
     PRICING_SOURCE,
     SESSION_DURATION,
     UsageBlock,

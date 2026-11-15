@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dev10x.domain.common.singleton_holder import SingletonHolder
+from dev10x.core.domain.common.singleton_holder import SingletonHolder
 
 
 class TestSingletonHolder:

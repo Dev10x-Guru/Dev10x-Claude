@@ -120,7 +120,7 @@ language alone — it is the workaround the English-only rule forced, not
 a target. A mixed story is rejected.
 
 Adding a language means adding its marker set in **both**
-`dev10x.domain.pr_body` (validation) and `dev10x.skills.common.jtbd`
+`dev10x.core.domain.pr_body` (validation) and `dev10x.core.skills.common.jtbd`
 (extraction). Adding it to only one silently drops those Job Stories
 from release notes instead of refusing them.
 

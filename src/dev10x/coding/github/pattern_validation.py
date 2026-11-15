@@ -2,7 +2,7 @@
 
 Milestone-5 step for the review-bot initiative. Takes the recurring
 review-comment patterns mined by
-:func:`dev10x.github.review_patterns.cluster_review_comments` (GH-346)
+:func:`dev10x.coding.github.review_patterns.cluster_review_comments` (GH-346)
 and estimates, for each pattern, how often it would fire on recent code
 changes — a heuristic false-positive proxy used to decide which patterns
 are worth turning into reference rules (GH-349).
@@ -13,7 +13,7 @@ the number of review comments that formed it is likely to over-trigger
 as a rule. Treat the ``validated`` flag and ranking as guidance for
 human rule authoring, not as a precise metric.
 
-Like :mod:`dev10x.github.review_patterns`, this module is intentionally
+Like :mod:`dev10x.coding.github.review_patterns`, this module is intentionally
 self-contained — it fetches its own diffs via ``gh`` rather than
 reaching into the miner's private helpers. It is wired as the
 ``validate_candidate_patterns`` MCP tool in ``github_tools.py``.
@@ -31,8 +31,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from dev10x.coding.github import review_patterns
-from dev10x.domain.common.result import Result, SuccessResult, err, ok
-from dev10x.subprocess_utils import async_run
+from dev10x.core.domain.common.result import Result, SuccessResult, err, ok
+from dev10x.core.subprocess_utils import async_run
 
 log = logging.getLogger(__name__)
 

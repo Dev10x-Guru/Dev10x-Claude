@@ -28,7 +28,7 @@ mechanisms keep it honest, in this order:
 ``stale_acceptances`` closes the loop the other way. An entry matching
 nothing this run is reported so the catalog cannot silently accumulate
 suppressions for drift that no longer exists — the same discipline
-:func:`dev10x.skills.permission.baseline_coverage.triaged_backlog`
+:func:`dev10x.core.skills.permission.baseline_coverage.triaged_backlog`
 applies to its ratchet.
 """
 
@@ -37,13 +37,13 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from dev10x.domain.common.doctor_acceptance import (
+from dev10x.core.domain.common.doctor_acceptance import (
     AcceptedDoctorFinding,
     find_doctor_acceptance,
 )
-from dev10x.domain.common.result import Result, err, ok
-from dev10x.skills.doctor.registry import load_strategies
-from dev10x.skills.doctor.strategy import Context, Finding, Severity, StrategyProtocol
+from dev10x.core.domain.common.result import Result, err, ok
+from dev10x.core.skills.doctor.registry import load_strategies
+from dev10x.core.skills.doctor.strategy import Context, Finding, Severity, StrategyProtocol
 
 log = logging.getLogger(__name__)
 

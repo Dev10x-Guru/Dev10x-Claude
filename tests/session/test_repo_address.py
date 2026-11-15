@@ -6,8 +6,9 @@ import subprocess
 from unittest.mock import patch
 
 import pytest
-from dev10x.domain.common.result import ErrorResult, SuccessResult
-from dev10x.session.repo_address import (
+
+from dev10x.core.domain.common.result import ErrorResult, SuccessResult
+from dev10x.core.session.repo_address import (
     NO_ORIGIN_REASON,
     parse_name_with_owner,
     resolve_name_with_owner,
@@ -40,7 +41,7 @@ class TestParseNameWithOwner:
 class TestResolveNameWithOwner:
     def test_success_carries_the_pair(self) -> None:
         with patch(
-            "dev10x.domain.git_context.GitContext.run",
+            "dev10x.core.domain.git_context.GitContext.run",
             return_value="git@github.com:org/repo.git",
         ):
             result = resolve_name_with_owner()
@@ -56,13 +57,13 @@ class TestResolveNameWithOwner:
         ],
     )
     def test_a_missing_origin_names_the_cause(self, raised: Exception) -> None:
-        with patch("dev10x.domain.git_context.GitContext.run", side_effect=raised):
+        with patch("dev10x.core.domain.git_context.GitContext.run", side_effect=raised):
             result = resolve_name_with_owner()
         assert isinstance(result, ErrorResult)
         assert result.error == NO_ORIGIN_REASON
 
     def test_an_unparseable_remote_names_the_url(self) -> None:
-        with patch("dev10x.domain.git_context.GitContext.run", return_value="weird-remote"):
+        with patch("dev10x.core.domain.git_context.GitContext.run", return_value="weird-remote"):
             result = resolve_name_with_owner()
         assert isinstance(result, ErrorResult)
         assert "weird-remote" in result.error

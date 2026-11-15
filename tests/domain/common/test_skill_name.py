@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import pytest
-from dev10x.domain.common.skill_name import SkillName
+
+from dev10x.core.domain.common.skill_name import SkillName
 
 
 class TestParse:

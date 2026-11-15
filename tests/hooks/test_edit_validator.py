@@ -1,4 +1,4 @@
-"""Tests for dev10x.hooks.edit_validator — Edit/Write tool validation."""
+"""Tests for dev10x.core.hooks.edit_validator — Edit/Write tool validation."""
 
 from __future__ import annotations
 
@@ -7,9 +7,10 @@ from pathlib import Path
 
 import pytest
 import yaml
-from dev10x.domain.rules.rule_engine import RuleEngine
-from dev10x.domain.rules.validation_rule import MatchingRule
-from dev10x.hooks.edit_validator import _build_engine, reset_engine_cache
+
+from dev10x.core.domain.rules.rule_engine import RuleEngine
+from dev10x.core.domain.rules.validation_rule import MatchingRule
+from dev10x.core.hooks.edit_validator import _build_engine, reset_engine_cache
 
 
 @pytest.fixture()
@@ -128,7 +129,7 @@ class TestFormatMessage:
         assert result == "BLOCKED: /work/.env"
 
     def test_appends_compensation_descriptions(self) -> None:
-        from dev10x.domain.rules.validation_rule import Compensation
+        from dev10x.core.domain.rules.validation_rule import Compensation
 
         rule = MatchingRule(
             name="test",

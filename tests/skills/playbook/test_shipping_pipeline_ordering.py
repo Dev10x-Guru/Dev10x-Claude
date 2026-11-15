@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from dev10x.skills.playbook import installed_plugin_roots, load_plugin_default
+from dev10x.core.skills.playbook import installed_plugin_roots, load_plugin_default
 
 _ROOT = Path(__file__).resolve().parents[3]
 

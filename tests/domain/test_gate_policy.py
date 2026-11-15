@@ -8,7 +8,8 @@ and floor invariants, and the D-9 guided-preset posture (GH-748).
 from __future__ import annotations
 
 import pytest
-from dev10x.domain.gate_policy import (
+
+from dev10x.core.domain.gate_policy import (
     AUTO_ADVANCE,
     AUTO_ADVANCE_IF_SAFE,
     BASELINE_PRESET,
@@ -424,7 +425,7 @@ class TestLegacyConfigRefusal:
 
     def test_the_seam_itself_is_gone(self) -> None:
         """GH-1162 AC: the mapping function no longer exists to be called."""
-        import dev10x.domain.gate_policy as module
+        import dev10x.core.domain.gate_policy as module
 
         assert not hasattr(module, "legacy_session_mapping")
 

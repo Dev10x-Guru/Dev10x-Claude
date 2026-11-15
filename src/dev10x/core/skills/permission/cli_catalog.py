@@ -19,7 +19,7 @@ from pathlib import Path
 import click
 import yaml
 
-from dev10x.domain.common.allow_rule import AllowRule
+from dev10x.core.domain.common.allow_rule import AllowRule
 
 # Command groups that are NOT agent-facing: harness hook entry points and
 # the direct validator-testing surface. They are intentionally absent

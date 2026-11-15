@@ -24,7 +24,7 @@ def settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         lambda **_kw: SimpleNamespace(settings_files=[path]),
     )
     monkeypatch.setattr(
-        "dev10x.skills.permission.catalog_write._is_git_tracked",
+        "dev10x.core.skills.permission.catalog_write._is_git_tracked",
         lambda _path: False,
     )
     return path

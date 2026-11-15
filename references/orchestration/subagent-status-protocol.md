@@ -77,7 +77,7 @@ For named background agents the ONLY working delivery channels are:
 Therefore every **background** dispatch prompt MUST append the
 delivery instruction in addition to the status template. The single
 importable source is `BACKGROUND_DELIVERY_TEMPLATE` in
-`dev10x.skills.orchestration.subagent_protocol` (sibling of
+`dev10x.coding.skills.orchestration.subagent_protocol` (sibling of
 `STATUS_PROMPT_TEMPLATE`).
 
 An `idle_notification` with no content means the agent finished
@@ -94,7 +94,7 @@ Pseudo-code for the controller side:
 ```
 result = Agent(...)
 status_line = result.strip().splitlines()[-1]
-# both from dev10x.skills.orchestration.subagent_protocol
+# both from dev10x.coding.skills.orchestration.subagent_protocol
 parsed = parse_subagent_status(result=result)
 
 if is_hook_denial(parsed=parsed):

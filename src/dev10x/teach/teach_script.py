@@ -8,7 +8,7 @@ skills that own the scripts ship in the satellite.
 from __future__ import annotations
 
 from dev10x.core.paths import satellite_script
-from dev10x.subprocess_utils import get_plugin_root
+from dev10x.core.subprocess_utils import get_plugin_root
 
 TEACH_KEY = "teach"
 TEACH_PLUGIN_NAME = "dev10x-teach"

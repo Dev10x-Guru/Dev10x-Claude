@@ -9,21 +9,22 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
-from dev10x.audit.log_pruner import prune
-from dev10x.audit.log_reader import (
+
+from dev10x.core.hooks.audit_emit import (
+    audit_hook,
+    cli_wrap_record,
+    finish_wrap_context,
+    new_wrap_context,
+    write_wrap_record,
+)
+from dev10x.teach.audit.log_pruner import prune
+from dev10x.teach.audit.log_reader import (
     AUDIT_DIR_ENV,
     AUDIT_ENABLE_ENV,
     AUDIT_RETAIN_ENV,
     SPAN_ID_ENV,
     iter_records,
     summarize,
-)
-from dev10x.hooks.audit_emit import (
-    audit_hook,
-    cli_wrap_record,
-    finish_wrap_context,
-    new_wrap_context,
-    write_wrap_record,
 )
 
 

@@ -8,23 +8,23 @@ from pathlib import Path
 
 import pytest
 import yaml
-from dev10x.domain.common.result import ErrorResult, SuccessResult
-from dev10x.domain.file_locks import LockTimeoutError
-from dev10x.skills.permission.declined_catalog import (
+
+from dev10x.core.domain.common.result import ErrorResult, SuccessResult
+from dev10x.core.domain.file_locks import LockTimeoutError
+from dev10x.core.skills.permission import declined_catalog, rule_list_file
+from dev10x.core.skills.permission.declined_catalog import (
     decline_rules,
     load_declined_rules,
     read_declined_rules,
 )
-from dev10x.skills.permission.rule_risk import blanket_problem
-from dev10x.skills.permission.spread_guard import (
+from dev10x.core.skills.permission.rule_risk import blanket_problem
+from dev10x.core.skills.permission.spread_guard import (
     HeldRule,
     hold_reason,
     hook_denial,
     partition_spreadable,
     render_held,
 )
-
-from dev10x.skills.permission import declined_catalog, rule_list_file
 
 
 class TestBlanketProblem:

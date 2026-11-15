@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from dev10x.domain.common.result import Result, err, ok
 
 from dev10x.comm.chatbus import dispatch, queue
 from dev10x.comm.chatbus.authz import Allowlist, authorize
@@ -34,6 +33,7 @@ from dev10x.comm.chatbus.queue import WorkItem, WorkKind, WorkStatus, enqueue, g
 from dev10x.comm.chatbus.worklist import get_view
 from dev10x.comm.overwatch.launcher import Launched
 from dev10x.comm.skills.bus.maildir import Envelope, read_message, send
+from dev10x.core.domain.common.result import Result, err, ok
 from tests.comm.chatbus.factories import NOW, SPACE, expect_error, unwrap
 
 OWNER = "users/1"

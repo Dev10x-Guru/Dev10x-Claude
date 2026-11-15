@@ -23,7 +23,8 @@ import json
 from pathlib import Path
 
 import pytest
-from dev10x.hooks.stop_verdict import (
+
+from dev10x.core.hooks.stop_verdict import (
     StopSignal,
     _standby_path,
     decide,
@@ -265,7 +266,7 @@ class TestStandbyDegradesQuietly:
         def refuse(*args: object, **kwargs: object) -> None:
             raise OSError("read-only file system")
 
-        monkeypatch.setattr("dev10x.hooks.stop_verdict.atomic_write_text", refuse)
+        monkeypatch.setattr("dev10x.core.hooks.stop_verdict.atomic_write_text", refuse)
 
         assert standby_holds(session_id="ro", entries=[_answered()], boundary=None) is True
         assert "writing the standby marker" in capsys.readouterr().err

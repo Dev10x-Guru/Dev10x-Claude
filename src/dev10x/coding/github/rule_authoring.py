@@ -1,7 +1,7 @@
 """Author reference-rule docs from validated review patterns (GH-349).
 
 Milestone-5 step for the review-bot initiative. Takes the patterns that
-:func:`dev10x.github.pattern_validation.validate_candidate_patterns`
+:func:`dev10x.coding.github.pattern_validation.validate_candidate_patterns`
 (GH-348) marked ``validated`` and renders one reference-rule Markdown
 doc per pattern, plus an INDEX-style routing fragment that wires the
 generated docs to the review agents.
@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Any
 
 from dev10x.coding.github import pattern_validation
-from dev10x.domain.common.result import Result, SuccessResult, ok
+from dev10x.core.domain.common.result import Result, SuccessResult, ok
 
 # Generated rule docs live under the review-checks reference tree so the
 # review agents (reviewer-generic and friends) pick them up via routing.

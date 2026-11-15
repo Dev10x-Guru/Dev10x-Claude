@@ -5,14 +5,14 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from dev10x.domain.common.result import err, ok
 
+from dev10x.core.domain.common.result import err, ok
 from dev10x.mcp import server_cli as cli_server
 
 
 class TestCollectPrsMcp:
     @pytest.mark.asyncio
-    @patch("dev10x.release.collect_prs", new_callable=AsyncMock)
+    @patch("dev10x.coding.release.collect_prs", new_callable=AsyncMock)
     async def test_delegates_to_release_module(
         self,
         mock_fn: AsyncMock,
@@ -30,7 +30,7 @@ class TestCollectPrsMcp:
         }
 
     @pytest.mark.asyncio
-    @patch("dev10x.release.collect_prs", new_callable=AsyncMock)
+    @patch("dev10x.coding.release.collect_prs", new_callable=AsyncMock)
     async def test_returns_error_on_failure(
         self,
         mock_fn: AsyncMock,

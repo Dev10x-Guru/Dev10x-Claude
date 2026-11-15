@@ -18,8 +18,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from dev10x.skills.doctor.strategy import Context, Finding, Remediation, Severity, Strategy
-from dev10x.skills.permission.legacy_namespace import (
+from dev10x.core.skills.doctor.strategy import Context, Finding, Remediation, Severity, Strategy
+from dev10x.core.skills.permission.legacy_namespace import (
     CURRENT_PLUGIN_ID,
     LEGACY_PLUGIN_ID,
     RuleMove,

@@ -9,7 +9,7 @@ This module keeps the tracker→rules mapping in the shipped catalog —
 under `tracker_permissions:` / `tracker_denies:`, keyed by tracker name
 — and folds only the selected tracker's block into the flat
 `base_permissions` / `base_denies` lists that
-:func:`~dev10x.domain.common.policy_migration.migrate_flat_config`
+:func:`~dev10x.core.domain.common.policy_migration.migrate_flat_config`
 consumes. Selecting is therefore a pure transformation over the config
 dict, applied before migration, and needs no change to the Policy
 pipeline downstream.

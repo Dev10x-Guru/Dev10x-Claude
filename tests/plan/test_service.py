@@ -4,14 +4,15 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from dev10x.plan.service import (
+
+from dev10x.tasks.plan.service import (
     PlanServiceError,
     archive_plan,
     plan_summary,
     set_plan_context,
 )
 
-SERVICE = "dev10x.plan.service"
+SERVICE = "dev10x.tasks.plan.service"
 
 
 class TestSetPlanContext:
@@ -28,7 +29,7 @@ class TestSetPlanContext:
     def test_returns_updated_keys(self, tmp_path: Path) -> None:
         with (
             patch(f"{SERVICE}.get_toplevel", return_value=str(tmp_path)),
-            patch("dev10x.domain.documents.plan._get_branch", return_value="b"),
+            patch("dev10x.core.domain.documents.plan._get_branch", return_value="b"),
         ):
             updated = set_plan_context(args=["work_type=feature", 'tickets=["X"]'])
 
@@ -49,7 +50,7 @@ class TestPlanSummary:
     def test_returns_dict_when_plan_exists(self, tmp_path: Path) -> None:
         with (
             patch(f"{SERVICE}.get_toplevel", return_value=str(tmp_path)),
-            patch("dev10x.domain.documents.plan._get_branch", return_value="b"),
+            patch("dev10x.core.domain.documents.plan._get_branch", return_value="b"),
         ):
             set_plan_context(args=["work_type=feature"])
             result = plan_summary()
@@ -70,7 +71,7 @@ class TestArchivePlan:
     def test_archives_existing_plan(self, tmp_path: Path) -> None:
         with (
             patch(f"{SERVICE}.get_toplevel", return_value=str(tmp_path)),
-            patch("dev10x.domain.documents.plan._get_branch", return_value="feature/x"),
+            patch("dev10x.core.domain.documents.plan._get_branch", return_value="feature/x"),
         ):
             set_plan_context(args=["work_type=feature"])
             result = archive_plan()
@@ -92,7 +93,7 @@ class TestSetPlanContextHoldsLock:
 
         with (
             patch(f"{SERVICE}.get_toplevel", return_value=str(tmp_path)),
-            patch("dev10x.domain.documents.plan._get_branch", return_value="b"),
+            patch("dev10x.core.domain.documents.plan._get_branch", return_value="b"),
             patch(f"{SERVICE}.file_lock") as mock_lock,
         ):
             mock_lock.return_value = MagicMock(__enter__=MagicMock(), __exit__=MagicMock())

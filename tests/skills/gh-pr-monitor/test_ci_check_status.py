@@ -11,7 +11,13 @@ import pytest
 _repo_root = Path(__file__).resolve().parent.parent.parent.parent
 _spec = importlib.util.spec_from_file_location(
     "ci_check_status",
-    _repo_root / "plugins" / "coding" / "skills" / "gh-pr-monitor" / "scripts" / "ci-check-status.py",
+    _repo_root
+    / "plugins"
+    / "coding"
+    / "skills"
+    / "gh-pr-monitor"
+    / "scripts"
+    / "ci-check-status.py",
 )
 assert _spec is not None and _spec.loader is not None
 _mod = importlib.util.module_from_spec(_spec)
@@ -953,7 +959,7 @@ class TestDefaultBudgetUnderIdleTimeout:
 
         The loop skips the sleep after its final poll, so the real in-loop
         maximum is `60 + 30 * 39` = 1230s — NOT the 1320s that
-        `dev10x.monitor` caps the subprocess at. The docstring conflated
+        `dev10x.coding.monitor` caps the subprocess at. The docstring conflated
         them, and the wrong figure then propagated into a hang analysis.
         Observing the actual sleeps pins the figure to behaviour.
         """

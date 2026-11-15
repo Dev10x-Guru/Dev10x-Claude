@@ -35,7 +35,7 @@ def add(
     playbook_override: str | None,
 ) -> None:
     """Register a platform so skills can target it without path editing."""
-    from dev10x.platform import PlatformRepository, known_platforms
+    from dev10x.core.platform import PlatformRepository, known_platforms
 
     catalog = known_platforms()
     if name not in catalog:
@@ -63,7 +63,7 @@ def add(
 @platform.command(name="list")
 def list_platforms() -> None:
     """Show every registered platform with its configured paths."""
-    from dev10x.platform import PlatformRepository
+    from dev10x.core.platform import PlatformRepository
 
     registry = PlatformRepository()
     entries = registry.list()
@@ -85,7 +85,7 @@ def list_platforms() -> None:
 @click.argument("name")
 def remove(*, name: str) -> None:
     """Unregister a platform from the local registry."""
-    from dev10x.platform import PlatformRepository
+    from dev10x.core.platform import PlatformRepository
 
     registry = PlatformRepository()
     if registry.remove(name):
@@ -98,7 +98,7 @@ def remove(*, name: str) -> None:
 @platform.command(name="known")
 def known() -> None:
     """Print the built-in catalog of supported platforms."""
-    from dev10x.platform import known_platforms
+    from dev10x.core.platform import known_platforms
 
     for name, cfg in sorted(known_platforms().items()):
         click.echo(f"{name:<14} {cfg.display_name}")

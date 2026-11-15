@@ -24,14 +24,16 @@ from pathlib import Path
 
 import pytest
 import yaml
-from dev10x.domain.common.baseline_catalog import load_baseline_dict
-from dev10x.domain.common.command_spellings import expand_spellings
-from dev10x.skills.permission.catalog_paths import (
+
+import dev10x.core.skills.permission as permission_pkg
+from dev10x.core.domain.common.baseline_catalog import load_baseline_dict
+from dev10x.core.domain.common.command_spellings import expand_spellings
+from dev10x.core.skills.permission.catalog_paths import (
     CATALOG_RELPATH,
     catalog_files,
     load_catalog_document,
 )
-from dev10x.skills.permission.path_rule_anchors import (
+from dev10x.core.skills.permission.path_rule_anchors import (
     PATH_TOOLS,
     Anchor,
     PathRule,
@@ -41,8 +43,6 @@ from dev10x.skills.permission.path_rule_anchors import (
     parse_path_rule,
     path_rules,
 )
-
-import dev10x.skills.permission as permission_pkg
 
 PERMISSION_DIR = Path(permission_pkg.__file__).resolve().parent
 REPO_ROOT = PERMISSION_DIR.parents[4]

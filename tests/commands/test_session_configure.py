@@ -15,13 +15,13 @@ from pathlib import Path
 import pytest
 import yaml
 from click.testing import CliRunner
-from dev10x.domain.dev10x_paths import Dev10xConfigDir
-from dev10x.domain.documents.session_yaml import (
+
+from dev10x.commands.session import session
+from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.core.domain.documents.session_yaml import (
     FRICTION_SETUP_SKIP_MODE,
     FrictionYamlDocument,
 )
-
-from dev10x.commands.session import session
 
 
 def _git(*args: str, cwd: Path) -> None:
@@ -96,7 +96,7 @@ class TestSetFriction:
         # The preset MECHANISM survives (ADR-0022 D-1) — a user preset from
         # friction-presets.yaml is a real selection and IS written.
         monkeypatch.setattr(
-            "dev10x.config.friction_presets.load_user_presets",
+            "dev10x.core.config.friction_presets.load_user_presets",
             lambda **_: {"nightly": {"merge": "ask"}},
         )
         repo = tmp_path / "repo"
@@ -291,7 +291,7 @@ class TestPin:
         main = tmp_path / "work" / "bl-zebra"
         (main / ".git").mkdir(parents=True)
         monkeypatch.setattr(
-            "dev10x.session.preset_pin._common_dir", lambda *, cwd: str(main / ".git")
+            "dev10x.core.session.preset_pin._common_dir", lambda *, cwd: str(main / ".git")
         )
         return main
 
@@ -327,8 +327,10 @@ class TestPin:
         assert result.exit_code != 0
 
     def test_surfaces_a_resolution_failure(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr("dev10x.session.preset_pin._common_dir", lambda *, cwd: None)
-        monkeypatch.setattr("dev10x.session.preset_pin._bounded_toplevel", lambda *, cwd: None)
+        monkeypatch.setattr("dev10x.core.session.preset_pin._common_dir", lambda *, cwd: None)
+        monkeypatch.setattr(
+            "dev10x.core.session.preset_pin._bounded_toplevel", lambda *, cwd: None
+        )
         result = CliRunner().invoke(session, ["pin", "adaptive"])
         assert result.exit_code != 0
         assert "Not in a git repository" in result.output

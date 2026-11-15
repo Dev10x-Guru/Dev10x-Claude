@@ -6,7 +6,8 @@ import json
 from pathlib import Path
 
 import pytest
-from dev10x.skills.permission.promote import (
+
+from dev10x.core.skills.permission.promote import (
     PromotionPlan,
     PromotionResult,
     apply_promotion_plan,

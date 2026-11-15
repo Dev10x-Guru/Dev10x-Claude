@@ -8,12 +8,12 @@ from typing import Any
 import pytest
 from click.testing import CliRunner
 from click.testing import Result as CliResult
-from dev10x.domain.common.result import Result, err, ok
 
 from dev10x.cli import cli
 from dev10x.comm.skills.notifications import gchat_notify, gchat_watch
 from dev10x.comm.skills.notifications.gchat_notify import PostedMessage
 from dev10x.comm.skills.notifications.gchat_watch import PollReport, Watch, WatchEvent
+from dev10x.core.domain.common.result import Result, err, ok
 
 ARMED = datetime(2026, 10, 30, 12, 0, tzinfo=UTC)
 WATCH = Watch(

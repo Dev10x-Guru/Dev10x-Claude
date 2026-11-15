@@ -24,15 +24,15 @@ from pathlib import Path
 
 import click
 
-from dev10x.domain.common.result import ErrorResult
-from dev10x.domain.dev10x_paths import Dev10xConfigDir
-from dev10x.domain.documents.config_yaml import set_playbook_modes
-from dev10x.domain.documents.friction_yaml import (
+from dev10x.core.domain.common.result import ErrorResult
+from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.core.domain.documents.config_yaml import set_playbook_modes
+from dev10x.core.domain.documents.friction_yaml import (
     PIN_SCOPES,
     FrictionYamlDocument,
     upsert_project_prefs,
 )
-from dev10x.session.preset_pin import PIN_OVERRIDE_VALUES
+from dev10x.core.session.preset_pin import PIN_OVERRIDE_VALUES
 
 _OVERLAY_CHOICES = ("solo-maintainer", "afk")
 
@@ -50,7 +50,7 @@ def _parse_gate_overrides(pairs: tuple[str, ...]) -> dict[str, str]:
     than corrupting the durable ``friction.yaml`` and surfacing later as an
     ``UnknownToggleError`` deep inside ``resolve_gate`` (code review GH-886).
     """
-    from dev10x.domain.gate_policy import _ENUM_TOGGLES
+    from dev10x.core.domain.gate_policy import _ENUM_TOGGLES
 
     overrides: dict[str, str] = {}
     for pair in pairs:
@@ -152,7 +152,7 @@ def _inheritance_probes(*, project_root: Path) -> list[str]:
     never matches a worktree directory named ``agent-<id>`` (GH-1068 F3).
     A non-git or wedged checkout degrades to the worktree probe alone.
     """
-    from dev10x.session.preset_pin import resolve_repo_identity
+    from dev10x.core.session.preset_pin import resolve_repo_identity
 
     probes = [str(project_root)]
     identity_result = resolve_repo_identity(cwd=str(project_root))
@@ -219,8 +219,8 @@ def set_friction(
     baseline: there is one, so naming it in every entry says nothing. A
     user-defined preset IS recorded, since that is a real selection.
     """
-    from dev10x.domain.gate_policy import BASELINE_PRESET
-    from dev10x.session.preset_pin import validate_pin_values
+    from dev10x.core.domain.gate_policy import BASELINE_PRESET
+    from dev10x.core.session.preset_pin import validate_pin_values
 
     project_root = (project_path or Path.cwd()).resolve()
     prefs: dict[str, object] = {}
@@ -287,7 +287,7 @@ def pin(
     also covers ``<repo>`` and any ``<repo>-9`` created later (GH-855).
     Idempotent: an entry already covering this checkout is replaced in place.
     """
-    from dev10x.session.preset_pin import pin_preset
+    from dev10x.core.session.preset_pin import pin_preset
 
     result = pin_preset(
         preset=preset.lower(),
@@ -357,8 +357,8 @@ def reap(*, dry_run: bool) -> None:
     every such path is absent. A glob-only entry names no checkout that
     can be checked, so it is always kept.
     """
-    from dev10x.domain.dev10x_paths import Dev10xConfigDir
-    from dev10x.domain.documents.friction_yaml import (
+    from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
+    from dev10x.core.domain.documents.friction_yaml import (
         is_provably_dead,
         project_entries,
         reap_dead_projects,

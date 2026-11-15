@@ -45,7 +45,7 @@ from dev10x.comm.chatbus.sources.poll import RawMessageReader, WatchedSpace, wat
 from dev10x.comm.chatbus.sources.pubsub import SubscriptionSpec
 from dev10x.comm.skills.notifications import gchat_notify
 from dev10x.comm.skills.notifications.gchat_watch import Watch, gog_list_messages, list_watches
-from dev10x.domain.common.result import ErrorResult, Result, err, ok
+from dev10x.core.domain.common.result import ErrorResult, Result, err, ok
 
 log = logging.getLogger(__name__)
 

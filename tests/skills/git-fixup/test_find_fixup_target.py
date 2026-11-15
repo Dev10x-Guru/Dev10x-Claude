@@ -7,7 +7,8 @@ import subprocess
 from pathlib import Path
 
 import pytest
-from dev10x.skills.git_fixup.find_fixup_target import (
+
+from dev10x.coding.skills.git_fixup.find_fixup_target import (
     Hunk,
     blame_hunk,
     branch_commits,

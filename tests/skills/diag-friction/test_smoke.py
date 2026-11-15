@@ -27,9 +27,8 @@ import pytest
 
 yaml = pytest.importorskip("yaml", reason="pyyaml not installed")
 
-from dev10x.config.loader import load_document  # noqa: E402
-
-from dev10x.skills.audit import cli_friction as cli_friction_mod  # noqa: E402
+from dev10x.core.config.loader import load_document  # noqa: E402
+from dev10x.teach.skills.audit import cli_friction as cli_friction_mod  # noqa: E402
 
 # ── Paths to canonical data files ────────────────────────────────────────────
 

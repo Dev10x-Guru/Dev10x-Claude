@@ -16,12 +16,13 @@ from typing import Any
 
 import pytest
 import yaml
-from dev10x.skills.permission.catalog_paths import (
+
+from dev10x.core.skills.permission.catalog_paths import (
     catalog_fragments,
     catalog_text,
     load_catalog_document,
 )
-from dev10x.skills.permission.config import parse_config
+from dev10x.core.skills.permission.config import parse_config
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SNAPSHOT = REPO_ROOT / "tests" / "fixtures" / "permission_catalog"

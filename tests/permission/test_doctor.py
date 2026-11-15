@@ -1,4 +1,4 @@
-"""Tests for dev10x.skills.permission.doctor (GH-99)."""
+"""Tests for dev10x.core.skills.permission.doctor (GH-99)."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-doctor = pytest.importorskip("dev10x.skills.permission.doctor")
+doctor = pytest.importorskip("dev10x.core.skills.permission.doctor")
 
 
 class TestDetectWorkspace:

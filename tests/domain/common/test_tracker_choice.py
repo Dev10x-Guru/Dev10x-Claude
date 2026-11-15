@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import pytest
-from dev10x.domain.common.tracker_choice import (
+
+from dev10x.core.domain.common.tracker_choice import (
     Tracker,
     TrackerRules,
     apply_tracker_selection,

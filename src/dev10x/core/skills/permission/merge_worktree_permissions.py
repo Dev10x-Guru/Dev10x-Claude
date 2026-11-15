@@ -16,25 +16,25 @@ import logging
 import re
 from pathlib import Path
 
-from dev10x.domain.common.allow_rule import AllowRule
-from dev10x.domain.common.mktmp_path import MKTMP_GENERALIZE_PATTERN, MKTMP_PATH_PATTERN
-from dev10x.domain.common.policy import Policy, PolicySource
-from dev10x.domain.common.result import Result
-from dev10x.domain.common.ticket_id import TICKET_ID_PATTERN
-from dev10x.domain.dev10x_paths import Dev10xConfigDir
-from dev10x.skills.permission.backup import backed_up_write
-from dev10x.skills.permission.catalog_paths import shipped_projects_catalog
-from dev10x.skills.permission.catalog_write import partition_writable
-from dev10x.skills.permission.config import parse_config, resolve_config
-from dev10x.skills.permission.declined_catalog import load_declined_rules
-from dev10x.skills.permission.policy_authoring import policy_from_accepted_prompt
-from dev10x.skills.permission.settings_discovery import (
+from dev10x.core.domain.common.allow_rule import AllowRule
+from dev10x.core.domain.common.mktmp_path import MKTMP_GENERALIZE_PATTERN, MKTMP_PATH_PATTERN
+from dev10x.core.domain.common.policy import Policy, PolicySource
+from dev10x.core.domain.common.result import Result
+from dev10x.core.domain.common.ticket_id import TICKET_ID_PATTERN
+from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.core.skills.permission.backup import backed_up_write
+from dev10x.core.skills.permission.catalog_paths import shipped_projects_catalog
+from dev10x.core.skills.permission.catalog_write import partition_writable
+from dev10x.core.skills.permission.config import parse_config, resolve_config
+from dev10x.core.skills.permission.declined_catalog import load_declined_rules
+from dev10x.core.skills.permission.policy_authoring import policy_from_accepted_prompt
+from dev10x.core.skills.permission.settings_discovery import (
     VENDORED_DIRS,
     git_registered_worktrees,
     resolve_main_project,
     walk_repos,
 )
-from dev10x.skills.permission.spread_guard import partition_spreadable, render_held
+from dev10x.core.skills.permission.spread_guard import partition_spreadable, render_held
 
 MEMORY_CONFIG = Dev10xConfigDir.projects_yaml()
 USERSPACE_CONFIG = Dev10xConfigDir.upgrade_cleanup_projects_yaml()
@@ -229,7 +229,7 @@ def merge_permissions(
     """Copy stable worktree rules into the main checkout, holding back unsafe ones.
 
     ``declined`` defaults to the supervisor's ``declined-permissions.yaml``;
-    see :mod:`dev10x.skills.permission.spread_guard` for what else is held.
+    see :mod:`dev10x.core.skills.permission.spread_guard` for what else is held.
     """
     declined = load_declined_rules() if declined is None else declined
     main_settings = main_project / ".claude" / "settings.local.json"
@@ -279,8 +279,8 @@ def merge_permissions(
     messages.extend(held_lines)
 
     if not dry_run:
-        from dev10x.skills.permission.backup import create_backup
-        from dev10x.skills.permission.file_lock import locked_json_update
+        from dev10x.core.skills.permission.backup import create_backup
+        from dev10x.core.skills.permission.file_lock import locked_json_update
 
         create_backup(main_settings)
         with locked_json_update(path=main_settings) as live_data:
@@ -411,7 +411,7 @@ def sync_main_to_worktrees(
 
 
 def _restore(*, config_path: Path) -> int:
-    from dev10x.skills.permission.backup import restore_report
+    from dev10x.core.skills.permission.backup import restore_report
 
     config = load_config(config_path)
     roots = config.get("roots", [])

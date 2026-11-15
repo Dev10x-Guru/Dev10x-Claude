@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import pytest
-from dev10x.domain.documents.task import Task, TaskStatus
-from dev10x.domain.run_mode import (
+
+from dev10x.core.domain.documents.task import Task, TaskStatus
+from dev10x.core.domain.run_mode import (
     PlanState,
     RunMode,
     RunModeBasis,

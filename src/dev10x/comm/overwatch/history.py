@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from dev10x.domain.claude_paths import ClaudeDir
+from dev10x.core.domain.claude_paths import ClaudeDir
 
 HEAD_BYTES = 64 * 1024
 TAIL_BYTES = 64 * 1024

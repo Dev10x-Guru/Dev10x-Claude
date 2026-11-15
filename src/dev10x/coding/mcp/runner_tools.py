@@ -10,9 +10,9 @@ from typing import Literal, cast
 # `from __future__ import annotations`.
 from mcp.server.fastmcp import Context  # noqa: F401
 
-from dev10x.domain.common.result import to_wire
-from dev10x.domain.transport_budget import MAX_TOOL_CALL_SECONDS
-from dev10x.mcp._app import server
+from dev10x.core.domain.common.result import to_wire
+from dev10x.core.domain.transport_budget import MAX_TOOL_CALL_SECONDS
+from dev10x.core.mcp._app import server
 
 
 @server.tool()
@@ -55,7 +55,7 @@ async def run_tests(
         callers read ``returncode`` and ``failed_tests`` to decide.
     """
     from dev10x.coding import runner
-    from dev10x.subprocess_utils import use_cwd
+    from dev10x.core.subprocess_utils import use_cwd
 
     extra_desc = " ".join(args) if args else "full suite"
     if ctx is not None:
@@ -141,7 +141,7 @@ async def run_node_tests(
     import os
 
     from dev10x.coding import runner as test_runner
-    from dev10x.subprocess_utils import effective_cwd, use_cwd
+    from dev10x.core.subprocess_utils import effective_cwd, use_cwd
 
     label = runner or "node tests"
     if ctx is not None:

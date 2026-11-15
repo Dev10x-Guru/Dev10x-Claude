@@ -19,9 +19,10 @@ from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from dev10x.domain.common.result import ErrorResult, SuccessResult, err, ok
 
-import dev10x.github as gh
+import dev10x.coding.github as gh
+from dev10x.core.domain.common.result import ErrorResult, SuccessResult, err, ok
+from dev10x.core.github import _gateway as gateway
 
 
 def _completed(*, returncode: int = 0, stdout: str = "{}", stderr: str = ""):
@@ -32,20 +33,20 @@ def _completed(*, returncode: int = 0, stdout: str = "{}", stderr: str = ""):
 
 @pytest.fixture
 def resolved_repo(monkeypatch: pytest.MonkeyPatch):
-    from dev10x.domain.common.repository_ref import RepositoryRef
+    from dev10x.core.domain.common.repository_ref import RepositoryRef
 
     async def fake_resolve(_repo):
         return ok(RepositoryRef.parse("owner/repo"))
 
-    monkeypatch.setattr(gh._gateway, "_resolve_repo", fake_resolve)
+    monkeypatch.setattr(gateway, "_resolve_repo", fake_resolve)
 
 
 class TestPrReadyVerifiesDraftState:
     @pytest.mark.asyncio
     async def test_draft_reflects_github_not_the_argument(self, resolved_repo) -> None:
         with (
-            patch("dev10x.github._gateway.async_run", new_callable=AsyncMock) as mock_run,
-            patch("dev10x.github.pulls.pr_get", new_callable=AsyncMock) as mock_get,
+            patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock) as mock_run,
+            patch("dev10x.coding.github.pulls.pr_get", new_callable=AsyncMock) as mock_get,
         ):
             mock_run.return_value = _completed()
             mock_get.return_value = ok({"isDraft": False})
@@ -58,8 +59,8 @@ class TestPrReadyVerifiesDraftState:
     @pytest.mark.asyncio
     async def test_undo_is_verified_too(self, resolved_repo) -> None:
         with (
-            patch("dev10x.github._gateway.async_run", new_callable=AsyncMock) as mock_run,
-            patch("dev10x.github.pulls.pr_get", new_callable=AsyncMock) as mock_get,
+            patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock) as mock_run,
+            patch("dev10x.coding.github.pulls.pr_get", new_callable=AsyncMock) as mock_get,
         ):
             mock_run.return_value = _completed()
             mock_get.return_value = ok({"isDraft": True})
@@ -78,8 +79,8 @@ class TestPrReadyVerifiesDraftState:
         merge, failing with 'Pull Request is still a draft'.
         """
         with (
-            patch("dev10x.github._gateway.async_run", new_callable=AsyncMock) as mock_run,
-            patch("dev10x.github.pulls.pr_get", new_callable=AsyncMock) as mock_get,
+            patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock) as mock_run,
+            patch("dev10x.coding.github.pulls.pr_get", new_callable=AsyncMock) as mock_get,
         ):
             mock_run.return_value = _completed()
             mock_get.return_value = ok({"isDraft": True})
@@ -93,8 +94,8 @@ class TestPrReadyVerifiesDraftState:
     async def test_an_unreadable_verification_warns_rather_than_fails(self, resolved_repo) -> None:
         """Not being able to check is not evidence the flip failed."""
         with (
-            patch("dev10x.github._gateway.async_run", new_callable=AsyncMock) as mock_run,
-            patch("dev10x.github.pulls.pr_get", new_callable=AsyncMock) as mock_get,
+            patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock) as mock_run,
+            patch("dev10x.coding.github.pulls.pr_get", new_callable=AsyncMock) as mock_get,
         ):
             mock_run.return_value = _completed()
             mock_get.return_value = err("gh unreachable")
@@ -107,8 +108,8 @@ class TestPrReadyVerifiesDraftState:
     @pytest.mark.asyncio
     async def test_a_failed_flip_never_reaches_verification(self, resolved_repo) -> None:
         with (
-            patch("dev10x.github._gateway.async_run", new_callable=AsyncMock) as mock_run,
-            patch("dev10x.github.pulls.pr_get", new_callable=AsyncMock) as mock_get,
+            patch("dev10x.core.github._gateway.async_run", new_callable=AsyncMock) as mock_run,
+            patch("dev10x.coding.github.pulls.pr_get", new_callable=AsyncMock) as mock_get,
         ):
             mock_run.return_value = _completed(returncode=1, stderr="no such PR")
             result = await gh.pr_ready(pr_number=42, repo="owner/repo")
@@ -121,8 +122,8 @@ class TestUpdatePrVerifiesTheWrite:
     @pytest.mark.asyncio
     async def test_a_landed_body_is_verified(self, resolved_repo) -> None:
         with (
-            patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock) as mock_api,
-            patch("dev10x.github.pulls.pr_get", new_callable=AsyncMock) as mock_get,
+            patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock) as mock_api,
+            patch("dev10x.coding.github.pulls.pr_get", new_callable=AsyncMock) as mock_get,
         ):
             mock_api.return_value = _completed()
             mock_get.return_value = ok({"body": "the new body"})
@@ -134,8 +135,8 @@ class TestUpdatePrVerifiesTheWrite:
     @pytest.mark.asyncio
     async def test_a_dropped_body_write_is_reported(self, resolved_repo) -> None:
         with (
-            patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock) as mock_api,
-            patch("dev10x.github.pulls.pr_get", new_callable=AsyncMock) as mock_get,
+            patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock) as mock_api,
+            patch("dev10x.coding.github.pulls.pr_get", new_callable=AsyncMock) as mock_get,
         ):
             mock_api.return_value = _completed()
             mock_get.return_value = ok({"body": "the OLD body"})
@@ -148,8 +149,8 @@ class TestUpdatePrVerifiesTheWrite:
     @pytest.mark.asyncio
     async def test_a_dropped_title_write_is_reported(self, resolved_repo) -> None:
         with (
-            patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock) as mock_api,
-            patch("dev10x.github.pulls.pr_get", new_callable=AsyncMock) as mock_get,
+            patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock) as mock_api,
+            patch("dev10x.coding.github.pulls.pr_get", new_callable=AsyncMock) as mock_get,
         ):
             mock_api.return_value = _completed()
             mock_get.return_value = ok({"title": "Old title"})
@@ -175,8 +176,8 @@ class TestUpdatePrVerifiesTheWrite:
     ) -> None:
         """GitHub stores CRLF and trims — a byte comparison cries wolf."""
         with (
-            patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock) as mock_api,
-            patch("dev10x.github.pulls.pr_get", new_callable=AsyncMock) as mock_get,
+            patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock) as mock_api,
+            patch("dev10x.coding.github.pulls.pr_get", new_callable=AsyncMock) as mock_get,
         ):
             mock_api.return_value = _completed()
             mock_get.return_value = ok({"body": observed})
@@ -187,8 +188,8 @@ class TestUpdatePrVerifiesTheWrite:
     @pytest.mark.asyncio
     async def test_an_unreadable_verification_warns_rather_than_fails(self, resolved_repo) -> None:
         with (
-            patch("dev10x.github._gateway._gh_api_raw", new_callable=AsyncMock) as mock_api,
-            patch("dev10x.github.pulls.pr_get", new_callable=AsyncMock) as mock_get,
+            patch("dev10x.core.github._gateway._gh_api_raw", new_callable=AsyncMock) as mock_api,
+            patch("dev10x.coding.github.pulls.pr_get", new_callable=AsyncMock) as mock_get,
         ):
             mock_api.return_value = _completed()
             mock_get.return_value = err("gh unreachable")
@@ -211,7 +212,7 @@ class TestUpdatePrVerifiesTheWrite:
 
         monkeypatch.setattr(gh.pulls, "_set_pr_milestone", fake_set)
 
-        with patch("dev10x.github.pulls.pr_get", new_callable=AsyncMock) as mock_get:
+        with patch("dev10x.coding.github.pulls.pr_get", new_callable=AsyncMock) as mock_get:
             result = await gh.update_pr(pr_number=42, milestone="56")
 
         assert isinstance(result, SuccessResult)
@@ -237,7 +238,7 @@ class TestSelfVerificationIsStructural:
         for node in ast.walk(tree):
             if isinstance(node, ast.AsyncFunctionDef) and node.name == name:
                 return node
-        raise AssertionError(f"{name} not found in dev10x.github.pulls")
+        raise AssertionError(f"{name} not found in dev10x.coding.github.pulls")
 
     @pytest.mark.parametrize("wrapper", VERIFYING_WRAPPERS)
     def test_the_wrapper_reads_the_pr_back(self, module_ast, wrapper: str) -> None:

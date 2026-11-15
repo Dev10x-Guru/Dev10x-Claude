@@ -3,14 +3,14 @@
 This Protocol is a **Separated Interface** (Fowler PoEAA): the
 interface lives in the ``domain/`` core while its implementation
 lives in a different package (``audit/``). The hooks layer
-(``dev10x.hooks.audit_emit``) needs to mint span ids, classify
+(``dev10x.core.hooks.audit_emit``) needs to mint span ids, classify
 outcomes, and append audit records, but it must not import the
 ``audit/`` adapter's internals directly (audit memo Finding I6 — the
 ``hooks → audit`` inversion). This Protocol declares the surface in the
 core; ``dev10x.teach.audit.log_reader`` provides the concrete implementation,
 and the hooks layer depends on the Protocol and receives the concrete
 writer through a single injection seam. ``ConfigLoader`` in
-``dev10x.domain.config_loader`` is the same pattern in the same layer.
+``dev10x.core.domain.config_loader`` is the same pattern in the same layer.
 
 See ADR-0008 (context boundary protocol) for the dependency-direction
 rule this enforces.
@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from typing import Any, Protocol, runtime_checkable
 
-from dev10x.domain.hook_telemetry import HookOutcome
+from dev10x.core.domain.hook_telemetry import HookOutcome
 
 
 @runtime_checkable

@@ -12,8 +12,8 @@ from typing import Any
 import pytest
 import yaml
 
-from dev10x.mcp.task_index_tools import task_index_append, task_index_get, task_index_set
-from dev10x.session import preset_pin
+from dev10x.core.session import preset_pin
+from dev10x.tasks.mcp.task_index_tools import task_index_append, task_index_get, task_index_set
 
 
 @pytest.fixture
@@ -26,7 +26,7 @@ def repo(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
 
 @pytest.fixture
 def stored(repo: Path) -> Any:
-    from dev10x.domain.dev10x_paths import Dev10xConfigDir
+    from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
 
     def read() -> dict[str, Any]:
         path = Dev10xConfigDir.task_index_yaml(repo_name="Dev10x-Claude")

@@ -13,7 +13,7 @@ GH-329 shipped two runtime failures that passed CI green:
   `PullRequestReviewComment.pullRequestReviewThread` in GraphQL
 
 Both failures were invisible in CI because every test for these tools
-patched `dev10x.github._gh_api_raw` with an `AsyncMock`. A mock returns
+patched `dev10x.coding.github._gh_api_raw` with an `AsyncMock`. A mock returns
 whatever shape the test author specifies, so an invalid field name or
 selection passes green. The failures surfaced only in real sessions.
 
@@ -23,9 +23,9 @@ selection passes green. The failures surfaced only in real sessions.
 
 Tests in this class patch the API boundary (`_gh_api_raw`, `async_run`,
 `async_run_script`) and supply canned payloads. Patch them on
-`dev10x.github._gateway`, the module that defines them (ADR-0027 D2):
+`dev10x.core.github._gateway`, the module that defines them (ADR-0027 D2):
 capability modules call `_gateway.<name>`, so a patch of the
-`dev10x.github` re-export intercepts nothing, and
+`dev10x.coding.github` re-export intercepts nothing, and
 `tests/github/test_github_split.py` fails it. They verify:
 
 - Business logic (field extraction, error handling, routing)

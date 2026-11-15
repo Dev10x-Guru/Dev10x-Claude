@@ -1,7 +1,8 @@
 """GH-945: PR-body hygiene rules mirroring the hygiene-bot findings."""
 
 import pytest
-from dev10x.domain.pr_body import (
+
+from dev10x.core.domain.pr_body import (
     HIDDEN_TRAILER_HINT,
     MISSING_REFERENCE_HINT,
     MULTILINE_REFERENCE_HINT,

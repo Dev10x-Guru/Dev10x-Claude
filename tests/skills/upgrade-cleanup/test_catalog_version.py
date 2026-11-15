@@ -4,7 +4,7 @@
 import json
 from pathlib import Path
 
-from dev10x.skills.permission.catalog_version import update_file
+from dev10x.core.skills.permission.catalog_version import update_file
 
 
 class TestUpdateFilePluginDir:

@@ -1,7 +1,7 @@
 """Flat base_permissions catalog → structured Policy entries (PAP-2, GH-799).
 
 The core migration logic (:func:`migrate_flat_config` and its pure
-helpers) lives in :mod:`dev10x.domain.common.policy_migration` — moved
+helpers) lives in :mod:`dev10x.core.domain.common.policy_migration` — moved
 there in GH-819 so ``domain/`` code (``policy_resolution.py``) never
 imports from the ``skills/`` adapter layer (ADR-0008). This module
 re-exports those symbols for backward compatibility with existing
@@ -13,8 +13,8 @@ settings output until the PAP-3 renderer replaces it.
 
 from __future__ import annotations
 
-from dev10x.domain.common.policy import Policy
-from dev10x.domain.common.policy_migration import (
+from dev10x.core.domain.common.policy import Policy
+from dev10x.core.domain.common.policy_migration import (
     BASELINE_CATALOG_PATH,
     CLAUDE_AI_MCP_GROUP,
     DEFAULT_TIER,

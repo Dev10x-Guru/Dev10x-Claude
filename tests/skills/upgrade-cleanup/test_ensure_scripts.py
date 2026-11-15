@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from dev10x.core.plugin_map import PluginMap
-from dev10x.skills.permission import update_paths
+from dev10x.core.skills.permission import update_paths
 
 
 class TestScanPluginScripts:
@@ -439,6 +439,7 @@ class TestEnsureScriptsFunction:
 
 
 # ── GH-1807: satellite plugins seed their own script and Read grants ────
+
 
 @pytest.fixture()
 def satellite_plugin_map(make_plugin_map: Callable[..., PluginMap]) -> PluginMap:

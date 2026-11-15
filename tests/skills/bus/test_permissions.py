@@ -6,7 +6,8 @@ import os
 from pathlib import Path
 
 import pytest
-from dev10x.skills.permission.catalog_rules import scan_plugin_scripts
+
+from dev10x.core.skills.permission.catalog_rules import scan_plugin_scripts
 
 PLUGIN_ROOT = Path(__file__).resolve().parents[3] / "plugins" / "comm"
 BUS_SCRIPTS = [

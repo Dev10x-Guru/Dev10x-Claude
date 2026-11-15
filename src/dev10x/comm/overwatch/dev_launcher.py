@@ -19,7 +19,7 @@ from pathlib import Path
 
 from dev10x.comm.overwatch import paths
 from dev10x.comm.overwatch.dev_checkout import DevCheckout
-from dev10x.subprocess_utils import run
+from dev10x.core.subprocess_utils import run
 
 HEAD_TIMEOUT_SECONDS = 10.0
 STOP_TIMEOUT_SECONDS = 10.0

@@ -6,9 +6,9 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from dev10x.github.app_api import GitHubAPIError
 
-from dev10x.github import app_auth as auth
+from dev10x.core.github import app_auth as auth
+from dev10x.core.github.app_api import GitHubAPIError
 
 
 @pytest.fixture(autouse=True)
@@ -178,7 +178,7 @@ class TestGetBotToken:
         """GH-499: the App JWT must never be handed to a subprocess.
 
         Both App-auth calls now go through the in-process HTTP client
-        (``dev10x.github.app_api``) via ``asyncio.to_thread`` —
+        (``dev10x.core.github.app_api``) via ``asyncio.to_thread`` —
         there is no ``gh`` child process left in this module, so the JWT
         can never appear in argv / `ps` / `/proc/<pid>/cmdline`.
         """

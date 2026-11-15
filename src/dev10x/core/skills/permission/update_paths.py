@@ -9,20 +9,20 @@ CLI entry point: ``dev10x permission update-paths`` (and siblings).
 
 This module was 2,308 lines holding ten catalog operations (GH-1432).
 Each operation now lives in the module it belongs to, and this module
-re-exports them so ``from dev10x.skills.permission.update_paths import
+re-exports them so ``from dev10x.core.skills.permission.update_paths import
 ...`` and ``update_paths.<name>`` keep resolving:
 
-- :mod:`~dev10x.skills.permission.catalog_load` — config lookup and
+- :mod:`~dev10x.core.skills.permission.catalog_load` — config lookup and
   loading, settings-file discovery, userspace-config bootstrap
-- :mod:`~dev10x.skills.permission.catalog_rules` — computing the rules
+- :mod:`~dev10x.core.skills.permission.catalog_rules` — computing the rules
   the catalog expects (script/Read builders, coverage checks,
   generalization, legacy-rule collapse); no writes
-- :mod:`~dev10x.skills.permission.catalog_write` — the ``ensure_*``
+- :mod:`~dev10x.core.skills.permission.catalog_write` — the ``ensure_*``
   fixers, ``generalize``, ``seed_worktree`` and the git-tracked guard
-- :mod:`~dev10x.skills.permission.catalog_version` — versioned
+- :mod:`~dev10x.core.skills.permission.catalog_version` — versioned
   plugin-cache path rewriting
-- :mod:`~dev10x.skills.permission.catalog_backup` — ``--restore``
-- :mod:`~dev10x.skills.permission.catalog_result` — the result-dict
+- :mod:`~dev10x.core.skills.permission.catalog_backup` — ``--restore``
+- :mod:`~dev10x.core.skills.permission.catalog_result` — the result-dict
   shape every operation returns
 
 ``doctor.py`` stays the diagnose-only layer it already was. A patch
@@ -30,8 +30,8 @@ aimed at code that moved must target the owning module: patching a
 name here rebinds only this facade.
 """
 
-from dev10x.skills.permission.catalog_backup import _restore
-from dev10x.skills.permission.catalog_load import (
+from dev10x.core.skills.permission.catalog_backup import _restore
+from dev10x.core.skills.permission.catalog_load import (
     KNOWN_PLUGIN_DIRS,
     MEMORY_CONFIG,
     PLUGIN_CONFIG,
@@ -48,8 +48,8 @@ from dev10x.skills.permission.catalog_load import (
     load_effective_config,
     load_shipped_config,
 )
-from dev10x.skills.permission.catalog_result import _result
-from dev10x.skills.permission.catalog_rules import (
+from dev10x.core.skills.permission.catalog_result import _result
+from dev10x.core.skills.permission.catalog_rules import (
     _CREDENTIALED_EXEC_RE,
     _DUP_SLASH_RE,
     _LEGACY_UPGRADE_CLEANUP_RULE_PATTERN,
@@ -88,12 +88,12 @@ from dev10x.skills.permission.catalog_rules import (
     verify_read_coverage,
     verify_script_coverage,
 )
-from dev10x.skills.permission.catalog_version import (
+from dev10x.core.skills.permission.catalog_version import (
     VERSION_PATTERN,
     _rewrite_plugin_version_match,
     update_file,
 )
-from dev10x.skills.permission.catalog_write import (
+from dev10x.core.skills.permission.catalog_write import (
     _apply_ide_block,
     _apply_tracker_block,
     _catalog_drift_messages,

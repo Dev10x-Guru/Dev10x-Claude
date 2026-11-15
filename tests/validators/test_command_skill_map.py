@@ -11,9 +11,9 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from dev10x.config.loader import load_document
-from dev10x.domain.rules.validation_rule import MatchingRule
 
+from dev10x.core.config.loader import load_document
+from dev10x.core.domain.rules.validation_rule import MatchingRule
 from dev10x.core.validators.skill_redirect import MCP_UNAVAILABLE_HINT
 from tests.validators.loop_shapes import BARE_POLL_LOOP
 

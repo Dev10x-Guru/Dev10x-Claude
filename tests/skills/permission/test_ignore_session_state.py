@@ -13,7 +13,9 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from dev10x.skills.permission.ignore_session_state import (
+
+from dev10x.core import subprocess_utils
+from dev10x.core.skills.permission.ignore_session_state import (
     GIT_TIMEOUT_SECONDS,
     IGNORE_PATTERN,
     SUGGESTED_TRACKED_PATTERN,
@@ -23,9 +25,7 @@ from dev10x.skills.permission.ignore_session_state import (
     is_already_ignored,
     suggestion_for,
 )
-from dev10x.skills.permission.settings_discovery import vendored_dirs
-
-from dev10x import subprocess_utils
+from dev10x.core.skills.permission.settings_discovery import vendored_dirs
 
 _TIMEOUT_SECONDS = 30
 

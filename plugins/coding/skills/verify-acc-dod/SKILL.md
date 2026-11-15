@@ -301,7 +301,7 @@ check would auto-route to "Go back" forever (you cannot merge without
 review). Instead it selects the recommended option below.
 
 The three-way recommendation is encoded once in
-`dev10x.domain.session_rules.completion_gate_recommendation()` — this
+`dev10x.core.domain.session_rules.completion_gate_recommendation()` — this
 skill's prose and `work-on`'s Plan Completion Gate defer to it rather
 than re-deriving the matrix:
 

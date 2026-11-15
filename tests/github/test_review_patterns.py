@@ -1,4 +1,4 @@
-"""Unit tests for dev10x.github.review_patterns (GH-346).
+"""Unit tests for dev10x.coding.github.review_patterns (GH-346).
 
 Contract class: mock
   Low-level fetch helpers patch ``async_run`` and supply canned ``gh``
@@ -12,11 +12,11 @@ import json
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from dev10x.domain.common.result import ErrorResult, SuccessResult
 
+from dev10x.core.domain.common.result import ErrorResult, SuccessResult
 from tests.fakers.process import completed as _completed
 
-rp = pytest.importorskip("dev10x.github.review_patterns", reason="dev10x not installed")
+rp = pytest.importorskip("dev10x.coding.github.review_patterns", reason="dev10x not installed")
 
 
 def _comment(
@@ -109,19 +109,19 @@ class TestCandidatePattern:
 
 class TestDetectRepo:
     @pytest.mark.asyncio
-    @patch("dev10x.github.review_patterns.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.review_patterns.async_run", new_callable=AsyncMock)
     async def test_returns_repo_on_success(self, mock_run: AsyncMock) -> None:
         mock_run.return_value = _completed(stdout="owner/repo\n")
         assert await rp._detect_repo() == "owner/repo"
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.review_patterns.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.review_patterns.async_run", new_callable=AsyncMock)
     async def test_returns_none_on_failure(self, mock_run: AsyncMock) -> None:
         mock_run.return_value = _completed(returncode=1, stderr="not a repo")
         assert await rp._detect_repo() is None
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.review_patterns.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.review_patterns.async_run", new_callable=AsyncMock)
     async def test_returns_none_on_empty_stdout(self, mock_run: AsyncMock) -> None:
         mock_run.return_value = _completed(stdout="  \n")
         assert await rp._detect_repo() is None
@@ -129,7 +129,7 @@ class TestDetectRepo:
 
 class TestMergedPrNumbers:
     @pytest.mark.asyncio
-    @patch("dev10x.github.review_patterns.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.review_patterns.async_run", new_callable=AsyncMock)
     async def test_parses_numbers(self, mock_run: AsyncMock) -> None:
         mock_run.return_value = _completed(stdout=json.dumps([{"number": 7}, {"number": 9}]))
         result = await rp._merged_pr_numbers(repo="o/r", limit=50)
@@ -137,7 +137,7 @@ class TestMergedPrNumbers:
         assert result.value == [7, 9]
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.review_patterns.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.review_patterns.async_run", new_callable=AsyncMock)
     async def test_error_on_nonzero_returncode(self, mock_run: AsyncMock) -> None:
         mock_run.return_value = _completed(returncode=1, stderr="boom")
         result = await rp._merged_pr_numbers(repo="o/r", limit=50)
@@ -145,7 +145,7 @@ class TestMergedPrNumbers:
         assert result.error == "boom"
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.review_patterns.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.review_patterns.async_run", new_callable=AsyncMock)
     async def test_error_on_bad_json(self, mock_run: AsyncMock) -> None:
         mock_run.return_value = _completed(stdout="not json")
         result = await rp._merged_pr_numbers(repo="o/r", limit=50)
@@ -154,7 +154,7 @@ class TestMergedPrNumbers:
 
 class TestPrReviewComments:
     @pytest.mark.asyncio
-    @patch("dev10x.github.review_patterns.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.review_patterns.async_run", new_callable=AsyncMock)
     async def test_parses_comments(self, mock_run: AsyncMock) -> None:
         payload = [
             {"body": "rename this", "path": "a.py", "line": 4, "user": {"login": "al"}},
@@ -168,13 +168,13 @@ class TestPrReviewComments:
         assert comments[1].author == ""
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.review_patterns.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.review_patterns.async_run", new_callable=AsyncMock)
     async def test_failed_fetch_returns_empty(self, mock_run: AsyncMock) -> None:
         mock_run.return_value = _completed(returncode=1, stderr="403")
         assert await rp._pr_review_comments(repo="o/r", pr_number=3) == []
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.review_patterns.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.review_patterns.async_run", new_callable=AsyncMock)
     async def test_bad_json_returns_empty(self, mock_run: AsyncMock) -> None:
         mock_run.return_value = _completed(stdout="<html>")
         assert await rp._pr_review_comments(repo="o/r", pr_number=3) == []
@@ -182,14 +182,14 @@ class TestPrReviewComments:
 
 class TestFetchReviewComments:
     @pytest.mark.asyncio
-    @patch("dev10x.github.review_patterns._pr_review_comments", new_callable=AsyncMock)
-    @patch("dev10x.github.review_patterns._merged_pr_numbers", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.review_patterns._pr_review_comments", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.review_patterns._merged_pr_numbers", new_callable=AsyncMock)
     async def test_aggregates_across_prs(
         self,
         mock_numbers: AsyncMock,
         mock_comments: AsyncMock,
     ) -> None:
-        from dev10x.domain.common.result import ok
+        from dev10x.core.domain.common.result import ok
 
         mock_numbers.return_value = ok([1, 2])
         mock_comments.side_effect = [[_comment("a", pr_number=1)], [_comment("b", pr_number=2)]]
@@ -198,9 +198,9 @@ class TestFetchReviewComments:
         assert len(result.value) == 2
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.review_patterns._merged_pr_numbers", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.review_patterns._merged_pr_numbers", new_callable=AsyncMock)
     async def test_propagates_pr_list_error(self, mock_numbers: AsyncMock) -> None:
-        from dev10x.domain.common.result import err
+        from dev10x.core.domain.common.result import err
 
         mock_numbers.return_value = err("pr list failed")
         result = await rp.get_review_comments(repo="o/r", limit=50)
@@ -215,9 +215,9 @@ class TestClusterReviewComments:
         assert isinstance(result, ErrorResult)
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.review_patterns.get_review_comments", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.review_patterns.get_review_comments", new_callable=AsyncMock)
     async def test_happy_path_returns_patterns_and_summary(self, mock_fetch: AsyncMock) -> None:
-        from dev10x.domain.common.result import ok
+        from dev10x.core.domain.common.result import ok
 
         mock_fetch.return_value = ok(
             [_comment("rename pm to payment_method"), _comment("rename pm to payment_method")]
@@ -229,13 +229,13 @@ class TestClusterReviewComments:
         assert result.value["patterns"][0]["frequency"] == 2
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.review_patterns._detect_repo", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.review_patterns._detect_repo", new_callable=AsyncMock)
     async def test_detects_repo_when_omitted(self, mock_detect: AsyncMock) -> None:
-        from dev10x.domain.common.result import ok
+        from dev10x.core.domain.common.result import ok
 
         mock_detect.return_value = "auto/repo"
         with patch(
-            "dev10x.github.review_patterns.get_review_comments",
+            "dev10x.coding.github.review_patterns.get_review_comments",
             new_callable=AsyncMock,
             return_value=ok([]),
         ):
@@ -244,16 +244,16 @@ class TestClusterReviewComments:
         assert result.value["summary"]["repos_scanned"] == ["auto/repo"]
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.review_patterns._detect_repo", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.review_patterns._detect_repo", new_callable=AsyncMock)
     async def test_error_when_no_repo_detected(self, mock_detect: AsyncMock) -> None:
         mock_detect.return_value = None
         result = await rp.cluster_review_comments()
         assert isinstance(result, ErrorResult)
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.review_patterns.get_review_comments", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.review_patterns.get_review_comments", new_callable=AsyncMock)
     async def test_skips_repo_on_fetch_error(self, mock_fetch: AsyncMock) -> None:
-        from dev10x.domain.common.result import err, ok
+        from dev10x.core.domain.common.result import err, ok
 
         mock_fetch.side_effect = [err("rate limited"), ok([_comment("good feedback note")])]
         result = await rp.cluster_review_comments(repos=["bad/repo", "good/repo"])

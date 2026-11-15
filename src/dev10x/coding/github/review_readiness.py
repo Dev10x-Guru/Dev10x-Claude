@@ -30,8 +30,8 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 from dev10x.coding.github import bot_review_config, bot_reviews
+from dev10x.core.domain.common.result import ErrorResult, Result, SuccessResult, err, ok
 from dev10x.core.github import _gateway
-from dev10x.domain.common.result import ErrorResult, Result, SuccessResult, err, ok
 
 VERDICT_READY = "READY"
 VERDICT_SENT_NOT_READY = "SENT-NOT-READY"

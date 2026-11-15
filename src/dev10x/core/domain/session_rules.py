@@ -1,6 +1,6 @@
 """Session policy rules — pure decisions owned by the domain core.
 
-These were previously defined in ``dev10x.hooks.session_policy``, which
+These were previously defined in ``dev10x.core.hooks.session_policy``, which
 forced ``domain.documents.session_context`` to defer its imports into
 function bodies to break the cycle ``hooks.session_dispatch →
 domain.documents.session_context → hooks.session_policy`` (audit memo
@@ -9,7 +9,7 @@ belongs in the core: adapters now import them inward instead of reaching
 up into ``hooks/``.
 
 All rules here are free of file I/O (ADR-0007 D3). The session.yaml read
-is owned by :class:`dev10x.domain.documents.session_yaml.SessionYamlDocument`;
+is owned by :class:`dev10x.core.domain.documents.session_yaml.SessionYamlDocument`;
 callers read the parsed values there and pass them in as frozen fields.
 
 See ADR-0008 (context boundary protocol) for the dependency-direction
@@ -21,9 +21,9 @@ from __future__ import annotations
 import enum
 from dataclasses import dataclass
 
-from dev10x.domain.documents.session_state import PlanSummary
-from dev10x.domain.friction_level import FrictionLevel
-from dev10x.domain.rules.policy_rule import PolicyRule
+from dev10x.core.domain.documents.session_state import PlanSummary
+from dev10x.core.domain.friction_level import FrictionLevel
+from dev10x.core.domain.rules.policy_rule import PolicyRule
 
 
 class UnknownFrictionLevelError(ValueError):
@@ -36,7 +36,7 @@ SOLO_MAINTAINER_MODE = "solo-maintainer"
 
 # The plan-approval gate decision moved into the gate-policy resolver
 # (GH-755, ADR-0016 Phase 2): work-on resolves it via the ``plan_approval``
-# toggle of :func:`dev10x.domain.gate_policy.resolve_gate` (exposed as the
+# toggle of :func:`dev10x.core.domain.gate_policy.resolve_gate` (exposed as the
 # ``resolve_gate`` MCP tool) instead of a standalone predicate. The
 # ``auto-plan`` and ``adaptive``+``solo-maintainer`` shapes the former
 # ``plan_gate_auto_approves`` covered are now encoded in the shipped presets
@@ -147,7 +147,7 @@ class BuildAutonomyReassuranceRule(PolicyRule[str]):
     the SessionStart orchestrator can drop the segment silently.
 
     The caller reads ``friction_level`` and ``active_modes`` from
-    :class:`dev10x.domain.documents.session_yaml.SessionYamlDocument` and
+    :class:`dev10x.core.domain.documents.session_yaml.SessionYamlDocument` and
     passes them in as frozen fields — the rule performs no file I/O
     (ADR-0007 D3). Relocated from ``hooks/session_policy.py`` to its
     archetype home in ``domain/`` once the I/O was removed (GH-524).
@@ -191,7 +191,7 @@ class BuildAutoPlanGuidanceRule(PolicyRule[str]):
     Returns an empty string outside ``auto-plan`` so the SessionStart
     orchestrator drops the segment silently. The caller reads
     ``friction_level`` and ``active_modes`` from
-    :class:`dev10x.domain.documents.session_yaml.SessionYamlDocument` and
+    :class:`dev10x.core.domain.documents.session_yaml.SessionYamlDocument` and
     passes them in as frozen fields — the rule performs no file I/O
     (ADR-0007 D3).
     """
@@ -234,7 +234,7 @@ class ModeGuardRule(PolicyRule[str]):
     None``) or nothing would be dropped, so the SessionStart orchestrator
     drops the segment silently. I/O-free (ADR-0007 D3): the caller reads
     ``gate_overlays`` / ``allowed_overlays`` from
-    :class:`dev10x.domain.documents.session_yaml.SessionYamlDocument` and
+    :class:`dev10x.core.domain.documents.session_yaml.SessionYamlDocument` and
     passes them in as frozen fields.
 
     Takes the overlays *as declared* since GH-1162. It used to take

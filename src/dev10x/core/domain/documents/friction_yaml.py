@@ -3,7 +3,7 @@
 One file per machine, keyed by project dir-path globs, cross-repo by
 design (ADR-0018). Unlike the per-repo ``config.yaml`` and the
 per-worktree ``session.yaml`` (see
-:mod:`dev10x.domain.documents.session_yaml`), this document outlives
+:mod:`dev10x.core.domain.documents.session_yaml`), this document outlives
 every checkout it names — which is why it carries garbage-collection
 semantics (:func:`reap_dead_projects`) and the repo-identity helpers
 that key its ``projects[]`` entries (:func:`repo_stem`,
@@ -24,11 +24,11 @@ from typing import Any
 
 import yaml
 
-from dev10x.domain.dev10x_paths import Dev10xConfigDir
-from dev10x.domain.documents.yaml_mapping import load_yaml_mapping
-from dev10x.domain.file_locks import atomic_write_text, file_lock
-from dev10x.domain.gate_policy import SUPERVISOR_REVIEW_REQUIRED
-from dev10x.domain.linked_worktree import main_checkout
+from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.core.domain.documents.yaml_mapping import load_yaml_mapping
+from dev10x.core.domain.file_locks import atomic_write_text, file_lock
+from dev10x.core.domain.gate_policy import SUPERVISOR_REVIEW_REQUIRED
+from dev10x.core.domain.linked_worktree import main_checkout
 
 # Durable preference keys (ADR-0018). The global ``friction.yaml`` and the
 # legacy per-repo ``config.yaml`` both carry a subset of these; readers
@@ -115,7 +115,7 @@ def match_globs(toplevel: str, patterns: Any) -> bool:
     keep the globs forgiving, mirroring ``projects.yaml`` matching.
 
     This is the canonical PATH-scheme glob matcher (GH-1450) —
-    :func:`dev10x.domain.project_match.matches` calls it directly for
+    :func:`dev10x.core.domain.project_match.matches` calls it directly for
     ``MatchScheme.PATH`` rather than maintaining a second, hand-mirrored
     implementation. A config-drift scan exists specifically to catch a
     human unable to see policy drift by reading one file; the drift

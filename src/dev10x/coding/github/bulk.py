@@ -1,8 +1,8 @@
 """Bulk milestone and issue capability (ADR-0027).
 
 Sibling capabilities are reached as module attributes (ADR-0027 D2), so a
-test patches ``dev10x.github.issues.issue_create`` or
-``dev10x.github.milestones.milestone_create`` and intercepts the bulk
+test patches ``dev10x.coding.github.issues.issue_create`` or
+``dev10x.coding.github.milestones.milestone_create`` and intercepts the bulk
 path too. The modules are aliased because ``milestones`` and ``issues``
 are also the batch parameter names.
 """
@@ -14,7 +14,7 @@ from typing import Any
 
 from dev10x.coding.github import issues as issue_ops
 from dev10x.coding.github import milestones as milestone_ops
-from dev10x.domain.common.result import ErrorResult, Result, err, ok
+from dev10x.core.domain.common.result import ErrorResult, Result, err, ok
 
 
 async def _bulk_execute(

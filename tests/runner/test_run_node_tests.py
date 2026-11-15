@@ -4,10 +4,10 @@ import os
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from dev10x.domain.common.result import ErrorResult, SuccessResult
 
-from dev10x import runner
-from dev10x.subprocess_utils import TimedOutProcess
+from dev10x.coding import runner
+from dev10x.core.domain.common.result import ErrorResult, SuccessResult
+from dev10x.core.subprocess_utils import TimedOutProcess
 from tests.fakers.process import completed as _completed
 
 # jest writes its summary to stderr.
@@ -50,7 +50,7 @@ class TestSummaryParsing:
     """GH-1285: zero counts must not stand in for an unparsed summary."""
 
     @pytest.mark.asyncio
-    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.runner.async_run", new_callable=AsyncMock)
     async def test_a_parsed_summary_says_so(self, mock_run: AsyncMock) -> None:
         mock_run.return_value = _completed(stderr=JEST_PASS_STDERR)
 
@@ -60,7 +60,7 @@ class TestSummaryParsing:
         assert result.value["summary_parsed"] is True
 
     @pytest.mark.asyncio
-    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.runner.async_run", new_callable=AsyncMock)
     async def test_an_absent_summary_is_distinguishable_from_an_empty_run(
         self,
         mock_run: AsyncMock,
@@ -76,7 +76,7 @@ class TestSummaryParsing:
 
 class TestRunNodeTests:
     @pytest.mark.asyncio
-    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.runner.async_run", new_callable=AsyncMock)
     async def test_jest_is_default_with_coverage(self, mock_run: AsyncMock) -> None:
         mock_run.return_value = _completed(stderr=JEST_PASS_STDERR)
 
@@ -91,7 +91,7 @@ class TestRunNodeTests:
         assert result.value["total"] == 7
 
     @pytest.mark.asyncio
-    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.runner.async_run", new_callable=AsyncMock)
     async def test_omits_coverage_flag_when_disabled(self, mock_run: AsyncMock) -> None:
         mock_run.return_value = _completed(stderr=JEST_PASS_STDERR)
 
@@ -100,7 +100,7 @@ class TestRunNodeTests:
         assert mock_run.call_args.kwargs["args"] == ["npx", "jest"]
 
     @pytest.mark.asyncio
-    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.runner.async_run", new_callable=AsyncMock)
     async def test_yarn_delegates_without_coverage_flag(self, mock_run: AsyncMock) -> None:
         # yarn/npm/pnpm delegate to the project's test script — no --coverage.
         mock_run.return_value = _completed(stderr=JEST_PASS_STDERR)
@@ -110,7 +110,7 @@ class TestRunNodeTests:
         assert mock_run.call_args.kwargs["args"] == ["yarn", "test", "--watchAll=false"]
 
     @pytest.mark.asyncio
-    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.runner.async_run", new_callable=AsyncMock)
     async def test_parses_failed_and_skipped_counts(self, mock_run: AsyncMock) -> None:
         mock_run.return_value = _completed(returncode=1, stderr=JEST_FAIL_STDERR)
 
@@ -131,7 +131,7 @@ class TestRunNodeTests:
         assert "Unknown node test runner" in result.error
 
     @pytest.mark.asyncio
-    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.runner.async_run", new_callable=AsyncMock)
     async def test_missing_binary_is_error(self, mock_run: AsyncMock) -> None:
         mock_run.side_effect = FileNotFoundError("npx")
 
@@ -141,7 +141,7 @@ class TestRunNodeTests:
         assert "not found on PATH" in result.error
 
     @pytest.mark.asyncio
-    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.runner.async_run", new_callable=AsyncMock)
     async def test_timeout_is_error(self, mock_run: AsyncMock) -> None:
         mock_run.return_value = _completed(returncode=-1, stderr="process timed out")
 
@@ -151,7 +151,7 @@ class TestRunNodeTests:
         assert "timed out" in result.error
 
     @pytest.mark.asyncio
-    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.runner.async_run", new_callable=AsyncMock)
     async def test_queued_timeout_has_its_own_verdict(self, mock_run: AsyncMock) -> None:
         """GH-1760: the runner never started, so it did not time out."""
         mock_run.return_value = TimedOutProcess(args=[], queued=True)
@@ -162,7 +162,7 @@ class TestRunNodeTests:
         assert result.to_dict()["verdict"] == "queue_timeout"
 
     @pytest.mark.asyncio
-    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.runner.async_run", new_callable=AsyncMock)
     async def test_nonzero_returncode_is_not_mcp_error(self, mock_run: AsyncMock) -> None:
         mock_run.return_value = _completed(returncode=1, stderr=JEST_FAIL_STDERR)
 
@@ -182,7 +182,7 @@ class TestNamedPackageScript:
     """
 
     @pytest.mark.asyncio
-    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.runner.async_run", new_callable=AsyncMock)
     async def test_named_script_uses_the_run_verb(self, mock_run: AsyncMock) -> None:
         mock_run.return_value = _completed(stderr=JEST_PASS_STDERR)
 
@@ -191,7 +191,7 @@ class TestNamedPackageScript:
         assert mock_run.call_args.kwargs["args"] == ["npm", "run", "lint:tsc"]
 
     @pytest.mark.asyncio
-    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.runner.async_run", new_callable=AsyncMock)
     async def test_default_script_keeps_the_historical_shape(self, mock_run: AsyncMock) -> None:
         """``yarn test``, not ``yarn run test`` — no existing caller changes."""
         mock_run.return_value = _completed(stderr=JEST_PASS_STDERR)
@@ -201,7 +201,7 @@ class TestNamedPackageScript:
         assert mock_run.call_args.kwargs["args"] == ["yarn", "test"]
 
     @pytest.mark.asyncio
-    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.runner.async_run", new_callable=AsyncMock)
     async def test_explicit_default_script_is_also_the_historical_shape(
         self, mock_run: AsyncMock
     ) -> None:
@@ -212,7 +212,7 @@ class TestNamedPackageScript:
         assert mock_run.call_args.kwargs["args"] == ["pnpm", "test"]
 
     @pytest.mark.asyncio
-    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.runner.async_run", new_callable=AsyncMock)
     async def test_extra_args_follow_the_named_script(self, mock_run: AsyncMock) -> None:
         mock_run.return_value = _completed(stderr=JEST_PASS_STDERR)
 
@@ -235,7 +235,7 @@ class TestNamedPackageScript:
         assert "cannot run the package.json script" in result.error
 
     @pytest.mark.asyncio
-    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.runner.async_run", new_callable=AsyncMock)
     async def test_direct_runner_accepts_the_default_script(self, mock_run: AsyncMock) -> None:
         """The guard must not reject the default every jest caller relies on."""
         mock_run.return_value = _completed(stderr=JEST_PASS_STDERR)
@@ -246,7 +246,7 @@ class TestNamedPackageScript:
         assert mock_run.call_args.kwargs["args"] == ["npx", "jest", "--coverage"]
 
     @pytest.mark.asyncio
-    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.runner.async_run", new_callable=AsyncMock)
     async def test_script_is_echoed_in_the_payload(self, mock_run: AsyncMock) -> None:
         mock_run.return_value = _completed(stderr=JEST_PASS_STDERR)
 
@@ -256,7 +256,7 @@ class TestNamedPackageScript:
         assert result.value["script"] == "lint:tsc"
 
     @pytest.mark.asyncio
-    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.runner.async_run", new_callable=AsyncMock)
     async def test_coverage_flag_never_reaches_a_named_script(self, mock_run: AsyncMock) -> None:
         """Coverage only applies to jest/vitest, which reject ``script``."""
         mock_run.return_value = _completed(stderr=JEST_PASS_STDERR)
@@ -275,7 +275,7 @@ class TestEnvOverlay:
     """
 
     @pytest.mark.asyncio
-    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.runner.async_run", new_callable=AsyncMock)
     async def test_no_env_inherits_everything(self, mock_run: AsyncMock) -> None:
         mock_run.return_value = _completed(stderr=JEST_PASS_STDERR)
 
@@ -284,7 +284,7 @@ class TestEnvOverlay:
         assert mock_run.call_args.kwargs["env"] is None
 
     @pytest.mark.asyncio
-    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.runner.async_run", new_callable=AsyncMock)
     async def test_empty_env_inherits_everything(self, mock_run: AsyncMock) -> None:
         mock_run.return_value = _completed(stderr=JEST_PASS_STDERR)
 
@@ -293,7 +293,7 @@ class TestEnvOverlay:
         assert mock_run.call_args.kwargs["env"] is None
 
     @pytest.mark.asyncio
-    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.runner.async_run", new_callable=AsyncMock)
     async def test_env_overlays_rather_than_replaces(self, mock_run: AsyncMock) -> None:
         mock_run.return_value = _completed(stderr=JEST_PASS_STDERR)
 
@@ -331,7 +331,7 @@ class TestRunnerDetection:
         assert runner.detect_node_runner(cwd=str(project_root)) == expected
 
     @pytest.mark.asyncio
-    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.runner.async_run", new_callable=AsyncMock)
     async def test_omitted_runner_uses_detected_vitest(
         self,
         mock_run: AsyncMock,
@@ -347,7 +347,7 @@ class TestRunnerDetection:
         assert result.value["runner"] == "vitest"
 
     @pytest.mark.asyncio
-    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.runner.async_run", new_callable=AsyncMock)
     async def test_explicit_runner_skips_detection(
         self,
         mock_run: AsyncMock,
@@ -389,7 +389,7 @@ class TestVitestSummary:
         assert parsed["summary_parsed"] is False
 
     @pytest.mark.asyncio
-    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.runner.async_run", new_callable=AsyncMock)
     async def test_failing_vitest_run_is_a_result_not_an_error(self, mock_run: AsyncMock) -> None:
         mock_run.return_value = _completed(returncode=1, stdout=VITEST_FAIL_STDOUT)
 
@@ -407,7 +407,7 @@ class TestNoTestsRan:
         "stderr",
         [JEST_NO_TESTS_STDOUT, "Tests:       0 total\n", "Tests:       nothing\n"],
     )
-    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.runner.async_run", new_callable=AsyncMock)
     async def test_nonzero_exit_without_executed_tests_is_error(
         self,
         mock_run: AsyncMock,
@@ -423,7 +423,7 @@ class TestNoTestsRan:
         assert result.to_dict()["verdict"] == "no_tests_ran"
 
     @pytest.mark.asyncio
-    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.runner.async_run", new_callable=AsyncMock)
     async def test_named_script_failure_stays_a_result(self, mock_run: AsyncMock) -> None:
         mock_run.return_value = _completed(returncode=2, stderr="error TS2304\n")
 
@@ -433,7 +433,7 @@ class TestNoTestsRan:
         assert result.value["returncode"] == 2
 
     @pytest.mark.asyncio
-    @patch("dev10x.runner.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.runner.async_run", new_callable=AsyncMock)
     async def test_zero_exit_without_summary_stays_a_result(self, mock_run: AsyncMock) -> None:
         mock_run.return_value = _completed(returncode=0, stderr="")
 

@@ -18,8 +18,8 @@ from dev10x.comm.chatbus import queue, worklist
 from dev10x.comm.chatbus.queue import WorkKind, WorkStatus
 from dev10x.comm.chatbus.store import open_store
 from dev10x.comm.chatbus.worklist import THREAD_CONTEXT_NOTICE, UNTRUSTED_NOTICE, ChatPoster
-from dev10x.domain.common.result import ErrorResult, Result, err, ok
-from dev10x.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.core.domain.common.result import ErrorResult, Result, err, ok
+from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
 
 
 def _with_store[T](

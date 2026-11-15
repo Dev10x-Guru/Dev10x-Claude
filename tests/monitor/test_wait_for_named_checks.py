@@ -6,15 +6,15 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from dev10x.skills.monitor.ci_check_status import (
+
+from dev10x.coding.skills.monitor import ci_check_status as ci_check_status_module
+from dev10x.coding.skills.monitor.ci_check_status import (
     compute_verdict,
     is_terminal,
     unsettled_named_checks,
 )
-
 from dev10x.core.config.hook_fragments import merged_hook_entries
 from dev10x.core.config.loader import load_document
-from dev10x.skills.monitor import ci_check_status as ci_check_status_module
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 _MAP = _REPO_ROOT / "src" / "dev10x" / "core" / "validators" / "command-skill-map.yaml"

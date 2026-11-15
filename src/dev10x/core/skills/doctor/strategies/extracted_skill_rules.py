@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from dev10x.core.plugin_map import CORE_PLUGIN_NAME, PluginMap, load_plugin_map
-from dev10x.skills.doctor.strategy import Context, Finding, Remediation, Severity, Strategy
+from dev10x.core.skills.doctor.strategy import Context, Finding, Remediation, Severity, Strategy
 
 STRATEGY_ID = "extracted-skill-rules"
 

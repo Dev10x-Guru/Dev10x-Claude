@@ -1,4 +1,4 @@
-"""Static GraphQL contract tests for dev10x.github (GH-386).
+"""Static GraphQL contract tests for dev10x.coding.github (GH-386).
 
 Contract class: static-lint
   No live API calls. Validates query strings that are known at import time

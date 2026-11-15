@@ -5,14 +5,14 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from dev10x.skills.permission.merge_worktree_permissions import (
+
+from dev10x.core import subprocess_utils
+from dev10x.core.skills.permission import catalog_write
+from dev10x.core.skills.permission import merge_worktree_permissions as mod
+from dev10x.core.skills.permission.merge_worktree_permissions import (
     generalize_permission,
     is_noise,
 )
-
-from dev10x import subprocess_utils
-from dev10x.skills.permission import catalog_write
-from dev10x.skills.permission import merge_worktree_permissions as mod
 
 
 def _make_worktree(*, main: Path, wt: Path, settings: bool = True) -> None:
@@ -245,7 +245,7 @@ class TestSyncMainToWorktrees:
 
     @pytest.fixture
     def family(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, Path]:
-        from dev10x.skills.permission import catalog_write
+        from dev10x.core.skills.permission import catalog_write
 
         monkeypatch.setattr(catalog_write, "_is_git_tracked", lambda _path: False)
         main = tmp_path / "proj"
@@ -343,7 +343,7 @@ class TestSyncMainToWorktrees:
         family: tuple[Path, Path],
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        from dev10x.skills.permission import catalog_write
+        from dev10x.core.skills.permission import catalog_write
 
         main, wt = family
         monkeypatch.setattr(catalog_write, "_is_git_tracked", lambda _path: True)

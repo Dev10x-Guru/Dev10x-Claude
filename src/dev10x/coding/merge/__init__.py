@@ -5,8 +5,8 @@ from collections.abc import Mapping
 from typing import Any
 
 from dev10x.coding.skills.merge import fixes_scope, handoff_audit
-from dev10x.domain.common.result import ErrorResult, Result, err, ok
-from dev10x.subprocess_utils import async_run
+from dev10x.core.domain.common.result import ErrorResult, Result, err, ok
+from dev10x.core.subprocess_utils import async_run
 
 _GIT_LOG_TIMEOUT_SECONDS = 30
 

@@ -22,7 +22,7 @@ import re
 from dataclasses import dataclass, field
 from enum import StrEnum
 
-from dev10x.domain.common.bash_tokens import split_tokens
+from dev10x.core.domain.common.bash_tokens import split_tokens
 
 
 class SensitivityLabel(StrEnum):
@@ -444,7 +444,7 @@ class SensitivityClassifier:
 #
 # These value objects and the resolver are pure domain logic; loading the
 # YAML file is an infra concern handled in
-# ``dev10x.validators.sensitivity_exceptions``.
+# ``dev10x.core.validators.sensitivity_exceptions``.
 # ---------------------------------------------------------------------------
 
 

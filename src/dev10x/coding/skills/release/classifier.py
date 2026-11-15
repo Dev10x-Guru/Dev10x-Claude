@@ -6,7 +6,7 @@ importable and unit-testable independently of the release-script glue.
 
 from __future__ import annotations
 
-from dev10x.domain.gitmoji import GITMOJI_CATEGORIES
+from dev10x.core.domain.gitmoji import GITMOJI_CATEGORIES
 
 SKIP_CATEGORIES: set[str] = {"version_bump"}
 MAINTENANCE_CATEGORIES: set[str] = {"test", "docs", "config", "cleanup", "experimental"}

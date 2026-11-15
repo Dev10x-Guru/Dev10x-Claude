@@ -19,7 +19,7 @@ from pathlib import Path
 
 import yaml
 
-from dev10x.domain.common.command_spellings import expand_spellings
+from dev10x.core.domain.common.command_spellings import expand_spellings
 
 
 def load_baseline_dict(path: Path, *, strict: bool = False) -> dict:

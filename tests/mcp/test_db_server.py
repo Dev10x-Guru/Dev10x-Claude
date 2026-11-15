@@ -6,10 +6,10 @@ import json
 from unittest.mock import MagicMock, patch
 
 import pytest
-from dev10x.domain.common.result import ErrorResult, SuccessResult
-from dev10x.domain.rules.sql import is_read_only_sql
 
-from dev10x.subprocess_utils import SCRIPT_NOT_FOUND
+from dev10x.core.domain.common.result import ErrorResult, SuccessResult
+from dev10x.core.domain.rules.sql import is_read_only_sql
+from dev10x.core.subprocess_utils import SCRIPT_NOT_FOUND
 
 
 class TestIsReadOnlySql:
@@ -335,7 +335,7 @@ class TestServerDbWrapper:
     @pytest.mark.asyncio
     @patch("dev10x.db.run_script")
     async def test_async_query_delegates_to_db_module(self, mock_run_script: MagicMock) -> None:
-        from dev10x.mcp.server_db import query
+        from dev10x.db.mcp.server_db import query
 
         mock_result = MagicMock()
         mock_result.returncode = 0
@@ -350,7 +350,7 @@ class TestServerDbWrapper:
     @pytest.mark.asyncio
     @patch("dev10x.db.run_script")
     async def test_async_query_blocks_write_statements(self, mock_run_script: MagicMock) -> None:
-        from dev10x.mcp.server_db import query
+        from dev10x.db.mcp.server_db import query
 
         result = await query(database="pp", sql="DROP TABLE users")
 

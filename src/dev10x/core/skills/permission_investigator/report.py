@@ -14,8 +14,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from dev10x.domain.common.allow_rule import AllowRule
-from dev10x.skills.permission_investigator.matrix import (
+from dev10x.core.domain.common.allow_rule import AllowRule
+from dev10x.core.skills.permission_investigator.matrix import (
     Matrix,
     MatrixQuery,
     MatrixResult,

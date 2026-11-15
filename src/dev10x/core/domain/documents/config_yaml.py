@@ -1,7 +1,7 @@
 """Per-repo durable prefs, ``.claude/Dev10x/config.yaml`` (GH-774).
 
 Retired by ADR-0018 in favour of the global
-:mod:`dev10x.domain.documents.friction_yaml`, and still read as a
+:mod:`dev10x.core.domain.documents.friction_yaml`, and still read as a
 one-cycle migration fallback. Also home to the playbook axis of
 ``dev10x:friction-setup`` (:func:`set_playbook_modes`), which writes a
 per-skill playbook rather than a session document. Split out of
@@ -17,9 +17,9 @@ from typing import Any
 
 import yaml
 
-from dev10x.domain.dev10x_paths import Dev10xConfigDir
-from dev10x.domain.documents.yaml_mapping import load_yaml_mapping
-from dev10x.domain.file_locks import atomic_write_text, file_lock
+from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.core.domain.documents.yaml_mapping import load_yaml_mapping
+from dev10x.core.domain.file_locks import atomic_write_text, file_lock
 
 #: Synthetic active-mode name under which ``dev10x:friction-setup`` records
 #: per-step skips it chose. The resolver honors step ``skip`` actions from any

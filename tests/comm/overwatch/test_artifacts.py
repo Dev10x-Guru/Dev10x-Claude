@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from dev10x.domain.common.result import ErrorResult, err, ok
 
 from dev10x.comm.overwatch.artifacts import (
     CONTROL_EVENT,
@@ -21,6 +20,7 @@ from dev10x.comm.overwatch.artifacts import (
     new_event_id,
     validate_document,
 )
+from dev10x.core.domain.common.result import ErrorResult, err, ok
 from tests.comm.overwatch.artifact_fixtures import DOCUMENT, OWNER, document
 from tests.comm.overwatch.conftest import NOW
 

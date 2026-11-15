@@ -5,8 +5,11 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from dev10x.skills.permission.catalog_load import find_missing_settings, find_settings_files
-from dev10x.skills.permission.settings_discovery import (
+
+from dev10x.core import subprocess_utils
+from dev10x.core.skills.permission import clean_project_files, settings_discovery
+from dev10x.core.skills.permission.catalog_load import find_missing_settings, find_settings_files
+from dev10x.core.skills.permission.settings_discovery import (
     VENDORED_DIRS,
     SettingsDiscovery,
     discover_settings,
@@ -16,9 +19,6 @@ from dev10x.skills.permission.settings_discovery import (
     resolve_main_project,
     vendored_dirs,
 )
-
-from dev10x import subprocess_utils
-from dev10x.skills.permission import clean_project_files, settings_discovery
 
 GIT_ENV_VARS = ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR")
 

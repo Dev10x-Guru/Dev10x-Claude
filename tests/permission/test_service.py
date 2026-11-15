@@ -11,12 +11,12 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from dev10x.domain.common.result import ErrorResult, err, ok
-from dev10x.skills.permission.settings_discovery import VENDORED_DIRS
 
-from dev10x.permission import service
-from dev10x.skills.permission import catalog_load
-from dev10x.skills.permission import update_paths as up
+from dev10x.core.domain.common.result import ErrorResult, err, ok
+from dev10x.core.permission import service
+from dev10x.core.skills.permission import catalog_load
+from dev10x.core.skills.permission import update_paths as up
+from dev10x.core.skills.permission.settings_discovery import VENDORED_DIRS
 
 
 @pytest.fixture

@@ -1,6 +1,6 @@
 """Skill catalog aggregate (audit finding D7).
 
-Wraps the front-matter builder (:mod:`dev10x.skill_index.builder`) in a
+Wraps the front-matter builder (:mod:`dev10x.teach.skill_index.builder`) in a
 queryable aggregate so callers can list entries or look one up by name
 without re-scanning the skill directories or re-implementing the
 key/name match. ``scan_skill_dirs`` returns a flat sorted list; this

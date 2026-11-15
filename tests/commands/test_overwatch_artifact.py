@@ -8,7 +8,6 @@ from typing import Any
 
 import pytest
 from click.testing import CliRunner, Result
-from dev10x.domain.common.result import err, ok
 from tests.comm.overwatch.artifact_fixtures import document
 
 from dev10x.cli import cli
@@ -16,6 +15,7 @@ from dev10x.comm.overwatch import paths
 from dev10x.comm.overwatch.dev_checkout import DevCheckout
 from dev10x.comm.overwatch.owner import ArtifactOwner
 from dev10x.commands import overwatch as command
+from dev10x.core.domain.common.result import err, ok
 
 OWNER = ArtifactOwner(session_id="sid-a", name="alpha", cwd="/a")
 

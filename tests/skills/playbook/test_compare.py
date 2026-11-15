@@ -1,9 +1,10 @@
-"""Tests for ``dev10x.skills.playbook.compare`` (GH-192)."""
+"""Tests for ``dev10x.core.skills.playbook.compare`` (GH-192)."""
 
 from __future__ import annotations
 
 import pytest
-from dev10x.skills.playbook.compare import (
+
+from dev10x.core.skills.playbook.compare import (
     MISSING,
     DiffStatus,
     PlayDiff,

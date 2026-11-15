@@ -26,8 +26,8 @@ from typing import Any
 
 import yaml
 
-from dev10x.domain.gate_policy import legacy_policy_keys
-from dev10x.skills.doctor.strategy import (
+from dev10x.core.domain.gate_policy import legacy_policy_keys
+from dev10x.core.skills.doctor.strategy import (
     Context,
     Finding,
     Remediation,

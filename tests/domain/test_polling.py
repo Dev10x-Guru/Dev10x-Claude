@@ -7,8 +7,8 @@ from collections.abc import Iterator
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from dev10x.domain.transport_budget import MAX_TOOL_CALL_SECONDS
 
+from dev10x.core.domain.transport_budget import MAX_TOOL_CALL_SECONDS
 from tests.fakers.clock import FakeClock
 
 polling = importlib.import_module("dev10x.core.domain.polling")

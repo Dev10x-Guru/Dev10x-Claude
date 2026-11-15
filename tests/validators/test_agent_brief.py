@@ -6,16 +6,16 @@ from typing import Any
 
 import pytest
 import yaml
-from dev10x.domain.dev10x_paths import Dev10xConfigDir
-from dev10x.validators.agent_brief import (
+
+from dev10x.core.domain import HookHint, HookInput, HookResult
+from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.core.validators import agent_brief
+from dev10x.core.validators.agent_brief import (
     AgentBriefValidator,
     effective_entries,
     find_unnamed_skills,
     parse_entries,
 )
-
-from dev10x.domain import HookHint, HookInput, HookResult
-from dev10x.validators import agent_brief
 
 
 @pytest.fixture
@@ -332,11 +332,17 @@ class TestFindUnnamedSkills:
             pytest.param("via push_safe_v2", ["dev10x-coding:git"], id="suffixed"),
             pytest.param("via my_push_safe", ["dev10x-coding:git"], id="snake-prefixed"),
             pytest.param(
-                "via mcp__plugin_dev10x_cli__push_safe_v2", ["dev10x-coding:git"], id="mcp-suffixed"
+                "via mcp__plugin_dev10x_cli__push_safe_v2",
+                ["dev10x-coding:git"],
+                id="mcp-suffixed",
             ),
-            pytest.param("via foo__push_safe", ["dev10x-coding:git"], id="double-underscore-prefixed"),
             pytest.param(
-                "via mcp__plugin_other_cli__push_safe", ["dev10x-coding:git"], id="other-mcp-server"
+                "via foo__push_safe", ["dev10x-coding:git"], id="double-underscore-prefixed"
+            ),
+            pytest.param(
+                "via mcp__plugin_other_cli__push_safe",
+                ["dev10x-coding:git"],
+                id="other-mcp-server",
             ),
             pytest.param("via `push_safe`.", [], id="punctuated"),
             pytest.param("via PUSH_SAFE", [], id="case-insensitive"),
@@ -346,7 +352,9 @@ class TestFindUnnamedSkills:
             pytest.param("run ./push_safe", ["dev10x-coding:git"], id="relative-path"),
             pytest.param("see /push_safe", ["dev10x-coding:git"], id="rooted-path"),
             pytest.param(
-                "via push_safe/pr_ready", ["dev10x-coding:git"], id="slash-joined-list-over-reports"
+                "via push_safe/pr_ready",
+                ["dev10x-coding:git"],
+                id="slash-joined-list-over-reports",
             ),
         ],
     )
@@ -366,8 +374,14 @@ class TestFindUnnamedSkills:
                 "Run pytest, then test the Skill output.", ["dev10x-coding:py-test"], id="split"
             ),
             pytest.param("Run a skill test with pytest.", ["dev10x-coding:py-test"], id="prose"),
-            pytest.param("Run pytest via mySkill(test).", ["dev10x-coding:py-test"], id="prefixed"),
-            pytest.param("Run pytest via dev10x-coding:py-test-flaky.", ["dev10x-coding:py-test"], id="longer"),
+            pytest.param(
+                "Run pytest via mySkill(test).", ["dev10x-coding:py-test"], id="prefixed"
+            ),
+            pytest.param(
+                "Run pytest via dev10x-coding:py-test-flaky.",
+                ["dev10x-coding:py-test"],
+                id="longer",
+            ),
         ],
     )
     def test_multi_token_alias_matches_only_verbatim(self, brief: str, unnamed: list[str]) -> None:

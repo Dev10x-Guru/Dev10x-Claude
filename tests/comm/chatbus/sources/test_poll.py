@@ -8,7 +8,6 @@ from datetime import timedelta
 from typing import Any
 
 import pytest
-from dev10x.domain.common.result import Result, err, ok
 
 from dev10x.comm.chatbus.events import EventSource
 from dev10x.comm.chatbus.ingest import Cursor, count_recovered_by_lookback, get_cursor
@@ -23,6 +22,7 @@ from dev10x.comm.chatbus.sources.poll import (
     watched_from_watches,
 )
 from dev10x.comm.skills.notifications.gchat_watch import Watch
+from dev10x.core.domain.common.result import Result, err, ok
 from tests.comm.chatbus.factories import NOW, SPACE, expect_error, unwrap
 
 OTHER = "spaces/BBBB"

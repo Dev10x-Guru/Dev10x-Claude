@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import pytest
-from dev10x.validators.prefix_friction import PrefixFrictionValidator
 
+from dev10x.core.validators.prefix_friction import PrefixFrictionValidator
 from tests.fakers import BashHookInputFaker
 
 
@@ -877,7 +877,7 @@ class TestUvRunEnvFlagNormalization:
     def test_inner_allowed_commands_auto_approved(
         self, validator: PrefixFrictionValidator, command: str
     ) -> None:
-        from dev10x.domain import HookAllow
+        from dev10x.core.domain import HookAllow
 
         result = validator.validate(inp=_make_input(command=command))
         assert isinstance(result, HookAllow)
@@ -885,7 +885,7 @@ class TestUvRunEnvFlagNormalization:
 
     def test_simple_inner_command_decides(self, validator: PrefixFrictionValidator) -> None:
         """GH-1795: the uv-run normalize allow skips the prompt."""
-        from dev10x.domain import HookAllow
+        from dev10x.core.domain import HookAllow
 
         result = validator.validate(inp=_make_input(command="uv run --extra dev mypy src/"))
         assert isinstance(result, HookAllow)
@@ -966,11 +966,11 @@ class TestUvRunEnvFlagNormalization:
     def test_lazy_loads_allow_patterns_when_unset(self) -> None:
         from unittest.mock import patch
 
-        from dev10x.domain import HookAllow
+        from dev10x.core.domain import HookAllow
 
         v = PrefixFrictionValidator()  # _allow_patterns starts None
         with patch(
-            "dev10x.validators.prefix_friction._load_all_allow_patterns",
+            "dev10x.core.validators.prefix_friction._load_all_allow_patterns",
             return_value=["uv run pytest"],
         ):
             result = v.validate(inp=_make_input(command="uv run --directory apps/api pytest"))
@@ -986,7 +986,7 @@ class TestUvRunEnvFlagNormalization:
     def test_correct_returns_retry_for_friction_command(
         self, validator: PrefixFrictionValidator
     ) -> None:
-        from dev10x.domain import HookRetry
+        from dev10x.core.domain import HookRetry
 
         result = validator.correct(
             inp=_make_input(command="mkdir -p /tmp/foo && ~/.claude/tools/x.sh")

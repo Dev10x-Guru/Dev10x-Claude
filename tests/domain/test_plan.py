@@ -6,7 +6,8 @@ from unittest.mock import patch
 
 import pytest
 import yaml
-from dev10x.domain.documents.plan import (
+
+from dev10x.core.domain.documents.plan import (
     Plan,
     TaskStatus,
     TerminalTaskViolation,
@@ -15,7 +16,7 @@ from dev10x.domain.documents.plan import (
     get_plan_path,
     is_terminal_task_subject,
 )
-from dev10x.domain.documents.task import Task
+from dev10x.core.domain.documents.task import Task
 
 
 class TestExtractTaskId:
@@ -229,7 +230,7 @@ class TestPlanIsNew:
 class TestEnsureMetadata:
     def test_new_plan_stamps_current_branch(self) -> None:
         plan = Plan()
-        with patch("dev10x.domain.documents.plan._get_branch", return_value="feature-x"):
+        with patch("dev10x.core.domain.documents.plan._get_branch", return_value="feature-x"):
             plan.ensure_metadata()
         assert plan.metadata["branch"] == "feature-x"
         assert plan.metadata["status"] == "in_progress"
@@ -240,14 +241,16 @@ class TestEnsureMetadata:
         # GH-852 F2: a plan reused on a new branch must re-stamp branch and
         # created_at so the resume banner is not frozen on the base branch.
         plan = Plan(metadata={"branch": "develop", "created_at": "2020-01-01T00:00:00+00:00"})
-        with patch("dev10x.domain.documents.plan._get_branch", return_value="janusz/GH-1/feat"):
+        with patch(
+            "dev10x.core.domain.documents.plan._get_branch", return_value="janusz/GH-1/feat"
+        ):
             plan.ensure_metadata()
         assert plan.metadata["branch"] == "janusz/GH-1/feat"
         assert plan.metadata["created_at"] != "2020-01-01T00:00:00+00:00"
 
     def test_same_branch_preserves_created_at(self) -> None:
         plan = Plan(metadata={"branch": "feature-x", "created_at": "2020-01-01T00:00:00+00:00"})
-        with patch("dev10x.domain.documents.plan._get_branch", return_value="feature-x"):
+        with patch("dev10x.core.domain.documents.plan._get_branch", return_value="feature-x"):
             plan.ensure_metadata()
         assert plan.metadata["created_at"] == "2020-01-01T00:00:00+00:00"
         assert plan.metadata["branch"] == "feature-x"
@@ -257,7 +260,7 @@ class TestEnsureMetadata:
         # GH-852 F2 guard: git resolution failure returns "unknown" — it must
         # NOT overwrite a real recorded branch or reset created_at.
         plan = Plan(metadata={"branch": "feature-x", "created_at": "2020-01-01T00:00:00+00:00"})
-        with patch("dev10x.domain.documents.plan._get_branch", return_value="unknown"):
+        with patch("dev10x.core.domain.documents.plan._get_branch", return_value="unknown"):
             plan.ensure_metadata()
         assert plan.metadata["branch"] == "feature-x"
         assert plan.metadata["created_at"] == "2020-01-01T00:00:00+00:00"
@@ -266,7 +269,7 @@ class TestEnsureMetadata:
         # A legacy plan with created_at but no branch key gets branch filled
         # in, but its true age (created_at) is preserved.
         plan = Plan(metadata={"created_at": "2020-01-01T00:00:00+00:00", "status": "in_progress"})
-        with patch("dev10x.domain.documents.plan._get_branch", return_value="feature-x"):
+        with patch("dev10x.core.domain.documents.plan._get_branch", return_value="feature-x"):
             plan.ensure_metadata()
         assert plan.metadata["branch"] == "feature-x"
         assert plan.metadata["created_at"] == "2020-01-01T00:00:00+00:00"
@@ -521,7 +524,7 @@ class TestPlanSetContext:
 
 
 class TestPlanEnsureMetadata:
-    @patch("dev10x.domain.documents.plan._get_branch", return_value="feature/test")
+    @patch("dev10x.core.domain.documents.plan._get_branch", return_value="feature/test")
     def test_initializes_empty_metadata(self, _mock_branch: object) -> None:
         plan = Plan()
 
@@ -532,7 +535,7 @@ class TestPlanEnsureMetadata:
         assert "created_at" in plan.metadata
         assert "last_synced" in plan.metadata
 
-    @patch("dev10x.domain.documents.plan._get_branch", return_value="feature/test")
+    @patch("dev10x.core.domain.documents.plan._get_branch", return_value="feature/test")
     def test_updates_last_synced_on_existing(self, _mock_branch: object) -> None:
         # Same branch as HEAD: last_synced updates, branch preserved.
         plan = Plan(metadata={"status": "in_progress", "branch": "feature/test"})
@@ -542,7 +545,7 @@ class TestPlanEnsureMetadata:
         assert plan.metadata["branch"] == "feature/test"
         assert "last_synced" in plan.metadata
 
-    @patch("dev10x.domain.documents.plan._get_branch", return_value="feature/test")
+    @patch("dev10x.core.domain.documents.plan._get_branch", return_value="feature/test")
     def test_branch_change_refreshes_top_level_branch(self, _mock_branch: object) -> None:
         # GH-852 F2: a plan reused on a new branch re-stamps the top-level
         # branch so the resume banner is not frozen on the old/base branch.

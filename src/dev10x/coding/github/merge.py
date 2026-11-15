@@ -11,8 +11,8 @@ import re
 from typing import Any
 
 from dev10x.coding.github import labels, pulls
+from dev10x.core.domain.common.result import ErrorResult, Result, SuccessResult, err, ok
 from dev10x.core.github import _gateway
-from dev10x.domain.common.result import ErrorResult, Result, SuccessResult, err, ok
 
 _FULL_SHA_RE = re.compile(r"[0-9a-f]{40}")
 

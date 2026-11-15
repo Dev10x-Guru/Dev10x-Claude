@@ -28,15 +28,15 @@ import dataclasses
 from collections.abc import Iterable
 from pathlib import Path
 
-from dev10x.domain.common.baseline_catalog import load_baseline_dict
-from dev10x.domain.common.policy import (
+from dev10x.core.domain.common.baseline_catalog import load_baseline_dict
+from dev10x.core.domain.common.policy import (
     Policy,
     PolicyAssessment,
     PolicyCatalog,
     PolicyEffect,
     PolicySource,
 )
-from dev10x.domain.common.policy_migration import migrate_flat_config
+from dev10x.core.domain.common.policy_migration import migrate_flat_config
 
 PRECEDENCE: tuple[PolicySource, ...] = (
     PolicySource.PROJECT_LOCAL,

@@ -12,7 +12,7 @@ rule from a session artifact.
 
 from __future__ import annotations
 
-from dev10x.domain.common.policy import Policy, PolicyEffect, PolicyLifecycle, PolicySource
+from dev10x.core.domain.common.policy import Policy, PolicyEffect, PolicyLifecycle, PolicySource
 
 CANDIDATE_TIER = 3
 

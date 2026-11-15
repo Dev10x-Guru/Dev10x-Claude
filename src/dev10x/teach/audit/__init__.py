@@ -7,7 +7,7 @@ Also exposes hook-audit log discovery tools so agents can
 inspect the audit-wrap JSONL stream without hunting for the
 log directory with raw shell commands (GH-29).
 
-JSONL parsing delegates to `dev10x.audit.log_reader.iter_records`
+JSONL parsing delegates to `dev10x.teach.audit.log_reader.iter_records`
 (GH-143) so there is one parser for hook audit logs.
 """
 
@@ -18,10 +18,10 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-from dev10x.domain.claude_paths import ClaudeDir
-from dev10x.domain.common.result import Result, err, ok
-from dev10x.domain.file_locks import atomic_write_text
-from dev10x.subprocess_utils import async_run_script
+from dev10x.core.domain.claude_paths import ClaudeDir
+from dev10x.core.domain.common.result import Result, err, ok
+from dev10x.core.domain.file_locks import atomic_write_text
+from dev10x.core.subprocess_utils import async_run_script
 from dev10x.teach.audit.log_pruner import prune
 from dev10x.teach.audit.log_reader import audit_dir, iter_records
 from dev10x.teach.audit.summarizer import summarize
@@ -92,7 +92,7 @@ async def analyze_permissions(
     """Run permission-friction analysis in-process (GH-142).
 
     Previously shelled out to the skill-audit analyze-permissions.py script;
-    now calls dev10x.audit.analyze.build_audit_report() directly so MCP
+    now calls dev10x.teach.audit.analyze.build_audit_report() directly so MCP
     callers consume structured data without a subprocess hop.
     """
 

@@ -23,8 +23,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-from dev10x.domain.common.result import Result, SuccessResult, err, ok
-from dev10x.subprocess_utils import async_run
+from dev10x.core.domain.common.result import Result, SuccessResult, err, ok
+from dev10x.core.subprocess_utils import async_run
 
 log = logging.getLogger(__name__)
 

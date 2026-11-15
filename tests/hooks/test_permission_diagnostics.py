@@ -6,7 +6,8 @@ import json
 from pathlib import Path
 
 import pytest
-from dev10x.hooks.permission_diagnostics import (
+
+from dev10x.core.hooks.permission_diagnostics import (
     DiagnosticResult,
     SettingsFile,
     SettingsRuleMatch,
@@ -199,7 +200,7 @@ class TestDiagnose:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.setattr(
-            "dev10x.hooks.permission_diagnostics.SETTINGS_PRECEDENCE",
+            "dev10x.core.hooks.permission_diagnostics.SETTINGS_PRECEDENCE",
             [
                 SettingsFile(
                     label="project local",
@@ -228,7 +229,7 @@ class TestDiagnose:
         user_settings.write_text(json.dumps({"permissions": {"allow": ["Write(/tmp/Dev10x/**)"]}}))
 
         monkeypatch.setattr(
-            "dev10x.hooks.permission_diagnostics.SETTINGS_PRECEDENCE",
+            "dev10x.core.hooks.permission_diagnostics.SETTINGS_PRECEDENCE",
             [
                 SettingsFile(
                     label="project local",
@@ -261,7 +262,7 @@ class TestDiagnose:
         project_local.write_text(json.dumps({"permissions": {"allow": ["Write(/tmp/Dev10x/**)"]}}))
 
         monkeypatch.setattr(
-            "dev10x.hooks.permission_diagnostics.SETTINGS_PRECEDENCE",
+            "dev10x.core.hooks.permission_diagnostics.SETTINGS_PRECEDENCE",
             [
                 SettingsFile(
                     label="project local",
@@ -288,7 +289,7 @@ class TestDiagnose:
         )
 
         monkeypatch.setattr(
-            "dev10x.hooks.permission_diagnostics.SETTINGS_PRECEDENCE",
+            "dev10x.core.hooks.permission_diagnostics.SETTINGS_PRECEDENCE",
             [
                 SettingsFile(
                     label="project local",
@@ -318,7 +319,7 @@ class TestDiagnose:
         user_settings.write_text(json.dumps({"permissions": {"allow": ["Write(/tmp/Dev10x/**)"]}}))
 
         monkeypatch.setattr(
-            "dev10x.hooks.permission_diagnostics.SETTINGS_PRECEDENCE",
+            "dev10x.core.hooks.permission_diagnostics.SETTINGS_PRECEDENCE",
             [
                 SettingsFile(
                     label="project local",
@@ -345,7 +346,7 @@ class TestDiagnose:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.setattr(
-            "dev10x.hooks.permission_diagnostics.SETTINGS_PRECEDENCE",
+            "dev10x.core.hooks.permission_diagnostics.SETTINGS_PRECEDENCE",
             [],
         )
 
@@ -364,7 +365,7 @@ class TestDiagnose:
         project_local.write_text("not valid json {{{")
 
         monkeypatch.setattr(
-            "dev10x.hooks.permission_diagnostics.SETTINGS_PRECEDENCE",
+            "dev10x.core.hooks.permission_diagnostics.SETTINGS_PRECEDENCE",
             [
                 SettingsFile(
                     label="project local",
@@ -389,7 +390,7 @@ class TestDiagnose:
         project_local.write_text(json.dumps({"permissions": {"allow": None}}))
 
         monkeypatch.setattr(
-            "dev10x.hooks.permission_diagnostics.SETTINGS_PRECEDENCE",
+            "dev10x.core.hooks.permission_diagnostics.SETTINGS_PRECEDENCE",
             [
                 SettingsFile(
                     label="project local",
@@ -414,7 +415,7 @@ class TestDiagnose:
         project_local.write_text(json.dumps({"permissions": {"allow": "Bash(git:*)"}}))
 
         monkeypatch.setattr(
-            "dev10x.hooks.permission_diagnostics.SETTINGS_PRECEDENCE",
+            "dev10x.core.hooks.permission_diagnostics.SETTINGS_PRECEDENCE",
             [
                 SettingsFile(
                     label="project local",
@@ -439,7 +440,7 @@ class TestDiagnose:
         project_local.write_text(json.dumps({"permissions": {"allow": ["Bash(git:*)"]}}))
 
         monkeypatch.setattr(
-            "dev10x.hooks.permission_diagnostics.SETTINGS_PRECEDENCE",
+            "dev10x.core.hooks.permission_diagnostics.SETTINGS_PRECEDENCE",
             [
                 SettingsFile(
                     label="project local",
@@ -460,7 +461,7 @@ class TestDiagnose:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.setattr(
-            "dev10x.hooks.permission_diagnostics.SETTINGS_PRECEDENCE",
+            "dev10x.core.hooks.permission_diagnostics.SETTINGS_PRECEDENCE",
             [],
         )
         result = diagnose(raw=write_raw, cwd="")

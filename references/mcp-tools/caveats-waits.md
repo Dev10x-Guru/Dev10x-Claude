@@ -27,7 +27,7 @@ probe and reports a failed probe in `observed`.
   `pr_wait`, no poll could read the PR at all.
   Branch on `met` / `timed_out` / `unreachable`, never on the presence
   of `observed`.
-- **Both run on one poll loop** (GH-1852): `dev10x.domain.polling`
+- **Both run on one poll loop** (GH-1852): `dev10x.core.domain.polling`
   holds the deadline, the loop and the `_sleep` / `_clock` test seams.
 
 ## `pr_wait`

@@ -7,7 +7,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from dev10x.comm.chatbus.schema import MIGRATIONS, SCHEMA_VERSION
-from dev10x.domain.common.result import ErrorResult, Result, err, ok
+from dev10x.core.domain.common.result import ErrorResult, Result, err, ok
 
 BUSY_TIMEOUT_SECONDS = 5.0
 # The store holds untrusted Chat message text; keep it private to the

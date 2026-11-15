@@ -7,7 +7,7 @@
 # pins (`merge: ask`, `external_notify: ask`).
 #
 # This file is the shipped source of truth the infra tier hydrates into
-# `dev10x.domain.gate_policy.SHIPPED_PRESETS` (ADR-0016 D-1). A
+# `dev10x.core.domain.gate_policy.SHIPPED_PRESETS` (ADR-0016 D-1). A
 # drift-guard test asserts the two stay identical — edit both together.
 plan_approval: auto-advance
 batch_layout: auto-advance

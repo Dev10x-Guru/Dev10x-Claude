@@ -16,8 +16,8 @@ from typing import Any
 import pytest
 from mcp.server.fastmcp import FastMCP
 
+from dev10x.db.mcp.server_db import server as db_server
 from dev10x.mcp.server_cli import server as cli_server
-from dev10x.mcp.server_db import server as db_server
 
 SNAPSHOT_PATH = Path(__file__).parents[1] / "fixtures" / "mcp_tool_snapshot.json"
 

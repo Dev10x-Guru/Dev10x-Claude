@@ -12,8 +12,8 @@ from typing import Any
 
 import pytest
 
-from dev10x.skills.playbook import installed_plugin_roots, load_plugin_default
-from dev10x.subprocess_utils import get_plugin_root
+from dev10x.core.skills.playbook import installed_plugin_roots, load_plugin_default
+from dev10x.core.subprocess_utils import get_plugin_root
 from dev10x.teach.skill_index.builder import extract_front_matter
 
 FRAGMENT = "business-change"

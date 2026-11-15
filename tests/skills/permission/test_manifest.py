@@ -6,8 +6,11 @@ from pathlib import Path
 
 import click
 import pytest
-from dev10x.skills.permission.enumerate_mcp import discover_mcp_tools, plugin_root
-from dev10x.skills.permission.manifest import (
+
+import dev10x.core.skills.permission as permission_pkg
+from dev10x.cli import cli
+from dev10x.core.skills.permission.enumerate_mcp import discover_mcp_tools, plugin_root
+from dev10x.core.skills.permission.manifest import (
     Access,
     ManifestEntry,
     Sensitivity,
@@ -20,9 +23,6 @@ from dev10x.skills.permission.manifest import (
     manifest_from_mcp_tools,
     manifest_from_skills,
 )
-
-import dev10x.skills.permission as permission_pkg
-from dev10x.cli import cli
 
 PLUGIN_SKILLS = plugin_root() / "skills"
 

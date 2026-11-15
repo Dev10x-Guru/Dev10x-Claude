@@ -33,8 +33,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from dev10x.domain.file_locks import atomic_append_line
-from dev10x.domain.log_redaction import redact_fields, redact_text
+from dev10x.core.domain.file_locks import atomic_append_line
+from dev10x.core.domain.log_redaction import redact_fields, redact_text
 
 LOG_DIR_ENV = "DEV10X_DIAGNOSTIC_LOG_DIR"
 DEFAULT_LOG_DIR = "/tmp/Dev10x/log"

@@ -32,7 +32,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from dev10x.hooks.stop_verdict import (
+from dev10x.core.hooks.stop_verdict import (
     StopSignal,
     _is_user,
     _read_turn,

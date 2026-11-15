@@ -1,6 +1,6 @@
 """IDE-keyed permission seeding (GH-1261).
 
-The mirror of :mod:`dev10x.domain.common.tracker_choice`, for the same
+The mirror of :mod:`dev10x.core.domain.common.tracker_choice`, for the same
 reason it exists: an IDE MCP server is a property of *some* setups, so
 seeding its rules unconditionally hands everyone else a pile of inert
 allows — the failure GH-768 fixed for trackers.
@@ -15,7 +15,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
-from dev10x.domain.common.tracker_choice import ALLOW_KEY, DENY_KEY
+from dev10x.core.domain.common.tracker_choice import ALLOW_KEY, DENY_KEY
 
 IDE_ALLOW_KEY = "ide_permissions"
 IDE_DENY_KEY = "ide_denies"

@@ -52,7 +52,7 @@ everything else). `auto-plan` flips
 *only* the plan gate; it never touches downstream gate pacing.
 
 **ADR-0016 (GH-760):** the actual gate resolution now runs through
-`resolve_gate` (`dev10x.domain.gate_policy`), not the former
+`resolve_gate` (`dev10x.core.domain.gate_policy`), not the former
 `session_rules.plan_gate_auto_approves()` predicate. The
 `solo-maintainer` effect lives in the `solo-maintainer` overlay
 (`presets/friction/overlays/solo-maintainer.yaml`:

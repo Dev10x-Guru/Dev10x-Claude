@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import pytest
-from dev10x.domain.common.bash_tokens import (
+
+from dev10x.core.domain.common.bash_tokens import (
     Redirect,
     UntokenizableCommandError,
     command_segments,

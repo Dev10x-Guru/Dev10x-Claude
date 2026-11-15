@@ -6,10 +6,10 @@ decision the session hooks make. Pulling these out of
 testable in isolation.
 
 The friction-parsing, decision-guidance, and autonomy-reassurance rules
-moved to ``dev10x.domain.session_rules`` (ADR-0008) because they are
+moved to ``dev10x.core.domain.session_rules`` (ADR-0008) because they are
 pure domain policies; they are re-exported here for backward
 compatibility. The session.yaml read those rules used to perform is now
-owned by ``dev10x.domain.documents.session_yaml.SessionYamlDocument``.
+owned by ``dev10x.core.domain.documents.session_yaml.SessionYamlDocument``.
 """
 
 from __future__ import annotations
@@ -18,9 +18,9 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from dev10x.domain.documents.settings_document import SettingsDocument
-from dev10x.domain.rules.policy_rule import PolicyRule
-from dev10x.domain.session_rules import (
+from dev10x.core.domain.documents.settings_document import SettingsDocument
+from dev10x.core.domain.rules.policy_rule import PolicyRule
+from dev10x.core.domain.session_rules import (
     BuildAutonomyReassuranceRule,
     DecisionGuidanceRule,
     UnknownFrictionLevelError,

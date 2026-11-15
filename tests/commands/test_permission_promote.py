@@ -7,10 +7,10 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
-from dev10x.domain.claude_paths import ClaudeDir
-from dev10x.domain.common.result import ok
 
 from dev10x.commands.permission import promote_plan
+from dev10x.core.domain.claude_paths import ClaudeDir
+from dev10x.core.domain.common.result import ok
 
 READ_TOOL = "mcp__claude_ai_Slack__slack_read_channel"
 DOMAIN_RULE = "WebFetch(domain:arxiv.org)"
@@ -31,8 +31,8 @@ def env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     project.parent.mkdir(parents=True)
     project.write_text(json.dumps({"permissions": {"allow": [READ_TOOL, DOMAIN_RULE]}}))
 
-    from dev10x.skills.permission import catalog_load
-    from dev10x.skills.permission import update_paths as paths_mod
+    from dev10x.core.skills.permission import catalog_load
+    from dev10x.core.skills.permission import update_paths as paths_mod
 
     monkeypatch.setattr(paths_mod, "find_config", lambda: ok(tmp_path / "config.yaml"))
     monkeypatch.setattr(catalog_load, "load_config", lambda _path: {"roots": []})

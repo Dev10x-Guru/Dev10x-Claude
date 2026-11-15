@@ -3,9 +3,10 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from dev10x.domain.common.result import SuccessResult, err, ok
 
-gh = pytest.importorskip("dev10x.github", reason="dev10x not installed")
+from dev10x.core.domain.common.result import SuccessResult, err, ok
+
+gh = pytest.importorskip("dev10x.coding.github", reason="dev10x not installed")
 
 
 class TestMilestonesBulkCreate:

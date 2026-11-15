@@ -7,8 +7,9 @@ import json
 from pathlib import Path
 
 import pytest
-from dev10x.hooks.session_dispatch import build_stop_verdict
-from dev10x.hooks.stop_verdict import (
+
+from dev10x.core.hooks.session_dispatch import build_stop_verdict
+from dev10x.core.hooks.stop_verdict import (
     UNKNOWN_HARNESS_VERSION,
     StopSignal,
     StopVerdict,
@@ -45,7 +46,7 @@ def _record_attribution(*, monkeypatch: pytest.MonkeyPatch) -> dict[str, str]:
     def _capture(*, rule_id: str, reason: str, extra: dict[str, str] | None = None) -> None:
         recorded.update(rule_id=rule_id, reason=reason, **(extra or {}))
 
-    monkeypatch.setattr("dev10x.hooks.session_dispatch.set_decision_attribution", _capture)
+    monkeypatch.setattr("dev10x.core.hooks.session_dispatch.set_decision_attribution", _capture)
     return recorded
 
 
@@ -421,7 +422,7 @@ class TestMarker:
         blocker = tmp_path / "afile"
         blocker.write_text("x", encoding="utf-8")
         monkeypatch.setattr(
-            "dev10x.hooks.stop_verdict._marker_path",
+            "dev10x.core.hooks.stop_verdict._marker_path",
             lambda *, session_id: blocker / "nested" / "m.marker",
         )
 
@@ -440,7 +441,7 @@ class TestMarker:
         blocker = tmp_path / "afile"
         blocker.write_text("x", encoding="utf-8")
         monkeypatch.setattr(
-            "dev10x.hooks.stop_verdict._marker_path",
+            "dev10x.core.hooks.stop_verdict._marker_path",
             lambda *, session_id: blocker / "nested" / "m.marker",
         )
 
@@ -535,7 +536,7 @@ class TestSignalIsReported:
     ) -> None:
         # Without this the signal exists but never reaches the log, which
         # is the state GH-1257 is stuck in.
-        monkeypatch.setattr("dev10x.hooks.session_dispatch._get_toplevel", lambda: None)
+        monkeypatch.setattr("dev10x.core.hooks.session_dispatch._get_toplevel", lambda: None)
         recorded = _record_attribution(monkeypatch=monkeypatch)
         transcript = _transcript(
             tmp_path=tmp_path,
@@ -567,7 +568,7 @@ class TestSignalIsReported:
     ) -> None:
         # Without it "across a few harness versions" cannot be evaluated
         # from the log however the signal is keyed (GH-1390).
-        monkeypatch.setattr("dev10x.hooks.session_dispatch._get_toplevel", lambda: None)
+        monkeypatch.setattr("dev10x.core.hooks.session_dispatch._get_toplevel", lambda: None)
         recorded = _record_attribution(monkeypatch=monkeypatch)
         transcript = _transcript(
             tmp_path=tmp_path,
@@ -592,7 +593,7 @@ class TestSignalIsReported:
         isolated_markers: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        monkeypatch.setattr("dev10x.hooks.session_dispatch._get_toplevel", lambda: None)
+        monkeypatch.setattr("dev10x.core.hooks.session_dispatch._get_toplevel", lambda: None)
         recorded = _record_attribution(monkeypatch=monkeypatch)
 
         build_stop_verdict(
@@ -653,7 +654,7 @@ class TestWiringRecordsTheBlock:
     @pytest.fixture()
     def no_plan(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
-            "dev10x.hooks.session_dispatch._get_toplevel",
+            "dev10x.core.hooks.session_dispatch._get_toplevel",
             lambda: None,
         )
 
@@ -665,11 +666,11 @@ class TestWiringRecordsTheBlock:
         an absent plan no longer is one.
         """
         monkeypatch.setattr(
-            "dev10x.hooks.session_dispatch._get_toplevel",
+            "dev10x.core.hooks.session_dispatch._get_toplevel",
             lambda: "/repo",
         )
         monkeypatch.setattr(
-            "dev10x.hooks.session_dispatch.read_plan_summary",
+            "dev10x.core.hooks.session_dispatch.read_plan_summary",
             lambda *, toplevel: {"plan": {"status": "in_progress"}, **DEPLETED_PLAN},
         )
 
@@ -764,14 +765,14 @@ class TestWiringRecordsTheBlock:
             ],
         )
         monkeypatch.setattr(
-            "dev10x.hooks.session_dispatch._get_toplevel",
+            "dev10x.core.hooks.session_dispatch._get_toplevel",
             lambda: "/repo",
         )
         # The real `Plan.to_dict` shape: tasks sit beside the metadata,
         # not inside it. Reaching for summary["plan"] was the GH-1339
         # bug that blanked the signal in the field.
         monkeypatch.setattr(
-            "dev10x.hooks.session_dispatch.read_plan_summary",
+            "dev10x.core.hooks.session_dispatch.read_plan_summary",
             lambda *, toplevel: {"plan": {"status": "in_progress"}, **PENDING_PLAN},
         )
 
@@ -780,7 +781,7 @@ class TestWiringRecordsTheBlock:
         assert open_work is None
 
         monkeypatch.setattr(
-            "dev10x.hooks.session_dispatch.read_plan_summary",
+            "dev10x.core.hooks.session_dispatch.read_plan_summary",
             lambda *, toplevel: {"plan": {"status": "in_progress"}, **DEPLETED_PLAN},
         )
 

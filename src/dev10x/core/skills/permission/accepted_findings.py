@@ -2,7 +2,7 @@
 
 Reads ``~/.config/Dev10x/accepted-findings.yaml`` (Tier 2, so one answer
 covers every project and worktree) and merges it with the shipped
-defaults in :mod:`dev10x.domain.common.accepted_findings`. Matching is
+defaults in :mod:`dev10x.core.domain.common.accepted_findings`. Matching is
 pure domain code; this module owns only file I/O and YAML→value-object
 translation, per ``.claude/rules/script-domain-boundaries.md``.
 
@@ -26,11 +26,11 @@ import logging
 
 import yaml
 
-from dev10x.domain.common.accepted_findings import (
+from dev10x.core.domain.common.accepted_findings import (
     DEFAULT_ACCEPTED_FINDINGS,
     AcceptedFinding,
 )
-from dev10x.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
 
 log = logging.getLogger(__name__)
 

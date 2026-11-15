@@ -1,7 +1,7 @@
 """GH-562: the standalone audit uv-scripts write reports atomically.
 
 extract_session.py and analyze_actions.py cannot import
-dev10x.domain.file_locks (PEP 723 standalone scripts), so each inlines
+dev10x.core.domain.file_locks (PEP 723 standalone scripts), so each inlines
 an `_atomic_write_text` helper that mirrors atomic_write_text. These
 tests exercise that helper directly.
 """
@@ -11,8 +11,9 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from dev10x.skills.audit.analyze_actions import _atomic_write_text as actions_write
-from dev10x.skills.audit.extract_session import _atomic_write_text as session_write
+
+from dev10x.teach.skills.audit.analyze_actions import _atomic_write_text as actions_write
+from dev10x.teach.skills.audit.extract_session import _atomic_write_text as session_write
 
 WRITERS = [actions_write, session_write]
 

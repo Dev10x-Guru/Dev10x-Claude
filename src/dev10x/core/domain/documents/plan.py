@@ -18,8 +18,8 @@ from typing import Any
 
 import yaml
 
-from dev10x.domain.documents.task import Task, TaskStatus
-from dev10x.domain.file_locks import atomic_write_text
+from dev10x.core.domain.documents.task import Task, TaskStatus
+from dev10x.core.domain.file_locks import atomic_write_text
 
 log = logging.getLogger(__name__)
 
@@ -48,7 +48,7 @@ def _now_iso() -> str:
 
 
 def _get_branch() -> str:
-    from dev10x.domain.git_context import GitContext
+    from dev10x.core.domain.git_context import GitContext
 
     return GitContext().branch
 
@@ -84,7 +84,7 @@ def get_toplevel() -> str | None:
     long-lived process) sees the caller's effective CWD on every
     invocation instead of caching the directory the first call hit.
     """
-    from dev10x.domain.git_context import GitContext
+    from dev10x.core.domain.git_context import GitContext
 
     return GitContext().toplevel
 

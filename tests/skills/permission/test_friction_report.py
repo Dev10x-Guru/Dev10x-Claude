@@ -7,7 +7,8 @@ without an audit log — the CLI owns reading the log.
 from __future__ import annotations
 
 import pytest
-from dev10x.skills.permission.friction_report import (
+
+from dev10x.core.skills.permission.friction_report import (
     UNATTRIBUTED,
     build_report,
     format_report,

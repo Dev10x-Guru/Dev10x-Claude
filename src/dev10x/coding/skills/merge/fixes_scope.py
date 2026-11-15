@@ -29,7 +29,7 @@ from pathlib import Path
 
 # Standalone-script territory: this module is also the body of
 # `skills/gh-pr-merge/scripts/reconcile-fixes-links.py`, a uv-script with
-# no dependencies, so `dev10x.subprocess_utils` (whose import chain
+# no dependencies, so `dev10x.core.subprocess_utils` (whose import chain
 # needs yaml) is out of reach — the cwd-discipline exemption. That shim
 # runs wherever its caller sat, which is not necessarily the checkout
 # being merged (GH-1464): an orchestrator merging a worktree child's PR

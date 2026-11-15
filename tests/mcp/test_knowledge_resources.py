@@ -122,8 +122,8 @@ class TestSharedDefaultPlaybook:
         assert "# --- skills/work-on/references/playbook.d/coding.yaml ---" in text
 
     def test_repository_resource_matches_the_resolved_default(self) -> None:
-        from dev10x.skills.playbook import installed_plugin_roots, load_plugin_default
-        from dev10x.subprocess_utils import get_plugin_root
+        from dev10x.core.skills.playbook import installed_plugin_roots, load_plugin_default
+        from dev10x.core.subprocess_utils import get_plugin_root
 
         text = knowledge_resources.skill_playbook(skill_name="playbook")
 
@@ -295,35 +295,35 @@ class TestResourcesRegistered:
     """Verify the resources are registered with the server."""
 
     def test_skill_playbook_template_is_registered(self) -> None:
-        from dev10x.mcp._app import server
+        from dev10x.core.mcp._app import server
 
         templates = server._resource_manager.list_templates()
         uris = [t.uri_template for t in templates]
         assert "dev10x://skills/{skill_name}/playbook" in uris
 
     def test_rules_index_is_registered(self) -> None:
-        from dev10x.mcp._app import server
+        from dev10x.core.mcp._app import server
 
         resources = server._resource_manager.list_resources()
         uris = [str(r.uri) for r in resources]
         assert "dev10x://rules/index" in uris
 
     def test_rule_file_template_is_registered(self) -> None:
-        from dev10x.mcp._app import server
+        from dev10x.core.mcp._app import server
 
         templates = server._resource_manager.list_templates()
         uris = [t.uri_template for t in templates]
         assert "dev10x://rules/{rule_name}" in uris
 
     def test_reference_file_template_is_registered(self) -> None:
-        from dev10x.mcp._app import server
+        from dev10x.core.mcp._app import server
 
         templates = server._resource_manager.list_templates()
         uris = [t.uri_template for t in templates]
         assert "dev10x://references/{ref_name}" in uris
 
     def test_skills_index_is_registered(self) -> None:
-        from dev10x.mcp._app import server
+        from dev10x.core.mcp._app import server
 
         resources = server._resource_manager.list_resources()
         uris = [str(r.uri) for r in resources]

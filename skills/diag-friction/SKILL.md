@@ -214,7 +214,7 @@ When the audit (Step 3b) or upstream path (Step 3c) lands on
 proposing a **targeted allow-rule**, do not echo the harness's
 suggested shape — it is over-broad, over-narrow or too literal.
 Surface the shape from
-`dev10x.skills.permission.generalize.generalize_rule_shape`. The
+`dev10x.core.skills.permission.generalize.generalize_rule_shape`. The
 failure-mode table is in
 [`references/step-details.md`](references/step-details.md)
 § Step 3d.

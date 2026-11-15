@@ -7,7 +7,8 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from dev10x.config.loader import load_document
+
+from dev10x.core.config.loader import load_document
 
 _YAML_PATH = (
     Path(__file__).resolve().parent.parent.parent

@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from dev10x.domain.claude_paths import ClaudeDir
+from dev10x.core.domain.claude_paths import ClaudeDir
 
 TAIL_BYTES = 512 * 1024
 MAX_PREVIEW_LINES = 400

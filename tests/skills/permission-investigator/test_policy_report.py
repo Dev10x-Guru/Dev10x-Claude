@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-from dev10x.domain.common.policy import (
+from dev10x.core.domain.common.policy import (
     Policy,
     PolicyAssessment,
     PolicyEffect,
     PolicyScope,
     PolicySource,
 )
-from dev10x.domain.common.policy_resolution import attach_assessments, resolve_effect
-from dev10x.skills.permission_investigator.policy_report import (
+from dev10x.core.domain.common.policy_resolution import attach_assessments, resolve_effect
+from dev10x.core.skills.permission_investigator.policy_report import (
     auditor_assessment,
     investigator_assessment,
     render_policy_report,

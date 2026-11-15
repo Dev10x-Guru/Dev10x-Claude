@@ -9,7 +9,7 @@ This module owns the **read + compute** half as a
 :class:`GateResolutionQuery` that returns an assembled
 :class:`GateResolutionOutcome` (the concrete ``GateContext``, the
 ``GateResolution``, and any overlays dropped by the durable-mode guard).
-The MCP adapter in :mod:`dev10x.mcp.gate_tools` stays thin: it runs the
+The MCP adapter in :mod:`dev10x.core.mcp.gate_tools` stays thin: it runs the
 query, routes the side effects (audit log + doubt sink), and builds the
 wire payload.
 """
@@ -21,12 +21,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from dev10x.domain.common.config_io import load_yaml
-from dev10x.domain.common.result import Result, err, ok
+from dev10x.core.domain.common.config_io import load_yaml
+from dev10x.core.domain.common.result import Result, err, ok
 
 if TYPE_CHECKING:  # pragma: no cover
-    from dev10x.domain.gate_policy import GateContext, GateResolution
-    from dev10x.domain.run_mode import RunModeResolution
+    from dev10x.core.domain.gate_policy import GateContext, GateResolution
+    from dev10x.core.domain.run_mode import RunModeResolution
 
 # Durable, git-tracked project pin (ADR-0016 #752). The spike wrote the
 # pin under ``.claude/Dev10x/`` which this repo gitignores wholesale, so a
@@ -92,9 +92,9 @@ def _policy_toplevel(toplevel: str) -> str:
     Degrades to ``toplevel`` whenever the repo root is unknowable (not a git
     repo, bare repo, wedged git) — never raises.
     """
-    from dev10x.domain.common.result import ErrorResult
-    from dev10x.domain.documents.friction_yaml import FrictionYamlDocument
-    from dev10x.session.preset_pin import resolve_repo_identity
+    from dev10x.core.domain.common.result import ErrorResult
+    from dev10x.core.domain.documents.friction_yaml import FrictionYamlDocument
+    from dev10x.core.session.preset_pin import resolve_repo_identity
 
     if FrictionYamlDocument(toplevel=toplevel).matched() is not None:
         return toplevel
@@ -132,7 +132,7 @@ async def _supervisor_cleared(*, gate: str, supervisor_review: str, solo_repo: b
     what makes this floor re-apply on a rewritten branch rather than
     latching open.
     """
-    from dev10x.domain.gate_policy import SUPERVISOR_REVIEW_REQUIRED, supervisor_review_gate
+    from dev10x.core.domain.gate_policy import SUPERVISOR_REVIEW_REQUIRED, supervisor_review_gate
 
     if supervisor_review != SUPERVISOR_REVIEW_REQUIRED:
         return False
@@ -140,7 +140,7 @@ async def _supervisor_cleared(*, gate: str, supervisor_review: str, solo_repo: b
         return False
 
     from dev10x.coding.github import pr_detect, pr_labels
-    from dev10x.domain.common.result import ErrorResult
+    from dev10x.core.domain.common.result import ErrorResult
 
     detected = await pr_detect(arg="")
     if isinstance(detected, ErrorResult):
@@ -162,7 +162,7 @@ async def _supervisor_cleared(*, gate: str, supervisor_review: str, solo_repo: b
 
 def _current_branch(toplevel: str) -> str | None:
     """Current git branch at ``toplevel``, or ``None`` when undeterminable."""
-    from dev10x.domain.git_context import GitContext
+    from dev10x.core.domain.git_context import GitContext
 
     branch = GitContext(cwd=toplevel).branch
     return None if branch == "unknown" else branch
@@ -182,8 +182,8 @@ def _computed_session_stale(*, toplevel: str) -> bool:
     invocation's tickets should pass ``session_stale`` in the gate context
     explicitly rather than rely on this computed fallback (Round 1 review C2).
     """
-    from dev10x.domain.session_document import read_plan_identity
-    from dev10x.domain.session_staleness import session_stale
+    from dev10x.core.domain.session_document import read_plan_identity
+    from dev10x.core.domain.session_staleness import session_stale
 
     identity = read_plan_identity(toplevel=toplevel)
     return session_stale(
@@ -200,8 +200,8 @@ def _computed_run_mode(*, toplevel: str, overlays: list[str]) -> RunModeResoluti
     The mirror is per-worktree, so it is read at the invocation toplevel,
     never the GH-978 policy toplevel.
     """
+    from dev10x.core.domain.run_mode import PlanState, resolve_run_mode
     from dev10x.core.plan_mirror import plan_mirror_path, read_plan_mirror
-    from dev10x.domain.run_mode import PlanState, resolve_run_mode
 
     path = plan_mirror_path(toplevel=toplevel)
     mirror = read_plan_mirror(path=path)
@@ -223,7 +223,7 @@ def _partition_context(context: dict[str, Any]) -> tuple[dict[str, Any], list[st
     """
     import dataclasses
 
-    from dev10x.domain.gate_policy import GateContext
+    from dev10x.core.domain.gate_policy import GateContext
 
     known_fields = {field.name for field in dataclasses.fields(GateContext)}
     ignored = sorted(set(context) - known_fields)
@@ -246,7 +246,7 @@ def _refuse_legacy_policy(inputs: dict[str, Any]) -> str | None:
     autonomy ESCALATION on exactly the repos that asked for less. The
     migrator (GH-1166) converts such configs; the error names it.
     """
-    from dev10x.domain.gate_policy import legacy_config_message, legacy_policy_keys
+    from dev10x.core.domain.gate_policy import legacy_config_message, legacy_policy_keys
 
     legacy_keys = legacy_policy_keys(
         friction_level=inputs["friction_level"],
@@ -270,7 +270,7 @@ def _resolve_overlays(inputs: dict[str, Any]) -> tuple[str, list[str], list[str]
     skips are never honored. Dropping only ever removes autonomy, so it can
     never make a gate less safe. ``None`` means no allow-list (permissive).
     """
-    from dev10x.domain.gate_policy import BASELINE_PRESET
+    from dev10x.core.domain.gate_policy import BASELINE_PRESET
 
     preset = inputs["gate_preset"] or BASELINE_PRESET
     overlays = list(inputs["gate_overlays"])
@@ -326,7 +326,7 @@ async def _resolve_supervisor_policy(
     the retired `human_review` key lands in `ignored_context_fields` via
     the unknown-field partition — it is no longer a GateContext field.)
     """
-    from dev10x.domain.gate_policy import SOLO_OVERLAY
+    from dev10x.core.domain.gate_policy import SOLO_OVERLAY
 
     supplied = [key for key in ("supervisor_review", "supervisor_cleared") if key in context]
     resolved = dict(context)
@@ -373,13 +373,13 @@ class GateResolutionQuery:
     toplevel: str
 
     async def run(self) -> Result[GateResolutionOutcome]:
-        from dev10x.config.friction_presets import (
+        from dev10x.core.config.friction_presets import (
             load_shipped_overlays,
             load_shipped_presets,
             load_user_presets,
         )
-        from dev10x.domain.documents.session_yaml import SessionYamlDocument
-        from dev10x.domain.gate_policy import (
+        from dev10x.core.domain.documents.session_yaml import SessionYamlDocument
+        from dev10x.core.domain.gate_policy import (
             GateContext,
             UnknownPresetError,
             UnknownToggleError,

@@ -1,9 +1,10 @@
-"""Tests for dev10x.domain.log_redaction (GH-1639)."""
+"""Tests for dev10x.core.domain.log_redaction (GH-1639)."""
 
 from __future__ import annotations
 
 import pytest
-from dev10x.domain.log_redaction import (
+
+from dev10x.core.domain.log_redaction import (
     REDACTED,
     is_sensitive_field,
     redact_fields,

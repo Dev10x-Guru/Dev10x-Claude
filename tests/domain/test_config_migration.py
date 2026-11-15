@@ -13,7 +13,8 @@ from typing import Any
 
 import pytest
 import yaml
-from dev10x.domain.config_migration import (
+
+from dev10x.core.domain.config_migration import (
     migrate_configs,
     migrate_friction_yaml,
     migrate_legacy_repo_config,
@@ -21,7 +22,7 @@ from dev10x.domain.config_migration import (
     resolve_supervisor_review,
     schema_v2_pending,
 )
-from dev10x.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
 
 
 @pytest.fixture

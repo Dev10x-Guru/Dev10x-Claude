@@ -21,14 +21,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import ClassVar
 
-from dev10x.domain import HookInput, HookResult
-from dev10x.domain.common.bash_tokens import (
+from dev10x.core.domain import HookInput, HookResult
+from dev10x.core.domain.common.bash_tokens import (
     UntokenizableCommandError,
     segment_programs,
 )
-from dev10x.domain.common.mcp_tool_name import McpToolName
-from dev10x.domain.profile_tier import ProfileTier
-from dev10x.validators.base import ValidatorBase
+from dev10x.core.domain.common.mcp_tool_name import McpToolName
+from dev10x.core.domain.profile_tier import ProfileTier
+from dev10x.core.validators.base import ValidatorBase
 
 MCP_PREFIX_MSG = """\
 ⛔  MCP tool name used as a shell command — blocked.

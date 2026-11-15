@@ -40,7 +40,7 @@ class TestCli:
         monkeypatch: pytest.MonkeyPatch,
         tmp_path: object,
     ) -> None:
-        from dev10x.domain.dev10x_paths import (
+        from dev10x.core.domain.dev10x_paths import (
             CONFIG_HOME_ENV_VAR,
             Dev10xConfigDir,
         )
@@ -61,7 +61,7 @@ class TestCli:
         monkeypatch: pytest.MonkeyPatch,
         tmp_path: object,
     ) -> None:
-        from dev10x.domain.dev10x_paths import (
+        from dev10x.core.domain.dev10x_paths import (
             CONFIG_HOME_ENV_VAR,
             Dev10xConfigDir,
         )

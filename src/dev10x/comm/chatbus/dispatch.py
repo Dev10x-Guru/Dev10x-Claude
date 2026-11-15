@@ -29,9 +29,9 @@ from dev10x.comm.overwatch.probes import ProbeError, get_herdr_panes, submit_pro
 from dev10x.comm.overwatch.sessions import ProbeParseError
 from dev10x.comm.skills.bus.maildir import BUS_ROOT, Envelope, InvalidMessageError, send
 from dev10x.comm.skills.bus.routing import Hello, read_registry, route_message
-from dev10x.domain.common.result import ErrorResult, Result, err, ok
-from dev10x.domain.file_locks import atomic_write_text
-from dev10x.subprocess_utils import run
+from dev10x.core.domain.common.result import ErrorResult, Result, err, ok
+from dev10x.core.domain.file_locks import atomic_write_text
+from dev10x.core.subprocess_utils import run
 
 log = logging.getLogger(__name__)
 

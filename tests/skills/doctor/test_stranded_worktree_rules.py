@@ -6,15 +6,15 @@ import json
 from pathlib import Path
 
 import pytest
-from dev10x.domain.common.workspace import worktree_roots_in
-from dev10x.skills.doctor.registry import load_strategies
-from dev10x.skills.doctor.strategies.stranded_worktree_rules import (
+
+from dev10x.core.domain.common.workspace import worktree_roots_in
+from dev10x.core.skills.doctor.registry import load_strategies
+from dev10x.core.skills.doctor.strategies.stranded_worktree_rules import (
     STRATEGY,
     detect,
     own_checkout,
 )
-from dev10x.skills.doctor.strategy import Context
-
+from dev10x.core.skills.doctor.strategy import Context
 from tests.skills.doctor.conftest import WriteSettings
 
 

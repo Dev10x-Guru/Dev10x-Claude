@@ -133,7 +133,7 @@ def resume_prompt(*, verdict: StrandedVerdict) -> str:
 
 def inspect_worktree(*, worktree: Path, status: SubagentStatus) -> StrandedVerdict:
     """Run `git status --porcelain` in an agent worktree and decide."""
-    from dev10x import subprocess_utils
+    from dev10x.core import subprocess_utils
 
     if not worktree.is_dir():
         return decide_stranded_work(porcelain="", status=status, worktree_exists=False)

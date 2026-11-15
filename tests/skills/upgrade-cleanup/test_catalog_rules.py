@@ -7,7 +7,9 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from dev10x.skills.permission.catalog_rules import (
+
+from dev10x.core.plugin_map import PluginMap
+from dev10x.core.skills.permission.catalog_rules import (
     GeneralizationPlan,
     ScriptRoot,
     _expand_stale_wildcards,
@@ -25,8 +27,6 @@ from dev10x.skills.permission.catalog_rules import (
     verify_script_coverage,
     widening_hold_reason,
 )
-
-from dev10x.core.plugin_map import PluginMap
 
 
 def _write_settings(path: Path, *, allow: list[str] | None = None, **sections: object) -> Path:
@@ -452,7 +452,7 @@ class TestGeneralizations:
         # A hand-crafted entry whose generalized form comes out malformed
         # must be refused, not silently written (GH-1150).
         with patch(
-            "dev10x.skills.permission.catalog_rules.generalize_permission",
+            "dev10x.core.skills.permission.catalog_rules.generalize_permission",
             return_value="not-a-well-formed-rule",
         ):
             replacements, refused = _generalizations(["Bash(/p/foo.sh arg1:*)"])
@@ -558,7 +558,7 @@ class TestExpandStaleWildcards:
     def test_expands_wildcard_into_catalog_tools_not_already_present(self) -> None:
         catalog = {"cli": ["mcp__plugin_dev10x_cli__issue_get", "mcp__plugin_dev10x_cli__pr_get"]}
         with patch(
-            "dev10x.skills.permission.enumerate_mcp._matches_wildcard",
+            "dev10x.core.skills.permission.enumerate_mcp._matches_wildcard",
             return_value=["mcp__plugin_dev10x_cli__issue_get", "mcp__plugin_dev10x_cli__pr_get"],
         ):
             expanded = _expand_stale_wildcards(
@@ -583,11 +583,11 @@ class TestExpandStaleWildcards:
     def test_discovers_catalog_when_not_passed(self) -> None:
         with (
             patch(
-                "dev10x.skills.permission.enumerate_mcp.discover_mcp_tools",
+                "dev10x.core.skills.permission.enumerate_mcp.discover_mcp_tools",
                 return_value={"cli": ["mcp__plugin_dev10x_cli__issue_get"]},
             ),
             patch(
-                "dev10x.skills.permission.enumerate_mcp._matches_wildcard",
+                "dev10x.core.skills.permission.enumerate_mcp._matches_wildcard",
                 return_value=["mcp__plugin_dev10x_cli__issue_get"],
             ),
         ):

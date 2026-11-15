@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import pytest
-from dev10x.domain.profile_tier import ProfileTier
+
+from dev10x.core.domain.profile_tier import ProfileTier
 
 
 @pytest.mark.parametrize(

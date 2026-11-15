@@ -6,7 +6,8 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
-from dev10x.skills.bus.maildir import (
+
+from dev10x.comm.skills.bus.maildir import (
     MAX_BODY_CHARS,
     DuplicateFilter,
     Envelope,

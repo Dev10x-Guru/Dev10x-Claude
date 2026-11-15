@@ -27,7 +27,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from dev10x.subprocess_utils import get_plugin_root
+from dev10x.core.subprocess_utils import get_plugin_root
 
 _ACCESSOR_MODULES = {"claude_paths.py", "dev10x_paths.py"}
 
@@ -72,7 +72,7 @@ def test_no_home_claude_literal_construction() -> None:
 
     assert not offenders, (
         "Build `~/.claude` paths via `ClaudeDir` accessors "
-        '(dev10x.domain.claude_paths), never `Path.home() / ".claude"` '
+        '(dev10x.core.domain.claude_paths), never `Path.home() / ".claude"` '
         "directly — the accessor owns home resolution and the "
         "DEV10X_CLAUDE_HOME override (GH-829). Offenders:\n  - " + "\n  - ".join(offenders)
     )

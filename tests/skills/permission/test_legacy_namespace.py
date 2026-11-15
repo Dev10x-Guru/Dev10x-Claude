@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import pytest
-from dev10x.skills.permission.legacy_namespace import (
+
+from dev10x.core.skills.permission.legacy_namespace import (
     CURRENT_PLUGIN_ID,
     LEGACY_PLUGIN_ID,
     current_spelling,

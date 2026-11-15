@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-pytest.importorskip("dev10x.skills.doctor.strategy", reason="dev10x not installed")
+pytest.importorskip("dev10x.core.skills.doctor.strategy", reason="dev10x not installed")
 
-from dev10x.skills.doctor.strategy import (  # noqa: E402
+from dev10x.core.skills.doctor.strategy import (  # noqa: E402
     Finding,
     Remediation,
     RemediationData,

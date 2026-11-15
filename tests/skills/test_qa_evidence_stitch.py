@@ -8,9 +8,10 @@ import subprocess
 from pathlib import Path
 
 import pytest
-from dev10x.config.loader import load_document
-from dev10x.domain.common.baseline_catalog import load_baseline_dict
-from dev10x.skills.permission.catalog_paths import load_catalog_document
+
+from dev10x.core.config.loader import load_document
+from dev10x.core.domain.common.baseline_catalog import load_baseline_dict
+from dev10x.core.skills.permission.catalog_paths import load_catalog_document
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 _SCRIPT = _REPO_ROOT / "plugins" / "qa" / "skills" / "qa-self" / "scripts" / "convert-evidence.sh"

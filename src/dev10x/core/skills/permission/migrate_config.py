@@ -27,15 +27,15 @@ from typing import Any
 
 import yaml
 
-from dev10x.domain.documents.config_yaml import ConfigYamlDocument
-from dev10x.domain.documents.friction_yaml import (
+from dev10x.core.domain.documents.config_yaml import ConfigYamlDocument
+from dev10x.core.domain.documents.friction_yaml import (
     DURABLE_KEYS,
     FrictionYamlDocument,
     match_globs_for_repo,
     repo_stem,
 )
-from dev10x.domain.documents.session_yaml import SessionYamlDocument, legacy_durable_prefs
-from dev10x.domain.file_locks import LOCK_TIMEOUT_SECONDS, atomic_write_text, file_lock
+from dev10x.core.domain.documents.session_yaml import SessionYamlDocument, legacy_durable_prefs
+from dev10x.core.domain.file_locks import LOCK_TIMEOUT_SECONDS, atomic_write_text, file_lock
 
 
 def _load_session_mapping(*, root: Path) -> dict[str, Any]:
@@ -132,7 +132,7 @@ def migrate_config_to_friction(
     GH-1411: friction.yaml is global, so the whole read-render-write-verify
     cycle runs under :func:`file_lock` and lands through
     :func:`atomic_write_text`. Raises
-    :class:`~dev10x.domain.file_locks.LockTimeoutError` rather than writing
+    :class:`~dev10x.core.domain.file_locks.LockTimeoutError` rather than writing
     unsynchronised when the lock cannot be taken.
     """
     finding = detect_legacy_config(root=root)

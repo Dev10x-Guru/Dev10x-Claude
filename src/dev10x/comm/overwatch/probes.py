@@ -16,7 +16,7 @@ from dev10x.comm.overwatch.sessions import (
     parse_herdr_agents,
 )
 from dev10x.comm.skills.bus.maildir import SessionStatus, parse_status, status_files
-from dev10x.subprocess_utils import run
+from dev10x.core.subprocess_utils import run
 
 PROBE_TIMEOUT_SECONDS = 10
 PANE_LINES = 60

@@ -12,9 +12,10 @@ from typing import Any
 
 import pytest
 import yaml
-from dev10x.domain.common.result import ErrorResult
 
-from dev10x.session import preset_pin, task_index
+from dev10x.core.domain.common.result import ErrorResult
+from dev10x.core.session import preset_pin
+from dev10x.tasks.session import task_index
 
 
 @pytest.fixture
@@ -37,7 +38,7 @@ def worktree(tmp_path: Path) -> Path:
 @pytest.fixture
 def store(repo: Path) -> Path:
     """Path the rehomed index resolves to, isolated to a tmp home by conftest."""
-    from dev10x.domain.dev10x_paths import Dev10xConfigDir
+    from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
 
     return Dev10xConfigDir.task_index_yaml(repo_name="Dev10x-Claude")
 
@@ -67,7 +68,7 @@ def legacy_file() -> Any:
 def _no_checkout_toplevel(monkeypatch: pytest.MonkeyPatch) -> None:
     """Keep the per-checkout legacy probe off real git for every test."""
     monkeypatch.setattr(
-        "dev10x.domain.git_context.GitContext.toplevel",
+        "dev10x.core.domain.git_context.GitContext.toplevel",
         property(lambda self: None),
     )
 
@@ -146,7 +147,7 @@ def checkout_toplevel(monkeypatch: pytest.MonkeyPatch) -> Any:
 
     def bind(path: Path) -> None:
         monkeypatch.setattr(
-            "dev10x.domain.git_context.GitContext.toplevel",
+            "dev10x.core.domain.git_context.GitContext.toplevel",
             property(lambda self: str(path)),
         )
 

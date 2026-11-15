@@ -8,7 +8,7 @@ repo-agnostic reviewer checklist so an external repo gets review quality
 close to the internal multi-agent pipeline.
 
 This command is the CLI seam over
-:func:`dev10x.github.rule_authoring.author_reference_rules`, which was
+:func:`dev10x.coding.github.rule_authoring.author_reference_rules`, which was
 previously reachable only through the MCP boundary. Per ADR-0010 the
 domain function returns ``Result[T]`` and stays side-effect free; this
 entry point owns stdout and the process exit code.
@@ -107,7 +107,7 @@ def review_rules(
 ) -> None:
     """Print a learned-rules Markdown digest from validated review patterns.
 
-    Wraps :func:`dev10x.github.rule_authoring.author_reference_rules` and
+    Wraps :func:`dev10x.coding.github.rule_authoring.author_reference_rules` and
     emits a self-contained Markdown document on stdout. When no pattern
     validates, a clear placeholder digest is emitted (exit 0) so the
     Action always has a readable file to feed the review prompt. A genuine
@@ -115,7 +115,7 @@ def review_rules(
     and exits non-zero so the Action can degrade gracefully.
     """
     from dev10x.coding.github import rule_authoring
-    from dev10x.domain.common.result import SuccessResult
+    from dev10x.core.domain.common.result import SuccessResult
 
     result = asyncio.run(
         rule_authoring.author_reference_rules(
@@ -194,7 +194,7 @@ def learn(
 ) -> None:
     """Run the continuous learning loop: mine rules, open a rules-update PR.
 
-    Wraps :func:`dev10x.github.learn_loop.run_learning_loop`. On a closed
+    Wraps :func:`dev10x.coding.github.learn_loop.run_learning_loop`. On a closed
     PR the Action invokes this to harvest the repository's recurring
     reviewer patterns into validated reference rules and open a PR
     proposing them for human approval. When no pattern validates (or the
@@ -205,7 +205,7 @@ def learn(
     import os
 
     from dev10x.coding.github import learn_loop
-    from dev10x.domain.common.result import SuccessResult
+    from dev10x.core.domain.common.result import SuccessResult
 
     result = asyncio.run(
         learn_loop.run_learning_loop(

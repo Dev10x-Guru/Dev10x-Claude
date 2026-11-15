@@ -25,9 +25,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from dev10x.domain import HookInput, HookResult
-from dev10x.skills.permission.rule_risk import bash_prefix, blanket_problem, comparable_rule
-from dev10x.validators import get_chain
+from dev10x.core.domain import HookInput, HookResult
+from dev10x.core.skills.permission.rule_risk import bash_prefix, blanket_problem, comparable_rule
+from dev10x.core.validators import get_chain
 
 
 @dataclass(frozen=True)

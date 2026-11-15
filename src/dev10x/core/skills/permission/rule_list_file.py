@@ -18,8 +18,8 @@ from pathlib import Path
 
 import yaml
 
-from dev10x.domain.common.result import Result, err, ok
-from dev10x.domain.file_locks import LockTimeoutError, locked_yaml_update
+from dev10x.core.domain.common.result import Result, err, ok
+from dev10x.core.domain.file_locks import LockTimeoutError, locked_yaml_update
 
 
 class _NotAMappingError(ValueError):

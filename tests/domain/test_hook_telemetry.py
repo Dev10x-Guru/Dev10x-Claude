@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import pytest
-from dev10x.domain.hook_telemetry import HookOutcome, HookPhase
+
+from dev10x.core.domain.hook_telemetry import HookOutcome, HookPhase
 
 
 @pytest.mark.parametrize(

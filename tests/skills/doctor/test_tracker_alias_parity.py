@@ -6,9 +6,10 @@ import json
 from pathlib import Path
 
 import pytest
-from dev10x.skills.doctor.registry import load_strategies
-from dev10x.skills.doctor.strategies.tracker_alias_parity import STRATEGY, detect
-from dev10x.skills.doctor.strategy import Context
+
+from dev10x.core.skills.doctor.registry import load_strategies
+from dev10x.core.skills.doctor.strategies.tracker_alias_parity import STRATEGY, detect
+from dev10x.core.skills.doctor.strategy import Context
 
 CLAUDE_AI = "mcp__claude_ai_Linear__"
 SERVER = "mcp__linear-server__"

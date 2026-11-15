@@ -6,10 +6,10 @@ import json
 from pathlib import Path
 
 import pytest
-from dev10x.skills.permission.catalog_gap import compute_gap, format_gap_report, rule_family
 
-from dev10x.skills.permission import catalog_write as mod
-from dev10x.skills.permission import enumerate_mcp
+from dev10x.core.skills.permission import catalog_write as mod
+from dev10x.core.skills.permission import enumerate_mcp
+from dev10x.core.skills.permission.catalog_gap import compute_gap, format_gap_report, rule_family
 
 
 @pytest.fixture

@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from dev10x.domain.common.result import ErrorResult, Result, SuccessResult, err, ok
 
 from dev10x.comm.skills.bus.maildir import (
     Envelope,
@@ -26,6 +25,7 @@ from dev10x.comm.skills.notifications.gchat_watch import (
     WatchConfig,
     WatchEvent,
 )
+from dev10x.core.domain.common.result import ErrorResult, Result, SuccessResult, err, ok
 
 SPACE = "spaces/S"
 THREAD = "spaces/S/threads/T"

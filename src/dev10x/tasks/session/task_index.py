@@ -15,7 +15,7 @@ this module becomes its only writer, reached through MCP tools so the write
 happens in the server process (the plan-sync precedent ADR-0018 cites).
 
 **Repo-scoped, not worktree-scoped.** The index is keyed off the git common
-dir via :func:`~dev10x.session.preset_pin.resolve_repo_identity`, so an item
+dir via :func:`~dev10x.core.session.preset_pin.resolve_repo_identity`, so an item
 parked in ``Dev10x-Claude-1`` resurfaces in ``Dev10x-Claude`` and in a
 worktree created next month. Keying on the invocation CWD would strand each
 deferral in the checkout that happened to create it, which is the opposite of
@@ -30,11 +30,11 @@ from typing import Any
 
 import yaml
 
-from dev10x.domain.common.result import ErrorResult, Result, err, ok
-from dev10x.domain.dev10x_paths import Dev10xConfigDir
-from dev10x.domain.file_locks import CorruptYamlError, locked_yaml_update
-from dev10x.domain.git_context import GitContext
-from dev10x.session.preset_pin import RepoIdentity, resolve_repo_identity
+from dev10x.core.domain.common.result import ErrorResult, Result, err, ok
+from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.core.domain.file_locks import CorruptYamlError, locked_yaml_update
+from dev10x.core.domain.git_context import GitContext
+from dev10x.core.session.preset_pin import RepoIdentity, resolve_repo_identity
 
 log = logging.getLogger(__name__)
 

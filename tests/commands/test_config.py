@@ -136,7 +136,7 @@ class TestConfigDoctorProjectsLists:
         runner = CliRunner()
         with (
             patch("dev10x.commands.config.stale_legacy_paths", return_value=[]),
-            patch("dev10x.session.projects_scan.scan_projects_lists", return_value=reports),
+            patch("dev10x.core.session.projects_scan.scan_projects_lists", return_value=reports),
         ):
             result = runner.invoke(config, ["doctor"])
         assert result.exit_code == 0
@@ -144,7 +144,7 @@ class TestConfigDoctorProjectsLists:
 
     @staticmethod
     def _report(document: dict, *, scheme, target: str | None, reason: str | None = None):
-        from dev10x.domain.project_match import evaluate_projects
+        from dev10x.core.domain.project_match import evaluate_projects
 
         return evaluate_projects(
             document,
@@ -158,7 +158,7 @@ class TestConfigDoctorProjectsLists:
         assert "no Tier-2 file carries a `projects:` list" in self._run([])
 
     def test_confirms_a_matching_list(self) -> None:
-        from dev10x.domain.project_match import MatchScheme
+        from dev10x.core.domain.project_match import MatchScheme
 
         report = self._report(
             {"projects": [{"match_repo": ["org/*"]}]},
@@ -168,7 +168,7 @@ class TestConfigDoctorProjectsLists:
         assert "1 of 1 `projects:` list(s) select this checkout" in self._run([report])
 
     def test_reports_a_list_that_matched_nothing(self) -> None:
-        from dev10x.domain.project_match import MatchScheme
+        from dev10x.core.domain.project_match import MatchScheme
 
         report = self._report(
             {"projects": [{"match_repo": ["other/*"]}]},
@@ -181,7 +181,7 @@ class TestConfigDoctorProjectsLists:
         assert "ADR-0026" in output
 
     def test_an_unevaluated_list_is_not_reported_as_no_match(self) -> None:
-        from dev10x.domain.project_match import MatchScheme
+        from dev10x.core.domain.project_match import MatchScheme
 
         report = self._report(
             {"projects": [{"match_repo": ["org/*"]}]},
@@ -194,7 +194,7 @@ class TestConfigDoctorProjectsLists:
         assert "glob matched" not in output
 
     def test_a_file_without_a_list_is_silent(self) -> None:
-        from dev10x.domain.project_match import MatchScheme
+        from dev10x.core.domain.project_match import MatchScheme
 
         report = self._report({"defaults": {}}, scheme=MatchScheme.REPO, target="org/repo")
         assert "no Tier-2 file carries a `projects:` list" in self._run([report])
@@ -202,7 +202,7 @@ class TestConfigDoctorProjectsLists:
 
 def _write_v1_friction() -> Path:
     """Seed the isolated config home with a v1-shaped friction.yaml."""
-    from dev10x.domain.dev10x_paths import Dev10xConfigDir
+    from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
 
     path = Dev10xConfigDir.friction_yaml()
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -237,7 +237,7 @@ class TestConfigMigrateSchema:
         assert path.read_text() == before
 
     def test_reports_dropped_preset_and_added_overlays(self, tmp_path: Path) -> None:
-        from dev10x.domain.dev10x_paths import Dev10xConfigDir
+        from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
 
         path = Dev10xConfigDir.friction_yaml()
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -251,11 +251,11 @@ class TestConfigMigrateSchema:
 
     def test_a_domain_failure_becomes_a_cli_error(self, tmp_path: Path) -> None:
         """The script layer owns the exit code, not the domain (GH-246 H7)."""
-        from dev10x.domain.common.result import err
+        from dev10x.core.domain.common.result import err
 
         runner = CliRunner()
         with patch(
-            "dev10x.domain.config_migration.migrate_configs",
+            "dev10x.core.domain.config_migration.migrate_configs",
             return_value=err("friction.yaml is not writable"),
         ):
             result = runner.invoke(config, ["migrate-schema", "--cwd", str(tmp_path)])
@@ -263,7 +263,7 @@ class TestConfigMigrateSchema:
         assert "friction.yaml is not writable" in result.output
 
     def test_plural_wording_for_multiple_entries(self, tmp_path: Path) -> None:
-        from dev10x.domain.dev10x_paths import Dev10xConfigDir
+        from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
 
         path = Dev10xConfigDir.friction_yaml()
         path.parent.mkdir(parents=True, exist_ok=True)

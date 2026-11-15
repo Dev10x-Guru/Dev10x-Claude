@@ -1,7 +1,7 @@
 """Accepted-by-design plugin-doctor findings (GH-1321).
 
 The doctor's counterpart to
-:mod:`dev10x.domain.common.accepted_findings`, and it exists for the
+:mod:`dev10x.core.domain.common.accepted_findings`, and it exists for the
 same reason one release earlier: a detector that cannot be answered
 re-asks forever. ``dev10x:plugin-doctor``'s own SKILL.md names the
 consequence in its anti-patterns — "a periodic run would re-prompt for
@@ -16,7 +16,7 @@ rationale that retired it. Suppression that hides is how a baseline
 rots into a place findings go to disappear.
 
 Matching is pure so the shipped catalog and the user overlay share one
-code path; file I/O lives in :mod:`dev10x.skills.doctor.acceptance`.
+code path; file I/O lives in :mod:`dev10x.core.skills.doctor.acceptance`.
 """
 
 from __future__ import annotations

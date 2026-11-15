@@ -3,7 +3,8 @@ from __future__ import annotations
 import re
 
 import pytest
-from dev10x.domain.common.mktmp_path import (
+
+from dev10x.core.domain.common.mktmp_path import (
     MKTMP_GENERALIZE_PATTERN,
     MKTMP_PATH_PATTERN,
     MktmpPath,

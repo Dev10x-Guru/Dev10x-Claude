@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from dev10x.domain.common.result import ErrorResult, SuccessResult
 
 from dev10x.comm.skills.notifications.gchat_users import (
     BusRole,
@@ -13,6 +12,7 @@ from dev10x.comm.skills.notifications.gchat_users import (
     load_chat_users,
     parse_chat_users,
 )
+from dev10x.core.domain.common.result import ErrorResult, SuccessResult
 
 
 class TestChatUserName:

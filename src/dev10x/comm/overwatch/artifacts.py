@@ -12,8 +12,8 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from dev10x.domain.common.result import ErrorResult, Result, err, ok
-from dev10x.domain.file_locks import atomic_append_line, file_lock, locked_json_update
+from dev10x.core.domain.common.result import ErrorResult, Result, err, ok
+from dev10x.core.domain.file_locks import atomic_append_line, file_lock, locked_json_update
 
 log = logging.getLogger(__name__)
 

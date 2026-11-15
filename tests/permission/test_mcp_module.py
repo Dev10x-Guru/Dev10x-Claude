@@ -1,4 +1,4 @@
-"""Tests for dev10x.permission MCP module (GH-108 Result[T] migration).
+"""Tests for dev10x.core.permission MCP module (GH-108 Result[T] migration).
 
 Covers the structured-error contract for update_paths — both the
 sub-command branch and the in-process version-bump branch — so the
@@ -8,7 +8,7 @@ the envelope at the MCP edge.
 GH-269: the version-bump branch used to shell out to
 ``skills/upgrade-cleanup/scripts/update-paths.py``. That shim
 script was retired; the branch now runs in-process against
-``dev10x.skills.permission.update_paths`` (the same module the
+``dev10x.core.skills.permission.update_paths`` (the same module the
 CLI uses) so plugin upgrades stop rotting the allow-rule.
 """
 
@@ -19,12 +19,12 @@ from unittest.mock import patch
 
 import pytest
 
-perm_mod = pytest.importorskip("dev10x.permission", reason="dev10x not installed")
-from dev10x.domain.common.result import ErrorResult, SuccessResult, ok  # noqa: E402
+perm_mod = pytest.importorskip("dev10x.core.permission", reason="dev10x not installed")
+from dev10x.core.domain.common.result import ErrorResult, SuccessResult, ok  # noqa: E402
 
-MOD = "dev10x.skills.permission.update_paths"
+MOD = "dev10x.core.skills.permission.update_paths"
 # load_effective_config resolves load_config inside catalog_load (GH-1432).
-LOAD = "dev10x.skills.permission.catalog_load"
+LOAD = "dev10x.core.skills.permission.catalog_load"
 
 
 class TestUpdatePathsInProcess:
@@ -106,13 +106,13 @@ class TestUpdatePathsSubCommand:
     @pytest.mark.asyncio
     async def test_returns_error_when_no_settings_files(self) -> None:
         with (
-            patch("dev10x.skills.permission.update_paths.find_config"),
+            patch("dev10x.core.skills.permission.update_paths.find_config"),
             patch(
                 f"{LOAD}.load_config",
                 return_value={"roots": [], "include_user_settings": False},
             ),
             patch(
-                "dev10x.skills.permission.update_paths.find_settings_files",
+                "dev10x.core.skills.permission.update_paths.find_settings_files",
                 return_value=[],
             ),
         ):
@@ -234,7 +234,7 @@ class TestCatalogGap:
     @pytest.mark.asyncio
     async def test_propagates_a_context_resolution_error(self) -> None:
         with patch(
-            "dev10x.permission.load_permission_context",
+            "dev10x.core.permission.load_permission_context",
             return_value=ErrorResult(error="No config found."),
         ):
             result = await perm_mod.catalog_gap()

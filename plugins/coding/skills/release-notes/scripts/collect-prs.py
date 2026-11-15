@@ -12,8 +12,8 @@ from core_src import add_core_src  # noqa: E402
 
 add_core_src(script=Path(__file__))
 
-from dev10x.skills.release.collect_prs import *  # noqa: E402, F401, F403
-from dev10x.skills.release.collect_prs import main  # noqa: E402
+from dev10x.coding.skills.release.collect_prs import *  # noqa: E402, F401, F403
+from dev10x.coding.skills.release.collect_prs import main  # noqa: E402
 
 if __name__ == "__main__":
     main()

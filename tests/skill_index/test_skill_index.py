@@ -4,14 +4,15 @@ import subprocess
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from dev10x.domain.common.result import ErrorResult, SuccessResult
 
-idx_mod = pytest.importorskip("dev10x.skill_index", reason="dev10x not installed")
+from dev10x.core.domain.common.result import ErrorResult, SuccessResult
+
+idx_mod = pytest.importorskip("dev10x.teach.skill_index", reason="dev10x not installed")
 
 
 class TestGenerateAll:
     @pytest.mark.asyncio
-    @patch("dev10x.skill_index.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.teach.skill_index.async_run_script", new_callable=AsyncMock)
     async def test_returns_output_on_success(
         self,
         mock_run: AsyncMock,
@@ -27,7 +28,7 @@ class TestGenerateAll:
         assert result.value["success"] is True
 
     @pytest.mark.asyncio
-    @patch("dev10x.skill_index.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.teach.skill_index.async_run_script", new_callable=AsyncMock)
     async def test_returns_error_on_failure(
         self,
         mock_run: AsyncMock,
@@ -44,7 +45,7 @@ class TestGenerateAll:
         assert result.to_dict() == {"error": "Script failed"}
 
     @pytest.mark.asyncio
-    @patch("dev10x.skill_index.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.teach.skill_index.async_run_script", new_callable=AsyncMock)
     async def test_passes_force_flag(
         self,
         mock_run: AsyncMock,

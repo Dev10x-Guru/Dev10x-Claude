@@ -28,12 +28,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, ClassVar
 
+from dev10x.core.domain import HookHint, HookInput, HookResult
+from dev10x.core.domain.documents.friction_yaml import load_checkout_prefs
+from dev10x.core.domain.documents.yaml_mapping import load_yaml_mapping
+from dev10x.core.domain.profile_tier import ProfileTier
 from dev10x.core.name_boundary import name_pattern
-from dev10x.domain import HookHint, HookInput, HookResult
-from dev10x.domain.documents.friction_yaml import load_checkout_prefs
-from dev10x.domain.documents.yaml_mapping import load_yaml_mapping
-from dev10x.domain.profile_tier import ProfileTier
-from dev10x.validators.base import ValidatorBase
+from dev10x.core.validators.base import ValidatorBase
 
 log = logging.getLogger(__name__)
 

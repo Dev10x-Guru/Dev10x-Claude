@@ -4,7 +4,7 @@ Everything here answers "which rule should exist?" or "does this rule
 cover that?": scanning plugin and user-skill scripts, building the Bash
 and Read rules for them, checking a settings file's coverage, collapsing
 retired upgrade-cleanup rules, and generalizing session-specific
-arguments. The writers in :mod:`dev10x.skills.permission.catalog_write`
+arguments. The writers in :mod:`dev10x.core.skills.permission.catalog_write`
 act on these answers. Split out of ``update_paths.py`` by GH-1432.
 """
 
@@ -14,11 +14,14 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from dev10x.core.domain.common.allow_rule import AllowRule
+from dev10x.core.domain.common.mktmp_path import MKTMP_GENERALIZE_PATTERN
 from dev10x.core.paths import satellite_cache_dir, satellite_subdir
 from dev10x.core.plugin_map import PluginMap
-from dev10x.domain.common.allow_rule import AllowRule
-from dev10x.domain.common.mktmp_path import MKTMP_GENERALIZE_PATTERN
-from dev10x.skills.permission.catalog_load import detect_latest_version, extract_cache_publisher
+from dev10x.core.skills.permission.catalog_load import (
+    detect_latest_version,
+    extract_cache_publisher,
+)
 
 MCP_WILDCARD_PATTERN = re.compile(r"^mcp__plugin_[A-Za-z0-9]+_\*$")
 
@@ -47,13 +50,13 @@ def _expand_stale_wildcards(
         return []
 
     if catalog is None:
-        from dev10x.skills.permission.enumerate_mcp import discover_mcp_tools
+        from dev10x.core.skills.permission.enumerate_mcp import discover_mcp_tools
 
         catalog = discover_mcp_tools()
     if not catalog:
         return []
 
-    from dev10x.skills.permission.enumerate_mcp import _matches_wildcard
+    from dev10x.core.skills.permission.enumerate_mcp import _matches_wildcard
 
     expanded: list[str] = []
     seen = set(existing)

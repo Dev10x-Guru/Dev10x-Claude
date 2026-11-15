@@ -8,8 +8,8 @@ update-paths --restore`)."""
 from pathlib import Path
 from unittest.mock import patch
 
-from dev10x.skills.permission.catalog_backup import _restore
-from dev10x.skills.permission.settings_discovery import VENDORED_DIRS
+from dev10x.core.skills.permission.catalog_backup import _restore
+from dev10x.core.skills.permission.settings_discovery import VENDORED_DIRS
 
 
 class TestRestore:
@@ -22,11 +22,11 @@ class TestRestore:
 
         with (
             patch(
-                "dev10x.skills.permission.catalog_backup.find_settings_files",
+                "dev10x.core.skills.permission.catalog_backup.find_settings_files",
                 return_value=resolved_files,
             ) as mock_find,
             patch(
-                "dev10x.skills.permission.backup.restore_report",
+                "dev10x.core.skills.permission.backup.restore_report",
                 return_value=(0, "Restored 1 files."),
             ) as mock_restore,
         ):
@@ -46,11 +46,11 @@ class TestRestore:
 
         with (
             patch(
-                "dev10x.skills.permission.catalog_backup.find_settings_files",
+                "dev10x.core.skills.permission.catalog_backup.find_settings_files",
                 return_value=[],
             ) as mock_find,
             patch(
-                "dev10x.skills.permission.backup.restore_report",
+                "dev10x.core.skills.permission.backup.restore_report",
                 return_value=(0, "No backups found to restore."),
             ),
         ):
@@ -64,11 +64,11 @@ class TestRestore:
 
         with (
             patch(
-                "dev10x.skills.permission.catalog_backup.find_settings_files",
+                "dev10x.core.skills.permission.catalog_backup.find_settings_files",
                 return_value=[],
             ),
             patch(
-                "dev10x.skills.permission.backup.restore_report",
+                "dev10x.core.skills.permission.backup.restore_report",
                 return_value=(1, "  ERROR: something went wrong"),
             ),
         ):
@@ -82,11 +82,11 @@ class TestRestore:
 
         with (
             patch(
-                "dev10x.skills.permission.catalog_backup.find_settings_files",
+                "dev10x.core.skills.permission.catalog_backup.find_settings_files",
                 return_value=[],
             ),
             patch(
-                "dev10x.skills.permission.backup.restore_report",
+                "dev10x.core.skills.permission.backup.restore_report",
                 return_value=(0, "No backups found to restore."),
             ),
         ):

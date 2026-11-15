@@ -19,7 +19,7 @@ from unittest.mock import patch
 
 import pytest
 
-from dev10x.mcp.wiring import (
+from dev10x.core.mcp.wiring import (
     daemon_base_url,
     daemon_mcp_url,
     select_transport_with_daemon_fallback,
@@ -134,7 +134,7 @@ class TestSelectTransportWithDaemonFallback:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.setenv("DEV10X_MCP_TRANSPORT", "stdio")
-        with patch("dev10x.mcp.daemon.is_daemon_healthy") as mock_health:
+        with patch("dev10x.core.mcp.daemon.is_daemon_healthy") as mock_health:
             result = select_transport_with_daemon_fallback()
         assert result == "stdio"
         mock_health.assert_not_called()
@@ -144,7 +144,7 @@ class TestSelectTransportWithDaemonFallback:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.setenv("DEV10X_MCP_TRANSPORT", "streamable-http")
-        with patch("dev10x.mcp.daemon.is_daemon_healthy") as mock_health:
+        with patch("dev10x.core.mcp.daemon.is_daemon_healthy") as mock_health:
             result = select_transport_with_daemon_fallback()
         assert result == "streamable-http"
         mock_health.assert_not_called()
@@ -154,7 +154,7 @@ class TestSelectTransportWithDaemonFallback:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.setenv("DEV10X_MCP_TRANSPORT", "sse")
-        with patch("dev10x.mcp.daemon.is_daemon_healthy") as mock_health:
+        with patch("dev10x.core.mcp.daemon.is_daemon_healthy") as mock_health:
             result = select_transport_with_daemon_fallback()
         assert result == "sse"
         mock_health.assert_not_called()
@@ -182,7 +182,7 @@ class TestSelectTransportWithDaemonFallback:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.setenv("DEV10X_MCP_TRANSPORT", "auto")
-        with patch("dev10x.mcp.wiring.is_daemon_healthy", return_value=True):
+        with patch("dev10x.core.mcp.wiring.is_daemon_healthy", return_value=True):
             result = select_transport_with_daemon_fallback()
         assert result == "streamable-http"
 
@@ -191,7 +191,7 @@ class TestSelectTransportWithDaemonFallback:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.setenv("DEV10X_MCP_TRANSPORT", "auto")
-        with patch("dev10x.mcp.wiring.is_daemon_healthy", return_value=False):
+        with patch("dev10x.core.mcp.wiring.is_daemon_healthy", return_value=False):
             result = select_transport_with_daemon_fallback()
         assert result == "stdio"
 
@@ -200,7 +200,7 @@ class TestSelectTransportWithDaemonFallback:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.setenv("DEV10X_MCP_TRANSPORT", "AUTO")
-        with patch("dev10x.mcp.wiring.is_daemon_healthy", return_value=True):
+        with patch("dev10x.core.mcp.wiring.is_daemon_healthy", return_value=True):
             result = select_transport_with_daemon_fallback()
         assert result == "streamable-http"
 
@@ -211,7 +211,7 @@ class TestSelectTransportWithDaemonFallback:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.delenv("DEV10X_MCP_TRANSPORT", raising=False)
-        with patch("dev10x.mcp.wiring.is_daemon_healthy", return_value=True):
+        with patch("dev10x.core.mcp.wiring.is_daemon_healthy", return_value=True):
             result = select_transport_with_daemon_fallback()
         assert result == "streamable-http"
 
@@ -220,7 +220,7 @@ class TestSelectTransportWithDaemonFallback:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.delenv("DEV10X_MCP_TRANSPORT", raising=False)
-        with patch("dev10x.mcp.wiring.is_daemon_healthy", return_value=False):
+        with patch("dev10x.core.mcp.wiring.is_daemon_healthy", return_value=False):
             result = select_transport_with_daemon_fallback()
         assert result == "stdio"
 
@@ -229,7 +229,7 @@ class TestSelectTransportWithDaemonFallback:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.setenv("DEV10X_MCP_TRANSPORT", "")
-        with patch("dev10x.mcp.wiring.is_daemon_healthy", return_value=True):
+        with patch("dev10x.core.mcp.wiring.is_daemon_healthy", return_value=True):
             result = select_transport_with_daemon_fallback()
         assert result == "streamable-http"
 
@@ -238,7 +238,7 @@ class TestSelectTransportWithDaemonFallback:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.delenv("DEV10X_MCP_TRANSPORT", raising=False)
-        with patch("dev10x.mcp.wiring.is_daemon_healthy", return_value=False) as mock:
+        with patch("dev10x.core.mcp.wiring.is_daemon_healthy", return_value=False) as mock:
             select_transport_with_daemon_fallback()
         mock.assert_called_once_with()
 
@@ -259,7 +259,7 @@ class TestServerCliMainUsesWiring:
         import dev10x.mcp.server_cli as cli_mod
 
         with (
-            patch("dev10x.mcp.wiring.is_daemon_healthy", return_value=True),
+            patch("dev10x.core.mcp.wiring.is_daemon_healthy", return_value=True),
             patch.object(cli_mod.server, "run") as mock_run,
         ):
             cli_mod.main()
@@ -273,7 +273,7 @@ class TestServerCliMainUsesWiring:
         import dev10x.mcp.server_cli as cli_mod
 
         with (
-            patch("dev10x.mcp.wiring.is_daemon_healthy", return_value=False),
+            patch("dev10x.core.mcp.wiring.is_daemon_healthy", return_value=False),
             patch.object(cli_mod.server, "run") as mock_run,
         ):
             cli_mod.main()
@@ -287,7 +287,7 @@ class TestServerCliMainUsesWiring:
         import dev10x.mcp.server_cli as cli_mod
 
         with (
-            patch("dev10x.mcp.daemon.is_daemon_healthy") as mock_health,
+            patch("dev10x.core.mcp.daemon.is_daemon_healthy") as mock_health,
             patch.object(cli_mod.server, "run") as mock_run,
         ):
             cli_mod.main()

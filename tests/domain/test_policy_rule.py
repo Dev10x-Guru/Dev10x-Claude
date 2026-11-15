@@ -6,10 +6,11 @@ import json
 from pathlib import Path
 
 import pytest
-from dev10x.domain.documents.session_state import PlanSummary
-from dev10x.domain.friction_level import FrictionLevel
-from dev10x.domain.rules.policy_rule import PolicyRule
-from dev10x.domain.session_rules import (
+
+from dev10x.core.domain.documents.session_state import PlanSummary
+from dev10x.core.domain.friction_level import FrictionLevel
+from dev10x.core.domain.rules.policy_rule import PolicyRule
+from dev10x.core.domain.session_rules import (
     BuildAutonomyReassuranceRule,
     BuildAutoPlanGuidanceRule,
     CompletionRecommendation,
@@ -17,7 +18,7 @@ from dev10x.domain.session_rules import (
     ModeGuardRule,
     completion_gate_recommendation,
 )
-from dev10x.hooks.session_policy import MigratePluginPermissionsRule
+from dev10x.core.hooks.session_policy import MigratePluginPermissionsRule
 
 
 @pytest.mark.parametrize(

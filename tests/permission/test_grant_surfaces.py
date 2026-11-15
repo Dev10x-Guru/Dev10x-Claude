@@ -8,15 +8,15 @@ from unittest.mock import patch
 
 import pytest
 from click.testing import CliRunner
-from dev10x.domain.common.result import ErrorResult, SuccessResult, ok
-from dev10x.permission.service import PermissionContext
 
-from dev10x import permission as perm_mod
 from dev10x.commands.permission import permission as permission_cli
+from dev10x.core import permission as perm_mod
+from dev10x.core.domain.common.result import ErrorResult, SuccessResult, ok
 from dev10x.core.mcp import utility_tools
-from dev10x.skills.permission import catalog_write
+from dev10x.core.permission.service import PermissionContext
+from dev10x.core.skills.permission import catalog_write
 
-CONTEXT = "dev10x.permission.load_permission_context"
+CONTEXT = "dev10x.core.permission.load_permission_context"
 CLI_CONTEXT = "dev10x.commands.permission.load_permission_context"
 
 
@@ -87,7 +87,7 @@ class TestAdapter:
     ) -> None:
         with (
             patch(CONTEXT, return_value=ok(context)),
-            patch("dev10x.subprocess_utils.effective_cwd", return_value=str(workdir)),
+            patch("dev10x.core.subprocess_utils.effective_cwd", return_value=str(workdir)),
         ):
             result = await perm_mod.triage(target=f"rg x {workdir}/src")
         assert isinstance(result, SuccessResult)

@@ -6,8 +6,8 @@ import sys
 from pathlib import Path
 
 import pytest
-from dev10x.domain.pr_body import has_fixes_trailer
 
+from dev10x.core.domain.pr_body import has_fixes_trailer
 from dev10x.core.fixes_trailer import EXIT_MISSING, verdict
 
 _SRC_ROOT = Path(__file__).resolve().parents[2] / "src"

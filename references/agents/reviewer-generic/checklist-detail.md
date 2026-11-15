@@ -72,7 +72,7 @@ Flag as WARNING when new code diverges from the write-safety model.
 **A new shared-state file** — a JSON/YAML store or log under
 `~/.config/Dev10x/`, a repo's `.claude/`, or a home cache — written
 with a bare `Path.write_text` / `open(…, "w"|"a")` instead of routing
-through `dev10x.domain.file_locks`:
+through `dev10x.core.domain.file_locks`:
 
 - `locked_json_update` / `locked_yaml_update` for a read-modify-write
   cycle — or `file_lock` wrapping a typed load/save when the store

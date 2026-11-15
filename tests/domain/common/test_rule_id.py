@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import pytest
-from dev10x.domain.common.rule_id import RULE_ID_PATTERN, RuleId
+
+from dev10x.core.domain.common.rule_id import RULE_ID_PATTERN, RuleId
 
 
 class TestParse:

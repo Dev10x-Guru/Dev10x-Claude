@@ -90,7 +90,7 @@ When the audit (Step 3b) or upstream path (Step 3c) lands on
 proposing a **targeted allow-rule**, do not echo the harness's
 suggested shape — it is wrong in one of three directions. Surface
 the generalized shape produced by
-`dev10x.skills.permission.generalize.generalize_rule_shape`:
+`dev10x.core.skills.permission.generalize.generalize_rule_shape`:
 
 | Failure mode | Harness suggests | Generalized shape |
 |--------------|------------------|-------------------|

@@ -1,6 +1,6 @@
 """Keep derived config caches out of git (GH-1075).
 
-``dev10x.config.loader.load_config`` derives a ``.msgpack`` cache from its
+``dev10x.core.config.loader.load_config`` derives a ``.msgpack`` cache from its
 sibling YAML and rewrites it whenever the cache is missing or stale. While
 ``command-skill-map.msgpack`` was tracked, every test run, hook invocation, or
 MCP call that loaded the config dirtied the working tree — so the cache was
@@ -69,7 +69,7 @@ class TestDerivedCachesAreNotTracked:
     @pytest.mark.parametrize("cache_path", _derived_cache_paths(), ids=lambda p: p.name)
     def test_cache_is_untracked(self, cache_path: Path) -> None:
         assert not _is_tracked(cache_path), (
-            f"{cache_path.relative_to(_REPO_ROOT)} is a cache dev10x.config.loader "
+            f"{cache_path.relative_to(_REPO_ROOT)} is a cache dev10x.core.config.loader "
             "rewrites on its own, so tracking it dirties the tree on every load and "
             "makes rebases conflict on a binary file. Run "
             f"`git rm --cached {cache_path.relative_to(_REPO_ROOT)}`."

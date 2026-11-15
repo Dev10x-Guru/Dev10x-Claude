@@ -26,8 +26,8 @@ from __future__ import annotations
 
 from typing import ClassVar, Protocol, runtime_checkable
 
-from dev10x.domain import HookAllow, HookAsk, HookHint, HookInput, HookResult, HookRetry
-from dev10x.domain.profile_tier import ProfileTier
+from dev10x.core.domain import HookAllow, HookAsk, HookHint, HookInput, HookResult, HookRetry
+from dev10x.core.domain.profile_tier import ProfileTier
 
 # What validate() may return. HookHint decides nothing: the hook emits it
 # only when no other validator spoke (GH-1725).

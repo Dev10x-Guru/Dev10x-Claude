@@ -5,7 +5,7 @@ holding every finding it proposes. `dev10x:permission-audit-apply`
 reads that block and applies findings one at a time (GH-1631). The
 prose report stays the human view; the block is the contract.
 
-Parsed and validated by `dev10x.domain.common.audit_findings` — run
+Parsed and validated by `dev10x.core.domain.common.audit_findings` — run
 `dev10x permission findings <file>` to check a block.
 
 ## Shape

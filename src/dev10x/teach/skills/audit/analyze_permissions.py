@@ -7,7 +7,7 @@
 
 Thin CLI adapter (GH-244, I1 / ADR-0008). The parsers, classifiers,
 hygiene auditor, and report writer now live in
-``dev10x.audit.friction_transcript_model`` — the audit context owns the
+``dev10x.teach.audit.friction_transcript_model`` — the audit context owns the
 analysis logic. This module re-exports those names for backward
 compatibility and provides the ``main`` entry point used by the
 skill-audit Bash pipeline.
@@ -24,8 +24,8 @@ import sys
 from dataclasses import replace
 from pathlib import Path
 
-from dev10x.domain.claude_paths import ClaudeDir
-from dev10x.domain.file_locks import atomic_write_text
+from dev10x.core.domain.claude_paths import ClaudeDir
+from dev10x.core.domain.file_locks import atomic_write_text
 from dev10x.teach.audit.friction_transcript_model import (
     ALLOW_RULE_RE,
     CHAIN_RE,

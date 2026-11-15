@@ -43,9 +43,9 @@ from functools import partial
 from pathlib import Path
 from typing import ClassVar
 
-from dev10x.domain import HookInput, HookResult
-from dev10x.domain.claude_paths import ClaudeDir
-from dev10x.domain.common.bash_tokens import (
+from dev10x.core.domain import HookInput, HookResult
+from dev10x.core.domain.claude_paths import ClaudeDir
+from dev10x.core.domain.common.bash_tokens import (
     ProgramProbe,
     UntokenizableCommandError,
     command_position_re,
@@ -53,8 +53,8 @@ from dev10x.domain.common.bash_tokens import (
     segment_programs,
     tagged_command_units,
 )
-from dev10x.domain.profile_tier import ProfileTier
-from dev10x.validators.base import ValidatorBase
+from dev10x.core.domain.profile_tier import ProfileTier
+from dev10x.core.validators.base import ValidatorBase
 
 # Verbs that write a file when paired with a redirect. Judged in
 # COMMAND position only (GH-1087) — see `_check_shell_writes`.

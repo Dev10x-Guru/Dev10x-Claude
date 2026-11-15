@@ -5,14 +5,14 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-audit_mod = pytest.importorskip("dev10x.audit", reason="dev10x not installed")
-from dev10x.audit.log_reader import audit_dir as writer_audit_dir  # noqa: E402
-from dev10x.domain.common.result import ErrorResult, SuccessResult  # noqa: E402
+audit_mod = pytest.importorskip("dev10x.teach.audit", reason="dev10x not installed")
+from dev10x.core.domain.common.result import ErrorResult, SuccessResult  # noqa: E402
+from dev10x.teach.audit.log_reader import audit_dir as writer_audit_dir  # noqa: E402
 
 
 class TestExtractSession:
     @pytest.mark.asyncio
-    @patch("dev10x.audit.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.teach.audit.async_run_script", new_callable=AsyncMock)
     async def test_returns_output_on_success(
         self,
         mock_run: AsyncMock,
@@ -28,7 +28,7 @@ class TestExtractSession:
         assert result.value["success"] is True
 
     @pytest.mark.asyncio
-    @patch("dev10x.audit.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.teach.audit.async_run_script", new_callable=AsyncMock)
     async def test_returns_error_on_failure(
         self,
         mock_run: AsyncMock,
@@ -45,7 +45,7 @@ class TestExtractSession:
         assert result.to_dict() == {"error": "File not found"}
 
     @pytest.mark.asyncio
-    @patch("dev10x.audit.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.teach.audit.async_run_script", new_callable=AsyncMock)
     async def test_passes_output_path(
         self,
         mock_run: AsyncMock,
@@ -66,7 +66,7 @@ class TestExtractSession:
 
 class TestAnalyzeActions:
     @pytest.mark.asyncio
-    @patch("dev10x.audit.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.teach.audit.async_run_script", new_callable=AsyncMock)
     async def test_returns_output_on_success(
         self,
         mock_run: AsyncMock,
@@ -82,7 +82,7 @@ class TestAnalyzeActions:
         assert result.value["success"] is True
 
     @pytest.mark.asyncio
-    @patch("dev10x.audit.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.teach.audit.async_run_script", new_callable=AsyncMock)
     async def test_returns_error_on_failure(
         self,
         mock_run: AsyncMock,
@@ -150,7 +150,7 @@ class TestAnalyzePermissions:
         transcript.write_text("# transcript\n")
 
         with patch(
-            "dev10x.audit.analyze.build_audit_report",
+            "dev10x.teach.audit.analyze.build_audit_report",
             side_effect=RuntimeError("boom"),
         ):
             result = await audit_mod.analyze_permissions(

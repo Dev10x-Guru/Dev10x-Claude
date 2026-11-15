@@ -9,7 +9,7 @@ working directory.
 **D2 seam.** Capability modules import this module and call through its
 attributes — ``_gateway.async_run(...)``, never a bare ``async_run`` bound
 by ``from ... import``. That keeps exactly one patch target per
-dependency (``dev10x.github._gateway.<name>``), so a test that patches it
+dependency (``dev10x.core.github._gateway.<name>``), so a test that patches it
 intercepts every caller. ``async_run`` / ``async_run_script`` /
 ``AppConfig`` / ``get_bot_token`` are re-imported here for that reason.
 """
@@ -26,13 +26,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from dev10x.core.domain.common.repository_ref import RepositoryRef
+from dev10x.core.domain.common.result import Result, SuccessResult, err, ok
+from dev10x.core.domain.git_context import GitContext
+from dev10x.core.domain.milestone_prefixes import REGISTRY_RELPATH, parse_registered_prefixes
+from dev10x.core.domain.retry import RetryPolicy, is_retryable, retry_after_seconds
 from dev10x.core.github.app_auth import AppConfig, get_bot_token
-from dev10x.domain.common.repository_ref import RepositoryRef
-from dev10x.domain.common.result import Result, SuccessResult, err, ok
-from dev10x.domain.git_context import GitContext
-from dev10x.domain.milestone_prefixes import REGISTRY_RELPATH, parse_registered_prefixes
-from dev10x.domain.retry import RetryPolicy, is_retryable, retry_after_seconds
-from dev10x.subprocess_utils import async_run, async_run_script
+from dev10x.core.subprocess_utils import async_run, async_run_script
 
 log = logging.getLogger(__name__)
 

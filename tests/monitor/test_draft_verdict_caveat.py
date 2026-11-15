@@ -6,9 +6,9 @@ import subprocess
 from typing import Any
 
 import pytest
-from dev10x.skills.monitor.ci_check_status import PrState, compute_verdict, get_pr_state
 
-from dev10x.skills.monitor import ci_check_status as ci_check_status_module
+from dev10x.coding.skills.monitor import ci_check_status as ci_check_status_module
+from dev10x.coding.skills.monitor.ci_check_status import PrState, compute_verdict, get_pr_state
 
 _DRAFT_CHECKS = [
     {"name": "lint", "bucket": "pass"},

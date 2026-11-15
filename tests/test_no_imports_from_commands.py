@@ -11,7 +11,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from dev10x.subprocess_utils import get_plugin_root
+from dev10x.core.subprocess_utils import get_plugin_root
 
 COMMANDS_PACKAGE = "dev10x.commands"
 

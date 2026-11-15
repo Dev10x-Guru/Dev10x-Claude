@@ -12,16 +12,16 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
-from dev10x.domain.common.result import ok
-from dev10x.permission.service import PermissionContext
-from dev10x.skills.permission.friction_report import (
+
+from dev10x.commands.permission import report as report_cmd
+from dev10x.core.domain.common.result import ok
+from dev10x.core.permission.service import PermissionContext
+from dev10x.core.skills.permission.friction_report import (
     PredictedSurface,
     format_predicted_surface,
     predict_surface,
     predict_surfaces,
 )
-
-from dev10x.commands.permission import report as report_cmd
 
 CATALOG_ALLOW = ["Bash(git status:*)", "Bash(gh pr view:*)", "mcp__plugin_dev10x_cli__pr_get"]
 CATALOG_ASK = ["Bash(gh api -X DELETE:*)"]

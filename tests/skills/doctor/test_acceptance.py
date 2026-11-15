@@ -5,20 +5,20 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from dev10x.domain.common.doctor_acceptance import (
+
+from dev10x.core.domain.common.doctor_acceptance import (
     DEFAULT_ACCEPTED_DOCTOR_FINDINGS,
     AcceptedDoctorFinding,
     find_doctor_acceptance,
 )
-
-from dev10x.skills.doctor import acceptance
+from dev10x.core.skills.doctor import acceptance
 
 
 @pytest.fixture
 def catalog_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     path = tmp_path / "doctor-accepted-findings.yaml"
     monkeypatch.setattr(
-        "dev10x.skills.doctor.acceptance.Dev10xConfigDir.doctor_accepted_findings_yaml",
+        "dev10x.core.skills.doctor.acceptance.Dev10xConfigDir.doctor_accepted_findings_yaml",
         lambda: path,
     )
     return path

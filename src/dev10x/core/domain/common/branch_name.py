@@ -12,7 +12,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from dev10x.domain.common.ticket_id import TicketId
+from dev10x.core.domain.common.ticket_id import TicketId
 
 # Base-branch detection priority — first existing branch wins. This is a
 # *PR-target* question ("which branch does a feature PR merge into?"), so

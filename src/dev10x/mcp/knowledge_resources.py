@@ -31,13 +31,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from dev10x.core.mcp._app import server
 from dev10x.core.skills.playbook.discovery import (
     SHARED_DEFAULT_RELATIVE,
     installed_plugin_roots,
     shared_fragment_directories,
 )
-from dev10x.mcp._app import server
-from dev10x.subprocess_utils import get_plugin_root
+from dev10x.core.subprocess_utils import get_plugin_root
 
 
 def _read_file(path: Path) -> str:

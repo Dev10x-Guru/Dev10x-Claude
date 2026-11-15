@@ -19,16 +19,16 @@ from typing import Any
 from unittest.mock import patch
 
 import pytest
-from dev10x.domain.profile_tier import ProfileTier
-from dev10x.validators.spec_drift import (
+
+from dev10x.core.domain import HookInput
+from dev10x.core.domain.profile_tier import ProfileTier
+from dev10x.core.validators import get_validators, reset_registry
+from dev10x.core.validators.spec_drift import (
     SpecDriftValidator,
     _branch_ticket_id,
     _repo_toplevel,
     _working_set_paths,
 )
-
-from dev10x.domain import HookInput
-from dev10x.validators import get_validators, reset_registry
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -36,7 +36,7 @@ from dev10x.validators import get_validators, reset_registry
 
 # GH-495: spec_drift now routes git calls through subprocess_utils.run
 # (CWD-discipline). Patch that seam instead of subprocess.check_output.
-_RUN = "dev10x.validators.spec_drift.subprocess_utils.run"
+_RUN = "dev10x.core.validators.spec_drift.subprocess_utils.run"
 
 
 def _completed(stdout: str) -> subprocess.CompletedProcess[str]:
@@ -217,7 +217,7 @@ class TestValidate:
     def test_returns_none_when_no_ticket_id(self, validator: SpecDriftValidator) -> None:
         inp = _edit_inp()
         with patch(
-            "dev10x.validators.spec_drift._branch_ticket_id",
+            "dev10x.core.validators.spec_drift._branch_ticket_id",
             return_value=None,
         ):
             result = validator.validate(inp=inp)
@@ -227,11 +227,11 @@ class TestValidate:
         inp = _edit_inp()
         with (
             patch(
-                "dev10x.validators.spec_drift._branch_ticket_id",
+                "dev10x.core.validators.spec_drift._branch_ticket_id",
                 return_value="GH-434",
             ),
             patch(
-                "dev10x.validators.spec_drift._repo_toplevel",
+                "dev10x.core.validators.spec_drift._repo_toplevel",
                 return_value=None,
             ),
         ):
@@ -244,15 +244,15 @@ class TestValidate:
         inp = _edit_inp(cwd=str(tmp_path))
         with (
             patch(
-                "dev10x.validators.spec_drift._branch_ticket_id",
+                "dev10x.core.validators.spec_drift._branch_ticket_id",
                 return_value="GH-434",
             ),
             patch(
-                "dev10x.validators.spec_drift._repo_toplevel",
+                "dev10x.core.validators.spec_drift._repo_toplevel",
                 return_value=str(tmp_path),
             ),
             patch(
-                "dev10x.validators.spec_drift._working_set_paths",
+                "dev10x.core.validators.spec_drift._working_set_paths",
                 return_value=set(),
             ),
         ):
@@ -268,15 +268,15 @@ class TestValidate:
         inp = _edit_inp(cwd=str(tmp_path))
         with (
             patch(
-                "dev10x.validators.spec_drift._branch_ticket_id",
+                "dev10x.core.validators.spec_drift._branch_ticket_id",
                 return_value="GH-434",
             ),
             patch(
-                "dev10x.validators.spec_drift._repo_toplevel",
+                "dev10x.core.validators.spec_drift._repo_toplevel",
                 return_value=str(tmp_path),
             ),
             patch(
-                "dev10x.validators.spec_drift._working_set_paths",
+                "dev10x.core.validators.spec_drift._working_set_paths",
                 return_value={"docs/specs/GH-434.md"},
             ),
         ):
@@ -292,15 +292,15 @@ class TestValidate:
         inp = _edit_inp(file_path="/work/repo/src/validators/spec_drift.py", cwd=str(tmp_path))
         with (
             patch(
-                "dev10x.validators.spec_drift._branch_ticket_id",
+                "dev10x.core.validators.spec_drift._branch_ticket_id",
                 return_value="GH-434",
             ),
             patch(
-                "dev10x.validators.spec_drift._repo_toplevel",
+                "dev10x.core.validators.spec_drift._repo_toplevel",
                 return_value=str(tmp_path),
             ),
             patch(
-                "dev10x.validators.spec_drift._working_set_paths",
+                "dev10x.core.validators.spec_drift._working_set_paths",
                 return_value={"src/validators/spec_drift.py"},
             ),
         ):
@@ -318,15 +318,15 @@ class TestValidate:
         )
         with (
             patch(
-                "dev10x.validators.spec_drift._branch_ticket_id",
+                "dev10x.core.validators.spec_drift._branch_ticket_id",
                 return_value="FEAT-999",
             ),
             patch(
-                "dev10x.validators.spec_drift._repo_toplevel",
+                "dev10x.core.validators.spec_drift._repo_toplevel",
                 return_value=str(tmp_path),
             ),
             patch(
-                "dev10x.validators.spec_drift._working_set_paths",
+                "dev10x.core.validators.spec_drift._working_set_paths",
                 return_value=set(),
             ),
         ):
@@ -352,15 +352,15 @@ class TestMessageFormat:
         inp = _edit_inp(file_path="/work/repo/src/foo.py", cwd=str(tmp_path))
         with (
             patch(
-                "dev10x.validators.spec_drift._branch_ticket_id",
+                "dev10x.core.validators.spec_drift._branch_ticket_id",
                 return_value=ticket_id,
             ),
             patch(
-                "dev10x.validators.spec_drift._repo_toplevel",
+                "dev10x.core.validators.spec_drift._repo_toplevel",
                 return_value=str(tmp_path),
             ),
             patch(
-                "dev10x.validators.spec_drift._working_set_paths",
+                "dev10x.core.validators.spec_drift._working_set_paths",
                 return_value=set(),
             ),
         ):

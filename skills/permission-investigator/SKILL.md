@@ -184,11 +184,11 @@ project") is the only UI signal that the issue is
 `additionalDirectories`. Without it, agents keep widening Bash rules
 that have no effect.
 
-Use `dev10x.skills.permission.doctor.diagnose_additional_directories`
+Use `dev10x.core.skills.permission.doctor.diagnose_additional_directories`
 when investigating such cases:
 
 ```python
-from dev10x.skills.permission.doctor import diagnose_additional_directories
+from dev10x.core.skills.permission.doctor import diagnose_additional_directories
 
 msg = diagnose_additional_directories(
     rule="Bash(rg:*)",

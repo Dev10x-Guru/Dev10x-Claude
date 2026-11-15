@@ -37,8 +37,8 @@ from dev10x.coding.skills.release.classifier import (
     classify_group,
     classify_subject,
 )
+from dev10x.core.domain.common.ticket_id import TICKET_ID_PATTERN
 from dev10x.core.skills.common.jtbd import extract_jtbd_structured
-from dev10x.domain.common.ticket_id import TICKET_ID_PATTERN
 
 DEFAULT_TICKET_PATTERN = TICKET_ID_PATTERN
 

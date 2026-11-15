@@ -7,8 +7,8 @@ delivering to the bus is `dev10x skill notify gchat-watch poll`'s job.
 
 from __future__ import annotations
 
-from dev10x.domain.common.result import ErrorResult, ok, to_wire
-from dev10x.mcp._app import server
+from dev10x.core.domain.common.result import ErrorResult, ok, to_wire
+from dev10x.core.mcp._app import server
 
 
 @server.tool()

@@ -24,16 +24,18 @@ from pathlib import Path
 
 import pytest
 import yaml
-from dev10x.domain.events.hook_input import HookResult
-from dev10x.domain.session_rules import (
+from tests.fakers import BashHookInputFaker
+
+from dev10x.core.domain.events.hook_input import HookResult
+from dev10x.core.domain.session_rules import (
     CompletionRecommendation,
     completion_gate_recommendation,
 )
-from tests.fakers import BashHookInputFaker
+from dev10x.core.validators import get_chain
 
-from dev10x.validators import get_chain
-
-SKILL_DIR = Path(__file__).resolve().parents[3] / "plugins" / "coding" / "skills" / "verify-acc-dod"
+SKILL_DIR = (
+    Path(__file__).resolve().parents[3] / "plugins" / "coding" / "skills" / "verify-acc-dod"
+)
 DEFAULTS = SKILL_DIR / "references" / "defaults.yaml"
 SKILL_MD = SKILL_DIR / "SKILL.md"
 

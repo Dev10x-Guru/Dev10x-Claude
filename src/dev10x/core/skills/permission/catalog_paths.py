@@ -8,14 +8,14 @@ correct. From an installed wheel it is not: ``dev10x/`` sits in
 path names a file that cannot exist.
 
 Nothing raised. Readers that degrade gracefully on an unreadable catalog
-— :func:`dev10x.skills.permission.doctor.catalogued_rules` by design —
+— :func:`dev10x.core.skills.permission.doctor.catalogued_rules` by design —
 then produced the failure shape the permission-friction work keeps
 fighting: "we could not check" is indistinguishable from "nothing is
 wrong", so the GH-1151 cross-contamination exemption silently stopped
 applying and ``doctor`` resumed flagging rules ``ensure-base`` had just
 written.
 
-:func:`dev10x.domain.plugin_root.resolve_plugin_root` already answers
+:func:`dev10x.core.domain.plugin_root.resolve_plugin_root` already answers
 "where is the plugin" for both layouts. This module is the single place
 that turns that answer into the catalog path, so the four call sites
 cannot drift apart again.
@@ -35,7 +35,7 @@ from dev10x.core.config.fragments import (
     load_merged,
     plugin_order,
 )
-from dev10x.domain.plugin_root import resolve_plugin_root
+from dev10x.core.domain.plugin_root import resolve_plugin_root
 
 CATALOG_RELPATH = Path("skills") / "upgrade-cleanup" / "projects.yaml"
 FRAGMENTS_DIRNAME = "projects.d"

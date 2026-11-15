@@ -10,8 +10,8 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from dev10x.domain.common.result import ErrorResult, SuccessResult, err, ok
 
+from dev10x.core.domain.common.result import ErrorResult, SuccessResult, err, ok
 from dev10x.dependency_pins import (
     PinnedRequirement,
     collect_pinned_requirements,

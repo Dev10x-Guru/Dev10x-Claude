@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 import yaml
-from dev10x.domain.common.result import ErrorResult, SuccessResult
 
-from dev10x.session import ide_pin
+from dev10x.core.domain.common.result import ErrorResult, SuccessResult
+from dev10x.core.session import ide_pin
 
 
 @pytest.fixture
@@ -18,17 +18,19 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     root.mkdir()
     friction = tmp_path / "friction.yaml"
     monkeypatch.setattr(
-        "dev10x.domain.documents.friction_yaml.Dev10xConfigDir.friction_yaml",
+        "dev10x.core.domain.documents.friction_yaml.Dev10xConfigDir.friction_yaml",
         classmethod(lambda cls: friction),
     )
-    for module in ("dev10x.session.preset_pin", "dev10x.session.ide_pin"):
+    for module in ("dev10x.core.session.preset_pin", "dev10x.core.session.ide_pin"):
         monkeypatch.setattr(
             f"{module}.resolve_repo_identity",
             lambda *, cwd=None: SuccessResult(
                 value={"name": "acme-repo", "root": str(root), "source": "test"}
             ),
         )
-    monkeypatch.setattr("dev10x.session.preset_pin._bounded_toplevel", lambda *, cwd=None: None)
+    monkeypatch.setattr(
+        "dev10x.core.session.preset_pin._bounded_toplevel", lambda *, cwd=None: None
+    )
     return friction
 
 
@@ -114,7 +116,7 @@ class TestIdeStatus:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.setattr(
-            "dev10x.session.ide_pin.resolve_repo_identity",
+            "dev10x.core.session.ide_pin.resolve_repo_identity",
             lambda *, cwd=None: ErrorResult(error="Not in a git repository"),
         )
         assert isinstance(ide_pin.ide_status(), ErrorResult)

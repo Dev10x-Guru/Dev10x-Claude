@@ -50,7 +50,7 @@ from __future__ import annotations
 import copy
 from dataclasses import dataclass
 
-from dev10x.domain.common.policy_migration import migrate_flat_config
+from dev10x.core.domain.common.policy_migration import migrate_flat_config
 
 #: Sections of ``projects.yaml`` that carry permission rules. Pinned so a
 #: newly-added rule-bearing section fails :func:`rule_bearing_sections`'

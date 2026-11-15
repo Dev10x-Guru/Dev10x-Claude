@@ -5,12 +5,13 @@ from __future__ import annotations
 import json
 
 import pytest
-from dev10x.domain.dead_letter import (
+
+from dev10x.core.domain.dead_letter import (
     _MAX_RECORDED_BODY,
     dead_letter_path,
     record_undelivered,
 )
-from dev10x.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
 
 
 @pytest.fixture(autouse=True)
@@ -71,7 +72,7 @@ class TestRecordUndelivered:
 
     def test_an_unwritable_sink_does_not_raise(self, monkeypatch) -> None:
         """The notification already failed; losing the call too is worse."""
-        import dev10x.domain.dead_letter as mod
+        import dev10x.core.domain.dead_letter as mod
 
         def explode(path, line):
             raise OSError("read-only filesystem")

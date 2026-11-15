@@ -1,15 +1,15 @@
 """Permission maintenance service layer.
 
 The config-resolution boundary shared by the permission MCP adapter
-(``dev10x.permission``) and the CLI (``dev10x.commands.permission``).
+(``dev10x.core.permission``) and the CLI (``dev10x.commands.permission``).
 Both previously inlined the same ``find_config`` → ``load_config`` →
 ``find_settings_files`` sequence and reached directly into
-``dev10x.skills.permission`` (audit N18). This layer owns that
-sequence once — mirroring ``dev10x.plan.service`` — so the adapters
+``dev10x.core.skills.permission`` (audit N18). This layer owns that
+sequence once — mirroring ``dev10x.tasks.plan.service`` — so the adapters
 depend on the service, not on the skills package internals.
 
 Name derivation and the actual settings mutations stay in
-``dev10x.skills.permission.*``; the service only assembles the
+``dev10x.core.skills.permission.*``; the service only assembles the
 context those operations consume.
 """
 
@@ -19,9 +19,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from dev10x.domain.common.result import ErrorResult, Result, ok
-from dev10x.skills.permission.catalog_merge import CatalogDrift
-from dev10x.skills.permission.settings_discovery import outside_roots, vendored_dirs
+from dev10x.core.domain.common.result import ErrorResult, Result, ok
+from dev10x.core.skills.permission.catalog_merge import CatalogDrift
+from dev10x.core.skills.permission.settings_discovery import outside_roots, vendored_dirs
 
 
 @dataclass(frozen=True)

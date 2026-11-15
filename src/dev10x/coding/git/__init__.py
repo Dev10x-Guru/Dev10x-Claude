@@ -12,11 +12,11 @@ import json
 from typing import Any
 
 from dev10x.coding.coding_script import coding_script
-from dev10x.domain.common.branch_name import BranchName
-from dev10x.domain.common.result import Result, SuccessResult, err, ok
-from dev10x.domain.documents.session_yaml import SessionYamlDocument
-from dev10x.domain.git_context import GitContext
-from dev10x.subprocess_utils import async_run, async_run_script, parse_key_value_output
+from dev10x.core.domain.common.branch_name import BranchName
+from dev10x.core.domain.common.result import Result, SuccessResult, err, ok
+from dev10x.core.domain.documents.session_yaml import SessionYamlDocument
+from dev10x.core.domain.git_context import GitContext
+from dev10x.core.subprocess_utils import async_run, async_run_script, parse_key_value_output
 
 
 def _ok_json_or_kv(stdout: str) -> Result[dict[str, Any]]:

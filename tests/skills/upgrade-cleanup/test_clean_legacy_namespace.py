@@ -6,9 +6,9 @@ import json
 from pathlib import Path
 
 import pytest
-from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR
 
-from dev10x.skills.permission import clean_project_files as clean_mod
+from dev10x.core.domain.claude_paths import CLAUDE_HOME_ENV_VAR
+from dev10x.core.skills.permission import clean_project_files as clean_mod
 
 LEGACY_DENY = "mcp__plugin_Dev10x_cli__merge_pr"
 CURRENT_DENY = "mcp__plugin_dev10x_cli__merge_pr"

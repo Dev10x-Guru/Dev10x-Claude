@@ -4,7 +4,7 @@ import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-from dev10x.domain.file_locks import atomic_write_text
+from dev10x.core.domain.file_locks import atomic_write_text
 
 ANSWER_WAIT_DEFAULT = 120
 ANSWER_WAIT_MAX = 540

@@ -47,7 +47,7 @@ import socket
 import time
 from pathlib import Path
 
-from dev10x.domain.file_locks import atomic_write_text
+from dev10x.core.domain.file_locks import atomic_write_text
 
 log = logging.getLogger(__name__)
 

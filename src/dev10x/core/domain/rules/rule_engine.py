@@ -11,9 +11,9 @@ from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from dev10x.domain.common.config_io import load_yaml
-from dev10x.domain.documents.config_document import Config
-from dev10x.domain.rules.validation_rule import MatchingRule
+from dev10x.core.domain.common.config_io import load_yaml
+from dev10x.core.domain.documents.config_document import Config
+from dev10x.core.domain.rules.validation_rule import MatchingRule
 
 
 @dataclass(frozen=True)

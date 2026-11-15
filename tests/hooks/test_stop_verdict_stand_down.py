@@ -12,8 +12,9 @@ import json
 from pathlib import Path
 
 import pytest
-from dev10x.hooks.session_dispatch import build_stop_verdict
-from dev10x.hooks.stop_verdict import (
+
+from dev10x.core.hooks.session_dispatch import build_stop_verdict
+from dev10x.core.hooks.stop_verdict import (
     StopSignal,
     _stand_down_path,
     clear_stand_down,
@@ -248,7 +249,7 @@ class TestTheMarkerDegradesQuietly:
         def refuse(*args: object, **kwargs: object) -> None:
             raise OSError("read-only file system")
 
-        monkeypatch.setattr("dev10x.hooks.stop_verdict.atomic_write_text", refuse)
+        monkeypatch.setattr("dev10x.core.hooks.stop_verdict.atomic_write_text", refuse)
 
         record_stand_down(session_id="m5", fingerprint="abc")
 
@@ -269,7 +270,7 @@ class TestTheMarkerDegradesQuietly:
                 raise OSError("permission denied")
 
         monkeypatch.setattr(
-            "dev10x.hooks.stop_verdict._stand_down_path", lambda *, session_id: _Stuck()
+            "dev10x.core.hooks.stop_verdict._stand_down_path", lambda *, session_id: _Stuck()
         )
 
         clear_stand_down(session_id="m7")
@@ -293,12 +294,12 @@ class TestTheWiringPersistsAndClears:
     def plan_on_disk(self, monkeypatch: pytest.MonkeyPatch) -> dict:
         """A mutable stand-in for the persisted plan the wiring reads."""
         current: dict = {"summary": {"plan": {"status": "in_progress"}, **_COMPLETED}}
-        monkeypatch.setattr("dev10x.hooks.session_dispatch._get_toplevel", lambda: "/repo")
+        monkeypatch.setattr("dev10x.core.hooks.session_dispatch._get_toplevel", lambda: "/repo")
         monkeypatch.setattr(
-            "dev10x.hooks.session_dispatch._current_branch", lambda *, toplevel: None
+            "dev10x.core.hooks.session_dispatch._current_branch", lambda *, toplevel: None
         )
         monkeypatch.setattr(
-            "dev10x.hooks.session_dispatch.read_plan_summary",
+            "dev10x.core.hooks.session_dispatch.read_plan_summary",
             lambda *, toplevel: current["summary"],
         )
         return current
@@ -336,7 +337,7 @@ class TestTheWiringPersistsAndClears:
         def capture(*, rule_id: str, reason: str, extra: dict | None = None) -> None:
             recorded.update(rule_id=rule_id, reason=reason, **(extra or {}))
 
-        monkeypatch.setattr("dev10x.hooks.session_dispatch.set_decision_attribution", capture)
+        monkeypatch.setattr("dev10x.core.hooks.session_dispatch.set_decision_attribution", capture)
 
         build_stop_verdict(data={"session_id": "w2", "transcript_path": stand_down_turn})
 

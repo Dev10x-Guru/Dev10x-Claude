@@ -9,7 +9,7 @@ per-user path editing, no symlinks (so Windows stays safe).
 
 from __future__ import annotations
 
-from dev10x.platform.registry import (
+from dev10x.core.platform.registry import (
     PlatformCatalog,
     PlatformConfig,
     PlatformRepository,

@@ -4,9 +4,9 @@ from collections.abc import Iterator
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from dev10x.domain.common.repository_ref import RepositoryRef
-from dev10x.domain.common.result import ok
 
+from dev10x.core.domain.common.repository_ref import RepositoryRef
+from dev10x.core.domain.common.result import ok
 from dev10x.core.github import _gateway
 
 

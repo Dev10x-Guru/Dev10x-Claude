@@ -8,9 +8,9 @@ from types import ModuleType
 import pytest
 from mcp.server.fastmcp import FastMCP
 
+from dev10x.core.mcp._app import server as cli_app
 from dev10x.core.mcp.registry import ForeignServerError, import_tool_modules
 from dev10x.mcp import server_cli
-from dev10x.mcp._app import server as cli_app
 
 REGISTRATIONS = [f"dev10x.{namespace}.mcp.registration" for namespace in server_cli.CLI_NAMESPACES]
 

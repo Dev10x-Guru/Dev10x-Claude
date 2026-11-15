@@ -37,10 +37,10 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from dev10x.domain.common.mcp_tool_name import McpToolName
-from dev10x.domain.common.policy import PolicyCatalog, PolicySensitivity
-from dev10x.domain.sensitivity import name_is_sensitive, tokenize_identifier
-from dev10x.skills.permission.enumerate_mcp import (
+from dev10x.core.domain.common.mcp_tool_name import McpToolName
+from dev10x.core.domain.common.policy import PolicyCatalog, PolicySensitivity
+from dev10x.core.domain.sensitivity import name_is_sensitive, tokenize_identifier
+from dev10x.core.skills.permission.enumerate_mcp import (
     _server_prefix_from_tool,
     _source_type_from_prefix,
 )
@@ -125,7 +125,7 @@ def classify_tokens(name: str) -> str:
     """Classify any verb-bearing name (CLI command, skill, tool) as read/write/unknown.
 
     Tokenizes *name* via the shared
-    :func:`dev10x.domain.sensitivity.tokenize_identifier` (camelCase +
+    :func:`dev10x.core.domain.sensitivity.tokenize_identifier` (camelCase +
     snake_case + digits, GH-593) and applies write-precedence: any write token
     wins, so a write is never misclassified as promotable. Used by both
     :func:`classify_mcp_tool` and the source-derived manifest generators
@@ -152,7 +152,7 @@ def is_sensitivity_flagged(full_tool_name: str) -> bool:
     """Return True when the tool reads private/DM/secret data (opt-in only).
 
     Delegates to the shared name-axis classifier in
-    :mod:`dev10x.domain.sensitivity` so the sensitivity wordlist has a single
+    :mod:`dev10x.core.domain.sensitivity` so the sensitivity wordlist has a single
     source across DX014, MCP promotion, the credentialed-CLI allowlist, and
     skill curation (GH-607).
     """
@@ -354,8 +354,8 @@ def apply_promotion_plan(
     if dry_run or not pending:
         return result
 
-    from dev10x.skills.permission.backup import create_backup
-    from dev10x.skills.permission.file_lock import locked_json_update
+    from dev10x.core.skills.permission.backup import create_backup
+    from dev10x.core.skills.permission.file_lock import locked_json_update
 
     result.backup_path = create_backup(global_settings_path)
     with locked_json_update(path=global_settings_path) as live:

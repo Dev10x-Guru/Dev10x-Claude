@@ -32,10 +32,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from dev10x.domain.claude_paths import ClaudeDir
-from dev10x.domain.common.mcp_tool_name import McpToolName
-from dev10x.domain.common.result import Result, SuccessResult, err, ok
-from dev10x.domain.plugin_root import resolve_plugin_root
+from dev10x.core.domain.claude_paths import ClaudeDir
+from dev10x.core.domain.common.mcp_tool_name import McpToolName
+from dev10x.core.domain.common.result import Result, SuccessResult, err, ok
+from dev10x.core.domain.plugin_root import resolve_plugin_root
 
 # MCP server registration file convention.
 # For the cli server, all handlers live in per-domain modules (GH-243/A6).
@@ -458,8 +458,8 @@ def expand_settings_file(
         messages.append(f"  + {tool}")
 
     if not dry_run:
-        from dev10x.skills.permission.backup import create_backup
-        from dev10x.skills.permission.file_lock import locked_json_update
+        from dev10x.core.skills.permission.backup import create_backup
+        from dev10x.core.skills.permission.file_lock import locked_json_update
 
         create_backup(path)
         with locked_json_update(path=path) as live:

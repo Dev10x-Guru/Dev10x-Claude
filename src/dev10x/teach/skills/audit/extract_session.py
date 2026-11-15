@@ -26,7 +26,7 @@ def _atomic_write_text(output_path: str, content: str) -> None:
     """Crash-safe write via mkstemp + fsync + os.replace (GH-562).
 
     This standalone uv-script cannot import
-    ``dev10x.domain.file_locks.atomic_write_text``, so the same
+    ``dev10x.core.domain.file_locks.atomic_write_text``, so the same
     temp-then-rename pattern is inlined here.
     """
     target = Path(output_path)

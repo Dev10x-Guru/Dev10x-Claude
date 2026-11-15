@@ -190,7 +190,7 @@ Run this whenever the PR is `MERGED`, milestone or not:
 1. Read the merged PR's body — `mcp__plugin_dev10x_cli__pr_get(
    number=<N>)`.
 2. Extract the closing links with
-   `dev10x.skills.merge.fixes_scope.fixes_links(body)`.
+   `dev10x.coding.skills.merge.fixes_scope.fixes_links(body)`.
 3. For each linked number, read its real state with
    `mcp__plugin_dev10x_cli__issue_get(number=<n>)`.
 4. Pass the numbers and states to

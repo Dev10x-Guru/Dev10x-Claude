@@ -6,9 +6,10 @@ import json
 from pathlib import Path
 
 import pytest
-from dev10x.skills.doctor.registry import DEFAULT_STRATEGY_MODULES
-from dev10x.skills.doctor.strategies.read_deny_phantom import STRATEGY, detect
-from dev10x.skills.doctor.strategy import Context
+
+from dev10x.core.skills.doctor.registry import DEFAULT_STRATEGY_MODULES
+from dev10x.core.skills.doctor.strategies.read_deny_phantom import STRATEGY, detect
+from dev10x.core.skills.doctor.strategy import Context
 
 
 def settings(tmp_path: Path, *, deny: object, name: str = "settings.json") -> Path:
@@ -110,7 +111,7 @@ class TestRemediation:
 
 class TestRegistration:
     def test_strategy_ships_by_default(self) -> None:
-        assert "dev10x.skills.doctor.strategies.read_deny_phantom" in DEFAULT_STRATEGY_MODULES
+        assert "dev10x.core.skills.doctor.strategies.read_deny_phantom" in DEFAULT_STRATEGY_MODULES
 
     def test_strategy_id_matches_findings(self, absolute_denies: Path) -> None:
         [finding] = detect(Context(settings_paths=(absolute_denies,)))

@@ -20,14 +20,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from dev10x.domain.common.allow_rule import AllowRuleLoader
-from dev10x.skills.doctor.strategies.stranded_worktree_rules import own_checkout
-from dev10x.skills.doctor.strategy import Context, Finding, Remediation, Strategy
-from dev10x.skills.permission.declined_catalog import load_declined_rules
-from dev10x.skills.permission.granted_catalog import granted_path, load_granted_rules
-from dev10x.skills.permission.merge_worktree_permissions import is_noise, pins_a_checkout
-from dev10x.skills.permission.settings_discovery import git_registered_worktrees
-from dev10x.skills.permission.spread_guard import hold_reason
+from dev10x.core.domain.common.allow_rule import AllowRuleLoader
+from dev10x.core.skills.doctor.strategies.stranded_worktree_rules import own_checkout
+from dev10x.core.skills.doctor.strategy import Context, Finding, Remediation, Strategy
+from dev10x.core.skills.permission.declined_catalog import load_declined_rules
+from dev10x.core.skills.permission.granted_catalog import granted_path, load_granted_rules
+from dev10x.core.skills.permission.merge_worktree_permissions import is_noise, pins_a_checkout
+from dev10x.core.skills.permission.settings_discovery import git_registered_worktrees
+from dev10x.core.skills.permission.spread_guard import hold_reason
 
 GRANT_TOOL = "mcp__plugin_dev10x_cli__permission_grant"
 

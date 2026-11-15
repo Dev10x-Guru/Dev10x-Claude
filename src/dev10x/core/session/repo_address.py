@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import subprocess
 
-from dev10x.domain.common.result import Result, err, ok
+from dev10x.core.domain.common.result import Result, err, ok
 
 _GIT_TIMEOUT_SECONDS = 5.0
 
@@ -52,7 +52,7 @@ def parse_name_with_owner(url: str) -> str | None:
 
 def resolve_name_with_owner(*, cwd: str | None = None) -> Result[str]:
     """Return the checkout's ``org/repo``, or an error naming the cause."""
-    from dev10x.domain.git_context import GitContext
+    from dev10x.core.domain.git_context import GitContext
 
     try:
         url = GitContext(cwd=cwd).run("remote", "get-url", "origin", timeout=_GIT_TIMEOUT_SECONDS)

@@ -7,7 +7,7 @@ from typing import Any
 
 import click
 
-from dev10x.domain.dev10x_paths import (
+from dev10x.core.domain.dev10x_paths import (
     Dev10xConfigDir,
     migrate_all,
     stale_legacy_paths,
@@ -58,7 +58,7 @@ def _schema_report(*, cwd: str | None, dry_run: bool) -> dict[str, Any]:
     an MCP boundary; the script layer owns the exit code (GH-246 H7).
     """
     from dev10x.core.domain.common.result import SuccessResult
-    from dev10x.domain.config_migration import migrate_configs
+    from dev10x.core.domain.config_migration import migrate_configs
 
     result = migrate_configs(toplevel=cwd or os.getcwd(), dry_run=dry_run)
     if not isinstance(result, SuccessResult):
@@ -145,8 +145,8 @@ def _report_projects_lists() -> None:
     last two is the defect: "no config applies" and "nobody checked"
     look identical to a reader and mean opposite things.
     """
-    from dev10x.domain.project_match import ProjectsStatus, describe
-    from dev10x.session.projects_scan import scan_projects_lists
+    from dev10x.core.domain.project_match import ProjectsStatus, describe
+    from dev10x.core.session.projects_scan import scan_projects_lists
 
     reports = scan_projects_lists()
     findings = [report for report in reports if report.needs_attention]

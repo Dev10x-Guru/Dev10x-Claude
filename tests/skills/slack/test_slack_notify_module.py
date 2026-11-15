@@ -13,10 +13,10 @@ import urllib.error
 import urllib.request
 
 import pytest
-from dev10x.domain.common.result import ErrorResult, ok
-from dev10x.domain.common.singleton_holder import SingletonHolder
 
-from dev10x.skills.notifications import slack_notify as mod
+from dev10x.comm.skills.notifications import slack_notify as mod
+from dev10x.core.domain.common.result import ErrorResult, ok
+from dev10x.core.domain.common.singleton_holder import SingletonHolder
 
 
 def _slack_api_error(error: str, **extra: object) -> Exception:
@@ -240,7 +240,7 @@ class TestSendSlackMessageResult:
         caplog: pytest.LogCaptureFixture,
     ) -> None:
         monkeypatch.setattr(mod, "_keyring_lookup", lambda *, service, key: None)
-        with caplog.at_level("ERROR", logger="dev10x.skills.notifications.slack_notify"):
+        with caplog.at_level("ERROR", logger="dev10x.comm.skills.notifications.slack_notify"):
             result = mod.send_slack_message(channel="C123", message="hi")
         assert isinstance(result, ErrorResult)
         assert "No Slack token found" in result.error
@@ -701,7 +701,7 @@ class TestHttpFallbackTransport:
             "call_slack_api",
             lambda **_: ErrorResult(error="Slack chat.postMessage rejected: channel_not_found"),
         )
-        with caplog.at_level("ERROR", logger="dev10x.skills.notifications.slack_notify"):
+        with caplog.at_level("ERROR", logger="dev10x.comm.skills.notifications.slack_notify"):
             result = mod.send_slack_message(channel="C1", message="hi")
         assert isinstance(result, ErrorResult)
         assert result.error.startswith("Failed to send Slack message")

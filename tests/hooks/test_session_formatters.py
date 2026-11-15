@@ -2,8 +2,9 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
-from dev10x.domain.friction_level import FrictionLevel
-from dev10x.hooks.session import (
+
+from dev10x.core.domain.friction_level import FrictionLevel
+from dev10x.core.hooks.session import (
     _format_decision_guidance,
     _format_plan_summary,
     _format_session_state,
@@ -282,7 +283,7 @@ class TestFormatDecisionGuidance:
         self,
         plan_with_decision: dict,
     ) -> None:
-        from dev10x.hooks.session_policy import UnknownFrictionLevelError
+        from dev10x.core.hooks.session_policy import UnknownFrictionLevelError
 
         with pytest.raises(UnknownFrictionLevelError):
             _format_decision_guidance(

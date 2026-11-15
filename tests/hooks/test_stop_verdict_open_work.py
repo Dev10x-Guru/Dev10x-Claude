@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from dev10x.hooks.stop_verdict import (
+from dev10x.core.hooks.stop_verdict import (
     StopSignal,
     TaskSignal,
     auto_advances,

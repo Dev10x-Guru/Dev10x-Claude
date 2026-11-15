@@ -20,10 +20,10 @@ from datetime import UTC, datetime
 from functools import wraps
 from typing import Any, TypeVar
 
-from dev10x.domain.audit_writer import AuditWriter
-from dev10x.domain.common.singleton_holder import SingletonHolder
-from dev10x.domain.events.hook_event import HookEventName
-from dev10x.domain.hook_telemetry import HookPhase
+from dev10x.core.domain.audit_writer import AuditWriter
+from dev10x.core.domain.common.singleton_holder import SingletonHolder
+from dev10x.core.domain.events.hook_event import HookEventName
+from dev10x.core.domain.hook_telemetry import HookPhase
 
 F = TypeVar("F", bound=Callable[..., Any])
 

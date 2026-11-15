@@ -43,26 +43,26 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from dev10x.domain.claude_paths import ClaudeDir
-from dev10x.domain.common.allow_rule import AllowRule
-from dev10x.domain.common.plugin_version import SEMVER_PATTERN, PluginVersion
-from dev10x.domain.common.result import Result
-from dev10x.domain.dev10x_paths import Dev10xConfigDir
-from dev10x.domain.plugin_identity import CORE_PLUGIN_NAMES, PLUGIN_NAMES
-from dev10x.skills.doctor.strategies.mcp_vs_script_drift import SCRIPT_TO_MCP
-from dev10x.skills.permission.catalog_paths import shipped_projects_catalog
-from dev10x.skills.permission.config import parse_config, resolve_config
-from dev10x.skills.permission.doctor import has_double_slash_typo
-from dev10x.skills.permission.legacy_namespace import (
+from dev10x.core.domain.claude_paths import ClaudeDir
+from dev10x.core.domain.common.allow_rule import AllowRule
+from dev10x.core.domain.common.plugin_version import SEMVER_PATTERN, PluginVersion
+from dev10x.core.domain.common.result import Result
+from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.core.domain.plugin_identity import CORE_PLUGIN_NAMES, PLUGIN_NAMES
+from dev10x.core.skills.doctor.strategies.mcp_vs_script_drift import SCRIPT_TO_MCP
+from dev10x.core.skills.permission.catalog_paths import shipped_projects_catalog
+from dev10x.core.skills.permission.config import parse_config, resolve_config
+from dev10x.core.skills.permission.doctor import has_double_slash_typo
+from dev10x.core.skills.permission.legacy_namespace import (
     NamespaceMigration,
     migrate_legacy_namespace,
 )
-from dev10x.skills.permission.settings_discovery import (
+from dev10x.core.skills.permission.settings_discovery import (
     VENDORED_DIRS,
     discover_settings,
     vendored_dirs,
 )
-from dev10x.skills.permission.star_prefix import StarPrefixRepair, repair_star_prefix
+from dev10x.core.skills.permission.star_prefix import StarPrefixRepair, repair_star_prefix
 
 MEMORY_CONFIG = Dev10xConfigDir.projects_yaml()
 USERSPACE_CONFIG = Dev10xConfigDir.upgrade_cleanup_projects_yaml()
@@ -556,8 +556,8 @@ def _write(*, path: Path, remove_allow: set[str]) -> None:
     applied to the live allow list, so an allow another writer appended
     after the snapshot survives too (GH-1712).
     """
-    from dev10x.skills.permission import backup
-    from dev10x.skills.permission.file_lock import locked_json_update
+    from dev10x.core.skills.permission import backup
+    from dev10x.core.skills.permission.file_lock import locked_json_update
 
     backup.create_backup(path)
     with locked_json_update(path=path) as live_data:
@@ -877,7 +877,7 @@ def _record(*, run: CleanRunResult, outcome: CleanFileOutcome) -> None:
 
 
 def _restore(*, config_path: Path) -> int:
-    from dev10x.skills.permission.backup import restore_report
+    from dev10x.core.skills.permission.backup import restore_report
 
     config = load_config(config_path)
     settings_files = find_settings_files(

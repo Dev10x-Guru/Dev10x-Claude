@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from dev10x.domain import HookAllow, HookAsk, HookInput, HookResult
+from dev10x.core.domain import HookAllow, HookAsk, HookInput, HookResult
 
 
 class TestHookInputFromDict:

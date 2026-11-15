@@ -1,12 +1,12 @@
 """Write the permission catalog into settings files — the ``ensure_*`` fixers (GH-1432).
 
 Every function here mutates a settings file, and every mutation goes
-through :func:`dev10x.skills.permission.backup.backed_up_write` (GH-1429)
+through :func:`dev10x.core.skills.permission.backup.backed_up_write` (GH-1429)
 and — at the operation level — through :func:`partition_writable`, the
 GH-1136/GH-1155/GH-1686 guard that keeps a git-tracked settings file out
 of a maintenance run. The rules being written are computed in
-:mod:`dev10x.skills.permission.catalog_rules`; the catalog they come from
-is loaded by :mod:`dev10x.skills.permission.catalog_load`. Split out of
+:mod:`dev10x.core.skills.permission.catalog_rules`; the catalog they come from
+is loaded by :mod:`dev10x.core.skills.permission.catalog_load`. Split out of
 ``update_paths.py`` by GH-1432.
 """
 
@@ -15,15 +15,15 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
+from dev10x.core.domain.claude_paths import ClaudeDir
+from dev10x.core.domain.common.result import Result, err, ok
+from dev10x.core.domain.file_locks import atomic_write_text, file_lock
 from dev10x.core.plugin_map import PluginMap, load_plugin_map
-from dev10x.domain.claude_paths import ClaudeDir
-from dev10x.domain.common.result import Result, err, ok
-from dev10x.domain.file_locks import atomic_write_text, file_lock
-from dev10x.skills.permission.backup import backed_up_write
-from dev10x.skills.permission.catalog_load import detect_latest_version
-from dev10x.skills.permission.catalog_merge import CatalogDrift
-from dev10x.skills.permission.catalog_result import _result
-from dev10x.skills.permission.catalog_rules import (
+from dev10x.core.skills.permission.backup import backed_up_write
+from dev10x.core.skills.permission.catalog_load import detect_latest_version
+from dev10x.core.skills.permission.catalog_merge import CatalogDrift
+from dev10x.core.skills.permission.catalog_result import _result
+from dev10x.core.skills.permission.catalog_rules import (
     ScriptRoot,
     _expand_stale_wildcards,
     _is_nonfunctional_mcp_wildcard,
@@ -42,9 +42,9 @@ from dev10x.skills.permission.catalog_rules import (
     verify_read_coverage,
     verify_script_coverage,
 )
-from dev10x.skills.permission.policy_catalog_migration import migrate_flat_config
-from dev10x.skills.permission.policy_renderer import render_permissions
-from dev10x.skills.permission.settings_discovery import linked_worktree_roots
+from dev10x.core.skills.permission.policy_catalog_migration import migrate_flat_config
+from dev10x.core.skills.permission.policy_renderer import render_permissions
+from dev10x.core.skills.permission.settings_discovery import linked_worktree_roots
 
 
 def ensure_base_permissions(
@@ -240,7 +240,7 @@ def ensure_read_rules(
     """Append missing Read rules to ``settings_path``.
 
     Idempotent — only appends rules not already present. Backed up
-    via :mod:`dev10x.skills.permission.backup`.
+    via :mod:`dev10x.core.skills.permission.backup`.
     """
     if not missing_rules:
         return 0, []
@@ -381,7 +381,7 @@ def _is_git_tracked(path: Path) -> bool | None:
     False. A missing binary, a timeout or any other git failure answers
     None, because "could not ask" is not evidence that a write is safe.
     """
-    from dev10x import subprocess_utils
+    from dev10x.core import subprocess_utils
 
     try:
         completed = subprocess_utils.run(
@@ -681,13 +681,13 @@ def _apply_tracker_block(
     catalog to merge from — an unresolvable plugin root — where passing
     through untouched remains the right answer.
     """
-    from dev10x.domain.common.tracker_choice import (
+    from dev10x.core.domain.common.tracker_choice import (
         TRACKER_ALLOW_KEY,
         TRACKER_DENY_KEY,
         apply_tracker_selection,
     )
-    from dev10x.domain.git_context import GitContext
-    from dev10x.skills.permission.tracker_resolve import resolve_tracker, tracker_source
+    from dev10x.core.domain.git_context import GitContext
+    from dev10x.core.skills.permission.tracker_resolve import resolve_tracker, tracker_source
 
     if not isinstance(config.get(TRACKER_ALLOW_KEY), dict) and not isinstance(
         config.get(TRACKER_DENY_KEY), dict
@@ -727,14 +727,14 @@ def _apply_ide_block(
     every seeding run in every repo without an IDE server would be noise
     about a non-event.
     """
-    from dev10x.domain.common.ide_choice import (
+    from dev10x.core.domain.common.ide_choice import (
         IDE_ALLOW_KEY,
         IDE_DENY_KEY,
         Ide,
         apply_ide_selection,
     )
-    from dev10x.domain.git_context import GitContext
-    from dev10x.skills.permission.ide_resolve import ide_source, resolve_ide
+    from dev10x.core.domain.git_context import GitContext
+    from dev10x.core.skills.permission.ide_resolve import ide_source, resolve_ide
 
     if not isinstance(config.get(IDE_ALLOW_KEY), dict) and not isinstance(
         config.get(IDE_DENY_KEY), dict
@@ -876,7 +876,7 @@ def ensure_base(
     # value is left for `dev10x permission doctor safety-keys` to flag.
     # GH-1856: only the keys safety-keys.yaml still enforces are seeded;
     # the catalog rules and created files below are unaffected.
-    from dev10x.skills.permission.safety_keys import (
+    from dev10x.core.skills.permission.safety_keys import (
         load_safety_key_policy,
         write_safety_keys_to_file,
     )
@@ -930,7 +930,7 @@ def ensure_base(
             files_changed=len(changed_files),
         )
 
-    from dev10x.skills.permission.enumerate_mcp import discover_mcp_tools
+    from dev10x.core.skills.permission.enumerate_mcp import discover_mcp_tools
 
     mcp_catalog = discover_mcp_tools()
 
@@ -1076,7 +1076,7 @@ def _residual_gap_errors(
     if dry_run:
         return []
 
-    from dev10x.skills.permission.catalog_gap import compute_gap
+    from dev10x.core.skills.permission.catalog_gap import compute_gap
 
     errors: list[str] = []
     for path in settings_files:
@@ -1115,7 +1115,7 @@ def catalog_gap(
     git (GH-1626). They are checked like any other file, and also listed
     on their own so a location missing from ``roots`` is visible.
     """
-    from dev10x.skills.permission.catalog_gap import compute_gap, format_gap_report
+    from dev10x.core.skills.permission.catalog_gap import compute_gap, format_gap_report
 
     catalog = render_catalog(config=config, toplevel=toplevel, quiet=quiet)
     messages = list(catalog.messages)
@@ -1166,7 +1166,7 @@ def _would_seed_count(*, settings: Path, config: dict, toplevel: str) -> int:
     said "Would seed 0 rule(s)" for a worktree that had no settings at all.
     A missing file lacks every rendered rule; an existing one lacks its gap.
     """
-    from dev10x.skills.permission.catalog_gap import compute_gap
+    from dev10x.core.skills.permission.catalog_gap import compute_gap
 
     catalog = render_catalog(config=config, toplevel=toplevel, quiet=True)
     if not settings.exists():

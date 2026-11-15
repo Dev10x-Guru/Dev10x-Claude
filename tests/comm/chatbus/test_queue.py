@@ -7,7 +7,6 @@ from datetime import timedelta
 from pathlib import Path
 
 import pytest
-from dev10x.domain.common.result import ErrorResult, SuccessResult
 
 from dev10x.comm.chatbus.events import to_db_time
 from dev10x.comm.chatbus.ingest import ingest_events
@@ -25,6 +24,7 @@ from dev10x.comm.chatbus.queue import (
     release,
 )
 from dev10x.comm.chatbus.store import open_store
+from dev10x.core.domain.common.result import ErrorResult, SuccessResult
 from tests.comm.chatbus.factories import NOW, SPACE, message_event, unwrap
 
 LEASE = timedelta(minutes=5)

@@ -18,7 +18,7 @@ from dev10x.scoping.scope._matcher import select_matching
 from dev10x.scoping.scope.index_parser import parse_index
 
 _HEADER = (
-    "<!-- Auto-populated by dev10x.scope.norms_renderer at scope-render time. -->"
+    "<!-- Auto-populated by dev10x.scoping.scope.norms_renderer at scope-render time. -->"
     "\nMatched project rules (from `.claude/rules/INDEX.md`):"
 )
 _EMPTY_BODY = "No project rules matched the affected files for this scope."

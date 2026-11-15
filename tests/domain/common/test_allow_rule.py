@@ -12,7 +12,8 @@ import json
 from pathlib import Path
 
 import pytest
-from dev10x.domain.common.allow_rule import AllowRule, AllowRuleLoader
+
+from dev10x.core.domain.common.allow_rule import AllowRule, AllowRuleLoader
 
 
 class TestParse:

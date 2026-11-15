@@ -8,8 +8,8 @@ from dataclasses import asdict, dataclass
 
 from dev10x.comm.overwatch.probes import ProbeError, Runner, get_claude_sessions
 from dev10x.comm.overwatch.sessions import ClaudeSession, ProbeParseError
-from dev10x.domain.common.result import Result, err, ok
-from dev10x.subprocess_utils import run
+from dev10x.core.domain.common.result import Result, err, ok
+from dev10x.core.subprocess_utils import run
 
 MAX_HOPS = 32
 PS_TIMEOUT_SECONDS = 5

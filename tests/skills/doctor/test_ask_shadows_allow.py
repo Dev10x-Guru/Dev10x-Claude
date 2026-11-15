@@ -6,8 +6,9 @@ import json
 from pathlib import Path
 
 import pytest
-from dev10x.skills.doctor.strategies import ask_shadows_allow
-from dev10x.skills.doctor.strategy import Context
+
+from dev10x.core.skills.doctor.strategies import ask_shadows_allow
+from dev10x.core.skills.doctor.strategy import Context
 
 
 def _settings(tmp_path: Path, **buckets: list[str]) -> Path:

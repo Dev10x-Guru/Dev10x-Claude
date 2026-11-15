@@ -7,15 +7,15 @@ Policy objects carry provenance the string pipeline dropped.
 
 from __future__ import annotations
 
-from dev10x.domain.common.policy import (
+from dev10x.core.domain.common.policy import (
     PolicyAssessment,
     PolicyEffect,
     PolicyLifecycle,
     PolicySource,
 )
-from dev10x.skills.permission.doctor import Catalog, DeprecationOutcome
-from dev10x.skills.permission.merge_worktree_permissions import sync_candidates_as_policies
-from dev10x.skills.permission.policy_authoring import (
+from dev10x.core.skills.permission.doctor import Catalog, DeprecationOutcome
+from dev10x.core.skills.permission.merge_worktree_permissions import sync_candidates_as_policies
+from dev10x.core.skills.permission.policy_authoring import (
     CANDIDATE_TIER,
     policy_from_accepted_prompt,
 )

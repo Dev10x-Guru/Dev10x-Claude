@@ -163,7 +163,7 @@ when both drift kinds are present. See `.claude/rules/skill-gates.md`.
 ## Integration Points
 
 - **`dev10x-scoping:spec-update`** — inverse path (behaviour-first).
-  Shares `dev10x.spec.drift_detector`.
+  Shares `dev10x.core.spec.drift_detector`.
 - **`dev10x-scoping:ticket-scope`** — creates the canonical spec.
 - **`dev10x-coding:gh-pr-respond`** (GH-173) — calls this skill in
   `check_only=True` mode before applying review-comment fixups.

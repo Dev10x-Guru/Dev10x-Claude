@@ -2,7 +2,7 @@
 
 ``create_pr``, ``update_pr``, and ``merge_pr`` previously had only
 domain-layer coverage — ``tests/mcp/test_pr_lifecycle_tools.py``
-exercises ``dev10x.github`` directly, never the registered MCP
+exercises ``dev10x.coding.github`` directly, never the registered MCP
 handler. ``push_safe`` (``tests/mcp/test_git_tools.py``) and
 ``ci_check_status`` (``tests/mcp/test_monitor_tools.py``) already had
 boundary coverage; the extra tests here round out the documented wire
@@ -20,8 +20,8 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from dev10x.domain.common.result import err, ok
 
+from dev10x.core.domain.common.result import err, ok
 from dev10x.mcp import server_cli as cli_server
 
 
@@ -32,7 +32,7 @@ class TestCreatePrBoundary:
     decorator's."""
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.create_pr", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.create_pr", new_callable=AsyncMock)
     async def test_returns_wire_payload_on_success(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = ok({"pr_number": 42, "url": "https://github.com/o/r/pull/42"})
 
@@ -41,7 +41,7 @@ class TestCreatePrBoundary:
         assert result == {"pr_number": 42, "url": "https://github.com/o/r/pull/42"}
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.create_pr", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.create_pr", new_callable=AsyncMock)
     async def test_returns_error_wire_payload_on_failure(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = err("job_story missing **When** marker")
 
@@ -50,7 +50,7 @@ class TestCreatePrBoundary:
         assert result == {"error": "job_story missing **When** marker"}
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.create_pr", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.create_pr", new_callable=AsyncMock)
     async def test_forwards_all_arguments(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = ok({"pr_number": 1, "url": "u"})
 
@@ -85,17 +85,17 @@ class TestCreatePrBoundary:
         }
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.create_pr", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.create_pr", new_callable=AsyncMock)
     async def test_enters_use_cwd_with_passed_cwd(self, mock_fn: AsyncMock, tmp_path) -> None:
         mock_fn.return_value = ok({"pr_number": 1, "url": "u"})
 
-        with patch("dev10x.subprocess_utils.use_cwd") as mock_use_cwd:
+        with patch("dev10x.core.subprocess_utils.use_cwd") as mock_use_cwd:
             await cli_server.create_pr(title="t", issue_id="GH-1", cwd=str(tmp_path))
 
         mock_use_cwd.assert_called_once_with(str(tmp_path))
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.create_pr", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.create_pr", new_callable=AsyncMock)
     async def test_reports_progress_and_info_when_ctx_present_on_success(
         self, mock_fn: AsyncMock
     ) -> None:
@@ -112,7 +112,7 @@ class TestCreatePrBoundary:
         ctx.log.assert_not_awaited()
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.create_pr", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.create_pr", new_callable=AsyncMock)
     async def test_logs_error_when_ctx_present_on_failure(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = err("issue_id required")
         ctx = MagicMock()
@@ -128,7 +128,7 @@ class TestCreatePrBoundary:
 
 class TestUpdatePrBoundary:
     @pytest.mark.asyncio
-    @patch("dev10x.github.update_pr", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.update_pr", new_callable=AsyncMock)
     async def test_returns_wire_payload_on_success(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = ok({"pr_number": 42, "url": "https://github.com/o/r/pull/42"})
 
@@ -137,7 +137,7 @@ class TestUpdatePrBoundary:
         assert result == {"pr_number": 42, "url": "https://github.com/o/r/pull/42"}
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.update_pr", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.update_pr", new_callable=AsyncMock)
     async def test_returns_error_wire_payload_on_failure(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = err("at least one of body/title/base_branch/milestone required")
 
@@ -146,7 +146,7 @@ class TestUpdatePrBoundary:
         assert result == {"error": "at least one of body/title/base_branch/milestone required"}
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.update_pr", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.update_pr", new_callable=AsyncMock)
     async def test_forwards_all_arguments(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = ok({"pr_number": 42, "url": "u"})
 
@@ -169,11 +169,11 @@ class TestUpdatePrBoundary:
         }
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.update_pr", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.update_pr", new_callable=AsyncMock)
     async def test_enters_use_cwd_with_passed_cwd(self, mock_fn: AsyncMock, tmp_path) -> None:
         mock_fn.return_value = ok({"pr_number": 1, "url": "u"})
 
-        with patch("dev10x.subprocess_utils.use_cwd") as mock_use_cwd:
+        with patch("dev10x.core.subprocess_utils.use_cwd") as mock_use_cwd:
             await cli_server.update_pr(pr_number=1, title="t", cwd=str(tmp_path))
 
         mock_use_cwd.assert_called_once_with(str(tmp_path))
@@ -181,7 +181,7 @@ class TestUpdatePrBoundary:
 
 class TestMergePrBoundary:
     @pytest.mark.asyncio
-    @patch("dev10x.github.merge_pr", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.merge_pr", new_callable=AsyncMock)
     async def test_returns_wire_payload_on_success(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = ok(
             {
@@ -202,7 +202,7 @@ class TestMergePrBoundary:
         }
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.merge_pr", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.merge_pr", new_callable=AsyncMock)
     async def test_returns_error_wire_payload_on_failure(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = err("Pull Request is still a draft")
 
@@ -211,7 +211,7 @@ class TestMergePrBoundary:
         assert result == {"error": "Pull Request is still a draft"}
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.merge_pr", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.merge_pr", new_callable=AsyncMock)
     async def test_forwards_all_arguments(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = ok({"merged": True, "merged_as": "engineer"})
 
@@ -238,11 +238,11 @@ class TestMergePrBoundary:
         }
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.merge_pr", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.merge_pr", new_callable=AsyncMock)
     async def test_enters_use_cwd_with_passed_cwd(self, mock_fn: AsyncMock, tmp_path) -> None:
         mock_fn.return_value = ok({"merged": True, "merged_as": "engineer"})
 
-        with patch("dev10x.subprocess_utils.use_cwd") as mock_use_cwd:
+        with patch("dev10x.core.subprocess_utils.use_cwd") as mock_use_cwd:
             await cli_server.merge_pr(pr_number=1, cwd=str(tmp_path))
 
         mock_use_cwd.assert_called_once_with(str(tmp_path))
@@ -253,7 +253,7 @@ class TestPushSafeWireShape:
     pins the full GH-1424 payload shape rather than a partial assert."""
 
     @pytest.mark.asyncio
-    @patch("dev10x.git.push_safe", new_callable=AsyncMock)
+    @patch("dev10x.coding.git.push_safe", new_callable=AsyncMock)
     async def test_full_blocked_payload_passes_through_unmodified(
         self, mock_fn: AsyncMock
     ) -> None:
@@ -269,7 +269,7 @@ class TestCiCheckStatusWireShape:
     full GH-1376 corroboration fields rather than a partial assert."""
 
     @pytest.mark.asyncio
-    @patch("dev10x.monitor.ci_check_status", new_callable=AsyncMock)
+    @patch("dev10x.coding.monitor.ci_check_status", new_callable=AsyncMock)
     async def test_full_verdict_payload_passes_through_unmodified(
         self, mock_fn: AsyncMock
     ) -> None:

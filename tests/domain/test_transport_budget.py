@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dev10x.domain.transport_budget import (
+from dev10x.core.domain.transport_budget import (
     MAX_TOOL_CALL_SECONDS,
     MCP_IDLE_TIMEOUT_SECONDS,
     clamp_tool_timeout,

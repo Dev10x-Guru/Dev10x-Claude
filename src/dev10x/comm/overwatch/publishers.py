@@ -14,7 +14,7 @@ from typing import Any
 import yaml
 
 from dev10x.comm.overwatch.artifacts import SLUG
-from dev10x.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
 
 PUBLISHERS_KEY = "artifact_publishers"
 KINDS = ("skill", "mcp", "prompt")

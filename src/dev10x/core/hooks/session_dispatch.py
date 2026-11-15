@@ -4,13 +4,13 @@ Event-routing module. Owns the entry points referenced by
 ``hooks/scripts/session-*.py`` and ``commands/hook.py``. Rendering and
 data assembly live elsewhere:
 
-* Session orchestration / context builders — :mod:`dev10x.session.service`.
-* Document I/O — :mod:`dev10x.domain.session_document`.
+* Session orchestration / context builders — :mod:`dev10x.core.session.service`.
+* Document I/O — :mod:`dev10x.core.domain.session_document`.
 * Named policies (friction parsing, permission migration, decision
-  guidance) — :mod:`dev10x.hooks.session_policy`.
+  guidance) — :mod:`dev10x.core.hooks.session_policy`.
 * Place provisioning (``/tmp`` setup, git alias inventory) —
-  :mod:`dev10x.hooks.session_place`.
-* Aggregated query + formatters — :mod:`dev10x.domain.documents.session_context`.
+  :mod:`dev10x.core.hooks.session_place`.
+* Aggregated query + formatters — :mod:`dev10x.core.domain.documents.session_context`.
 """
 
 from __future__ import annotations
@@ -22,18 +22,17 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-from dev10x.core.plan_mirror import read_plan_summary
-from dev10x.domain.claude_paths import ClaudeDir
-from dev10x.domain.documents.session_state import SessionState
-from dev10x.domain.git_context import GitContext
-from dev10x.domain.session_document import (
+from dev10x.core.domain.claude_paths import ClaudeDir
+from dev10x.core.domain.documents.session_state import SessionState
+from dev10x.core.domain.git_context import GitContext
+from dev10x.core.domain.session_document import (
     plan_path_for_toplevel,
     state_path_for_toplevel,
     write_state,
 )
-from dev10x.hooks.audit_emit import set_decision_attribution
-from dev10x.hooks.session_policy import MigratePluginPermissionsRule
-from dev10x.hooks.stop_verdict import (
+from dev10x.core.hooks.audit_emit import set_decision_attribution
+from dev10x.core.hooks.session_policy import MigratePluginPermissionsRule
+from dev10x.core.hooks.stop_verdict import (
     StopVerdict,
     clear_stand_down,
     decide,
@@ -43,7 +42,8 @@ from dev10x.hooks.stop_verdict import (
     record_block,
     record_stand_down,
 )
-from dev10x.session.service import SessionService
+from dev10x.core.plan_mirror import read_plan_summary
+from dev10x.core.session.service import SessionService
 
 
 def _get_toplevel() -> str | None:
@@ -299,7 +299,7 @@ def build_stop_verdict(data: dict | None = None) -> StopVerdict | None:
     :class:`StopVerdict` with ``block=True`` carries the steer text the
     orchestrator hands back as the continued turn's instruction.
 
-    The decision itself lives in :mod:`dev10x.hooks.stop_verdict` so it
+    The decision itself lives in :mod:`dev10x.core.hooks.stop_verdict` so it
     is testable without a subprocess; this function is only the wiring
     that finds the persisted plan and reads the working tree.
     """

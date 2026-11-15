@@ -25,17 +25,17 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
 
-from dev10x.domain import HookHint, HookInput, HookResult
-from dev10x.domain.common.bash_tokens import split_tokens
-from dev10x.domain.common.branch_name import PROTECTED_BRANCHES
-from dev10x.domain.documents.config_document import Config
-from dev10x.domain.profile_tier import ProfileTier
-from dev10x.domain.rules.validation_rule import Compensation, MatchingRule
-from dev10x.validators.base import ValidatorBase
+from dev10x.core.domain import HookHint, HookInput, HookResult
+from dev10x.core.domain.common.bash_tokens import split_tokens
+from dev10x.core.domain.common.branch_name import PROTECTED_BRANCHES
+from dev10x.core.domain.documents.config_document import Config
+from dev10x.core.domain.profile_tier import ProfileTier
+from dev10x.core.domain.rules.validation_rule import Compensation, MatchingRule
+from dev10x.core.validators.base import ValidatorBase
 
 if TYPE_CHECKING:
-    from dev10x.domain import HookRetry
-    from dev10x.domain.rules.rule_engine import RuleEngine
+    from dev10x.core.domain import HookRetry
+    from dev10x.core.domain.rules.rule_engine import RuleEngine
 
 
 # ── GH-963: safe direct push detection ──────────────────────────
@@ -383,8 +383,8 @@ _ENGINE: RuleEngine | None = None
 
 
 def _load_config(yaml_path: Path = _YAML_PATH) -> tuple[Config, RuleEngine]:
-    from dev10x.config.loader import load_config
-    from dev10x.domain.rules.rule_engine import RuleEngine
+    from dev10x.core.config.loader import load_config
+    from dev10x.core.domain.rules.rule_engine import RuleEngine
 
     full = load_config(yaml_path=yaml_path)
     engine = RuleEngine.from_config(config=full)
@@ -676,7 +676,7 @@ class SkillRedirectValidator(ValidatorBase):
         return HookResult(message=msg)
 
     def correct(self, inp: HookInput) -> HookRetry | None:
-        from dev10x.domain import HookRetry as _HookRetry
+        from dev10x.core.domain import HookRetry as _HookRetry
 
         _, engine = _get_config_and_engine()
         rule = _first_enforced_rule(engine=engine, inp=inp)

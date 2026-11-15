@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from mcp.server.fastmcp import FastMCP
 
-from dev10x.domain.common.result import to_wire
+from dev10x.core.domain.common.result import to_wire
 
 server = FastMCP(name="Dev10x-db")
 
@@ -34,6 +34,6 @@ async def query(
 
 
 def main() -> None:
-    from dev10x.mcp.transport import select_transport
+    from dev10x.core.mcp.transport import select_transport
 
     server.run(transport=select_transport())

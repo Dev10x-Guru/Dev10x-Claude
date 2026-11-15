@@ -56,12 +56,12 @@ Bash(ruff check:*)
 
 ## Integration with Skills
 
-The `dev10x.skills.permission.generalize.generalize_rule_shape()` module
+The `dev10x.core.skills.permission.generalize.generalize_rule_shape()` module
 implements this pattern. Use it when a skill generates targeted allow-rules
 (e.g., `diag-friction` suggests a rule based on one user's command):
 
 ```python
-from dev10x.skills.permission.generalize import generalize_rule_shape
+from dev10x.core.skills.permission.generalize import generalize_rule_shape
 
 targeted = "Bash(git commit:*)"
 generalized = generalize_rule_shape(targeted)

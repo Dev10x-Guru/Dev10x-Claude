@@ -4,12 +4,13 @@ import os
 import sys
 from pathlib import Path
 from types import ModuleType
+from typing import cast
 
 import click
 
+from dev10x.core.domain.claude_paths import ClaudeDir
+from dev10x.core.domain.common.result import ErrorResult
 from dev10x.core.permission.service import PermissionContext, load_permission_context
-from dev10x.domain.claude_paths import ClaudeDir
-from dev10x.domain.common.result import ErrorResult
 
 
 @click.group()
@@ -379,8 +380,8 @@ def triage(*, target: str, working_dirs: tuple[str, ...]) -> None:
     grant on it.
     """
     from dev10x.core.permission import catalog_denies
-    from dev10x.skills.permission.grant import Verdict
-    from dev10x.skills.permission.grant import triage as run_triage
+    from dev10x.core.skills.permission.grant import Verdict
+    from dev10x.core.skills.permission.grant import triage as run_triage
 
     ctx = _require_context()
     result = run_triage(
@@ -422,7 +423,7 @@ def grant(*, target: str, working_dirs: tuple[str, ...], dry_run: bool, remember
     read silence as success (GH-1136).
     """
     from dev10x.core.permission import catalog_denies
-    from dev10x.skills.permission.grant import grant_everywhere
+    from dev10x.core.skills.permission.grant import grant_everywhere
 
     ctx = _require_settings()
     if ctx is None:
@@ -449,7 +450,7 @@ def grant(*, target: str, working_dirs: tuple[str, ...], dry_run: bool, remember
 
 
 def _report_predicted() -> None:
-    from dev10x.skills.permission.friction_report import (
+    from dev10x.core.skills.permission.friction_report import (
         format_predicted_surface,
         predict_surfaces,
     )
@@ -489,7 +490,7 @@ def report(*, days: int, top: int, predicted: bool) -> None:
 
     from datetime import UTC, datetime, timedelta
 
-    from dev10x.skills.permission.friction_report import build_report, format_report
+    from dev10x.core.skills.permission.friction_report import build_report, format_report
     from dev10x.teach.audit.log_reader import iter_records
 
     since = datetime.now(UTC) - timedelta(days=days) if days > 0 else None
@@ -515,7 +516,7 @@ def catalog_diff(*, strict: bool) -> None:
     told apart from genuine preference.
     """
     from dev10x.core.skills.permission import update_paths as mod
-    from dev10x.skills.permission.catalog_merge import compute_drift, format_drift_report
+    from dev10x.core.skills.permission.catalog_merge import compute_drift, format_drift_report
 
     resolved = _require_config(mod)
     if resolved == mod.PLUGIN_CONFIG:
@@ -688,7 +689,7 @@ def ensure_reads(*, dry_run: bool, quiet: bool, allow_tracked: bool) -> None:
 @permission.command()
 def init() -> None:
     """Create userspace config from plugin default."""
-    from dev10x.skills.permission.catalog_load import init_userspace_config
+    from dev10x.core.skills.permission.catalog_load import init_userspace_config
 
     sys.exit(_emit_result(init_userspace_config()))
 
@@ -873,7 +874,7 @@ def clean(
 def remove(*, pattern: str, list_name: str | None, dry_run: bool, include_global: bool) -> None:
     """Remove rules matching a glob from settings files (GH-1925)."""
     from dev10x.core.skills.permission import remove_rules as mod
-    from dev10x.skills.permission.catalog_write import partition_writable
+    from dev10x.core.skills.permission.catalog_write import partition_writable
 
     ctx = _require_context(include_user=False)
     candidates = list(ctx.settings_files)
@@ -1029,7 +1030,7 @@ def promote_plan(
     # that file since GH-1136; this command did not, so a promotion
     # dirtied the tracked file. Same shared helper, so the two commands
     # cannot drift apart again.
-    from dev10x.skills.permission.catalog_write import partition_writable
+    from dev10x.core.skills.permission.catalog_write import partition_writable
 
     write_targets, skip_messages = partition_writable(
         [global_settings],
@@ -1222,7 +1223,8 @@ def _decline(*, rules: list[str]) -> None:
     if isinstance(result, ErrorResult):
         click.echo(f"ERROR: {result.error}", err=True)
         sys.exit(1)
-    for rule in result.value["added"]:
+    added = cast(list[str], result.value["added"])
+    for rule in added:
         click.echo(f"Declined: {rule} (recorded in {result.value['path']})")
 
 
@@ -1325,7 +1327,7 @@ def merge_worktree(*, dry_run: bool, restore: bool, excluded: tuple[str, ...]) -
 def permission_audit() -> None:
     """Classify allow rules onto typed auditor assessments (PAP-6, GH-867)."""
     from dev10x.core.skills.permission import policy_audit
-    from dev10x.skills.permission.doctor import CATALOG_PATH, load_catalog
+    from dev10x.core.skills.permission.doctor import CATALOG_PATH, load_catalog
 
     ctx = _require_settings()
     if ctx is None:
@@ -1355,7 +1357,7 @@ def permission_findings(*, findings_path: Path, severity_max: str | None) -> Non
     import json
 
     from dev10x.commands.json_output import fail_json
-    from dev10x.domain.common.audit_findings import (
+    from dev10x.core.domain.common.audit_findings import (
         Severity,
         parse_findings,
         select_findings,
@@ -1395,9 +1397,9 @@ def permission_findings(*, findings_path: Path, severity_max: str | None) -> Non
 )
 def permission_resolve(*, signature: str, context: str, project_path: str | None) -> None:
     """Resolve the layered policy effect for a tool-call SIGNATURE (PAP-6, GH-868)."""
-    from dev10x.domain.dev10x_paths import Dev10xConfigDir
-    from dev10x.skills.permission.doctor import CATALOG_PATH
-    from dev10x.skills.permission.resolve import resolve_report
+    from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
+    from dev10x.core.skills.permission.doctor import CATALOG_PATH
+    from dev10x.core.skills.permission.resolve import resolve_report
 
     for line in resolve_report(
         signature=signature,
@@ -1559,7 +1561,7 @@ def investigate_report(*, output: str | None) -> None:
 def investigate_delta() -> None:
     """Compare matrix outcomes against current plugin-maintenance rules."""
     from dev10x.core.skills.permission import update_paths as paths_mod
-    from dev10x.skills.permission_investigator import PermissionDeltaQuery
+    from dev10x.core.skills.permission_investigator import PermissionDeltaQuery
 
     config_path = _require_config(paths_mod)
     config = paths_mod.load_config(config_path)
@@ -1832,7 +1834,7 @@ def record_upgrade(*, explicit_version: str | None) -> None:
     Invoked by dev10x:upgrade-cleanup after a successful run so the
     SessionStart install-check stays silent until the next upgrade.
     """
-    from dev10x.domain.install_version import read_plugin_version, write_applied_version
+    from dev10x.core.domain.install_version import read_plugin_version, write_applied_version
 
     version = explicit_version or read_plugin_version()
     if version is None:

@@ -31,9 +31,9 @@ import re
 from dataclasses import dataclass
 from typing import ClassVar
 
-from dev10x.domain import HookHint, HookInput
-from dev10x.domain.profile_tier import ProfileTier
-from dev10x.validators.base import ValidatorBase
+from dev10x.core.domain import HookHint, HookInput
+from dev10x.core.domain.profile_tier import ProfileTier
+from dev10x.core.validators.base import ValidatorBase
 
 _CONTENTS_FETCH_RE = re.compile(
     r"gh\s+api\s+(?:-X\s+GET\s+)?(?:/?repos/)?[^\s|<>]+/contents/(?P<path>[^\s?]+)"

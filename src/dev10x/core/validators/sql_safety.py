@@ -23,8 +23,8 @@ from pathlib import Path
 from typing import Any, ClassVar
 
 from dev10x.core.db_script import db_script
-from dev10x.domain import HookInput, HookResult
-from dev10x.domain.common.bash_tokens import (
+from dev10x.core.domain import HookInput, HookResult
+from dev10x.core.domain.common.bash_tokens import (
     ANY_CASE_ENV_VAR_RE,
     ProgramProbe,
     UntokenizableCommandError,
@@ -33,9 +33,9 @@ from dev10x.domain.common.bash_tokens import (
     command_units,
     strip_command_wrappers,
 )
-from dev10x.domain.common.result import ErrorResult, Result, err, ok
-from dev10x.domain.profile_tier import ProfileTier
-from dev10x.validators.base import ValidatorBase
+from dev10x.core.domain.common.result import ErrorResult, Result, err, ok
+from dev10x.core.domain.profile_tier import ProfileTier
+from dev10x.core.validators.base import ValidatorBase
 
 POSTGRES_CONN_RE = re.compile(r"postgres(?:ql)?://[^'\"\s]+:[^@'\"\s]+@[a-zA-Z0-9._-]+")
 

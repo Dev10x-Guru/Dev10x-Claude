@@ -1,4 +1,4 @@
-"""Tests for dev10x.skills.permission_investigator.runner (GH-525).
+"""Tests for dev10x.core.skills.permission_investigator.runner (GH-525).
 
 The investigate CLI command bodies delegate their file read/mutate/write
 logic to these domain functions. The CLI suite
@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from dev10x.skills.permission_investigator import runner
+from dev10x.core.skills.permission_investigator import runner
 
 
 def _prepare(tmp_path: Path) -> tuple[Path, Path]:

@@ -6,10 +6,10 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
-from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR
-from dev10x.domain.common.result import err
 
 from dev10x.commands.usage import usage
+from dev10x.core.domain.claude_paths import CLAUDE_HOME_ENV_VAR
+from dev10x.core.domain.common.result import err
 
 
 def _recent_iso(minutes_ago: int = 1) -> str:
@@ -91,7 +91,7 @@ def test_blocks_unpriced_model_line(tmp_path: Path, monkeypatch: pytest.MonkeyPa
 
 def test_blocks_error_exits_nonzero(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "dev10x.domain.usage.blocks_report",
+        "dev10x.core.domain.usage.blocks_report",
         lambda **_kwargs: err("boom"),
     )
     result = CliRunner().invoke(usage, ["blocks", "--active", "--json"])

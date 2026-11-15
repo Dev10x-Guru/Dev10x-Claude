@@ -19,13 +19,13 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
-from dev10x.domain.common.result import Result, err, ok
-from dev10x.domain.transport_budget import (
+from dev10x.core.domain.common.result import Result, err, ok
+from dev10x.core.domain.transport_budget import (
     MAX_TOOL_CALL_SECONDS,
     ClampedTimeout,
     clamp_tool_timeout,
 )
-from dev10x.subprocess_utils import async_run, effective_cwd
+from dev10x.core.subprocess_utils import async_run, effective_cwd
 
 # GH-1285: the outcome vocabulary used to be a closed set, so a run
 # reporting an outcome outside it broke the comma-separated chain and the

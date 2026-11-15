@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import pytest
-from dev10x.domain.common.commit_subject import CommitSubject
-from dev10x.domain.common.ticket_id import TicketId
+
+from dev10x.core.domain.common.commit_subject import CommitSubject
+from dev10x.core.domain.common.ticket_id import TicketId
 
 
 class TestParse:

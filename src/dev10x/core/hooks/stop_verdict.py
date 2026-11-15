@@ -10,7 +10,7 @@ because the orchestrator discarded every feature's return value.
 This module is the decision half. It reads the payload and the
 transcript and returns a :class:`StopVerdict`; the orchestrator owns
 the envelope. Keeping the two apart is what makes the rule testable
-without a subprocess — the separation `dev10x.hooks.format_scope` got
+without a subprocess — the separation `dev10x.core.hooks.format_scope` got
 under GH-1143.
 
 **The rule.** A turn that ends on an *unanswered decision* hands the
@@ -125,10 +125,10 @@ from pathlib import Path
 
 import yaml
 
-from dev10x.domain.documents.plan import is_terminal_task_subject
-from dev10x.domain.file_locks import atomic_write_text
-from dev10x.domain.session_document import plan_identity
-from dev10x.domain.session_staleness import session_stale
+from dev10x.core.domain.documents.plan import is_terminal_task_subject
+from dev10x.core.domain.file_locks import atomic_write_text
+from dev10x.core.domain.session_document import plan_identity
+from dev10x.core.domain.session_staleness import session_stale
 
 
 def _diagnose(*, what: str, error: OSError | ValueError) -> None:

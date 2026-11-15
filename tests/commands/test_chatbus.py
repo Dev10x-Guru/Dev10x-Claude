@@ -9,8 +9,6 @@ from typing import Any
 
 import pytest
 from click.testing import CliRunner, Result
-from dev10x.domain.common.result import err, ok
-from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from tests.comm.chatbus.factories import unwrap
 
 from dev10x.cli import cli
@@ -21,6 +19,8 @@ from dev10x.comm.chatbus.sources.google_http import GoogleJsonClient
 from dev10x.comm.chatbus.store import open_store
 from dev10x.comm.chatbus.unit import UNIT_NAME
 from dev10x.commands import chatbus as command
+from dev10x.core.domain.common.result import err, ok
+from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
 
 BOT = "users/500"
 OWNER_CONFIG = (

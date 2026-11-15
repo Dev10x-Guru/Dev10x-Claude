@@ -7,10 +7,12 @@ import warnings
 from pathlib import Path
 
 import pytest
-from dev10x.config.loader import load_config, load_document
-from dev10x.domain.rules.rule_engine import RuleEngine
-from dev10x.domain.rules.validation_rule import Compensation, MatchingRule
-from dev10x.validators.skill_redirect import (
+
+from dev10x.core.config.loader import load_config, load_document
+from dev10x.core.domain import HookHint, HookResult
+from dev10x.core.domain.rules.rule_engine import RuleEngine
+from dev10x.core.domain.rules.validation_rule import Compensation, MatchingRule
+from dev10x.core.validators.skill_redirect import (
     _REGEX_METACHARS_RE,
     _YAML_PATH,
     SkillRedirectValidator,
@@ -20,8 +22,6 @@ from dev10x.validators.skill_redirect import (
     names_quick_token,
     unreachable_patterns,
 )
-
-from dev10x.domain import HookHint, HookResult
 from tests.fakers import BashHookInputFaker
 from tests.validators.loop_shapes import BARE_POLL_LOOP, UNTIL_POLL_LOOP
 
@@ -453,26 +453,26 @@ class TestPushHelpersOnNonPushCommands:
         ],
     )
     def test_no_git_push_yields_no_args(self, command: str) -> None:
-        from dev10x.validators.skill_redirect import _push_args
+        from dev10x.core.validators.skill_redirect import _push_args
 
         assert _push_args(command) is None
 
     @pytest.mark.parametrize("command", ["echo push", "git status"])
     def test_no_git_push_yields_no_targets(self, command: str) -> None:
-        from dev10x.validators.skill_redirect import _explicit_push_targets
+        from dev10x.core.validators.skill_redirect import _explicit_push_targets
 
         assert _explicit_push_targets(command) is None
 
     @pytest.mark.parametrize("command", ["echo push +evil:main", "git status"])
     def test_no_git_push_is_not_refspec_force(self, command: str) -> None:
-        from dev10x.validators.skill_redirect import _has_refspec_force
+        from dev10x.core.validators.skill_redirect import _has_refspec_force
 
         assert _has_refspec_force(command) is False
 
     def test_unbalanced_quotes_fall_back_to_whitespace_split(self) -> None:
         """``shlex`` raises on an unterminated quote; the fallback keeps the
         guard reading the command instead of throwing inside a hook."""
-        from dev10x.validators.skill_redirect import _tokenize
+        from dev10x.core.validators.skill_redirect import _tokenize
 
         assert _tokenize("git push origin 'unterminated") == [
             "git",
@@ -1030,7 +1030,7 @@ def loop_first_engine(monkeypatch: pytest.MonkeyPatch) -> None:
     A per-plugin split lands it ahead of git-push and psql-write, which is
     the order GH-1590's exemption hazard needs.
     """
-    import dev10x.validators.skill_redirect as mod
+    import dev10x.core.validators.skill_redirect as mod
 
     config, engine = _load_config()
     loop = next(rule for rule in engine.command_rules if rule.name == "watch-loop-handrolled")
@@ -1194,7 +1194,7 @@ class TestBlockMessageFallback:
         validator = SkillRedirectValidator()
         inp = _make_input(command="test cmd foo")
 
-        import dev10x.validators.skill_redirect as mod
+        import dev10x.core.validators.skill_redirect as mod
 
         orig_config, orig_engine = mod._CONFIG, mod._ENGINE
         mod._CONFIG, mod._ENGINE = config, engine
@@ -1889,7 +1889,7 @@ class TestGogLiveHint:
     def test_a_hint_rule_without_advice_stays_silent(
         self, validator: SkillRedirectValidator, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        import dev10x.validators.skill_redirect as mod
+        import dev10x.core.validators.skill_redirect as mod
 
         config, _engine = _load_config()
         mute = MatchingRule(

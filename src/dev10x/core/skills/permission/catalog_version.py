@@ -11,9 +11,9 @@ import json
 import re
 from pathlib import Path
 
-from dev10x.domain.common.plugin_version import SEMVER_PATTERN
-from dev10x.domain.plugin_identity import CORE_PLUGIN_NAMES, PLUGIN_NAMES
-from dev10x.skills.permission.backup import backed_up_write
+from dev10x.core.domain.common.plugin_version import SEMVER_PATTERN
+from dev10x.core.domain.plugin_identity import CORE_PLUGIN_NAMES, PLUGIN_NAMES
+from dev10x.core.skills.permission.backup import backed_up_write
 
 VERSION_PATTERN = re.compile(rf"(plugins/cache/)([^/]+)(/{PLUGIN_NAMES}/)({SEMVER_PATTERN})")
 CORE_SLUG = re.compile(rf"/{CORE_PLUGIN_NAMES}/")

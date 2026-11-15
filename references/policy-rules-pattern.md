@@ -111,7 +111,7 @@ __all__ = ["DecisionGuidanceRule", "BuildAutonomyReassuranceRule", ...]
 
 **hooks/session_policy.py** (compatibility re-export):
 ```python
-from dev10x.domain.session_rules import (
+from dev10x.core.domain.session_rules import (
     BuildAutonomyReassuranceRule,
     DecisionGuidanceRule,
 )

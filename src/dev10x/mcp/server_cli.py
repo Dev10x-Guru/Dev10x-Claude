@@ -26,8 +26,8 @@ from typing import Any, Literal, cast
 
 from mcp.server.fastmcp import FastMCP
 
-from dev10x.mcp._app import server
-from dev10x.mcp.strict_args import enforce_strict_arguments
+from dev10x.core.mcp._app import server
+from dev10x.core.mcp.strict_args import enforce_strict_arguments
 
 CLI_NAMESPACES: tuple[str, ...] = ("core", "coding", "comm", "tasks", "teach")
 
@@ -62,7 +62,7 @@ def __getattr__(name: str) -> Any:
 
 def main() -> None:
     from dev10x.core.diagnostic_log import configure_diagnostic_log
-    from dev10x.mcp.wiring import select_transport_with_daemon_fallback
+    from dev10x.core.mcp.wiring import select_transport_with_daemon_fallback
 
     configure_diagnostic_log(component="mcp")
     # The fallback returns one of FastMCP's documented transports; cast so

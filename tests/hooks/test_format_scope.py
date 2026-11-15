@@ -6,13 +6,14 @@ import json
 from pathlib import Path
 
 import pytest
-from dev10x.hooks.format_scope import (
+
+from dev10x.core.hooks.format_scope import (
     LineRange,
     describe_changes,
     edited_range,
     resolve_format_policy,
 )
-from dev10x.hooks.skill import RuffFormatHook
+from dev10x.core.hooks.skill import RuffFormatHook
 
 _REVERT_SUBJECT = """from datetime import (
     datetime,
@@ -146,7 +147,7 @@ class TestHookBehaviour:
             calls.append(list(args))
             return type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})()
 
-        monkeypatch.setattr("dev10x.hooks.skill.subprocess_utils.run", record)
+        monkeypatch.setattr("dev10x.core.hooks.skill.subprocess_utils.run", record)
         target = project / "mod.py"
         target.write_text(_REVERT_SUBJECT)
 
@@ -165,7 +166,7 @@ class TestHookBehaviour:
             calls.append(list(args))
             return type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})()
 
-        monkeypatch.setattr("dev10x.hooks.skill.subprocess_utils.run", record)
+        monkeypatch.setattr("dev10x.core.hooks.skill.subprocess_utils.run", record)
         target = project / "mod.py"
         target.write_text(_REVERT_SUBJECT)
 
@@ -187,7 +188,7 @@ class TestHookBehaviour:
             failed = "--range" in args
             return type("R", (), {"returncode": 2 if failed else 0, "stdout": "", "stderr": ""})()
 
-        monkeypatch.setattr("dev10x.hooks.skill.subprocess_utils.run", record)
+        monkeypatch.setattr("dev10x.core.hooks.skill.subprocess_utils.run", record)
         target = project / "mod.py"
         target.write_text(_REVERT_SUBJECT)
 
@@ -203,7 +204,7 @@ class TestHookBehaviour:
     ):
         calls: list[list[str]] = []
         monkeypatch.setattr(
-            "dev10x.hooks.skill.subprocess_utils.run",
+            "dev10x.core.hooks.skill.subprocess_utils.run",
             lambda args, **kwargs: calls.append(list(args)),
         )
         (tmp_path / "pyproject.toml").write_text("[project]\nname = 'x'\n")

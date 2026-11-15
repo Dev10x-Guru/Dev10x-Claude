@@ -7,7 +7,7 @@ shim so the skill-audit pipeline can still run analyze-permissions
 from a Bash entry point.
 
 The implementation reuses the parsers, classifiers, and writers
-defined in `dev10x.audit.friction_transcript_model` — keeping the
+defined in `dev10x.teach.audit.friction_transcript_model` — keeping the
 analysis logic inside the audit context (GH-244, I1 / ADR-0008)
 instead of importing up into the skills layer. This factory is the
 seam that lets MCP callers skip the subprocess hop and consume the
@@ -20,8 +20,8 @@ import io
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
-from dev10x.domain.claude_paths import ClaudeDir
-from dev10x.subprocess_utils import effective_cwd
+from dev10x.core.domain.claude_paths import ClaudeDir
+from dev10x.core.subprocess_utils import effective_cwd
 from dev10x.teach.audit.friction_transcript_model import (
     Finding,
     HygieneFinding,
@@ -70,7 +70,7 @@ def build_audit_report(
     """Build a permission-friction AuditReport from raw transcript text.
 
     Mirrors the composition in
-    `dev10x.skills.audit.analyze_permissions.main` but exposes the
+    `dev10x.teach.skills.audit.analyze_permissions.main` but exposes the
     result as data instead of writing to stdout/file.
     """
 
@@ -98,7 +98,7 @@ def build_audit_report(
 
     # GH-507: surface PreToolUse hook denials hidden in tool-result blocks
     # so MCP callers see HOOK_DENIAL findings, matching the standalone CLI
-    # path in dev10x.skills.audit.analyze_permissions.main.
+    # path in dev10x.teach.skills.audit.analyze_permissions.main.
     denials = detect_hook_denials(text=transcript)
     base_count = len(findings)
     findings.extend(

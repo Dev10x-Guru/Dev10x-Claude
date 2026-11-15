@@ -71,7 +71,7 @@ repos:
         pass_filenames: false
         always_run: true
 
-      # GH-1414: a PEP 723 script cannot import dev10x.subprocess_utils,
+      # GH-1414: a PEP 723 script cannot import dev10x.core.subprocess_utils,
       # so it must bound its own subprocess calls — otherwise a stalled
       # `gh` or a keyring daemon with no TTY hangs an unattended run
       # until morning.

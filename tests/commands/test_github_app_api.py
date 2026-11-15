@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from dev10x.commands import github_app_api as legacy
-from dev10x.github import app_api
+from dev10x.core.github import app_api
 
 
 @pytest.mark.parametrize("name", legacy.__all__)

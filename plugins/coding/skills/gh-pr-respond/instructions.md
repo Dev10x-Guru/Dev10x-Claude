@@ -456,7 +456,7 @@ is in use.
 
 ```python
 from pathlib import Path
-from dev10x.spec import detect_drift, DriftKind
+from dev10x.core.spec import detect_drift, DriftKind
 
 ticket_id = "<extracted from PR branch>"
 spec_path = Path(f"docs/specs/{ticket_id}.md")

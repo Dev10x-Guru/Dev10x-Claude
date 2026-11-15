@@ -8,7 +8,7 @@ working directory (see ``_effective_cwd`` / ``use_cwd`` below). Callers
 never reach for ``subprocess.run`` directly — going through this Gateway
 keeps CWD routing, timeout handling, output parsing, and concurrency
 shaping in a single layer. ADR-0013 names the pattern here and on
-``dev10x.github``.
+``dev10x.coding.github``.
 
 Environment variables
 ---------------------
@@ -33,7 +33,7 @@ from pathlib import Path
 from typing import Any
 from weakref import WeakKeyDictionary
 
-from dev10x.domain.cwd_resolver import set_cwd_resolver
+from dev10x.core.domain.cwd_resolver import set_cwd_resolver
 
 log = logging.getLogger(__name__)
 
@@ -579,7 +579,7 @@ def parse_key_value_output(text: str) -> dict[str, str]:
 
 
 # GH-584 (audit N21): wire the concrete effective-CWD resolver into the
-# domain seam so `dev10x.domain.git_context` resolves the bound worktree
+# domain seam so `dev10x.core.domain.git_context` resolves the bound worktree
 # without importing this infra module (ADR-0008 Rule #1). Infra → domain
 # is the allowed inward direction. `use_cwd` lives here too, so any code
 # that can bind a CWD has already imported this module and triggered the

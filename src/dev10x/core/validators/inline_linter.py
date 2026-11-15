@@ -13,7 +13,7 @@ repos, including Dev10x's own. Everyone lints through pre-commit.
 The block fires on an **invocation**, never on a mention: a linter name
 appearing as a search pattern, a ``--grep`` argument, or a path is not a
 linter being run (GH-1133). Segments come from the shared
-:func:`~dev10x.domain.common.bash_tokens.command_segments` (GH-1773).
+:func:`~dev10x.core.domain.common.bash_tokens.command_segments` (GH-1773).
 """
 
 from __future__ import annotations
@@ -22,13 +22,13 @@ import re
 from dataclasses import dataclass
 from typing import ClassVar
 
-from dev10x.domain import HookInput, HookResult
-from dev10x.domain.common.bash_tokens import (
+from dev10x.core.domain import HookInput, HookResult
+from dev10x.core.domain.common.bash_tokens import (
     UntokenizableCommandError,
     segment_programs,
 )
-from dev10x.domain.profile_tier import ProfileTier
-from dev10x.validators.base import ValidatorBase
+from dev10x.core.domain.profile_tier import ProfileTier
+from dev10x.core.validators.base import ValidatorBase
 
 # Linter/formatter executables blocked as inline invocations.
 LINTER_TOOLS = frozenset({"ruff", "black", "mypy", "isort", "eslint", "prettier"})

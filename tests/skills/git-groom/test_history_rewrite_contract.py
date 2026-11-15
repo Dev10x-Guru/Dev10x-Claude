@@ -15,7 +15,8 @@ import re
 from pathlib import Path
 
 import pytest
-from dev10x.domain.gate_policy import BASELINE_PRESET, GateContext, GateEffect, resolve_gate
+
+from dev10x.core.domain.gate_policy import BASELINE_PRESET, GateContext, GateEffect, resolve_gate
 
 _REPO_ROOT = Path(__file__).parents[3]
 _GROOM = _REPO_ROOT / "plugins/coding/skills/git-groom/instructions.md"

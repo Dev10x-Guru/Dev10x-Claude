@@ -7,8 +7,6 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
-from dev10x.domain.common.result import ErrorResult
-from dev10x.domain.dev10x_paths import CONFIG_HOME_ENV_VAR
 
 from dev10x.comm.chatbus.schema import MIGRATIONS, SCHEMA_VERSION
 from dev10x.comm.chatbus.store import (
@@ -18,6 +16,8 @@ from dev10x.comm.chatbus.store import (
     open_store,
     write_transaction,
 )
+from dev10x.core.domain.common.result import ErrorResult
+from dev10x.core.domain.dev10x_paths import CONFIG_HOME_ENV_VAR
 from tests.comm.chatbus.factories import expect_error, unwrap
 
 

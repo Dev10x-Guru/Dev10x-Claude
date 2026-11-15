@@ -17,7 +17,7 @@ from dev10x.comm.chatbus.backfill import Gap, open_gaps
 from dev10x.comm.chatbus.events import from_db_time, to_db_time
 from dev10x.comm.chatbus.queue import WorkStatus
 from dev10x.comm.chatbus.store import open_store
-from dev10x.domain.common.result import ErrorResult, Result, err, ok
+from dev10x.core.domain.common.result import ErrorResult, Result, err, ok
 
 log = logging.getLogger(__name__)
 

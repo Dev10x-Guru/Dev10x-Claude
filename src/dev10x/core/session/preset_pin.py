@@ -23,8 +23,8 @@ import logging
 import os
 from typing import Any
 
-from dev10x.domain.common.result import ErrorResult, Result, err, ok
-from dev10x.domain.documents.friction_yaml import (
+from dev10x.core.domain.common.result import ErrorResult, Result, err, ok
+from dev10x.core.domain.documents.friction_yaml import (
     PIN_SCOPES,
     FrictionYamlDocument,
     PinScope,
@@ -74,7 +74,7 @@ def _common_dir(*, cwd: str | None) -> str | None:
     The lookup itself lives on :attr:`GitContext.common_dir` (GH-1445);
     this stays as the seam the tests patch.
     """
-    from dev10x.domain.git_context import GitContext
+    from dev10x.core.domain.git_context import GitContext
 
     common = GitContext(cwd=cwd, timeout=_GIT_TIMEOUT_SECONDS).common_dir
     if common is None:
@@ -88,7 +88,7 @@ def _bounded_toplevel(*, cwd: str | None) -> str | None:
     Same degradation contract as :func:`_common_dir` — any failure is
     ``None``, never a raise (GH-1412).
     """
-    from dev10x.domain.git_context import GitContext
+    from dev10x.core.domain.git_context import GitContext
 
     toplevel = GitContext(cwd=cwd, timeout=_GIT_TIMEOUT_SECONDS).toplevel
     if toplevel is None:
@@ -199,12 +199,12 @@ def validate_pin_values(
     until someone re-pinned by hand. Fail fast at the write instead — the
     same guarantee ``_parse_gate_overrides`` already gives the CLI path.
     """
-    from dev10x.config.friction_presets import (
+    from dev10x.core.config.friction_presets import (
         load_shipped_overlays,
         load_shipped_presets,
         load_user_presets,
     )
-    from dev10x.domain.gate_policy import _ENUM_TOGGLES, SHIPPED_OVERLAYS, SHIPPED_PRESETS
+    from dev10x.core.domain.gate_policy import _ENUM_TOGGLES, SHIPPED_OVERLAYS, SHIPPED_PRESETS
 
     known_presets = set(load_shipped_presets() or SHIPPED_PRESETS) | set(load_user_presets())
     if preset not in known_presets:

@@ -6,10 +6,11 @@ from pathlib import Path
 
 import pytest
 import yaml
-from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR
-from dev10x.domain.common.result import ErrorResult, SuccessResult
-from dev10x.domain.dev10x_paths import CONFIG_HOME_ENV_VAR, Dev10xConfigDir
-from dev10x.domain.install_version import (
+
+from dev10x.core.domain.claude_paths import CLAUDE_HOME_ENV_VAR
+from dev10x.core.domain.common.result import ErrorResult, SuccessResult
+from dev10x.core.domain.dev10x_paths import CONFIG_HOME_ENV_VAR, Dev10xConfigDir
+from dev10x.core.domain.install_version import (
     InstallState,
     install_state,
     read_applied_version,
@@ -164,7 +165,7 @@ def test_record_upgrade_errors_when_unresolvable(
     claude_home: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
-    import dev10x.domain.install_version as iv_mod
+    import dev10x.core.domain.install_version as iv_mod
 
     monkeypatch.setattr(iv_mod, "_default_plugin_root", lambda: None)
     result = record_upgrade()
@@ -194,7 +195,7 @@ class TestReadLatestInstalledVersion:
     def test_returns_highest_semver_directory(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR, ClaudeDir
+        from dev10x.core.domain.claude_paths import CLAUDE_HOME_ENV_VAR, ClaudeDir
 
         cache_base = tmp_path / "plugins" / "cache" / "Dev10x-Guru" / "dev10x-claude"
         for ver in ("0.72.0", "0.76.0", "0.73.0"):
@@ -207,7 +208,7 @@ class TestReadLatestInstalledVersion:
     def test_returns_none_when_cache_absent(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR, ClaudeDir
+        from dev10x.core.domain.claude_paths import CLAUDE_HOME_ENV_VAR, ClaudeDir
 
         monkeypatch.setenv(CLAUDE_HOME_ENV_VAR, str(tmp_path))
         ClaudeDir.reset_cache()
@@ -217,7 +218,7 @@ class TestReadLatestInstalledVersion:
     def test_returns_none_when_cache_empty(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR, ClaudeDir
+        from dev10x.core.domain.claude_paths import CLAUDE_HOME_ENV_VAR, ClaudeDir
 
         cache_base = tmp_path / "plugins" / "cache" / "Dev10x-Guru" / "dev10x-claude"
         cache_base.mkdir(parents=True)

@@ -5,7 +5,8 @@ from __future__ import annotations
 import io
 
 import pytest
-from dev10x.hooks.base import AbstractHook, load_hook_stdin
+
+from dev10x.core.hooks.base import AbstractHook, load_hook_stdin
 
 
 class _RecordingHook(AbstractHook):
@@ -23,7 +24,7 @@ class TestRun:
         def _boom() -> dict:
             raise AssertionError("stdin must not be read when data is provided")
 
-        monkeypatch.setattr("dev10x.hooks.base.load_hook_stdin", _boom)
+        monkeypatch.setattr("dev10x.core.hooks.base.load_hook_stdin", _boom)
         hook = _RecordingHook()
 
         hook.run({"tool_input": {"skill": "dev10x:x"}})
@@ -31,7 +32,7 @@ class TestRun:
         assert hook.seen == {"tool_input": {"skill": "dev10x:x"}}
 
     def test_reads_stdin_when_data_is_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr("dev10x.hooks.base.load_hook_stdin", lambda: {"from": "stdin"})
+        monkeypatch.setattr("dev10x.core.hooks.base.load_hook_stdin", lambda: {"from": "stdin"})
         hook = _RecordingHook()
 
         hook.run(None)

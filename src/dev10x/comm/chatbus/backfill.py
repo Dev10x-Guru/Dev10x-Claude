@@ -63,7 +63,7 @@ from dev10x.comm.chatbus.sources.pubsub import (
     ensure_subscription,
 )
 from dev10x.comm.chatbus.store import write_transaction
-from dev10x.domain.common.result import ErrorResult, Result, err, ok
+from dev10x.core.domain.common.result import ErrorResult, Result, err, ok
 
 log = logging.getLogger(__name__)
 

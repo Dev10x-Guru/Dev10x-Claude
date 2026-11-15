@@ -20,7 +20,7 @@ from typing import Any
 
 import pytest
 
-from dev10x.skills.notifications import gchat_review_request as mod
+from dev10x.comm.skills.notifications import gchat_review_request as mod
 
 PR_URL = "https://github.com/org/my-app/pull/42"
 

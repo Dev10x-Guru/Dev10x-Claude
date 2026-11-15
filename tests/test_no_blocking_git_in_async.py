@@ -12,7 +12,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from dev10x.subprocess_utils import get_plugin_root
+from dev10x.core.subprocess_utils import get_plugin_root
 
 #: Accessors that shell out to git.
 _BLOCKING_ATTRS = frozenset({"toplevel", "branch", "common_dir"})

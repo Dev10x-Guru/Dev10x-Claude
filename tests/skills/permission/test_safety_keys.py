@@ -12,10 +12,10 @@ from collections.abc import Callable
 from pathlib import Path
 
 import pytest
-from dev10x.domain.common.result import ErrorResult, SuccessResult
 
-from dev10x.skills.permission import catalog_write
-from dev10x.skills.permission import safety_keys as mod
+from dev10x.core.domain.common.result import ErrorResult, SuccessResult
+from dev10x.core.skills.permission import catalog_write
+from dev10x.core.skills.permission import safety_keys as mod
 
 OPT_OUT_YAML = "safety_keys:\n  - disableBypassPermissionsMode\n"
 WritePolicy = Callable[[str | bytes], Path]

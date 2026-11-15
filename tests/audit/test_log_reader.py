@@ -1,4 +1,4 @@
-"""Unit tests for dev10x.audit.log_reader module (GH-143)."""
+"""Unit tests for dev10x.teach.audit.log_reader module (GH-143)."""
 
 from __future__ import annotations
 
@@ -7,7 +7,8 @@ import os
 from datetime import UTC, datetime
 from pathlib import Path
 
-from dev10x.audit.log_reader import (
+from dev10x.core.domain.hook_telemetry import HookOutcome, HookPhase
+from dev10x.teach.audit.log_reader import (
     AUDIT_DIR_ENV,
     AUDIT_ENABLE_ENV,
     SPAN_ID_ENV,
@@ -21,8 +22,7 @@ from dev10x.audit.log_reader import (
     new_span_id,
     summarize,
 )
-from dev10x.audit.summarizer import HookStatsQuery
-from dev10x.domain.hook_telemetry import HookOutcome, HookPhase
+from dev10x.teach.audit.summarizer import HookStatsQuery
 
 
 class TestAuditEnabled:
@@ -168,7 +168,7 @@ class TestAppendRecord:
         """E1: append_record uses os.open(O_APPEND) for POSIX append atomicity."""
         from unittest.mock import patch
 
-        with patch("dev10x.audit.log_reader.os.open", wraps=os.open) as mock_open:
+        with patch("dev10x.teach.audit.log_reader.os.open", wraps=os.open) as mock_open:
             append_record(record={"hook": "x"}, base_dir=tmp_path)
 
         assert mock_open.called

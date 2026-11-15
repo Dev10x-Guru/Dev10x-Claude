@@ -87,7 +87,7 @@ class TestPromptsRegistered:
 
     @pytest.mark.parametrize("name", ["review", "commit", "jtbd"])
     def test_prompt_is_registered(self, name: str) -> None:
-        from dev10x.mcp._app import server
+        from dev10x.core.mcp._app import server
 
         prompts = server._prompt_manager.list_prompts()
         names = [p.name for p in prompts]

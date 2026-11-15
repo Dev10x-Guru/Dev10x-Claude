@@ -22,13 +22,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from dev10x.skills.doctor.strategy import (
+from dev10x.core.skills.doctor.strategy import (
     Context,
     Finding,
     Remediation,
     Strategy,
 )
-from dev10x.skills.permission.enumerate_mcp import (
+from dev10x.core.skills.permission.enumerate_mcp import (
     McpServerEntry,
     build_capability_groups,
     discover_all_mcp_servers,

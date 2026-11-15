@@ -6,9 +6,10 @@ import json
 from pathlib import Path
 
 import pytest
-from dev10x.skills.doctor.registry import DEFAULT_STRATEGY_MODULES, load_strategies
-from dev10x.skills.doctor.strategies import home_in_additional_directories as strategy
-from dev10x.skills.doctor.strategy import Context
+
+from dev10x.core.skills.doctor.registry import DEFAULT_STRATEGY_MODULES, load_strategies
+from dev10x.core.skills.doctor.strategies import home_in_additional_directories as strategy
+from dev10x.core.skills.doctor.strategy import Context
 
 
 @pytest.fixture
@@ -21,7 +22,7 @@ def _write(path: Path, directories: list[str]) -> None:
 
 
 def test_strategy_is_registered():
-    assert "dev10x.skills.doctor.strategies.home_in_additional_directories" in (
+    assert "dev10x.core.skills.doctor.strategies.home_in_additional_directories" in (
         DEFAULT_STRATEGY_MODULES
     )
     assert any(s.id == "home-in-additional-directories" for s in load_strategies())

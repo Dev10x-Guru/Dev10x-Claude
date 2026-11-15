@@ -7,10 +7,10 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner, Result
-from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR
 
 from dev10x.commands.permission import remove
-from dev10x.skills.permission import backup, remove_rules
+from dev10x.core.domain.claude_paths import CLAUDE_HOME_ENV_VAR
+from dev10x.core.skills.permission import backup, remove_rules
 
 PERMISSIONS = {
     "allow": ["Read(a/Dev10x/**)", "Bash(git log:*)", "Read(b/Dev10x/**)"],
@@ -65,7 +65,7 @@ def env(
     context.settings_files = settings_files
     monkeypatch.setattr("dev10x.commands.permission._require_context", lambda **_kw: context)
     monkeypatch.setattr(
-        "dev10x.skills.permission.catalog_write._is_git_tracked",
+        "dev10x.core.skills.permission.catalog_write._is_git_tracked",
         lambda path: path in tracked_paths,
     )
 

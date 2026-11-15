@@ -5,14 +5,14 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from dev10x.domain.claude_paths import ClaudeDir
-from dev10x.domain.common.result import ok
-from dev10x.domain.dev10x_paths import CONFIG_HOME_ENV_VAR, Dev10xConfigDir
 from factory.random import reseed_random
 
 from dev10x.core.diagnostic_log import LOG_DIR_ENV as DIAGNOSTIC_LOG_DIR_ENV
 from dev10x.core.diagnostic_log import LOGGER_NAME as DIAGNOSTIC_LOGGER_NAME
-from dev10x.validators import reset_registry
+from dev10x.core.domain.claude_paths import ClaudeDir
+from dev10x.core.domain.common.result import ok
+from dev10x.core.domain.dev10x_paths import CONFIG_HOME_ENV_VAR, Dev10xConfigDir
+from dev10x.core.validators import reset_registry
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -167,7 +167,7 @@ def stub_feature_branch() -> Generator[MagicMock, None, None]:
     never the thing under test; the guard keeps its own ambient-independent
     coverage in ``TestCreatePrBaseBranchGuard``.
     """
-    with patch("dev10x.domain.git_context.GitContext") as mock_git_context:
+    with patch("dev10x.core.domain.git_context.GitContext") as mock_git_context:
         mock_git_context.return_value.branch = "janusz/GH-1124/test-isolation"
         yield mock_git_context
 
@@ -184,7 +184,7 @@ def stub_fixes_trailer_readback() -> Generator[AsyncMock, None, None]:
     contract as ``stub_feature_branch``: the guard keeps its own
     coverage in ``TestCreatePrFixesTrailerReadback``.
     """
-    with patch("dev10x.github.pulls.pr_get", new_callable=AsyncMock) as mock_pr_get:
+    with patch("dev10x.coding.github.pulls.pr_get", new_callable=AsyncMock) as mock_pr_get:
         mock_pr_get.return_value = ok({"body": "Story\n\nFixes: #1"})
         yield mock_pr_get
 

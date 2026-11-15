@@ -8,10 +8,10 @@ from datetime import date
 from pathlib import Path
 
 import pytest
-from dev10x.domain.common.result import ErrorResult, SuccessResult
-from dev10x.domain.dev10x_paths import Dev10xConfigDir
-from dev10x.domain.file_locks import LockTimeoutError
 
+from dev10x.core.domain.common.result import ErrorResult, SuccessResult
+from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.core.domain.file_locks import LockTimeoutError
 from dev10x.tasks.reflect import (
     NoteAction,
     NoteWrite,

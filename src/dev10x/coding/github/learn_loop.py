@@ -11,7 +11,7 @@ The Action's ``learn`` mode shells out to ``dev10x github learn`` (see
 ``dev10x.commands.github``), which owns stdout and the process exit code
 per ADR-0010. This module is the side-effect-bearing orchestrator: it
 returns ``Result[T]`` and never calls ``print`` or ``sys.exit``. Git and
-``gh`` invocations route through :func:`dev10x.subprocess_utils.async_run`
+``gh`` invocations route through :func:`dev10x.core.subprocess_utils.async_run`
 with an explicit ``cwd`` so the loop operates on the checked-out consumer
 workspace, not the process start directory.
 """
@@ -27,8 +27,8 @@ from typing import Any
 
 from dev10x.coding.github import rule_authoring
 from dev10x.coding.github.rule_authoring import RuleDoc
-from dev10x.domain.common.result import Result, SuccessResult, err, ok
-from dev10x.subprocess_utils import async_run
+from dev10x.core.domain.common.result import Result, SuccessResult, err, ok
+from dev10x.core.subprocess_utils import async_run
 
 log = logging.getLogger(__name__)
 

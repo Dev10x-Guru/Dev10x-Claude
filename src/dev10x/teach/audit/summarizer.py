@@ -12,7 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from dev10x.domain.hook_telemetry import HookOutcome, HookPhase
+from dev10x.core.domain.hook_telemetry import HookOutcome, HookPhase
 
 
 @dataclass(frozen=True)

@@ -74,7 +74,7 @@ on a profile tier), add an integration test:
 ```python
 def test_mcp_prefix_is_standard_tier():
     """Verify validator is registered at standard profile."""
-    from dev10x.validators import ValidatorRegistry
+    from dev10x.core.validators import ValidatorRegistry
     registry = ValidatorRegistry()
     active = registry.active(profile="standard")
     assert any("McpPrefixValidator" in type(v).__name__ for v in active)

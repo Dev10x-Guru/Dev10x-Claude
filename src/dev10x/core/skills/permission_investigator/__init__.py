@@ -24,13 +24,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from dev10x.skills.permission_investigator.matrix import (
+from dev10x.core.skills.permission_investigator.matrix import (
     Matrix,
     MatrixCell,
     MatrixResult,
     RuleShape,
 )
-from dev10x.skills.permission_investigator.report import Delta, compute_delta
+from dev10x.core.skills.permission_investigator.report import Delta, compute_delta
 
 __all__ = [
     "Delta",

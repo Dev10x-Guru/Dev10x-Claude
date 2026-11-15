@@ -12,7 +12,7 @@ divergence meant a new slug alias had to be added in three places, and
 permissive of the former three, so every consumer recognises every
 slug the others did. Compile call-site patterns from this fragment
 (combined with ``SEMVER_PATTERN`` from
-``dev10x.domain.common.plugin_version`` where a version is also
+``dev10x.core.domain.common.plugin_version`` where a version is also
 needed) rather than re-declaring the alternation locally.
 """
 

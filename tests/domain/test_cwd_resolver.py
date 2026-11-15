@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from dev10x.domain import cwd_resolver
+from dev10x.core.domain import cwd_resolver
 
 
 @pytest.fixture(autouse=True)
@@ -54,13 +54,13 @@ def test_git_context_does_not_import_subprocess_utils() -> None:
         / "domain"
         / "git_context.py"
     ).read_text()
-    assert "from dev10x.subprocess_utils import" not in source
-    assert "import dev10x.subprocess_utils" not in source
+    assert "from dev10x.core.subprocess_utils import" not in source
+    assert "import dev10x.core.subprocess_utils" not in source
 
 
 def test_infra_import_wires_resolver() -> None:
     """Importing subprocess_utils wires effective_cwd into the seam."""
-    import dev10x.subprocess_utils as su
+    import dev10x.core.subprocess_utils as su
 
     su  # imported for its module-load wiring side effect
     assert cwd_resolver._holder.get() is su.effective_cwd

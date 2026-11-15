@@ -11,7 +11,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from dev10x.skills.playbook import installed_plugin_roots, load_plugin_default
+from dev10x.core.skills.playbook import installed_plugin_roots, load_plugin_default
 
 ROOT = Path(__file__).resolve().parents[3]
 MAX_FRAGMENT_DEPTH = 3

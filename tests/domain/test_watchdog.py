@@ -10,9 +10,9 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from dev10x.domain.common.result import ErrorResult, SuccessResult, ok
 
-from dev10x.domain import watchdog
+from dev10x.core.domain import watchdog
+from dev10x.core.domain.common.result import ErrorResult, SuccessResult, ok
 
 NOW = datetime(2026, 9, 1, 6, 0, tzinfo=UTC)
 
@@ -24,7 +24,7 @@ def state_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     # exercised.
     config_home = tmp_path / "config"
     monkeypatch.setenv("DEV10X_CONFIG_HOME", str(config_home))
-    from dev10x.domain.dev10x_paths import Dev10xConfigDir
+    from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
 
     Dev10xConfigDir.reset_cache()
     return config_home / "watchdog-state.json"
@@ -118,7 +118,9 @@ class TestFindPausedRuns:
 
 class TestQuotaState:
     def test_block_available_when_none_active(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr("dev10x.domain.usage.blocks_report", lambda **_: ok({"blocks": []}))
+        monkeypatch.setattr(
+            "dev10x.core.domain.usage.blocks_report", lambda **_: ok({"blocks": []})
+        )
         result = watchdog.quota_state(now=NOW)
         assert isinstance(result, SuccessResult)
         assert result.value["block_available"] is True
@@ -127,7 +129,7 @@ class TestQuotaState:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(
-            "dev10x.domain.usage.blocks_report",
+            "dev10x.core.domain.usage.blocks_report",
             lambda **_: ok({"blocks": [{"id": "b1", "startTime": "2026-09-01T05:00:00Z"}]}),
         )
         result = watchdog.quota_state(now=NOW)
@@ -135,9 +137,11 @@ class TestQuotaState:
         assert result.value["block_available"] is False
 
     def test_propagates_a_reader_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        from dev10x.domain.common.result import err
+        from dev10x.core.domain.common.result import err
 
-        monkeypatch.setattr("dev10x.domain.usage.blocks_report", lambda **_: err("no transcripts"))
+        monkeypatch.setattr(
+            "dev10x.core.domain.usage.blocks_report", lambda **_: err("no transcripts")
+        )
         assert isinstance(watchdog.quota_state(now=NOW), ErrorResult)
 
     def test_injected_clock_reaches_the_reader(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -149,14 +153,14 @@ class TestQuotaState:
             seen.update(kwargs)
             return ok({"blocks": []})
 
-        monkeypatch.setattr("dev10x.domain.usage.blocks_report", _capture)
+        monkeypatch.setattr("dev10x.core.domain.usage.blocks_report", _capture)
         watchdog.quota_state(now=NOW)
         assert seen["now"] == NOW
 
 
 @pytest.fixture()
 def no_active_block(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("dev10x.domain.usage.blocks_report", lambda **_: ok({"blocks": []}))
+    monkeypatch.setattr("dev10x.core.domain.usage.blocks_report", lambda **_: ok({"blocks": []}))
 
 
 @pytest.fixture()
@@ -172,7 +176,7 @@ def fired(monkeypatch: pytest.MonkeyPatch) -> list[list[str]]:
 
         return _Done()
 
-    monkeypatch.setattr("dev10x.domain.watchdog.subprocess.run", _fake_run)
+    monkeypatch.setattr("dev10x.core.domain.watchdog.subprocess.run", _fake_run)
     return calls
 
 
@@ -187,7 +191,7 @@ class TestWake:
         # The block opened BEFORE the run went silent, so it is the run's
         # own block — a pause inside it is not a reset to wake for.
         monkeypatch.setattr(
-            "dev10x.domain.usage.blocks_report",
+            "dev10x.core.domain.usage.blocks_report",
             lambda **_: ok({"blocks": [{"id": "b1", "startTime": "2026-09-01T04:00:00Z"}]}),
         )
         _make_run(run_root, "night-a", silent_minutes=60)  # last beat 05:00Z
@@ -207,7 +211,7 @@ class TestWake:
         # is being used by them and wasted by the paused run — the exact
         # window GH-1109 is about, which "no active block" alone misses.
         monkeypatch.setattr(
-            "dev10x.domain.usage.blocks_report",
+            "dev10x.core.domain.usage.blocks_report",
             lambda **_: ok({"blocks": [{"id": "b2", "startTime": "2026-09-01T05:30:00Z"}]}),
         )
         _make_run(run_root, "night-a", silent_minutes=60)  # last beat 05:00Z
@@ -219,9 +223,9 @@ class TestWake:
     def test_propagates_a_quota_error(
         self, run_root: Path, monkeypatch: pytest.MonkeyPatch, state_path: Path
     ) -> None:
-        from dev10x.domain.common.result import err
+        from dev10x.core.domain.common.result import err
 
-        monkeypatch.setattr("dev10x.domain.usage.blocks_report", lambda **_: err("no data"))
+        monkeypatch.setattr("dev10x.core.domain.usage.blocks_report", lambda **_: err("no data"))
         _make_run(run_root, "night-a", silent_minutes=60)
         assert isinstance(
             watchdog.wake(run_roots=[run_root], wake_command=["nudge"], now=NOW),
@@ -240,7 +244,7 @@ class TestWake:
         def _timeout(*_a: Any, **_k: Any) -> Any:
             raise subprocess.TimeoutExpired(cmd="nudge", timeout=60)
 
-        monkeypatch.setattr("dev10x.domain.watchdog.subprocess.run", _timeout)
+        monkeypatch.setattr("dev10x.core.domain.watchdog.subprocess.run", _timeout)
         _make_run(run_root, "night-a", silent_minutes=60)
         result = watchdog.wake(run_roots=[run_root], wake_command=["nudge"], now=NOW)
         assert isinstance(result, SuccessResult)
@@ -256,7 +260,7 @@ class TestWake:
         def _missing(*_a: Any, **_k: Any) -> Any:
             raise FileNotFoundError("no such binary")
 
-        monkeypatch.setattr("dev10x.domain.watchdog.subprocess.run", _missing)
+        monkeypatch.setattr("dev10x.core.domain.watchdog.subprocess.run", _missing)
         _make_run(run_root, "night-a", silent_minutes=60)
         result = watchdog.wake(run_roots=[run_root], wake_command=["nudge"], now=NOW)
         assert isinstance(result, SuccessResult)
@@ -269,12 +273,12 @@ class TestWake:
         state_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        from dev10x.domain import file_locks
+        from dev10x.core.domain import file_locks
 
         def _no_lock(*_a: Any, **_k: Any) -> Any:
             raise file_locks.LockTimeoutError("contended")
 
-        monkeypatch.setattr("dev10x.domain.file_locks.file_lock", _no_lock)
+        monkeypatch.setattr("dev10x.core.domain.file_locks.file_lock", _no_lock)
         _make_run(run_root, "night-a", silent_minutes=60)
         assert isinstance(
             watchdog.wake(run_roots=[run_root], wake_command=["nudge"], now=NOW),
@@ -309,7 +313,7 @@ class TestWake:
         # Without a usable start time there is no way to tell whose block
         # this is, so leave the run alone rather than nudge on a guess.
         monkeypatch.setattr(
-            "dev10x.domain.usage.blocks_report", lambda **_: ok({"blocks": [active]})
+            "dev10x.core.domain.usage.blocks_report", lambda **_: ok({"blocks": [active]})
         )
         _make_run(run_root, "night-a", silent_minutes=60)
         result = watchdog.wake(run_roots=[run_root], wake_command=["nudge"], now=NOW)
@@ -405,7 +409,9 @@ class TestWake:
             returncode = 3
             stderr = "boom"
 
-        monkeypatch.setattr("dev10x.domain.watchdog.subprocess.run", lambda *a, **k: _Failed())
+        monkeypatch.setattr(
+            "dev10x.core.domain.watchdog.subprocess.run", lambda *a, **k: _Failed()
+        )
         run_dir = _make_run(run_root, "night-a", silent_minutes=60)
         result = watchdog.wake(run_roots=[run_root], wake_command=["nudge"], now=NOW)
         assert isinstance(result, SuccessResult)

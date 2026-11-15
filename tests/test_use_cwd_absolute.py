@@ -19,10 +19,10 @@ import os
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from dev10x.domain.common.result import ok
 
+from dev10x.core.domain.common.result import ok
+from dev10x.core.subprocess_utils import RelativeCwdError, effective_cwd, use_cwd
 from dev10x.mcp import server_cli as cli_server
-from dev10x.subprocess_utils import RelativeCwdError, effective_cwd, use_cwd
 
 
 class TestUseCwdRejectsARelativePath:
@@ -110,7 +110,7 @@ class TestRunNodeTestsReportsWhereItRan:
     """A green payload must say which tree produced it (GH-1264)."""
 
     @pytest.mark.asyncio
-    @patch("dev10x.runner.run_node_tests", new_callable=AsyncMock)
+    @patch("dev10x.coding.runner.run_node_tests", new_callable=AsyncMock)
     async def test_the_payload_echoes_the_bound_cwd(self, mock_fn: AsyncMock, tmp_path) -> None:
         mock_fn.return_value = _node_ok()
 
@@ -119,7 +119,7 @@ class TestRunNodeTestsReportsWhereItRan:
         assert result["cwd"] == str(tmp_path)
 
     @pytest.mark.asyncio
-    @patch("dev10x.runner.run_node_tests", new_callable=AsyncMock)
+    @patch("dev10x.coding.runner.run_node_tests", new_callable=AsyncMock)
     async def test_an_unbound_run_reports_the_process_directory(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = _node_ok()
 
@@ -128,7 +128,7 @@ class TestRunNodeTestsReportsWhereItRan:
         assert result["cwd"] == os.getcwd()
 
     @pytest.mark.asyncio
-    @patch("dev10x.runner.run_node_tests", new_callable=AsyncMock)
+    @patch("dev10x.coding.runner.run_node_tests", new_callable=AsyncMock)
     async def test_a_relative_cwd_never_reaches_the_runner(self, mock_fn: AsyncMock) -> None:
         # The defect was a run that HAPPENED against the wrong tree, so
         # refusing after launching it would fix nothing.

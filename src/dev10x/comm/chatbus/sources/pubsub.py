@@ -38,7 +38,7 @@ from dev10x.comm.chatbus.ingest import ingest_events
 from dev10x.comm.chatbus.snapshot import remember_reactions
 from dev10x.comm.chatbus.store import write_transaction
 from dev10x.comm.skills.notifications.gchat_watch import parse_time
-from dev10x.domain.common.result import ErrorResult, Result, err, ok
+from dev10x.core.domain.common.result import ErrorResult, Result, err, ok
 
 log = logging.getLogger(__name__)
 
