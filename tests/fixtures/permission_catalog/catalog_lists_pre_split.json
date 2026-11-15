@@ -188,6 +188,7 @@
     "Edit(//tmp/Dev10x/**)",
     "Read(//tmp/Dev10x/**)",
     "Read(~/.claude/memory/Dev10x/**)",
+    "Skill(dev10x-coding:*)",
     "Skill(dev10x-comm:*)",
     "Skill(dev10x-db:*)",
     "Skill(dev10x-infra:*)",

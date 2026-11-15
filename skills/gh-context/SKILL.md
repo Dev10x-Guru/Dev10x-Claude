@@ -3,7 +3,7 @@ name: dev10x:gh-context
 invocation-name: dev10x:gh-context
 description: >
   Detect PR context (number, repo, URL, branch) from a URL, PR number,
-  or current branch — so skills like dev10x:gh-pr-monitor always get the
+  or current branch — so skills like dev10x-coding:gh-pr-monitor always get the
   correct target PR even in multi-worktree setups.
   TRIGGER when: resolving PR context from URL, number, or branch for
   downstream skills.

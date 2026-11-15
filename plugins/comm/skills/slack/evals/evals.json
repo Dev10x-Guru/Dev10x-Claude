@@ -73,7 +73,7 @@
       },
       {
         "query": "post a review request for this PR",
-        "rationale": "Use dev10x:slack-review-request, which composes the message and gate for that purpose"
+        "rationale": "Use dev10x-coding:slack-review-request, which composes the message and gate for that purpose"
       }
     ]
   }

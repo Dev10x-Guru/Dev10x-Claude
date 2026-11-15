@@ -54,14 +54,14 @@ Mark completed when done: `TaskUpdate(taskId, status="completed")`
 
 ## Execution Mode (GH-1704)
 
-Detected the same way `dev10x:git-commit` detects it. **Unattended**
+Detected the same way `dev10x-coding:git-commit` detects it. **Unattended**
 mode applies only when **both** hold:
 
 1. The skill was invoked via `Skill(dev10x-scoping:ticket-create)` by another
    skill or agent, not typed by the user as `/dev10x-scoping:ticket-create`.
 2. The caller is executing a plan step with an active task list
-   (an orchestrator such as `dev10x:work-on`, `dev10x-teach:audit-file`,
-   or a `dev10x:foreman` crew).
+   (an orchestrator such as `dev10x-coding:work-on`, `dev10x-teach:audit-file`,
+   or a `dev10x-coding:foreman` crew).
 
 When either is absent — including any direct `/dev10x-scoping:ticket-create`
 — run **attended**. When in doubt, run attended. Only the Step 4e
@@ -117,8 +117,8 @@ milestone/label triage, and tracker-detection. Always reach for
 dispatch the appropriate MCP tool internally.
 
 **This binds every filing path (GH-1102).** `dev10x-teach:audit-file`,
-`dev10x:work-on` follow-up filing, `dev10x:diag-friction` upstream
-filing, and `dev10x:foreman` crew filing all route here rather than
+`dev10x-coding:work-on` follow-up filing, `dev10x:diag-friction` upstream
+filing, and `dev10x-coding:foreman` crew filing all route here rather than
 calling `issue_create` bare — otherwise each one re-invents (or
 skips) Step 4 and the backlog goes back to needing sweeps. A caller
 that already knows the milestone and labels still routes through

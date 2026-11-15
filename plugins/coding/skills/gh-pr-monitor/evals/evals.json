@@ -1,5 +1,5 @@
 {
-  "skill_name": "dev10x:gh-pr-monitor",
+  "skill_name": "dev10x-coding:gh-pr-monitor",
   "eval_dimensions": [
     {
       "id": "model-tier",
@@ -29,7 +29,7 @@
     {
       "id": "qa-gate",
       "name": "QA Scope Gate",
-      "description": "Phase 2.5 delegates to Skill(dev10x:qa-scope), which always presents a QA assessment via AskUserQuestion once Phase 2 completes."
+      "description": "Phase 2.5 delegates to Skill(dev10x-coding:qa-scope), which always presents a QA assessment via AskUserQuestion once Phase 2 completes."
     },
     {
       "id": "infra-failure-escalation",
@@ -47,7 +47,7 @@
       "id": "ci-poll-uses-haiku-tier",
       "name": "CI polling runs at the haiku tier",
       "description": "CI is polled via ci_check_status(wait=true) or a haiku-ci-poll micro-agent. Any dispatched poller uses model=haiku — never sonnet or opus for mechanical polling.",
-      "input": "/dev10x:gh-pr-monitor",
+      "input": "/dev10x-coding:gh-pr-monitor",
       "assertions": [
         {
           "dimension": "model-tier",
@@ -66,7 +66,7 @@
       "id": "thread-scan-uses-haiku-tier",
       "name": "Thread scan runs at the haiku tier and is read-only",
       "description": "The haiku-thread-scan micro-agent enumerates unresolved surfaces at model=haiku with a read-only tool allowlist — it cannot Edit/Write, push, or invoke Skill().",
-      "input": "/dev10x:gh-pr-monitor",
+      "input": "/dev10x-coding:gh-pr-monitor",
       "assertions": [
         {
           "dimension": "model-tier",
@@ -79,7 +79,7 @@
       "id": "notify-gate-ask-fires-askuserquestion",
       "name": "external_notify ask effect fires AskUserQuestion",
       "description": "When resolve_gate(external_notify) returns effect=ask, the notification phase fires AskUserQuestion showing the exact message before posting — no plain-text 'post notification?' substitute.",
-      "input": "/dev10x:gh-pr-monitor",
+      "input": "/dev10x-coding:gh-pr-monitor",
       "assertions": [
         {
           "dimension": "notify-gate-escalation",
@@ -104,7 +104,7 @@
       "id": "notify-gate-auto-advance-no-prompt",
       "name": "external_notify auto-advance posts without prompting",
       "description": "When resolve_gate(external_notify) returns effect=auto-advance, the notification is posted without firing AskUserQuestion, and the returned record line is surfaced to the transcript.",
-      "input": "/dev10x:gh-pr-monitor",
+      "input": "/dev10x-coding:gh-pr-monitor",
       "assertions": [
         {
           "dimension": "notify-gate-escalation",
@@ -123,7 +123,7 @@
       "id": "readiness-recheck-before-ready",
       "name": "Post-CI re-check runs before marking ready",
       "description": "After CI is green, haiku-thread-scan re-scans for comments before the PR is marked ready. The PR is marked ready only when all four arrays are empty.",
-      "input": "/dev10x:gh-pr-monitor",
+      "input": "/dev10x-coding:gh-pr-monitor",
       "assertions": [
         {
           "dimension": "readiness-gate",
@@ -141,7 +141,7 @@
       "id": "needs-disposition-blocks-ready",
       "name": "Non-blocking INFO still blocks readiness",
       "description": "A non-empty needs_disposition array (a non-blocking INFO with no Re: reply) prevents the readiness gate from passing — it must be addressed or explicitly deferred first (GH-808 F1).",
-      "input": "/dev10x:gh-pr-monitor",
+      "input": "/dev10x-coding:gh-pr-monitor",
       "assertions": [
         {
           "dimension": "readiness-gate",
@@ -153,14 +153,14 @@
     {
       "id": "qa-gate-always-runs",
       "name": "Phase 2.5 delegates to qa-scope",
-      "description": "Once Phase 2 completes, Phase 2.5 invokes Skill(dev10x:qa-scope), which presents its QA assessment via AskUserQuestion.",
-      "input": "/dev10x:gh-pr-monitor",
+      "description": "Once Phase 2 completes, Phase 2.5 invokes Skill(dev10x-coding:qa-scope), which presents its QA assessment via AskUserQuestion.",
+      "input": "/dev10x-coding:gh-pr-monitor",
       "assertions": [
         {
           "dimension": "qa-gate",
           "check": "tool_called",
           "tool": "Skill",
-          "signal": "Skill(dev10x:qa-scope) is invoked in Phase 2.5, not skipped or inlined"
+          "signal": "Skill(dev10x-coding:qa-scope) is invoked in Phase 2.5, not skipped or inlined"
         }
       ]
     },
@@ -168,7 +168,7 @@
       "id": "infra-unavailable-escalates",
       "name": "Recurring infra_unavailable escalates via AskUserQuestion",
       "description": "An infra_unavailable verdict is re-probed via ci_check_status(wait=true); on recurrence the supervisor fires AskUserQuestion (keep waiting / escalate) instead of treating CI as failing.",
-      "input": "/dev10x:gh-pr-monitor",
+      "input": "/dev10x-coding:gh-pr-monitor",
       "assertions": [
         {
           "dimension": "infra-failure-escalation",
@@ -187,7 +187,7 @@
       "id": "monitor-does-not-merge",
       "name": "Monitor does not merge the PR",
       "description": "The monitor's scope ends at review request plus acceptance verification. It never merges.",
-      "input": "/dev10x:gh-pr-monitor",
+      "input": "/dev10x-coding:gh-pr-monitor",
       "assertions": [
         {
           "dimension": "no-merge",
@@ -199,8 +199,8 @@
     {
       "id": "unattended-monitor-passes-unattended",
       "name": "An unattended monitor passes --unattended to request-review",
-      "description": "GH-1890, GH-1921: dev10x:work-on runs the monitor as its 'Monitor CI' plan step, so the Step 2 resolve_gate payload carries run_mode {mode: unattended, basis: plan-step-in-progress}. Phase 3 Step 3a must call dev10x:request-review with --unattended; without it request-review treats the call as attended and may fire its readiness widget.",
-      "input": "Skill(skill=\"dev10x:gh-pr-monitor\") — called by dev10x:work-on while executing its 'Monitor CI' plan step; resolve_gate returns run_mode {\"mode\": \"unattended\", \"basis\": \"plan-step-in-progress\"}",
+      "description": "GH-1890, GH-1921: dev10x-coding:work-on runs the monitor as its 'Monitor CI' plan step, so the Step 2 resolve_gate payload carries run_mode {mode: unattended, basis: plan-step-in-progress}. Phase 3 Step 3a must call dev10x-coding:request-review with --unattended; without it request-review treats the call as attended and may fire its readiness widget.",
+      "input": "Skill(skill=\"dev10x-coding:gh-pr-monitor\") — called by dev10x-coding:work-on while executing its 'Monitor CI' plan step; resolve_gate returns run_mode {\"mode\": \"unattended\", \"basis\": \"plan-step-in-progress\"}",
       "assertions": [
         {
           "dimension": "run-mode",
@@ -211,7 +211,7 @@
           "dimension": "notify-gate-escalation",
           "check": "tool_called",
           "tool": "Skill",
-          "signal": "dev10x:request-review is invoked with args containing --unattended"
+          "signal": "dev10x-coding:request-review is invoked with args containing --unattended"
         },
         {
           "dimension": "notify-gate-escalation",
@@ -223,13 +223,13 @@
     {
       "id": "attended-monitor-omits-unattended",
       "name": "An attended monitor calls request-review without the flag",
-      "description": "GH-1890: the supervisor invoked /dev10x:gh-pr-monitor directly, with no --unattended flag and no orchestrator plan step, so the run is attended. Step 3a calls dev10x:request-review without --unattended, leaving its readiness widget free to fire.",
-      "input": "/dev10x:gh-pr-monitor",
+      "description": "GH-1890: the supervisor invoked /dev10x-coding:gh-pr-monitor directly, with no --unattended flag and no orchestrator plan step, so the run is attended. Step 3a calls dev10x-coding:request-review without --unattended, leaving its readiness widget free to fire.",
+      "input": "/dev10x-coding:gh-pr-monitor",
       "assertions": [
         {
           "dimension": "notify-gate-escalation",
           "check": "behavioral",
-          "signal": "dev10x:request-review is invoked with '--pr {n} --repo {repo}' and no --unattended"
+          "signal": "dev10x-coding:request-review is invoked with '--pr {n} --repo {repo}' and no --unattended"
         }
       ]
     },
@@ -237,7 +237,7 @@
       "id": "unattended-notify-ask-skips-widget",
       "name": "An unattended monitor never fires the notification widget",
       "description": "GH-1911: the monitor was invoked with --unattended and resolve_gate(external_notify) returns effect=ask. Nobody is watching, so Phase 3 Step 2 treats ask as skip: no AskUserQuestion, checklist-only Step 4, and a 'Notification: skipped' report line.",
-      "input": "/dev10x:gh-pr-monitor 123 --unattended",
+      "input": "/dev10x-coding:gh-pr-monitor 123 --unattended",
       "assertions": [
         {
           "dimension": "notify-gate-escalation",
@@ -267,12 +267,12 @@
       "id": "undetermined-run-mode-is-attended-and-reported",
       "name": "An undetermined run mode is treated as attended and said so",
       "description": "GH-1921: no --unattended flag, and resolve_gate(external_notify) returns run_mode {mode: undetermined, basis: no-plan-mirror}. Step 3a treats the run as attended, calls request-review without the flag, and prints the undetermined line instead of presenting the mode as settled.",
-      "input": "/dev10x:gh-pr-monitor 123 — resolve_gate returns run_mode {\"mode\": \"undetermined\", \"basis\": \"no-plan-mirror\"}",
+      "input": "/dev10x-coding:gh-pr-monitor 123 — resolve_gate returns run_mode {\"mode\": \"undetermined\", \"basis\": \"no-plan-mirror\"}",
       "assertions": [
         {
           "dimension": "run-mode",
           "check": "behavioral",
-          "signal": "dev10x:request-review is invoked with '--pr 123 --repo {repo}' and no --unattended"
+          "signal": "dev10x-coding:request-review is invoked with '--pr 123 --repo {repo}' and no --unattended"
         },
         {
           "dimension": "run-mode",
@@ -285,8 +285,8 @@
     {
       "id": "review-stop-read-from-status",
       "name": "Step 3a branches on the result status, not on prose",
-      "description": "GH-1921: dev10x:request-review refused because CI went red. Its prose never says 'Readiness: stopped', but its last line is review_request_result: {\"status\": \"stopped\", ...}. Step 3a parses the status, skips Step 3b and reports the reasons.",
-      "input": "/dev10x:gh-pr-monitor 123 --unattended — request-review output ends with 'review_request_result: {\"status\": \"stopped\", \"pr\": 123, \"reasons\": [\"CI failure: lint (failure)\"]}'",
+      "description": "GH-1921: dev10x-coding:request-review refused because CI went red. Its prose never says 'Readiness: stopped', but its last line is review_request_result: {\"status\": \"stopped\", ...}. Step 3a parses the status, skips Step 3b and reports the reasons.",
+      "input": "/dev10x-coding:gh-pr-monitor 123 --unattended — request-review output ends with 'review_request_result: {\"status\": \"stopped\", \"pr\": 123, \"reasons\": [\"CI failure: lint (failure)\"]}'",
       "assertions": [
         {
           "dimension": "structured-result",
@@ -304,8 +304,8 @@
     {
       "id": "review-result-missing-is-unknown",
       "name": "A missing result line is never read as a sent request",
-      "description": "GH-1921: dev10x:request-review's output has no review_request_result line. Step 3a cannot tell whether anyone was asked, so it skips Step 3b and reports the result as unknown rather than claiming review was requested.",
-      "input": "/dev10x:gh-pr-monitor 123 --unattended — request-review output carries no review_request_result line",
+      "description": "GH-1921: dev10x-coding:request-review's output has no review_request_result line. Step 3a cannot tell whether anyone was asked, so it skips Step 3b and reports the result as unknown rather than claiming review was requested.",
+      "input": "/dev10x-coding:gh-pr-monitor 123 --unattended — request-review output carries no review_request_result line",
       "assertions": [
         {
           "dimension": "structured-result",
@@ -325,7 +325,7 @@
     "description": "Queries that should/should-not trigger the gh-pr-monitor skill",
     "should_trigger": [
       {
-        "query": "/dev10x:gh-pr-monitor",
+        "query": "/dev10x-coding:gh-pr-monitor",
         "rationale": "Direct invocation — runs the Phase 0-4 monitoring loop"
       },
       {
@@ -340,15 +340,15 @@
     "should_not_trigger": [
       {
         "query": "create a PR for my current branch",
-        "rationale": "PR creation — use dev10x:gh-pr-create first"
+        "rationale": "PR creation — use dev10x-coding:gh-pr-create first"
       },
       {
         "query": "merge PR #42 now that checks pass",
-        "rationale": "Merge is out of scope — use dev10x:gh-pr-merge"
+        "rationale": "Merge is out of scope — use dev10x-coding:gh-pr-merge"
       },
       {
         "query": "respond to the review comments on my PR",
-        "rationale": "Direct comment response — use dev10x:gh-pr-respond"
+        "rationale": "Direct comment response — use dev10x-coding:gh-pr-respond"
       }
     ]
   }

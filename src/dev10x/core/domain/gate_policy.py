@@ -292,7 +292,7 @@ class GateResolution:
 _FLOOR_REMEDIES = {
     "supervisor_review": (
         "the supervisor reads this PR before the next step — add the "
-        "review:cleared label once they have (dev10x:gh-pr-request-review "
+        "review:cleared label once they have (dev10x-coding:gh-pr-request-review "
         "writes it), or set supervisor_review: none in the matching "
         "projects[] entry of ~/.config/Dev10x/friction.yaml if they do not"
     ),

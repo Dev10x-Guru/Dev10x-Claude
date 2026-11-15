@@ -181,7 +181,6 @@ base_permissions:
   - "mcp__plugin_dev10x_cli__detect_tracker"
   - "mcp__plugin_dev10x_cli__pr_detect"
   - "mcp__plugin_dev10x_cli__issue_get"
-  - "mcp__plugin_dev10x_cli__issue_comments"
   - "mcp__plugin_dev10x_cli__issue_comment_edit"
   - "mcp__plugin_dev10x_cli__issue_comment_delete"
   - "mcp__plugin_dev10x_cli__issue_create"

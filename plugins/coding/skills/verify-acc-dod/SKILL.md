@@ -1,5 +1,5 @@
 ---
-name: dev10x:verify-acc-dod
+name: dev10x-coding:verify-acc-dod
 description: >
   Verify that definition-of-done / acceptance criteria are met before
   closing a task list. Loads executable checks from plugin defaults,
@@ -10,11 +10,11 @@ description: >
   DO NOT TRIGGER when: mid-implementation, or task list has incomplete
   items.
 user-invocable: true
-invocation-name: dev10x:verify-acc-dod
+invocation-name: dev10x-coding:verify-acc-dod
 allowed-tools:
   - AskUserQuestion
-  - Skill(dev10x:gh-pr-monitor)
-  - Skill(dev10x:git-groom)
+  - Skill(dev10x-coding:gh-pr-monitor)
+  - Skill(dev10x-coding:git-groom)
   - Bash(gh:*)
   - Bash(git status:*)
   - Bash(git log:*)
@@ -308,7 +308,7 @@ than re-deriving the matrix:
 | PR state | Blocking checks | Recommended | On auto-advance |
 |----------|-----------------|-------------|-----------------|
 | Merged / no PR | pass | **Work complete** | auto-complete |
-| Open, awaiting review | pass | **Monitor for review** (→ `dev10x:gh-pr-monitor`, ~5 min) | auto-start monitor (background) |
+| Open, awaiting review | pass | **Monitor for review** (→ `dev10x-coding:gh-pr-monitor`, ~5 min) | auto-start monitor (background) |
 | Any | fail / pending | **Go back** | Go back |
 
 "Blocking checks" are the automated/manual criteria above (CI, draft
@@ -337,7 +337,7 @@ resolved recommendation is always the first, Recommended option:
 
 *Recommendation **Monitor for review*** (open PR, otherwise green):
 - **"Monitor for review" (Recommended)** — Keep the session open;
-  dispatch `dev10x:gh-pr-monitor` to background-watch the PR every
+  dispatch `dev10x-coding:gh-pr-monitor` to background-watch the PR every
   ~5 min and surface review comments / ready-to-merge
 - **"Keep open (manual)"** — Leave the session open, no auto-monitor
 - **"Override — complete anyway"** — Accept the unmerged PR as done
@@ -356,12 +356,12 @@ visible:
 - **Work complete** (merged / PR-less, all checks pass) →
   auto-complete
 - **Monitor for review** (open PR, otherwise green) → dispatch
-  `Skill(dev10x:gh-pr-monitor)` in the background and keep the
+  `Skill(dev10x-coding:gh-pr-monitor)` in the background and keep the
   session open. The residual terminal task becomes **"Monitor PR
   #<N> for review / merge"** — do NOT auto-complete.
 - **Go back** (any check fails/pending) → report failures to the
   parent orchestrator for resolution
-- **Go back on "No fixup commits"** → invoke `Skill(dev10x:git-groom)`
+- **Go back on "No fixup commits"** → invoke `Skill(dev10x-coding:git-groom)`
   directly, then re-run this skill. Squashing fixups is the known next
   action, not a decision, so a hand-off that leaves `fixup!` commits
   on the branch is never an option here (GH-1656)
@@ -405,12 +405,12 @@ explicitly chooses "Work complete" (or runs `dev10x-tasks:session-wrap-up`).
 with a pending human review can satisfy every automated check while the
 session is still live. The Decision Gate makes this concrete (GH-729):
 while the PR is open/unmerged, the recommended action is **Monitor for
-review** (→ `dev10x:gh-pr-monitor`), never "Work complete".
+review** (→ `dev10x-coding:gh-pr-monitor`), never "Work complete".
 
 The empty-task-list guard (`hooks/scripts/task-guard.py`, GH-149)
 enforces this: it **refuses** a `TaskUpdate` that marks the terminal
 Verify-AC task — or the last remaining open task — `completed`/`deleted`
-in a `dev10x:work-on` session. When the supervisor has confirmed
+in a `dev10x-coding:work-on` session. When the supervisor has confirmed
 completion, close the task with the deliberate marker so the guard
 allows it:
 
@@ -431,8 +431,8 @@ empty mid-session.
 ## Integration
 
 ```
-dev10x:work-on → ... → dev10x:verify-acc-dod (last step)
-dev10x:fanout  → ... → dev10x:verify-acc-dod (last step)
+dev10x-coding:work-on → ... → dev10x-coding:verify-acc-dod (last step)
+dev10x-coding:fanout  → ... → dev10x-coding:verify-acc-dod (last step)
 ```
 
 Callers pass the work type and let this skill handle criteria

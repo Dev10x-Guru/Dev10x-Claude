@@ -29,7 +29,12 @@ command_spellings:
       - dev10x ci-review  # GH-1621
 
 base_permissions:
+  # --- dev10x-coding skills (GH-1572) ---
+  - "Skill(dev10x-coding:*)"
   # --- Dev10x MCP tools: cli server (GH-878) ---
+  # GH-1572: gh-pr-create reads a ticket's comments through this tool
+  # now that core's gh-context scripts sit outside the satellite's root.
+  - "mcp__plugin_dev10x_cli__issue_comments"
   - "mcp__plugin_dev10x_cli__pr_comment_reply"
   - "mcp__plugin_dev10x_cli__pr_review_comment_edit"
   - "mcp__plugin_dev10x_cli__request_review"
@@ -62,7 +67,7 @@ base_permissions:
   - "mcp__plugin_dev10x_cli__audit_handoff_report"
   - "mcp__plugin_dev10x_cli__reconcile_fixes_links"
   - "mcp__plugin_dev10x_cli__review_stamp_write"
-  # Read-only worktree classifier behind dev10x:git-worktree-prune (GH-1930)
+  # Read-only worktree classifier behind dev10x-coding:git-worktree-prune (GH-1930)
   - "mcp__plugin_dev10x_cli__worktree_prune_candidates"
   # Test runner (GH-880, #877 E3 gap 1) — the diag-friction steer target
   # for scoped py tests; `run_node_tests` stays in core.
@@ -177,7 +182,7 @@ base_permissions:
   - "Bash(ssh -T git@github.com)"
 
   # --- Git aliases (GH-852, GH-853) ---
-  # All base branch aliases from dev10x:git-alias-setup.
+  # All base branch aliases from dev10x-coding:git-alias-setup.
   # Preserved at project level as safety anchors — they enable
   # hook feedback and branch-specific allow rules.
   - "Bash(git develop-log:*)"

@@ -1,10 +1,10 @@
 """Validator: ship actions need a review stamp at the PR head (DX019, GH-1830).
 
-The pre-merge checks in ``dev10x:gh-pr-merge`` are skill text, and a long
+The pre-merge checks in ``dev10x-coding:gh-pr-merge`` are skill text, and a long
 or compacted session can skip them: a field-tested workflow recorded a PR
 merged with no review because the session forgot. This validator moves
 the one check that matters most into a hook. ``merge_pr``, ``pr_ready``
-and ``request_review`` are denied unless a clean ``dev10x:review`` round
+and ``request_review`` are denied unless a clean ``dev10x-coding:review`` round
 stamped the PR's current head (see ``dev10x.domain.review_stamp``).
 
 Scope:
@@ -15,7 +15,7 @@ Scope:
 * The gate applies only where the repo's ``friction.yaml`` entry says
   ``review_stamp: required``; absent or ``none`` leaves the tools alone,
   so installing the plugin never walls a repo that does not use
-  ``dev10x:review``. The setting is read the way DX017 reads its own:
+  ``dev10x-coding:review``. The setting is read the way DX017 reads its own:
   file reads only, worktree first, main checkout second.
 * The gate applies when either the hook's own checkout or an absolute
   ``tool_input.cwd`` checkout requires it, so a caller-chosen ``cwd``
@@ -67,7 +67,7 @@ _GIT_TIMEOUT_SECONDS = 5.0
 _SUBPROCESS_FAILURES = (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError)
 
 _RERUN_HINT = (
-    "Run `dev10x:review --loop` on that branch at this head; a clean round "
+    "Run `dev10x-coding:review --loop` on that branch at this head; a clean round "
     "records the stamp through `review_stamp_write`. To lift the gate for "
     "this repo set `review_stamp: none` in its friction.yaml entry, or for "
     "this session `DEV10X_HOOK_DISABLE=DX019`."

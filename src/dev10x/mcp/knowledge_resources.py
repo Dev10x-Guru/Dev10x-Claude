@@ -33,6 +33,7 @@ from pathlib import Path
 
 from dev10x.core.skills.playbook.discovery import (
     SHARED_DEFAULT_RELATIVE,
+    installed_plugin_roots,
     shared_fragment_directories,
 )
 from dev10x.mcp._app import server
@@ -72,22 +73,39 @@ def skill_playbook(skill_name: str) -> str:
     if invalid := _reject_traversal(name=skill_name):
         return invalid
     root = get_plugin_root()
-    path = root / "skills" / skill_name / "references" / "playbook.yaml"
+    plugin_roots = installed_plugin_roots(core_root=root)
+    path = _dedicated_playbook(skill_name=skill_name, plugin_roots=plugin_roots)
     if path != root / SHARED_DEFAULT_RELATIVE or not path.exists():
         return _read_file(path)
-    return _shared_default_text(root=root, path=path)
+    return _shared_default_text(plugin_roots=plugin_roots, path=path)
 
 
-def _shared_default_text(*, root: Path, path: Path) -> str:
+def _dedicated_playbook(*, skill_name: str, plugin_roots: list[Path]) -> Path:
+    # GH-1572: a satellite ships its own skills' playbooks (dev10x-coding
+    # holds gh-pr-respond, investigate and release-notes since B9).
+    candidates = [
+        root / "skills" / skill_name / "references" / "playbook.yaml" for root in plugin_roots
+    ]
+    return next((path for path in candidates if path.exists()), candidates[0])
+
+
+def _shared_default_text(*, plugin_roots: list[Path], path: Path) -> str:
     # GH-1555: the shared default is a core file plus per-plugin fragments
     # with disjoint top-level keys, so appending them keeps every comment
     # and still parses to the merged document.
     parts = [path.read_text(encoding="utf-8")]
-    for directory in shared_fragment_directories(plugin_roots=[root]):
+    for directory in shared_fragment_directories(plugin_roots=plugin_roots):
         for fragment in sorted(directory.glob("*.yaml")):
-            relative = fragment.relative_to(root)
+            relative = _relative_to_any(path=fragment, plugin_roots=plugin_roots)
             parts.append(f"\n# --- {relative} ---\n{fragment.read_text(encoding='utf-8')}")
     return "".join(parts)
+
+
+def _relative_to_any(*, path: Path, plugin_roots: list[Path]) -> Path:
+    for root in sorted(plugin_roots, key=lambda root: len(root.parts), reverse=True):
+        if path.is_relative_to(root):
+            return path.relative_to(root)
+    return path
 
 
 # ── rules ─────────────────────────────────────────────────────────

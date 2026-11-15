@@ -8,7 +8,7 @@ cannot read anything.
 |------|-----|
 | Read a space, thread or DM | this chapter (`gog chat`, your own grant) |
 | Post a notification to a configured space | `dev10x-comm:gchat` (bot, post-only) |
-| Post a PR review request | `dev10x:gchat-review-request` |
+| Post a PR review request | `dev10x-coding:gchat-review-request` |
 
 The bot cannot read, and it is only a member of spaces it was explicitly
 added to — so a DM or an arbitrary space is reachable only through `gog`.

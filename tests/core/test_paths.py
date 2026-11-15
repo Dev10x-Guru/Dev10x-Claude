@@ -10,11 +10,13 @@ from pathlib import Path
 
 import pytest
 
+from dev10x.coding.coding_script import CODING_KEY, CODING_PLUGIN_NAME
 from dev10x.core.db_script import DB_KEY, DB_PLUGIN_NAME, DB_SCRIPT_SKILL, db_script
 from dev10x.core.paths import (
     PLUGIN_MANIFEST,
     latest_version,
     satellite_cache_dir,
+    satellite_root,
     satellite_script,
     satellite_subdir,
     skill_files,
@@ -221,6 +223,54 @@ class TestSatelliteLayout:
         assert version_sort_key(name) == expected
 
 
+class TestSatelliteRoot:
+    """GH-1572: the tree a satellite's skills live in, for playbook readers."""
+
+    @pytest.fixture
+    def core_root(self, tmp_path: Path) -> Path:
+        root = tmp_path / "cache" / "Dev10x-Guru" / "dev10x" / "0.117.0"
+        root.mkdir(parents=True)
+        return root
+
+    def _resolve(self, *, core_root: Path) -> Path | None:
+        return satellite_root(plugin_root=core_root, key="coding", plugin_name="dev10x-coding")
+
+    def test_prefers_the_tree_under_core(self, core_root: Path) -> None:
+        (core_root / "plugins" / "coding" / "skills").mkdir(parents=True)
+
+        assert self._resolve(core_root=core_root) == core_root / "plugins" / "coding"
+
+    @pytest.mark.parametrize(
+        ("manifest", "found"),
+        [
+            pytest.param('{"name": "dev10x-coding"}', True, id="named"),
+            pytest.param('{"name": "someone-else"}', False, id="other-plugin"),
+        ],
+    )
+    def test_reads_the_satellite_cached_beside_core(
+        self,
+        core_root: Path,
+        manifest: str,
+        found: bool,
+    ) -> None:
+        beside = core_root.parent.parent / "dev10x-coding" / "0.117.0"
+        (beside / ".claude-plugin").mkdir(parents=True)
+        (beside / PLUGIN_MANIFEST).write_text(manifest)
+
+        assert (self._resolve(core_root=core_root) == beside) is found
+
+    def test_none_when_not_installed(self, core_root: Path) -> None:
+        assert self._resolve(core_root=core_root) is None
+
+
+class TestCodingScriptConstants:
+    def test_names_the_shipped_coding_plugin(self) -> None:
+        assert CODING_PLUGIN_NAME == load_plugin_map().plugin_name(key=CODING_KEY)
+
+    def test_coding_is_extracted(self) -> None:
+        assert load_plugin_map().is_extracted(key=CODING_KEY)
+
+
 class TestDbScriptConstants:
     @pytest.fixture
     def plugin_map(self) -> PluginMap:
@@ -247,14 +297,21 @@ def test_src_resolves_scripts_through_the_resolver() -> None:
     )
 
 
+RESOLVER_SATELLITES: dict[str, str | None] = {
+    "skill_script": None,
+    "coding_script": CODING_KEY,
+}
+
+
 def resolved_script_calls(*, source: str) -> list[tuple[int, str]]:
-    """Every ``skill_script(skill=..., rel=...)`` call made with literals."""
+    """Every ``skill_script(skill=..., rel=...)`` call made with literals, and
+    every ``coding_script`` call, checked at its in-checkout path (GH-1572)."""
     calls = []
     for node in ast.walk(ast.parse(source)):
         if not (
             isinstance(node, ast.Call)
             and isinstance(node.func, ast.Name)
-            and node.func.id == "skill_script"
+            and node.func.id in RESOLVER_SATELLITES
         ):
             continue
         kwargs = {kw.arg: kw.value for kw in node.keywords}
@@ -262,7 +319,11 @@ def resolved_script_calls(*, source: str) -> list[tuple[int, str]]:
         plugin = kwargs.get("plugin")
         if all(isinstance(value, ast.Constant) for value in literals):
             skill, rel = (value.value for value in literals)
-            satellite = plugin.value if isinstance(plugin, ast.Constant) else None
+            satellite = (
+                plugin.value
+                if isinstance(plugin, ast.Constant)
+                else RESOLVER_SATELLITES[node.func.id]
+            )
             calls.append((node.lineno, skill_script(skill=skill, rel=rel, plugin=satellite)))
     return calls
 

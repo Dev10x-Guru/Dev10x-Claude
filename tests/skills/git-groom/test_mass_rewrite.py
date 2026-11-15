@@ -6,7 +6,7 @@ from pathlib import Path
 _repo_root = Path(__file__).resolve().parents[3]
 _spec = importlib.util.spec_from_file_location(
     "mass_rewrite",
-    _repo_root / "skills" / "git-groom" / "scripts" / "mass-rewrite.py",
+    _repo_root / "plugins" / "coding" / "skills" / "git-groom" / "scripts" / "mass-rewrite.py",
 )
 assert _spec is not None and _spec.loader is not None
 _mod = importlib.util.module_from_spec(_spec)

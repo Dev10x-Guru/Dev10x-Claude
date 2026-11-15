@@ -72,8 +72,8 @@ defaults:
           test runs delegated to the test skill (Python) or
           mcp__plugin_dev10x_cli__run_node_tests (JS/TS) — not raw
           pytest/uv run pytest/jest/vitest/yarn test? Were all
-          commits created via dev10x:git-commit
-          (not raw git commit)? Were all pushes via dev10x:git (not
+          commits created via dev10x-coding:git-commit
+          (not raw git commit)? Were all pushes via dev10x-coding:git (not
           raw git push)? Check iterative loops especially — the first
           iteration often uses the skill but subsequent iterations
           fall back to raw CLI.
@@ -160,8 +160,8 @@ defaults:
           test runs delegated to the test skill (Python) or
           mcp__plugin_dev10x_cli__run_node_tests (JS/TS) — not raw
           pytest/uv run pytest/jest/vitest/yarn test? Were all
-          commits via dev10x:git-commit? Were
-          all pushes via dev10x:git? Check iterative loops especially.
+          commits via dev10x-coding:git-commit? Were
+          all pushes via dev10x-coding:git? Check iterative loops especially.
       - name: Fixes-linked issue scope delivered
         check: prompt
         prompt: >
@@ -241,7 +241,7 @@ defaults:
           Review the session for skill routing violations in
           iterative fix-test loops: did all test runs use the test
           skill (Python) or mcp__plugin_dev10x_cli__run_node_tests
-          (JS/TS)? Did all commits use dev10x:git-commit?
+          (JS/TS)? Did all commits use dev10x-coding:git-commit?
       - name: Fixes-linked issue scope delivered
         check: prompt
         prompt: >

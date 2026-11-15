@@ -19,6 +19,9 @@ from dev10x.git import (
 )
 from tests.fakers.process import completed as _completed
 
+CODING_SKILLS = Path(__file__).parents[2] / "plugins" / "coding" / "skills"
+WORKTREE_SCRIPTS = "plugins/coding/skills/git-worktree/scripts"
+
 CONFLICT_STDOUT = (
     "CONFLICT_DETECTED\n"
     "conflicted_files=src/service.py,src/models.py,\n"
@@ -338,7 +341,7 @@ class TestProtectedBranchDefaultIsDocumentedAccurately:
     is pinned to the script rather than restated by hand.
     """
 
-    SCRIPT = Path(__file__).parents[2] / "skills" / "git" / "scripts" / "protected-branches.sh"
+    SCRIPT = CODING_SKILLS / "git" /"scripts" / "protected-branches.sh"
 
     def _script_defaults(self) -> list[str]:
         match = re.search(
@@ -390,7 +393,7 @@ class ShellTwinHarness:
     subclass's name.
     """
 
-    SCRIPT = Path(__file__).parents[2] / "skills" / "git" / "scripts" / "git-push-safe.sh"
+    SCRIPT = CODING_SKILLS / "git" /"scripts" / "git-push-safe.sh"
 
     @pytest.fixture
     def repo_on_protected_branch(self, tmp_path: Path) -> Path:
@@ -847,7 +850,7 @@ class TestCreateWorktreeArgumentMapping:
         # next-worktree-name.sh call).
         assert mock_run_script.await_count == 1
         args = mock_run_script.call_args.args
-        assert args[0] == "skills/git-worktree/scripts/create-worktree.sh"
+        assert args[0] == f"{WORKTREE_SCRIPTS}/create-worktree.sh"
         assert args[1] == "/tmp/wt"
         assert args[2] == "janusz/GH-1/slug"
         assert args[3] == "origin/develop"
@@ -869,10 +872,10 @@ class TestCreateWorktreeArgumentMapping:
         assert mock_run_script.await_count == 2
 
         first_call_args = mock_run_script.call_args_list[0].args
-        assert first_call_args[0] == "skills/git-worktree/scripts/next-worktree-name.sh"
+        assert first_call_args[0] == f"{WORKTREE_SCRIPTS}/next-worktree-name.sh"
 
         second_call_args = mock_run_script.call_args_list[1].args
-        assert second_call_args[0] == "skills/git-worktree/scripts/create-worktree.sh"
+        assert second_call_args[0] == f"{WORKTREE_SCRIPTS}/create-worktree.sh"
         assert second_call_args[1] == "/work/proj/.worktrees/proj-3"
         assert second_call_args[2] == "janusz/GH-1/slug"
         assert second_call_args[3] == ""
@@ -929,7 +932,7 @@ class TestNextWorktreeName:
         await next_worktree_name(base_dir="/custom/.worktrees")
 
         args = mock_run_script.call_args.args
-        assert args[0] == "skills/git-worktree/scripts/next-worktree-name.sh"
+        assert args[0] == f"{WORKTREE_SCRIPTS}/next-worktree-name.sh"
         assert args[1] == "/custom/.worktrees"
 
 
@@ -944,7 +947,9 @@ class TestFindFixupTarget:
 
         await find_fixup_target()
 
-        assert mock_run_script.call_args.args == ("skills/git-fixup/scripts/find-fixup-target.py",)
+        assert mock_run_script.call_args.args == (
+            "plugins/coding/skills/git-fixup/scripts/find-fixup-target.py",
+        )
 
     @pytest.mark.asyncio
     @patch("dev10x.git.async_run_script", new_callable=AsyncMock)

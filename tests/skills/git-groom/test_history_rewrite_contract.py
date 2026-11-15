@@ -18,8 +18,8 @@ import pytest
 from dev10x.domain.gate_policy import BASELINE_PRESET, GateContext, GateEffect, resolve_gate
 
 _REPO_ROOT = Path(__file__).parents[3]
-_GROOM = _REPO_ROOT / "skills/git-groom/instructions.md"
-_VERIFY = _REPO_ROOT / "skills/verify-acc-dod/SKILL.md"
+_GROOM = _REPO_ROOT / "plugins/coding/skills/git-groom/instructions.md"
+_VERIFY = _REPO_ROOT / "plugins/coding/skills/verify-acc-dod/SKILL.md"
 _DOCUMENTED_CALL = re.compile(r'resolve_gate\(gate="history_rewrite",\s*context=\{"(\w+)"')
 
 
@@ -57,4 +57,4 @@ def test_failing_fixup_check_routes_back_to_groom() -> None:
     text = _VERIFY.read_text(encoding="utf-8")
 
     assert 'Go back on "No fixup commits"' in text
-    assert "Skill(dev10x:git-groom)" in text
+    assert "Skill(dev10x-coding:git-groom)" in text

@@ -6,7 +6,7 @@ follow these rules:
 | Caller | When | Where the diff comes from |
 |--------|------|---------------------------|
 | CI — `.github/claude/prompts/code-review.core.md` Step 3 | On a PR, after the ready-for-review flip | `.claude-ci/pr-context/patches/<path>.patch` |
-| Local — `dev10x:review` Step 4 | On a branch, before its first push | Inlined into each subagent prompt by the skill |
+| Local — `dev10x-coding:review` Step 4 | On a branch, before its first push | Inlined into each subagent prompt by the skill |
 
 The callers differ only in how a subagent gets its diff. Routing,
 dispatch and merging are the same, and this file is where they are
@@ -105,7 +105,7 @@ When the subagents return, the orchestrator — never a subagent:
    summary.
 3. Filters by confidence and severity. The caller sets the threshold:
    CI posts CRITICAL and WARNING and includes INFO only when it is
-   clearly actionable; `dev10x:review` applies its confidence
+   clearly actionable; `dev10x-coding:review` applies its confidence
    threshold.
 4. Verifies each surviving finding against the actual code (Read the
    file at the cited line) before reporting it.

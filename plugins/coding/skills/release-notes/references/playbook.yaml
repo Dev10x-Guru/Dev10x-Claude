@@ -77,7 +77,7 @@ defaults:
         prompt: >
           Run collect-prs.py with the repo path and configured
           ticket patterns. Parse the structured markdown output.
-        skills: [dev10x:release-notes]
+        skills: [dev10x-coding:release-notes]
       - fragment: jtbd-generation
       - subject: Synthesize business summary
         type: detailed
@@ -115,7 +115,7 @@ defaults:
         prompt: >
           Run collect-prs.py with the repo path. Focus on
           bugfix and hotfix categories.
-        skills: [dev10x:release-notes]
+        skills: [dev10x-coding:release-notes]
       - subject: Format short summary
         type: detailed
         prompt: >

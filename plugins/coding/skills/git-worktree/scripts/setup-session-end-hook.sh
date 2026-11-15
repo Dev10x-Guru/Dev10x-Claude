@@ -6,9 +6,11 @@
 
 set -euo pipefail
 
-# shellcheck source=../../../bin/require-tool.sh
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)/bin/require-tool.sh"
-require_tool jq
+if ! command -v jq &>/dev/null; then
+    echo >&2 "ERROR: 'jq' not found on PATH."
+    echo >&2 "Install: https://jqlang.github.io/jq/download/"
+    exit 1
+fi
 
 WORKTREE_PATH="${1:?Usage: setup-session-end-hook.sh <worktree-path>}"
 SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

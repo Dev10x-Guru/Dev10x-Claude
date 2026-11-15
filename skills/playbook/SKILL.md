@@ -7,7 +7,7 @@ description: >
   TRIGGER when: user wants to view, edit, or customize playbook
   workflows for skills.
   DO NOT TRIGGER when: executing a playbook-powered skill (handled
-  automatically by dev10x:work-on or other orchestrators).
+  automatically by dev10x-coding:work-on or other orchestrators).
 user-invocable: true
 invocation-name: dev10x:playbook
 allowed-tools:

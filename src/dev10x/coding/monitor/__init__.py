@@ -10,8 +10,8 @@ import json
 import subprocess
 from typing import Any
 
+from dev10x.coding.coding_script import coding_script
 from dev10x.core.github import _gateway
-from dev10x.core.paths import skill_script
 from dev10x.domain.common.result import ErrorResult, Result, err, ok
 from dev10x.domain.transport_budget import clamp_tool_timeout, polls_within_budget
 from dev10x.subprocess_utils import async_run, get_plugin_root
@@ -36,7 +36,7 @@ async def ci_check_status(
     repo_result = await _gateway._resolve_repo(repo)
     if isinstance(repo_result, ErrorResult):
         return err(repo_result.error)
-    script = get_plugin_root() / skill_script(skill="gh-pr-monitor", rel="ci-check-status.py")
+    script = get_plugin_root() / coding_script(skill="gh-pr-monitor", rel="ci-check-status.py")
     args: list[str] = [
         str(script),
         "--pr",

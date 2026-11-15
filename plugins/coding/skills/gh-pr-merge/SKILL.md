@@ -1,5 +1,5 @@
 ---
-name: dev10x:gh-pr-merge
+name: dev10x-coding:gh-pr-merge
 description: >
   Validate all pre-merge conditions and execute PR merge.
   Checks unresolved threads, review comments, Fixes-linked scope
@@ -10,11 +10,11 @@ description: >
   DO NOT TRIGGER when: PR is still draft, CI is failing, or review
   comments are unaddressed.
 user-invocable: true
-invocation-name: dev10x:gh-pr-merge
+invocation-name: dev10x-coding:gh-pr-merge
 allowed-tools:
   - AskUserQuestion
-  - Skill(dev10x:gh-pr-monitor)
-  - Skill(dev10x:gh-pr-respond)
+  - Skill(dev10x-coding:gh-pr-monitor)
+  - Skill(dev10x-coding:gh-pr-respond)
   - Bash(gh pr checks:*)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/gh-pr-merge/scripts/:*)
   - mcp__plugin_dev10x_cli__pr_detect
@@ -56,7 +56,7 @@ documented there are REQUIRED.
 ## Skill Wrapper is Mandatory (GH-152)
 
 **Hard rule:** Do NOT call `gh pr merge` directly. Every PR
-merge MUST go through `Skill(dev10x:gh-pr-merge)` so the
+merge MUST go through `Skill(dev10x-coding:gh-pr-merge)` so the
 12-check pre-merge gate (unresolved threads, top-level
 comments, inline review comments, Fixes-linked scope
 delivery, blocking review bots, CI buckets, merge state,

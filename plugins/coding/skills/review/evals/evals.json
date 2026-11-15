@@ -1,5 +1,5 @@
 {
-  "skill_name": "dev10x:review",
+  "skill_name": "dev10x-coding:review",
   "eval_dimensions": [
     {
       "id": "spec-gate-blocked",
@@ -9,17 +9,17 @@
     {
       "id": "zero-findings-gate",
       "name": "Zero-Findings Confirmation Gate (GH-447 F5)",
-      "description": "In attended mode, whenever a pass or loop round hands nothing to dev10x:review-fix — zero findings, or in a --loop round only INFO and below-threshold findings and, from round 2 on, polish — the skill fires AskUserQuestion (Continue / Re-review) to confirm the clean review rather than silently skipping through. The question names the uncounted findings and, when the round ledger holds a declined finding, says that Continue ends the loop unstamped (GH-1863). The gate is exempted only when invoked with --unattended (GH-760 F6)."
+      "description": "In attended mode, whenever a pass or loop round hands nothing to dev10x-coding:review-fix — zero findings, or in a --loop round only INFO and below-threshold findings and, from round 2 on, polish — the skill fires AskUserQuestion (Continue / Re-review) to confirm the clean review rather than silently skipping through. The question names the uncounted findings and, when the round ledger holds a declined finding, says that Continue ends the loop unstamped (GH-1863). The gate is exempted only when invoked with --unattended (GH-760 F6)."
     },
     {
       "id": "findings-present-gate",
       "name": "Findings-Present Disposition Gate",
-      "description": "When findings > 0 in attended mode, the skill fires AskUserQuestion (Fix all / Pick findings / Skip) before invoking dev10x:review-fix — findings are never auto-fixed without user disposition in attended mode."
+      "description": "When findings > 0 in attended mode, the skill fires AskUserQuestion (Fix all / Pick findings / Skip) before invoking dev10x-coding:review-fix — findings are never auto-fixed without user disposition in attended mode."
     },
     {
       "id": "confidence-threshold-unattended",
       "name": "Unattended Confidence-Threshold Filtering",
-      "description": "In unattended mode, only findings with confidence >= threshold (default 70) AND severity ERROR/WARNING are passed to dev10x:review-fix; below-threshold findings are logged as INFO, not silently dropped or auto-fixed."
+      "description": "In unattended mode, only findings with confidence >= threshold (default 70) AND severity ERROR/WARNING are passed to dev10x-coding:review-fix; below-threshold findings are logged as INFO, not silently dropped or auto-fixed."
     },
     {
       "id": "parallel-domain-dispatch",
@@ -34,7 +34,7 @@
     {
       "id": "findings-contract-unchanged",
       "name": "Findings JSON Contract Unchanged (GH-1741)",
-      "description": "Merged subagent findings are written in the existing handoff format (severity ERROR/WARNING/INFO, confidence, source, file, line, description, suggested_fix, category) with no added keys, so dev10x:review-fix consumes them unchanged."
+      "description": "Merged subagent findings are written in the existing handoff format (severity ERROR/WARNING/INFO, confidence, source, file, line, description, suggested_fix, category) with no added keys, so dev10x-coding:review-fix consumes them unchanged."
     },
     {
       "id": "loop-fresh-reviewers",
@@ -49,7 +49,7 @@
     {
       "id": "loop-defect-convergence",
       "name": "Only Defects Keep the Loop Going (GH-1831)",
-      "description": "Findings are classified as defects or polish in the round ledger (not in the findings JSON); a round with zero defects ends the loop as clean even when polish remains, and from round 2 on only defects are sent to dev10x:review-fix."
+      "description": "Findings are classified as defects or polish in the round ledger (not in the findings JSON); a round with zero defects ends the loop as clean even when polish remains, and from round 2 on only defects are sent to dev10x-coding:review-fix."
     },
     {
       "id": "loop-round-cap-escalation",
@@ -59,7 +59,7 @@
     {
       "id": "clean-pass-stamp",
       "name": "Only a Clean Pass Writes the Review Stamp (GH-1830)",
-      "description": "A pass that handed nothing to dev10x:review-fix — a single pass with no ERROR/WARNING finding at confidence >= 70, or a loop round with an empty fix set — calls review_stamp_write; a pass that handed findings to the fixer, skipped findings, or a loop ending on Ship, Stop or a BLOCKED: review-loop line never does."
+      "description": "A pass that handed nothing to dev10x-coding:review-fix — a single pass with no ERROR/WARNING finding at confidence >= 70, or a loop round with an empty fix set — calls review_stamp_write; a pass that handed findings to the fixer, skipped findings, or a loop ending on Ship, Stop or a BLOCKED: review-loop line never does."
     }
   ],
   "evals": [
@@ -67,7 +67,7 @@
       "id": "spec-blocked-fires-askuserquestion",
       "name": "spec-reviewer BLOCKED verdict fires the escalation gate",
       "description": "When the Phase 0 spec-reviewer subagent's trailing status line is BLOCKED, the skill must stop and ask before running automated checks or per-file review.",
-      "input": "/dev10x:review (spec-reviewer returns BLOCKED: FAIL_SCOPE)",
+      "input": "/dev10x-coding:review (spec-reviewer returns BLOCKED: FAIL_SCOPE)",
       "assertions": [
         {
           "dimension": "spec-gate-blocked",
@@ -91,12 +91,12 @@
       "id": "spec-done-with-concerns-continues-and-queues",
       "name": "DONE_WITH_CONCERNS continues without a gate but queues the concern",
       "description": "A PARTIAL spec verdict continues to Step 2 directly (no AskUserQuestion) but records the concern as a WARNING finding with source=manual and category=spec in the final summary.",
-      "input": "/dev10x:review (spec-reviewer returns DONE_WITH_CONCERNS: minor AC gap)",
+      "input": "/dev10x-coding:review (spec-reviewer returns DONE_WITH_CONCERNS: minor AC gap)",
       "assertions": [
         {
           "dimension": "spec-gate-blocked",
           "check": "behavioral",
-          "signal": "No AskUserQuestion fires for DONE_WITH_CONCERNS; review proceeds to Step 2 and the concern appears as a WARNING finding with source=manual and category=spec in the final summary; no finding carries source=spec, which dev10x:review-fix does not accept (GH-1749)"
+          "signal": "No AskUserQuestion fires for DONE_WITH_CONCERNS; review proceeds to Step 2 and the concern appears as a WARNING finding with source=manual and category=spec in the final summary; no finding carries source=spec, which dev10x-coding:review-fix does not accept (GH-1749)"
         }
       ]
     },
@@ -104,7 +104,7 @@
       "id": "unattended-spec-blocked-resolves-gate",
       "name": "--unattended BLOCKED verdict resolves the gate instead of stalling",
       "description": "Under --unattended, a BLOCKED spec verdict calls resolve_gate(gate=shipping_continuation); on auto-advance it takes 'Address spec gap first' without a widget, skips Steps 2-6, reports an ERROR spec finding (source=manual, category=spec) in the Step 7 summary rather than the findings handoff file, and ends with a BLOCKED: spec status line (GH-1749).",
-      "input": "/dev10x:review --unattended (spec-reviewer returns BLOCKED: FAIL_MISSING; resolve_gate returns auto-advance)",
+      "input": "/dev10x-coding:review --unattended (spec-reviewer returns BLOCKED: FAIL_MISSING; resolve_gate returns auto-advance)",
       "assertions": [
         {
           "dimension": "spec-gate-blocked",
@@ -128,7 +128,7 @@
       "id": "zero-findings-fires-gate-in-attended-mode",
       "name": "Zero findings still fires AskUserQuestion in attended mode",
       "description": "A clean review (0 findings) in attended (default) mode must still confirm via AskUserQuestion — it does not silently report done.",
-      "input": "/dev10x:review (attended mode, 0 findings)",
+      "input": "/dev10x-coding:review (attended mode, 0 findings)",
       "assertions": [
         {
           "dimension": "zero-findings-gate",
@@ -147,7 +147,7 @@
       "id": "unattended-zero-findings-skips-gate",
       "name": "--unattended exempts the zero-findings gate",
       "description": "When invoked with --unattended (e.g. from work-on's shipping pipeline), a clean review auto-advances without firing AskUserQuestion (GH-760 F6).",
-      "input": "/dev10x:review --unattended (0 findings)",
+      "input": "/dev10x-coding:review --unattended (0 findings)",
       "assertions": [
         {
           "dimension": "zero-findings-gate",
@@ -159,8 +159,8 @@
     {
       "id": "findings-present-fires-disposition-gate",
       "name": "Findings > 0 in attended mode fires the disposition gate",
-      "description": "When the review produces at least one finding in attended mode, AskUserQuestion fires with Fix all / Pick findings / Skip before dev10x:review-fix is invoked.",
-      "input": "/dev10x:review (attended mode, 3 findings)",
+      "description": "When the review produces at least one finding in attended mode, AskUserQuestion fires with Fix all / Pick findings / Skip before dev10x-coding:review-fix is invoked.",
+      "input": "/dev10x-coding:review (attended mode, 3 findings)",
       "assertions": [
         {
           "dimension": "findings-present-gate",
@@ -176,20 +176,20 @@
         {
           "dimension": "findings-present-gate",
           "check": "behavioral",
-          "signal": "Skill(dev10x:review-fix) is NOT invoked before the gate resolves"
+          "signal": "Skill(dev10x-coding:review-fix) is NOT invoked before the gate resolves"
         }
       ]
     },
     {
       "id": "unattended-filters-by-confidence-threshold",
       "name": "Unattended mode filters findings by confidence before fixing",
-      "description": "In unattended mode, only findings with confidence >= 70 (default) and severity ERROR/WARNING reach dev10x:review-fix; below-threshold findings are logged as INFO.",
-      "input": "/dev10x:review --unattended (2 findings confidence>=70, 1 finding confidence=40)",
+      "description": "In unattended mode, only findings with confidence >= 70 (default) and severity ERROR/WARNING reach dev10x-coding:review-fix; below-threshold findings are logged as INFO.",
+      "input": "/dev10x-coding:review --unattended (2 findings confidence>=70, 1 finding confidence=40)",
       "assertions": [
         {
           "dimension": "confidence-threshold-unattended",
           "check": "behavioral",
-          "signal": "Only the two confidence>=70 findings are passed to dev10x:review-fix; the confidence=40 finding appears as INFO in the summary, not sent to the fixer"
+          "signal": "Only the two confidence>=70 findings are passed to dev10x-coding:review-fix; the confidence=40 finding appears as INFO in the summary, not sent to the fixer"
         }
       ]
     },
@@ -197,7 +197,7 @@
       "id": "routed-specs-dispatch-in-one-message",
       "name": "Routed reviewer specs are dispatched in parallel",
       "description": "A branch touching a Python module, a skill and a doc reaches several reviewer specs via INDEX.md; each gets its own subagent, all issued in one message.",
-      "input": "/dev10x:review --unattended (changes: src/dev10x/foo.py, skills/foo/SKILL.md, docs/foo.md)",
+      "input": "/dev10x-coding:review --unattended (changes: src/dev10x/foo.py, skills/foo/SKILL.md, docs/foo.md)",
       "assertions": [
         {
           "dimension": "parallel-domain-dispatch",
@@ -221,7 +221,7 @@
       "id": "spec-blocked-dispatches-no-domain-reviewer",
       "name": "A failed spec gate dispatches no domain reviewer",
       "description": "spec-reviewer returns BLOCKED: FAIL_SCOPE and the user picks 'Address spec gap first'; the domain fan-out never runs.",
-      "input": "/dev10x:review (spec-reviewer returns BLOCKED: FAIL_SCOPE; user picks Address spec gap first)",
+      "input": "/dev10x-coding:review (spec-reviewer returns BLOCKED: FAIL_SCOPE; user picks Address spec gap first)",
       "assertions": [
         {
           "dimension": "spec-gate-short-circuit",
@@ -240,7 +240,7 @@
       "id": "merged-findings-keep-handoff-shape",
       "name": "Merged subagent findings keep the review-fix handoff shape",
       "description": "Two subagents flag the same file:line, one as CRITICAL; the merged findings file has one entry for that line with severity ERROR and the existing keys only.",
-      "input": "/dev10x:review --unattended (reviewer-generic WARNING and reviewer-security CRITICAL on src/dev10x/foo.py:12)",
+      "input": "/dev10x-coding:review --unattended (reviewer-generic WARNING and reviewer-security CRITICAL on src/dev10x/foo.py:12)",
       "assertions": [
         {
           "dimension": "findings-contract-unchanged",
@@ -250,7 +250,7 @@
         {
           "dimension": "findings-contract-unchanged",
           "check": "behavioral",
-          "signal": "Every entry carries only severity, confidence, source, file, line, description, suggested_fix and category, and Skill(dev10x:review-fix) receives that file path"
+          "signal": "Every entry carries only severity, confidence, source, file, line, description, suggested_fix and category, and Skill(dev10x-coding:review-fix) receives that file path"
         }
       ]
     },
@@ -258,7 +258,7 @@
       "id": "no-index-falls-back-to-plugin-reviewers",
       "name": "A repo without INDEX.md routes by the plugin reviewers' Triggers",
       "description": "In a consumer repo with no .claude/rules/INDEX.md and no .claude/agents/, a changed migration still reaches its domain reviewer through the plugin-distributed spec.",
-      "input": "/dev10x:review --unattended (consumer repo, no .claude/rules/INDEX.md or .claude/agents/; changes: app/migrations/0042_add_index.py, app/views.py)",
+      "input": "/dev10x-coding:review --unattended (consumer repo, no .claude/rules/INDEX.md or .claude/agents/; changes: app/migrations/0042_add_index.py, app/views.py)",
       "assertions": [
         {
           "dimension": "parallel-domain-dispatch",
@@ -277,7 +277,7 @@
       "id": "loop-round-two-dispatches-fresh-agents-on-delta",
       "name": "Round 2 re-reviews the fixups with new agents on the delta only",
       "description": "Round 1 finds a bug in src/dev10x/foo.py; review-fix commits a fixup touching foo.py. Round 2 dispatches new Agent calls covering foo.py and the files referencing the changed function, and nothing else.",
-      "input": "/dev10x:review --unattended --loop (round 1: 1 defect in src/dev10x/foo.py; fixup changes parse_args(); src/dev10x/cli.py calls parse_args)",
+      "input": "/dev10x-coding:review --unattended --loop (round 1: 1 defect in src/dev10x/foo.py; fixup changes parse_args(); src/dev10x/cli.py calls parse_args)",
       "assertions": [
         {
           "dimension": "loop-fresh-reviewers",
@@ -301,12 +301,12 @@
       "id": "loop-polish-only-round-is-clean",
       "name": "A round with only polish findings ends the loop",
       "description": "Round 2 returns two style WARNINGs (confidence 80) and no defect; the loop ends clean without a round 3 and the polish appears in the summary.",
-      "input": "/dev10x:review --unattended --loop (round 2: 2 style WARNING findings, 0 defects)",
+      "input": "/dev10x-coding:review --unattended --loop (round 2: 2 style WARNING findings, 0 defects)",
       "assertions": [
         {
           "dimension": "loop-defect-convergence",
           "check": "behavioral",
-          "signal": "No round 3 starts and dev10x:review-fix is not invoked for the round-2 polish; the summary lists both polish findings and reports the loop ended clean — the polish is listed, not offered, and sits under the stamp by design (GH-1863)"
+          "signal": "No round 3 starts and dev10x-coding:review-fix is not invoked for the round-2 polish; the summary lists both polish findings and reports the loop ended clean — the polish is listed, not offered, and sits under the stamp by design (GH-1863)"
         },
         {
           "dimension": "findings-contract-unchanged",
@@ -325,7 +325,7 @@
       "id": "skipped-defects-are-not-clean",
       "name": "Skipping defects in attended mode writes no stamp",
       "description": "An attended pass finds 2 ERROR findings and the user picks Skip, or Pick findings with none approved; nothing reaches the fixer, but the pass is not clean.",
-      "input": "/dev10x:review (attended mode, 2 ERROR findings, user picks Skip or approves none under Pick findings)",
+      "input": "/dev10x-coding:review (attended mode, 2 ERROR findings, user picks Skip or approves none under Pick findings)",
       "assertions": [
         {
           "dimension": "clean-pass-stamp",
@@ -338,12 +338,12 @@
       "id": "round-one-polish-is-reviewed-again",
       "name": "Round-1 polish fixes get a second round",
       "description": "Round 1 of a loop finds only 2 style WARNINGs (confidence 80) and no defect; they go to the fixer, so round 1 is not clean and round 2 reviews the fixups.",
-      "input": "/dev10x:review --unattended --loop (round 1: 0 defects, 2 polish; round 2: 0 defects)",
+      "input": "/dev10x-coding:review --unattended --loop (round 1: 0 defects, 2 polish; round 2: 0 defects)",
       "assertions": [
         {
           "dimension": "loop-defect-convergence",
           "check": "behavioral",
-          "signal": "Skill(dev10x:review-fix) runs in round 1, round 2 dispatches new Agent calls on the fixup delta, and review_stamp_write is called only after round 2"
+          "signal": "Skill(dev10x-coding:review-fix) runs in round 1, round 2 dispatches new Agent calls on the fixup delta, and review_stamp_write is called only after round 2"
         }
       ]
     },
@@ -351,7 +351,7 @@
       "id": "loop-cap-attended-fires-gate",
       "name": "Round 4 with open defects fires the escalation gate",
       "description": "Attended loop with defect counts 5, 3, 2, 1 across rounds 1-4; round 5 does not start until the supervisor answers.",
-      "input": "/dev10x:review --loop (defects per round: 5, 3, 2, 1)",
+      "input": "/dev10x-coding:review --loop (defects per round: 5, 3, 2, 1)",
       "assertions": [
         {
           "dimension": "loop-round-cap-escalation",
@@ -367,15 +367,15 @@
         {
           "dimension": "loop-round-cap-escalation",
           "check": "behavioral",
-          "signal": "No round-5 Agent call is issued and Skill(dev10x:review-fix) is not invoked for round 4 before the gate resolves"
+          "signal": "No round-5 Agent call is issued and Skill(dev10x-coding:review-fix) is not invoked for round 4 before the gate resolves"
         }
       ]
     },
     {
       "id": "loop-no-commit-ends-blocked",
       "name": "A fixer that commits nothing ends the loop",
-      "description": "Unattended loop round 2 hands 1 defect to dev10x:review-fix, which makes no commit; with no delta there is nothing to re-review.",
-      "input": "/dev10x:review --unattended --loop (round 2: 1 defect; review-fix creates no commit)",
+      "description": "Unattended loop round 2 hands 1 defect to dev10x-coding:review-fix, which makes no commit; with no delta there is nothing to re-review.",
+      "input": "/dev10x-coding:review --unattended --loop (round 2: 1 defect; review-fix creates no commit)",
       "assertions": [
         {
           "dimension": "loop-defect-convergence",
@@ -393,12 +393,12 @@
       "id": "loop-attended-skip-ends-unstamped",
       "name": "An attended Skip inside the loop ends it unstamped",
       "description": "Attended loop round 2 has 1 defect; the user picks Skip at the Step 6 findings gate.",
-      "input": "/dev10x:review --loop (round 2: 1 defect; user picks Skip)",
+      "input": "/dev10x-coding:review --loop (round 2: 1 defect; user picks Skip)",
       "assertions": [
         {
           "dimension": "loop-defect-convergence",
           "check": "behavioral",
-          "signal": "Skill(dev10x:review-fix) is not invoked for round 2, no round 3 starts, and the summary lists the skipped defect as open"
+          "signal": "Skill(dev10x-coding:review-fix) is not invoked for round 2, no round 3 starts, and the summary lists the skipped defect as open"
         },
         {
           "dimension": "clean-pass-stamp",
@@ -411,7 +411,7 @@
       "id": "loop-partial-pick-blocks-stamp",
       "name": "A finding left unpicked keeps a later clean round from stamping",
       "description": "Attended loop round 1 has 2 defects; the user picks one under Pick findings. Round 2 reviews that fix and is clean, but its delta never reaches the declined defect.",
-      "input": "/dev10x:review --loop (round 1: 2 defects, user picks 1; round 2: clean)",
+      "input": "/dev10x-coding:review --loop (round 1: 2 defects, user picks 1; round 2: clean)",
       "assertions": [
         {
           "dimension": "loop-defect-convergence",
@@ -429,7 +429,7 @@
       "id": "loop-fixer-deferred-blocks-stamp",
       "name": "A finding the fixer deferred keeps a later clean round from stamping",
       "description": "Unattended loop round 1 has 2 defects; the fixer commits one and reports the other as deferred. Round 2 reviews that commit and is clean, but its delta never reaches the deferred defect.",
-      "input": "/dev10x:review --unattended --loop (round 1: 2 defects, fixer defers 1; round 2: clean)",
+      "input": "/dev10x-coding:review --unattended --loop (round 1: 2 defects, fixer defers 1; round 2: clean)",
       "assertions": [
         {
           "dimension": "loop-defect-convergence",
@@ -447,7 +447,7 @@
       "id": "loop-clean-round-gate-with-info-findings",
       "name": "An attended clean round confirms through the zero-findings gate",
       "description": "Attended loop round 2 is clean but lists 1 INFO finding and 1 polish finding; the user answers Re-review, and the repeat is clean too.",
-      "input": "/dev10x:review --loop (round 2: clean, 1 INFO, 1 polish; user picks Re-review, then Continue)",
+      "input": "/dev10x-coding:review --loop (round 2: clean, 1 INFO, 1 polish; user picks Re-review, then Continue)",
       "assertions": [
         {
           "dimension": "zero-findings-gate",
@@ -466,7 +466,7 @@
       "id": "loop-re-review-finds-defect-continues-round",
       "name": "A Re-review that finds a defect turns the clean round into a fix round",
       "description": "Attended loop round 2 is clean; the user answers Re-review and the repeat finds 1 defect. The round's ledger entry is replaced in place, the defect goes to the fixer through the findings gate, and round 3 reviews the fix.",
-      "input": "/dev10x:review --loop (round 2: clean; user picks Re-review; repeat: 1 defect; user picks Fix all; round 3: clean)",
+      "input": "/dev10x-coding:review --loop (round 2: clean; user picks Re-review; repeat: 1 defect; user picks Fix all; round 3: clean)",
       "assertions": [
         {
           "dimension": "loop-defect-convergence",
@@ -477,7 +477,7 @@
           "dimension": "findings-present-gate",
           "check": "tool_called",
           "tool": "AskUserQuestion",
-          "signal": "After the repeat, the Fix all / Pick findings / Skip gate fires for the defect; Skill(dev10x:review-fix) runs only after it"
+          "signal": "After the repeat, the Fix all / Pick findings / Skip gate fires for the defect; Skill(dev10x-coding:review-fix) runs only after it"
         },
         {
           "dimension": "findings-present-gate",
@@ -495,7 +495,7 @@
       "id": "loop-clean-round-gate-warns-unstamped",
       "name": "A clean round after a declined finding warns that Continue will not stamp",
       "description": "Attended loop round 1 has 2 defects and the user picks one under Pick findings; round 2 reviews that fix and is clean. The zero-findings gate must say the loop ends unstamped and name the declined defect.",
-      "input": "/dev10x:review --loop (round 1: 2 defects, user picks 1; round 2: clean; user picks Continue)",
+      "input": "/dev10x-coding:review --loop (round 1: 2 defects, user picks 1; round 2: clean; user picks Continue)",
       "assertions": [
         {
           "dimension": "zero-findings-gate",
@@ -524,7 +524,7 @@
       "id": "loop-cap-churn-recommends-stop",
       "name": "A churning loop recommends stopping",
       "description": "Defect counts 3, 2, 2, 3 across rounds 1-4 are not falling; the gate leads with Stop and hand back.",
-      "input": "/dev10x:review --loop (defects per round: 3, 2, 2, 3)",
+      "input": "/dev10x-coding:review --loop (defects per round: 3, 2, 2, 3)",
       "assertions": [
         {
           "dimension": "loop-round-cap-escalation",
@@ -538,7 +538,7 @@
       "id": "loop-cap-unattended-stops-blocked",
       "name": "--unattended at the cap stops instead of continuing",
       "description": "Unattended loop reaches round 4 with open defects and resolve_gate(shipping_continuation) returns auto-advance.",
-      "input": "/dev10x:review --unattended --loop (round 4: 2 defects; resolve_gate returns auto-advance)",
+      "input": "/dev10x-coding:review --unattended --loop (round 4: 2 defects; resolve_gate returns auto-advance)",
       "assertions": [
         {
           "dimension": "loop-round-cap-escalation",
@@ -562,7 +562,7 @@
       "id": "clean-round-writes-stamp",
       "name": "A clean loop round stamps the reviewed head",
       "description": "Round 2 of an unattended loop finds no defects; the skill stamps the head before the summary and reports its SHA.",
-      "input": "/dev10x:review --unattended --loop (round 1: 1 defect fixed; round 2: 0 defects)",
+      "input": "/dev10x-coding:review --unattended --loop (round 1: 1 defect fixed; round 2: 0 defects)",
       "assertions": [
         {
           "dimension": "clean-pass-stamp",
@@ -575,13 +575,13 @@
     {
       "id": "fixed-single-pass-writes-no-stamp",
       "name": "A single pass that sent findings to the fixer is not clean",
-      "description": "Without --loop, a pass hands 2 defects to dev10x:review-fix; the resulting fixups are unreviewed, so no stamp is written.",
-      "input": "/dev10x:review --unattended (2 ERROR findings, confidence 90)",
+      "description": "Without --loop, a pass hands 2 defects to dev10x-coding:review-fix; the resulting fixups are unreviewed, so no stamp is written.",
+      "input": "/dev10x-coding:review --unattended (2 ERROR findings, confidence 90)",
       "assertions": [
         {
           "dimension": "clean-pass-stamp",
           "check": "behavioral",
-          "signal": "Skill(dev10x:review-fix) runs and mcp__plugin_dev10x_cli__review_stamp_write is never called"
+          "signal": "Skill(dev10x-coding:review-fix) runs and mcp__plugin_dev10x_cli__review_stamp_write is never called"
         }
       ]
     }
@@ -590,7 +590,7 @@
     "description": "Queries that should/should-not trigger the review skill",
     "should_trigger": [
       {
-        "query": "/dev10x:review",
+        "query": "/dev10x-coding:review",
         "rationale": "Direct invocation — attended self-review of the current branch"
       },
       {
@@ -601,7 +601,7 @@
     "should_not_trigger": [
       {
         "query": "review PR #42 and post comments",
-        "rationale": "Remote PR review — use dev10x:gh-pr-review"
+        "rationale": "Remote PR review — use dev10x-coding:gh-pr-review"
       },
       {
         "query": "my branch has no commits yet",

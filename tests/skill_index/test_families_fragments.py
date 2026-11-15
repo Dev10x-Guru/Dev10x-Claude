@@ -134,19 +134,19 @@ class TestMergeFamilies:
 #: (`logs`, `triage-sentry`, `app-db`) and the inverted
 #: `dev10x:investigate: investigate`, which resolved to no key (GH-1589).
 EXPECTED_DISPLAY_MAP = {
-    "commit": "dev10x:git-commit",
-    "commit:split": "dev10x:git-commit-split",
-    "commit:fixup": "dev10x:git-fixup",
-    "commit:to-new-ticket": "dev10x:git-promote",
-    "branch:groom": "dev10x:git-groom",
-    "pr:create": "dev10x:gh-pr-create",
-    "pr:respond": "dev10x:gh-pr-respond",
-    "pr:monitor": "dev10x:gh-pr-monitor",
-    "pr:request-review": "dev10x:gh-pr-request-review",
-    "pr:triage": "dev10x:gh-pr-triage",
-    "pr:comment-fixup": "dev10x:gh-pr-fixup",
-    "ticket:work-on": "dev10x:work-on",
-    "release-notes": "dev10x:release-notes",
+    "commit": "dev10x-coding:git-commit",
+    "commit:split": "dev10x-coding:git-commit-split",
+    "commit:fixup": "dev10x-coding:git-fixup",
+    "commit:to-new-ticket": "dev10x-coding:git-promote",
+    "branch:groom": "dev10x-coding:git-groom",
+    "pr:create": "dev10x-coding:gh-pr-create",
+    "pr:respond": "dev10x-coding:gh-pr-respond",
+    "pr:monitor": "dev10x-coding:gh-pr-monitor",
+    "pr:request-review": "dev10x-coding:gh-pr-request-review",
+    "pr:triage": "dev10x-coding:gh-pr-triage",
+    "pr:comment-fixup": "dev10x-coding:gh-pr-fixup",
+    "ticket:work-on": "dev10x-coding:work-on",
+    "release-notes": "dev10x-coding:release-notes",
 }
 
 #: Family order in SKILLS.md: core first, then plugins.yaml order.

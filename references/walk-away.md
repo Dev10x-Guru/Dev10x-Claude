@@ -63,7 +63,7 @@ Where suppressed-doubt entries land. Skills append, never overwrite.
 ### `pr-description` (default)
 
 Append to the active PR body under a dedicated header. If no PR exists
-yet, buffer the entries and flush them when `dev10x:gh-pr-create`
+yet, buffer the entries and flush them when `dev10x-coding:gh-pr-create`
 runs.
 
 ```markdown
@@ -82,7 +82,7 @@ pointer to a followup ticket.
 
 ### `session-bookmark`
 
-Append to the PR bookmark comment created by `dev10x:gh-pr-bookmark`.
+Append to the PR bookmark comment created by `dev10x-coding:gh-pr-bookmark`.
 Use for doubts that should survive session boundaries but do not
 belong in the merged PR body.
 

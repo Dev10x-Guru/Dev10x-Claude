@@ -41,7 +41,7 @@ nothing, because the steps fix their output shape.
 
 | Skill | Persona |
 |-------|---------|
-| `dev10x:review` | Staff engineer doing a pre-push self-review |
+| `dev10x-coding:review` | Staff engineer doing a pre-push self-review |
 | `dev10x-scoping:adr` | Staff architect writing for the engineer who implements it later |
 | `dev10x-scoping:ticket-scope` | Tech lead scoping work someone else will build |
 

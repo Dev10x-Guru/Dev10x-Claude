@@ -125,7 +125,7 @@
       },
       {
         "query": "draft release notes for the last milestone",
-        "rationale": "Reporting what shipped — use dev10x:release-notes"
+        "rationale": "Reporting what shipped — use dev10x-coding:release-notes"
       }
     ]
   }

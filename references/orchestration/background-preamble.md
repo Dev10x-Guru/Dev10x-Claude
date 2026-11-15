@@ -22,8 +22,8 @@ tool (no Read prompt, no drift) or read this file.
 
 | Dispatch path | How the preamble lands |
 |---------------|------------------------|
-| `dev10x:fanout` swarm children | Inlined into the per-item agent prompt template |
-| `dev10x:gh-pr-monitor` micro-agents | Inlined into each micro-agent prompt |
+| `dev10x-coding:fanout` swarm children | Inlined into the per-item agent prompt template |
+| `dev10x-coding:gh-pr-monitor` micro-agents | Inlined into each micro-agent prompt |
 | Any Dev10x skill dispatching `Agent(...)` | Prepend per `references/orchestration/subagent-dispatch.md` |
 | Built-in `Workflow` tool agents | Inline into each `agent()` prompt the script builds |
 | Built-in `/loop` iterations | Harness-owned; the loop body's dispatched skills inline it |
@@ -85,8 +85,8 @@ Command shapes to avoid (each trips a hook or breaks allow-rule matching):
 
 Prefer:
 - `Read` / `Grep` / `Glob` over `cat` / `grep` / `find` in Bash.
-- MCP wrappers and skills over raw CLI: commit → Skill(dev10x:git-commit),
-  PR → Skill(dev10x:gh-pr-create), push → Skill(dev10x:git), temp files →
+- MCP wrappers and skills over raw CLI: commit → Skill(dev10x-coding:git-commit),
+  PR → Skill(dev10x-coding:gh-pr-create), push → Skill(dev10x-coding:git), temp files →
   mcp__plugin_dev10x_cli__mktmp.
 - Git base aliases for diffs/logs: `git develop-log`, `git develop-diff`.
 - To rebase onto a base that has MOVED, use two separate Bash calls —

@@ -20,7 +20,7 @@ per-tracker creation calls the Step 5 agent executes.
 
 | Signal in the ticket | Label to propose |
 |----------------------|------------------|
-| Names a skill (`dev10x:fanout`, `gh-pr-create`, …) | the matching `skill:*` label |
+| Names a skill (`dev10x-coding:fanout`, `gh-pr-create`, …) | the matching `skill:*` label |
 | Permission prompt / allow-rule gap | `permission-friction` |
 | Error swallowed or surfaced without diagnostics | `silent-failure` |
 | Raw git/gh used where a wrapper is required | `routing-bypass` |

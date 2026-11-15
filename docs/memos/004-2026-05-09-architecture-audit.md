@@ -31,7 +31,7 @@ full evidence in the per-phase agent transcripts.
 | # | Title | Phase | Effort |
 |---|-------|------:|-------:|
 | 1 | `session_migrate_permissions` rewrites `~/.claude/settings.json` non-atomically from concurrent sessions — can corrupt and break hook dispatch | E | M |
-| 2 | Plan YAML load-mutate-save is unlocked; parallel `Dev10x:fanout` agents silently discard each other's `TaskCreate`/`TaskUpdate` records (`hooks/task_plan_sync.py:123-144`) | E | M |
+| 2 | Plan YAML load-mutate-save is unlocked; parallel `Dev10x-coding:fanout` agents silently discard each other's `TaskCreate`/`TaskUpdate` records (`hooks/task_plan_sync.py:123-144`) | E | M |
 | 3 | `permission/__init__.py` (MCP service) calls underscore-private `_ensure_*` functions in `skills/permission/update_paths.py` via `redirect_stdout` capture — broken API boundary | I | M |
 | 4 | `plan.json_summary()` returns `{}` on git-not-found instead of `{"error": …}` — silent MCP error contract violation (`plan/__init__.py:47`) | H | S |
 | 5 | `subprocess_utils.run_script` raises uncaught `FileNotFoundError` through the MCP layer instead of returning structured error — every MCP module affected | H | S |

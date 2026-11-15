@@ -1,12 +1,12 @@
 ---
-name: dev10x:gh-pr-request-review
+name: dev10x-coding:gh-pr-request-review
 description: >
   Request review on a GitHub PR from teams or users.
   TRIGGER when: PR is ready for review and needs reviewer assignment.
   DO NOT TRIGGER when: PR is still draft or WIP, or review was already
   requested.
 user-invocable: true
-invocation-name: dev10x:gh-pr-request-review
+invocation-name: dev10x-coding:gh-pr-request-review
 allowed-tools:
   - mcp__plugin_dev10x_cli__request_review
   - mcp__plugin_dev10x_cli__resolve_gate
@@ -131,7 +131,7 @@ re-derive preset behavior in prose. The tool reads session policy
 - **Request review now** — proceed to the Pre-flight checks and
   Reviewer Resolution below (the skill's normal action).
 - **Stand-by — self-review first** — hold off requesting review; run
-  a self-review pass (e.g. `dev10x:review`) before requesting. On this
+  a self-review pass (e.g. `dev10x-coding:review`) before requesting. On this
   choice: follow the Stand-by / Defer path below (which persists
   nothing), return without requesting review, and hand control back to
   the caller to self-review — the caller re-enters this gate afterward.
@@ -165,7 +165,7 @@ automated CI workflows) MUST NOT short-circuit human review.
    current HEAD by a human. **REQUIRED: Call `AskUserQuestion`**
    (do NOT use plain text) with options:
    - **Skip — already approved (Recommended)** — short-circuit;
-     suggest `dev10x:gh-pr-merge` instead
+     suggest `dev10x-coding:gh-pr-merge` instead
    - **Force request anyway** — proceed (e.g., need additional
      reviewers beyond the existing approver)
    - **Cancel** — do nothing
@@ -183,7 +183,7 @@ automated CI workflows) MUST NOT short-circuit human review.
 
 Skip this precheck when invoked with `--force` flag or when the
 caller passes `bypass_approval_check: true` (e.g., from
-`dev10x:gh-pr-monitor` Phase 3 after fixup commits where the monitor
+`dev10x-coding:gh-pr-monitor` Phase 3 after fixup commits where the monitor
 has already validated the state transition).
 
 ### Pre-flight: Draft State Check (GH-851 F7)
@@ -243,7 +243,7 @@ NOT notify the requested reviewers — the request is lost.
    judged by the normal rule, so a PR with no CI still passes — and run
    this step even if `--readiness-checked` was passed: the caller
    checked the PR before it was ready. Otherwise skip this step when
-   the caller passed `--readiness-checked` (`dev10x:request-review`
+   the caller passed `--readiness-checked` (`dev10x-coding:request-review`
    already ran it). When a condition fails, resolve the run mode as
    that file orders it: `--unattended`, else `run_mode.mode` from the
    `resolve_gate(gate="request_review")` payload this skill already
@@ -260,7 +260,7 @@ NOT notify the requested reviewers — the request is lost.
    Whenever the run stops at this step, print `Readiness: stopped —
    {reasons}` for humans, then end with the `review_request_result:`
    line (`status: "stopped"`) from that file § Result for callers —
-   `dev10x:request-review` reads its `status`, not the prose. Every
+   `dev10x-coding:request-review` reads its `status`, not the prose. Every
    other ending of this skill emits that line too.
 5. Call the `request_review` MCP tool with the resolved reviewers
 
@@ -339,7 +339,7 @@ Then, on every branch:
 **Clearance dies when the head moves (GH-1008).** A review the
 supervisor gave applies to the commits they read, so the label is
 scoped to that head — not to the PR forever. Any force-push
-(`dev10x:git-groom`, a conflict rebase, an amend) rewrites what is
+(`dev10x-coding:git-groom`, a conflict rebase, an amend) rewrites what is
 under review, and the push path removes `review:cleared` so the next
 request-review invocation asks again. That is deliberate: silently
 carrying a clearance across a rewrite would let unreviewed commits
@@ -371,7 +371,7 @@ of the global `~/.config/Dev10x/friction.yaml`, read via
   before `merge` in a solo repo, before `request_review` in a team one
   — where it **precedes** the team request rather than replacing it.
   The `review:cleared` label the two "I reviewed it" answers write is
-  what lifts the park; `dev10x:git-groom` removes it after a
+  what lifts the park; `dev10x-coding:git-groom` removes it after a
   force-push, so the park comes back on rewritten history.
 
 The retired `human_review: true|false` key is no longer read (GH-1771).
@@ -390,7 +390,7 @@ Invoke the skill without arguments. It reads the config, detects
 the current repo, and requests review from the configured reviewers:
 
 ```
-/dev10x:gh-pr-request-review
+/dev10x-coding:gh-pr-request-review
 ```
 
 ### Explicit reviewers (override config)

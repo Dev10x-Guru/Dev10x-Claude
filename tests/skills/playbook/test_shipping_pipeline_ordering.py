@@ -16,13 +16,15 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from dev10x.skills.playbook import load_plugin_default
+from dev10x.skills.playbook import installed_plugin_roots, load_plugin_default
 
 _ROOT = Path(__file__).resolve().parents[3]
 
 
 def _subjects(*, fragment: str) -> list[str]:
-    doc = load_plugin_default(skill_key="work-on", plugin_roots=[_ROOT])
+    doc = load_plugin_default(
+        skill_key="work-on", plugin_roots=installed_plugin_roots(core_root=_ROOT)
+    )
     steps = doc["fragments"][fragment]  # type: ignore[index]
     return [step.get("subject", "") for step in steps]
 

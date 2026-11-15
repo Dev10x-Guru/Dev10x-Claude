@@ -91,6 +91,25 @@ def satellite_script(
     return in_core
 
 
+def satellite_root(*, plugin_root: Path, key: str, plugin_name: str) -> Path | None:
+    """The tree a satellite's skills live in, as ``satellite_script`` finds a
+    script there: under core's own root first, then cached beside core at
+    the satellite's newest version (GH-1572). ``None`` when not installed."""
+    in_core = plugin_root / satellite_subdir(key=key)
+    if (in_core / SKILLS_DIR).is_dir():
+        return in_core
+    satellite_cache = satellite_cache_dir(
+        core_cache_dir=plugin_root.parent, plugin_name=plugin_name
+    )
+    version = latest_version(versions_dir=satellite_cache)
+    if version is None:
+        return None
+    beside = satellite_cache / version
+    if _manifest_names(root=beside, plugin_name=plugin_name):
+        return beside
+    return None
+
+
 def _manifest_names(*, root: Path, plugin_name: str) -> bool:
     try:
         manifest = json.loads((root / PLUGIN_MANIFEST).read_text())
@@ -122,6 +141,7 @@ __all__ = [
     "SKILL_FILE",
     "latest_version",
     "satellite_cache_dir",
+    "satellite_root",
     "satellite_script",
     "satellite_subdir",
     "skill_files",

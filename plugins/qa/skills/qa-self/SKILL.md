@@ -6,7 +6,7 @@ description: >
   results.
   TRIGGER when: QA ticket has test cases to execute against staging
   and evidence is needed.
-  DO NOT TRIGGER when: analyzing PR for QA needs (use dev10x:qa-scope),
+  DO NOT TRIGGER when: analyzing PR for QA needs (use dev10x-coding:qa-scope),
   or running unit/integration tests (use test skill).
 user-invocable: true
 invocation-name: dev10x-qa:qa-self
@@ -61,7 +61,7 @@ the contract.
 `--exploratory <PR>` QAs a pull request that has no QA ticket. The
 work-on shipping pipeline uses it to record a narrated self-QA video
 before the review request (GH-1827). Cases come from the
-`dev10x:qa-scope` report and the diff, the video is narrated (a piece
+`dev10x-coding:qa-scope` report and the diff, the video is narrated (a piece
 that fails for an external reason ships without it, reason stated),
 and the run returns its evidence instead of posting to a ticket.
 `dev10x-qa:review-pack` publishes it through `dev10x-qa:qa-publish`

@@ -7,7 +7,7 @@ Linear.
 **Use when:**
 - A QA ticket (e.g., QA-xxx) has test cases ready to execute
 - You need to verify a feature works on staging before closing a ticket
-- `dev10x:qa-scope` has created a QA sub-ticket and tests need running
+- `dev10x-coding:qa-scope` has created a QA sub-ticket and tests need running
 
 **Do NOT use when:**
 - The test requires real hardware (e.g., Square Terminal pairing)
@@ -60,7 +60,7 @@ Options:
 
 ## Prerequisites
 
-- Linear ticket with test cases (from `dev10x:qa-scope` or manual)
+- Linear ticket with test cases (from `dev10x-coding:qa-scope` or manual)
 - Headless Playwright: `uv run --with playwright python3 -m playwright install chromium`
 
 ## Workflow
@@ -138,7 +138,7 @@ worktree, so the usual objection to `-C` (it shifts the allow-rule prefix
 for a path that is already the CWD) does not apply.
 
 **Three verdicts, not two (GH-1236).** Match the distinction
-`dev10x:qa-scope` Phase 3.0 already draws:
+`dev10x-coding:qa-scope` Phase 3.0 already draws:
 
 | Verdict | When | Action |
 |---------|------|--------|
@@ -1308,7 +1308,7 @@ If tests are blocked, leave in current status and note the blocker.
 
 ```
 dev10x-qa:qa-self
-├── Prereq: dev10x:qa-scope (creates the QA ticket with test cases)
+├── Prereq: dev10x-coding:qa-scope (creates the QA ticket with test cases)
 ├── Uses: Linear MCP (read ticket, post results)
 ├── Scripts:
 │   ├── upload-screenshots.py (upload images & video to Linear)

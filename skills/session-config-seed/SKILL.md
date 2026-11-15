@@ -30,7 +30,7 @@ session start (this skill).
 | Seeded | Purpose |
 |--------|---------|
 | `~/.config/Dev10x/friction.yaml` | Global, gate-free durable prefs — the `defaults` block a repo without a `projects[]` entry resolves against (ADR-0018) |
-| `<repo>/.claude/Dev10x/.gitignore` | A single `*` so runtime artifacts under that directory never reach `git status` and trip the clean-tree gates in `verify_pr_state` / `dev10x:gh-pr-merge` / `create_pr` (GH-809) |
+| `<repo>/.claude/Dev10x/.gitignore` | A single `*` so runtime artifacts under that directory never reach `git status` and trip the clean-tree gates in `verify_pr_state` / `dev10x-coding:gh-pr-merge` / `create_pr` (GH-809) |
 
 Since ADR-0018 the per-repo `.claude/Dev10x/session.yaml` and
 `config.yaml` are **retired**, so seed writes nothing durable under the
@@ -72,7 +72,7 @@ may invoke this unconditionally.
 
 ## When to Use
 
-- `dev10x:work-on` Phase 0, when no gate policy resolves for this
+- `dev10x-coding:work-on` Phase 0, when no gate policy resolves for this
   checkout and a default is needed before the first gate.
 - After a `git worktree add` where the `post-checkout` hook was not
   installed (so the hook's own seed never ran).

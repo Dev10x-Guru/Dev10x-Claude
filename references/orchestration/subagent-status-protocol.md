@@ -180,7 +180,7 @@ lets it through and the guardrail is bypassed by a change of seat.
 
 1. Surface the denied command to the supervisor through the batched
    decision queue (`AskUserQuestion` when every task is blocked), the
-   same routing `dev10x:fanout` already uses.
+   same routing `dev10x-coding:fanout` already uses.
 2. Re-dispatch only with a brief that names the sanctioned tool for
    that command — the skill or MCP wrapper the hook's message points
    to. Never re-dispatch the same brief.

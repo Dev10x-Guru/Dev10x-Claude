@@ -17,10 +17,10 @@ tool it names.
   The retired path is no longer read: the `task_index_get` fallback and the append fold-forward were removed in 0.112.0 (GH-1771).
 
 - `pr_labels` carries the durable `review:cleared` signal (GH-1008).
-  `dev10x:gh-pr-request-review` reads it before the stand-by clearance
+  `dev10x-coding:gh-pr-request-review` reads it before the stand-by clearance
   gate and skips asking when present; the two "I reviewed it" answers
   write it. Because a sign-off covers the commits that were read,
-  `dev10x:git-groom` removes it after a force-push — a clearance must
+  `dev10x-coding:git-groom` removes it after a force-push — a clearance must
   not survive the rewrite that invalidated it. Both writes are
   idempotent (`add` skips present labels, `remove` intersects against
   the current set first, so clearing an unset label is a no-op rather
@@ -28,7 +28,7 @@ tool it names.
 
   `remove` issues **one `PUT` of the surviving set** rather than a
   `DELETE` per label (GH-1446) — the old loop paid a subprocess plus an
-  HTTP round trip each time, on a path `dev10x:git-groom` runs after
+  HTTP round trip each time, on a path `dev10x-coding:git-groom` runs after
   every force-push. Idempotence is unchanged. One property is: a `PUT`
   is a read-modify-write, so a label added by another process between
   the read and the write is dropped, where a per-label `DELETE` was
@@ -129,7 +129,7 @@ tool it names.
   session recorded 0 of 7 across two merges, and a third closed two of
   three; both the full-URL and bare-`#N` spellings failed in the 0-of-7
   run, so the form is not the variable. Never treat a merged bundle as
-  self-closing: `dev10x:gh-pr-monitor` Phase 3.6 reconciles each link
+  self-closing: `dev10x-coding:gh-pr-monitor` Phase 3.6 reconciles each link
   against the issue's real state after the merge
   (`fixes_scope.reconcile_link_closure`), and a straggler is reported
   for the supervisor to confirm — not closed silently.
@@ -153,10 +153,10 @@ tool it names.
   entry sets `review_stamp: required`, a PreToolUse hook denies
   `merge_pr`, `pr_ready` and `request_review` (not `pr_ready(undo=true)`)
   unless `review_stamp_write` stamped the PR head after a clean
-  `dev10x:review`. The head comes from `gh pr view` on `pr_number` /
+  `dev10x-coding:review`. The head comes from `gh pr view` on `pr_number` /
   `repo`; the stamped commit, or the stamped tree after a groom, passes.
   A missing `pr_number`, an unreadable head or a validator error denies.
-  Re-run `dev10x:review --loop` and push. Escapes: `review_stamp: none`,
+  Re-run `dev10x-coding:review --loop` and push. Escapes: `review_stamp: none`,
   `DEV10X_HOOK_DISABLE=DX019`; `DEV10X_HOOK_PROFILE=minimal` drops it too.
 
 - `pr_get` returns `files`, the complete changed-file list (GH-1265).
@@ -186,7 +186,7 @@ tool it names.
   milestone by title or number (GH-1098). Nothing on the MCP surface
   could write that field before, so a PR opened through the
   sanctioned path always had `milestone: null` and
-  `dev10x:gh-pr-monitor` Phase 3.5 (post-merge milestone cleanup)
+  `dev10x-coding:gh-pr-monitor` Phase 3.5 (post-merge milestone cleanup)
   silently took its skip branch on every milestone-bundle PR. The
   write goes through the `issues/{n}` endpoint — the `pulls/{n}`
   endpoint has no milestone field — so `gh pr edit --milestone` stays

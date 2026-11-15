@@ -33,7 +33,7 @@ from tests.fakers import BashHookInputFaker
 
 from dev10x.validators import get_chain
 
-SKILL_DIR = Path(__file__).resolve().parents[3] / "skills" / "verify-acc-dod"
+SKILL_DIR = Path(__file__).resolve().parents[3] / "plugins" / "coding" / "skills" / "verify-acc-dod"
 DEFAULTS = SKILL_DIR / "references" / "defaults.yaml"
 SKILL_MD = SKILL_DIR / "SKILL.md"
 

@@ -1,4 +1,4 @@
-"""Pre-merge validation helpers for ``dev10x:gh-pr-merge``."""
+"""Pre-merge validation helpers for ``dev10x-coding:gh-pr-merge``."""
 
 from dev10x.coding.skills.merge.fixes_scope import (
     commit_ticket_ids,

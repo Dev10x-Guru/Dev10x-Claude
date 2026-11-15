@@ -8,7 +8,7 @@ failing checks, or incomplete work that earlier phases missed.
 
 1. Invoke the verification skill:
    ```
-   Skill(skill="dev10x:verify-acc-dod")
+   Skill(skill="dev10x-coding:verify-acc-dod")
    ```
 
    The skill auto-detects the work type from session context and

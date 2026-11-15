@@ -79,7 +79,7 @@ Parameter Shapes (GH-1606).
   `mode` is `unattended` when the `afk` overlay survived the
   `allowed_overlays` guard (`basis: afk-overlay`) or when the plan-sync
   mirror for the current branch has an `in_progress` task carrying
-  `type` / `skills` / `agent` metadata — a `dev10x:work-on` plan step
+  `type` / `skills` / `agent` metadata — a `dev10x-coding:work-on` plan step
   (`basis: plan-step-in-progress`, `plan_step` names it).
   It is `attended` when that mirror has tasks but no such step is in
   progress.

@@ -1,16 +1,16 @@
 ---
-name: dev10x:request-review
+name: dev10x-coding:request-review
 description: >
   Request PR review — assigns GitHub reviewers and posts the team's
   chat notification (Slack, Google Chat, or both) in one command.
-  Delegates to dev10x:gh-pr-request-review, dev10x:slack-review-request
-  and dev10x:gchat-review-request.
+  Delegates to dev10x-coding:gh-pr-request-review, dev10x-coding:slack-review-request
+  and dev10x-coding:gchat-review-request.
   TRIGGER when: PR is ready for review and needs both GitHub reviewer
   assignment and a chat notification.
   DO NOT TRIGGER when: PR is draft/WIP, or only need GitHub assignment
-  without a notification (use dev10x:gh-pr-request-review directly).
+  without a notification (use dev10x-coding:gh-pr-request-review directly).
 user-invocable: true
-invocation-name: dev10x:request-review
+invocation-name: dev10x-coding:request-review
 allowed-tools:
   - Read
   - AskUserQuestion
@@ -22,9 +22,9 @@ allowed-tools:
   - mcp__plugin_dev10x_cli__bot_review_status
   - mcp__plugin_dev10x_cli__review_readiness_audit
   - mcp__plugin_dev10x_cli__resolve_gate
-  - Skill(dev10x:gh-pr-request-review)
-  - Skill(dev10x:slack-review-request)
-  - Skill(dev10x:gchat-review-request)
+  - Skill(dev10x-coding:gh-pr-request-review)
+  - Skill(dev10x-coding:slack-review-request)
+  - Skill(dev10x-coding:gchat-review-request)
 ---
 
 ## Orchestration
@@ -75,7 +75,7 @@ bot approval never satisfies human review. Then:
   HEAD. **REQUIRED: Call `AskUserQuestion`** (do NOT use plain
   text):
   - **Skip — merge instead (Recommended)** — short-circuit
-    review request and offer to invoke `dev10x:gh-pr-merge`
+    review request and offer to invoke `dev10x-coding:gh-pr-merge`
   - **Force request anyway** — proceed to Step 2 with all
     reviewers (e.g., user wants additional eyes)
   - **Cancel** — do nothing
@@ -88,7 +88,7 @@ bot approval never satisfies human review. Then:
   HEAD, log "PR has only a bot approval — requesting human review"
   so the rationale is visible.
 
-Skip this precheck on `--force` or when `dev10x:gh-pr-monitor` Phase
+Skip this precheck on `--force` or when `dev10x-coding:gh-pr-monitor` Phase
 3 passes `bypass_approval_check: true` (re-review after fixups).
 
 ### Step 1.6: Readiness check (GH-1834)
@@ -120,8 +120,8 @@ A stop here goes straight to Step 4 with `status: "stopped"`.
 
 Delegate in this run's mode (`--readiness-checked`: Step 1.6 ran):
 
-1. Unattended run: `Skill(skill="dev10x:gh-pr-request-review", args="--pr {PR_NUMBER} --repo {REPO} --readiness-checked --unattended")`
-2. Attended run: `Skill(skill="dev10x:gh-pr-request-review", args="--pr {PR_NUMBER} --repo {REPO} --readiness-checked")`
+1. Unattended run: `Skill(skill="dev10x-coding:gh-pr-request-review", args="--pr {PR_NUMBER} --repo {REPO} --readiness-checked --unattended")`
+2. Attended run: `Skill(skill="dev10x-coding:gh-pr-request-review", args="--pr {PR_NUMBER} --repo {REPO} --readiness-checked")`
 
 It resolves reviewers from `<Dev10x config>/github-reviewers-config.yaml`
 and may skip on `skip: true`. Read the `status` of its
@@ -139,8 +139,8 @@ the `/` in `{REPO}`):
 
 | Transport | Config file | Delegate to |
 |-----------|-------------|-------------|
-| Slack | `~/.config/Dev10x/slack-config-code-review-requests.yaml` | `dev10x:slack-review-request` |
-| Google Chat | `~/.config/Dev10x/gchat-config-code-review-requests.yaml` | `dev10x:gchat-review-request` |
+| Slack | `~/.config/Dev10x/slack-config-code-review-requests.yaml` | `dev10x-coding:slack-review-request` |
+| Google Chat | `~/.config/Dev10x/gchat-config-code-review-requests.yaml` | `dev10x-coding:gchat-review-request` |
 
 A missing file counts as "does not name the repo". Then:
 
@@ -155,8 +155,8 @@ A missing file counts as "does not name the repo". Then:
   chosen skill, which will ask for the channel or space itself.
 
 ```
-Skill("dev10x:slack-review-request", args="--pr {PR_NUMBER} --repo {REPO}")
-Skill("dev10x:gchat-review-request", args="--pr {PR_NUMBER} --repo {REPO}")
+Skill("dev10x-coding:slack-review-request", args="--pr {PR_NUMBER} --repo {REPO}")
+Skill("dev10x-coding:gchat-review-request", args="--pr {PR_NUMBER} --repo {REPO}")
 ```
 
 Each skill formats, confirms and posts, or skips on `skip: true`.
@@ -197,4 +197,4 @@ in `references/review-readiness.md` § Result for callers.
 
 - A Step 1.6 refusal or a Step 2 stop ends the run. Otherwise Steps 2
   and 3 are independent: each may skip on its own config file.
-- Callers: `dev10x:gh-pr-monitor` Phase 3 and `/dev10x:request-review`.
+- Callers: `dev10x-coding:gh-pr-monitor` Phase 3 and `/dev10x-coding:request-review`.

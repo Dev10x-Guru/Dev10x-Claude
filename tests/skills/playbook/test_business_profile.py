@@ -12,24 +12,24 @@ from typing import Any
 
 import pytest
 
-from dev10x.skills.playbook import load_plugin_default
+from dev10x.skills.playbook import installed_plugin_roots, load_plugin_default
 from dev10x.subprocess_utils import get_plugin_root
 from dev10x.teach.skill_index.builder import extract_front_matter
 
 FRAGMENT = "business-change"
 KERNEL_SKILL_SEQUENCE = [
-    "dev10x:ticket-branch",
-    "dev10x:git-commit",
-    "dev10x:gh-pr-create",
-    "dev10x:gh-pr-monitor",
-    "dev10x:gh-pr-respond",
-    "dev10x:verify-acc-dod",
+    "dev10x-coding:ticket-branch",
+    "dev10x-coding:git-commit",
+    "dev10x-coding:gh-pr-create",
+    "dev10x-coding:gh-pr-monitor",
+    "dev10x-coding:gh-pr-respond",
+    "dev10x-coding:verify-acc-dod",
 ]
 DEVELOPER_ONLY_SKILLS = {
-    "dev10x:git-groom",
-    "dev10x:gh-pr-merge",
-    "dev10x:review",
-    "dev10x:review-fix",
+    "dev10x-coding:git-groom",
+    "dev10x-coding:gh-pr-merge",
+    "dev10x-coding:review",
+    "dev10x-coding:review-fix",
 }
 PREVIEW_STEP = "Preview the change"
 COMMIT_STEP = "Commit the change"
@@ -43,7 +43,9 @@ def _shipped_skill_names(*, root: Path) -> set[str]:
 
 @pytest.fixture(scope="module")
 def document() -> dict[str, Any]:
-    loaded = load_plugin_default(skill_key="work-on", plugin_roots=[get_plugin_root()])
+    loaded = load_plugin_default(
+        skill_key="work-on", plugin_roots=installed_plugin_roots(core_root=get_plugin_root())
+    )
     assert loaded is not None, "the shared default work-on playbook did not load"
     return loaded
 

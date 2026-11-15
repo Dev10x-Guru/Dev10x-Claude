@@ -75,7 +75,7 @@ Parse the arguments to determine the subcommand:
 | `reset [<skill> [<play>]]` | Reset | Reset overrides to defaults |
 
 If `<skill>` is ambiguous, match against both directory name and
-invocation name (e.g., `work-on` matches `dev10x:work-on`).
+invocation name (e.g., `work-on` matches `dev10x-coding:work-on`).
 
 ---
 
@@ -96,7 +96,7 @@ Scan all installed skill directories for `references/playbook.yaml`.
 
 | Skill | Plays | Customized? |
 |-------|-------|-------------|
-| dev10x:work-on | 5 (feature, bugfix, pr-continuation, local-only, investigation) | feature ✎ |
+| dev10x-coding:work-on | 5 (feature, bugfix, pr-continuation, local-only, investigation) | feature ✎ |
 | tt:e2e-debug | 2 (investigate, fix) | — |
 
 Use `/dev10x:playbook view <skill>` to inspect plays.
@@ -119,13 +119,13 @@ Show plays for a specific skill, or drill into one play.
 **Play detail format:**
 
 ```
-## dev10x:work-on → feature
+## dev10x-coding:work-on → feature
 
 **Prompt:** Use when a ticket describes new functionality...
 
 | # | Type | Step | Skills | Children |
 |---|------|------|--------|----------|
-| 1 | detailed | Set up workspace | dev10x:ticket-branch | — |
+| 1 | detailed | Set up workspace | dev10x-coding:ticket-branch | — |
 | 2 | detailed | Draft Job Story | dev10x-scoping:jtbd | — |
 | 3 | epic | Design implementation approach | — | 3 children |
 |   |   | ├─ Read relevant code | — | |
@@ -209,7 +209,7 @@ overrides:
     steps:
       - subject: Set up workspace
         type: detailed
-        skills: [dev10x:ticket-branch]
+        skills: [dev10x-coding:ticket-branch]
       # ... full step list
 ```
 

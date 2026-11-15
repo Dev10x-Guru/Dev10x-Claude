@@ -14,7 +14,7 @@ description: >
   new code shape.
   DO NOT TRIGGER when: behaviour changes (use dev10x-scoping:spec-update);
   spec is missing (use dev10x-scoping:ticket-scope); no canonical spec
-  workflow is in use (regular dev10x:work-on applies).
+  workflow is in use (regular dev10x-coding:work-on applies).
 user-invocable: true
 allowed-tools:
   - AskUserQuestion
@@ -165,9 +165,9 @@ when both drift kinds are present. See `.claude/rules/skill-gates.md`.
 - **`dev10x-scoping:spec-update`** — inverse path (behaviour-first).
   Shares `dev10x.spec.drift_detector`.
 - **`dev10x-scoping:ticket-scope`** — creates the canonical spec.
-- **`dev10x:gh-pr-respond`** (GH-173) — calls this skill in
+- **`dev10x-coding:gh-pr-respond`** (GH-173) — calls this skill in
   `check_only=True` mode before applying review-comment fixups.
-- **`dev10x:git-groom`** (GH-173) — pre-merge guard.
+- **`dev10x-coding:git-groom`** (GH-173) — pre-merge guard.
 
 ## Anti-Patterns
 

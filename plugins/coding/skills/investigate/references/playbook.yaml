@@ -1,4 +1,4 @@
-# playbook.yaml — Investigation workflow plays for dev10x:investigate
+# playbook.yaml — Investigation workflow plays for dev10x-coding:investigate
 # Default location: ${CLAUDE_PLUGIN_ROOT}/skills/investigate/references/playbook.yaml
 # User overrides (see references/config-resolution.md):
 #   1. .claude/Dev10x/playbooks/investigate.yaml (project-local)
@@ -85,7 +85,7 @@ defaults:
       Use when the Slack thread contains a GitHub PR link and the
       request is to review it or check its status. Parse the URL and
       read the thread for context, then delegate to
-      dev10x:gh-pr-review.
+      dev10x-coding:gh-pr-review.
     steps:
       - subject: Parse Slack URL
         type: detailed
@@ -100,8 +100,8 @@ defaults:
       - subject: Delegate to PR review
         type: detailed
         prompt: >
-          Invoke dev10x:gh-pr-review skill with the PR URL and Slack
+          Invoke dev10x-coding:gh-pr-review skill with the PR URL and Slack
           thread context. Let the review skill handle the rest.
-        skills: [dev10x:gh-pr-review]
+        skills: [dev10x-coding:gh-pr-review]
 
 overrides: []

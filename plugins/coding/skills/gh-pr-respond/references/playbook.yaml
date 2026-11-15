@@ -1,4 +1,4 @@
-# playbook.yaml — Respond workflow plays for dev10x:gh-pr-respond
+# playbook.yaml — Respond workflow plays for dev10x-coding:gh-pr-respond
 # Default location: ${CLAUDE_PLUGIN_ROOT}/skills/gh-pr-respond/references/playbook.yaml
 # User overrides (see references/config-resolution.md):
 #   1. .claude/Dev10x/playbooks/gh-pr-respond.yaml (project-local)
@@ -20,11 +20,11 @@ defaults:
       - subject: Process comment
         type: detailed
         prompt: >
-          Delegate to dev10x:gh-pr-triage with the comment URL.
-          If VALID → delegate to dev10x:gh-pr-fixup.
+          Delegate to dev10x-coding:gh-pr-triage with the comment URL.
+          If VALID → delegate to dev10x-coding:gh-pr-fixup.
           If not VALID → reply is posted, proceed to thread
           resolution confirmation.
-        skills: [dev10x:gh-pr-triage, dev10x:gh-pr-fixup]
+        skills: [dev10x-coding:gh-pr-triage, dev10x-coding:gh-pr-fixup]
       - subject: Confirm thread resolution
         type: detailed
         prompt: >
@@ -111,7 +111,7 @@ defaults:
         type: detailed
         prompt: >
           Route by verdict + priority. VALID+now → delegate to
-          dev10x:gh-pr-fixup (one fixup commit per comment, or
+          dev10x-coding:gh-pr-fixup (one fixup commit per comment, or
           bundled per § Bundled Fixup Mode). VALID+fast-follow →
           batch into a single follow-up ticket via
           dev10x-scoping:ticket-create, reply on each thread linking the
@@ -120,7 +120,7 @@ defaults:
           per bundle and route per its effect. INVALID/QUESTION/
           OUT_OF_SCOPE → post reply via MCP tool. Do NOT resolve
           threads yet.
-        skills: [dev10x:gh-pr-fixup, dev10x-scoping:ticket-create]
+        skills: [dev10x-coding:gh-pr-fixup, dev10x-scoping:ticket-create]
       - subject: Resolve threads
         type: detailed
         prompt: >
@@ -164,11 +164,11 @@ defaults:
     steps:
       - subject: Groom commit history
         type: detailed
-        skills: [dev10x:git-groom]
+        skills: [dev10x-coding:git-groom]
         prompt: Squash fixup commits into clean history.
       - subject: Push changes
         type: detailed
-        skills: [dev10x:git]
+        skills: [dev10x-coding:git]
         prompt: Push with --force-with-lease.
       - subject: Mark PR ready
         type: detailed
@@ -177,16 +177,16 @@ defaults:
           already marked ready.
       - subject: Monitor CI
         type: detailed
-        skills: [dev10x:gh-pr-monitor]
+        skills: [dev10x-coding:gh-pr-monitor]
         prompt: >
           Watch CI. Fix failures with fixup commits if needed.
           Auto-advance when green.
       - subject: Merge PR
         type: detailed
-        skills: [dev10x:gh-pr-merge]
+        skills: [dev10x-coding:gh-pr-merge]
         prompt: >
           When CI passes and no new review comments exist,
-          delegate to dev10x:gh-pr-merge — never run raw
+          delegate to dev10x-coding:gh-pr-merge — never run raw
           `gh pr merge`. In solo-maintainer mode the skill
           merges automatically; otherwise it stops and reports
           ready-to-merge status.

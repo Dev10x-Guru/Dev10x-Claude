@@ -1262,7 +1262,7 @@ def task_signal(*, plan: dict | None) -> TaskSignal:
     """Read the open-work signal out of a persisted plan.
 
     GH-1251 also detected a **phase boundary** — a completed phase parent
-    followed by a pending one — as the point `dev10x:work-on` requires a
+    followed by a pending one — as the point `dev10x-coding:work-on` requires a
     gate. GH-1339 retires it: a pending phase *is* an open task, so the
     boundary strictly implies open work and could never reach a block
     again. Keeping it would leave an unreachable branch asserting a
@@ -1336,7 +1336,7 @@ def _dirty_tree_reason(*, dirty: tuple[str, ...]) -> str:
         "says nothing about the work.\n\n"
         f"Uncommitted changes:\n\n{listed}\n\n"
         "**If these are yours, you are not done.** Commit them via "
-        "`Skill(dev10x:git-commit)` and carry on through the rest of the "
+        "`Skill(dev10x-coding:git-commit)` and carry on through the rest of the "
         "shipping pipeline. Do not ask whether to commit — a commit is a "
         "forward, reversible step, so the answer is always yes.\n\n"
         "**If you did not touch these files, do not commit them.** This "

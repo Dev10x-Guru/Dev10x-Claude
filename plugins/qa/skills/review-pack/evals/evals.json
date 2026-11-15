@@ -58,7 +58,7 @@
           "dimension": "gate-enforcement",
           "check": "tool_called",
           "value": "AskUserQuestion",
-          "signal": "The pre-send gate fires before dev10x:request-review is invoked"
+          "signal": "The pre-send gate fires before dev10x-coding:request-review is invoked"
         },
         {
           "dimension": "gate-enforcement",
@@ -91,7 +91,7 @@
           "dimension": "gate-enforcement",
           "check": "behavioral",
           "assertion": "gate2_no_review_request",
-          "signal": "dev10x:request-review is never invoked; the run stops after the gate and returns the pack link"
+          "signal": "dev10x-coding:request-review is never invoked; the run stops after the gate and returns the pack link"
         }
       ]
     },
@@ -311,7 +311,7 @@
     "should_not_trigger": [
       "Execute QA test cases on staging (use dev10x-qa:qa-self)",
       "Publish a QA verdict to the ticket (use dev10x-qa:qa-publish)",
-      "Assign reviewers and ping chat (use dev10x:request-review)"
+      "Assign reviewers and ping chat (use dev10x-coding:request-review)"
     ]
   }
 }

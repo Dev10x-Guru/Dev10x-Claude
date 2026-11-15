@@ -11,12 +11,11 @@
     {
       "name": "dev10x",
       "source": "./",
-      "description": "v0.116.0.dev0 — 57 skills: the core every Dev10x plugin needs (setup, permissions, friction diagnosis, playbooks, both MCP servers and the safety hooks) and, until they ship as their own plugin, the coding skills for commits, PRs, branch hygiene and code review.",
+      "description": "v0.116.0.dev0 — 17 skills: the core every Dev10x plugin needs (setup, permissions, friction diagnosis, playbooks, both MCP servers and the safety hooks).",
       "version": "0.116.0.dev0",
       "keywords": [
         "core", "permissions", "hooks", "MCP", "playbooks",
-        "friction", "learned-rules", "git", "commits",
-        "pull-requests", "code-review", "worktrees"
+        "friction", "learned-rules"
       ]
     },
     {
@@ -67,6 +66,13 @@
       "description": "v0.116.0.dev0 — 19 skills for tickets and scoping: create and scope tickets on GitHub, Linear or JIRA, draft Job Stories, estimate, record and evaluate ADRs, keep specs in sync, and draw diagrams.",
       "version": "0.116.0.dev0",
       "keywords": ["tickets", "scoping", "jtbd", "adr", "estimation"]
+    },
+    {
+      "name": "dev10x-coding",
+      "source": "./plugins/coding",
+      "description": "v0.116.0.dev0 — 40 skills for coding: structured commits, PR lifecycle, branch hygiene, code review, test runs, and the work-on, fanout and foreman orchestrators.",
+      "version": "0.116.0.dev0",
+      "keywords": ["git", "commits", "pull-requests", "code-review", "work-on"]
     }
   ]
 }

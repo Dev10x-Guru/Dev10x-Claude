@@ -15,7 +15,8 @@ from pathlib import Path
 
 import pytest
 
-SCRIPT = Path(__file__).resolve().parents[2] / "skills" / "git" / "scripts" / "git-push-safe.sh"
+CODING_SKILLS = Path(__file__).resolve().parents[2] / "plugins" / "coding" / "skills"
+SCRIPT = CODING_SKILLS / "git" / "scripts" / "git-push-safe.sh"
 
 _GIT_IDENTITY = [
     ["git", "config", "user.email", "test@example.com"],

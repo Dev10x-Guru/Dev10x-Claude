@@ -1,18 +1,18 @@
 ---
-name: dev10x:gh-pr-fixup
+name: dev10x-coding:gh-pr-fixup
 description: >
   Implement a fix for a validated PR review comment, create a fixup!
   commit, push, and reply with the commit reference. Creates ONE fixup
   commit per comment.
   TRIGGER when: PR review comment has been validated as needing a code fix.
-  DO NOT TRIGGER when: comment is invalid/question (use dev10x:gh-pr-triage
-  first), or creating standalone fixup without PR context (use dev10x:git-fixup).
+  DO NOT TRIGGER when: comment is invalid/question (use dev10x-coding:gh-pr-triage
+  first), or creating standalone fixup without PR context (use dev10x-coding:git-fixup).
 user-invocable: true
-invocation-name: dev10x:gh-pr-fixup
+invocation-name: dev10x-coding:gh-pr-fixup
 allowed-tools:
   - mcp__plugin_dev10x_cli__pr_comment_reply
-  - Skill(dev10x:git)
-  - Skill(dev10x:py-test)
+  - Skill(dev10x-coding:git)
+  - Skill(dev10x-coding:py-test)
   - mcp__plugin_dev10x_cli__pr_comments
   - Bash(gh pr comment:*)
   - Bash(gh api:*)
@@ -38,21 +38,21 @@ already been validated as needing a code change. It:
 **Critical rule: ONE fixup commit per PR comment — unless the fix
 spans hunks owned by multiple branch commits.** "One fixup per
 comment" is a traceability floor (so reviewers can match comment to
-commit), not a cap on commit count. When `dev10x:git-fixup` reports
+commit), not a cap on commit count. When `dev10x-coding:git-fixup` reports
 multi-owner staged changes (status: `multi`), create **one fixup per
 owning commit**, all referencing the same review comment URL.
 Bundling cross-commit hunks into a single fixup creates conflicts on
 autosquash that `git rerere` then silently re-applies — see GH-299.
 
-**Entry point rule:** `dev10x:gh-pr-respond` is the recommended
+**Entry point rule:** `dev10x-coding:gh-pr-respond` is the recommended
 entry point for all PR review comments. It orchestrates triage,
 fixup, reply, and thread resolution as a pipeline. Calling
-`dev10x:gh-pr-fixup` directly skips triage, reply formatting,
+`dev10x-coding:gh-pr-fixup` directly skips triage, reply formatting,
 and thread resolution — use it only when you have already
 validated the comment and will handle reply/resolution yourself.
 
 **When to use this skill:**
-- Called by `dev10x:gh-pr-respond` after `dev10x:gh-pr-triage` returns `VALID`
+- Called by `dev10x-coding:gh-pr-respond` after `dev10x-coding:gh-pr-triage` returns `VALID`
 - Standalone only when the comment is already validated and you
   will handle reply and thread resolution separately
 
@@ -82,7 +82,7 @@ by implement, push blocked by commit.
 
 **Optional additional context:**
 - User may provide extra context after the URL
-- Example: `/dev10x:gh-pr-fixup https://...#discussion_r456 The API now provides customer_url`
+- Example: `/dev10x-coding:gh-pr-fixup https://...#discussion_r456 The API now provides customer_url`
 
 ## Workflow
 
@@ -167,7 +167,7 @@ this comment:
    `Dockerfile`, `.json` (settings, manifests). When skipping,
    note: "Tests skipped: non-testable infrastructure file."
 
-   **REQUIRED: Delegate to `Skill(dev10x:py-test)` for Python
+   **REQUIRED: Delegate to `Skill(dev10x-coding:py-test)` for Python
    projects — never run pytest inline.** The skill enforces
    coverage checks that bare `pytest -x` commands bypass. This
    is a repeat offender: 12 instances across 3 audit sessions
@@ -178,22 +178,22 @@ this comment:
    test run in the fix-test-fix cycle, not just the first.
    When tests fail and you iterate (fix code → re-run tests →
    fix code → re-run tests), EACH re-run MUST use
-   `Skill(dev10x:py-test)`. The pattern of "first run uses
+   `Skill(dev10x-coding:py-test)`. The pattern of "first run uses
    skill, subsequent runs use raw pytest" is the #1 skill
    routing violation. Before running any test command, check:
    am I about to type `pytest` or `uv run pytest`? If yes,
-   STOP and use `Skill(dev10x:py-test)` instead.
+   STOP and use `Skill(dev10x-coding:py-test)` instead.
 
    Note: `ruff format` and `ruff check --fix` run automatically via PostToolUse hook.
 
    **If tests fail:** Fix the test failure before proceeding to
-   Step 5. Re-run tests via `Skill(dev10x:py-test)` — not raw
+   Step 5. Re-run tests via `Skill(dev10x-coding:py-test)` — not raw
    pytest. If the fix itself is wrong, revert and reply asking
    for clarification (see Error Handling).
 
-### Step 5: Create Fixup Commit (delegate to dev10x:git-fixup)
+### Step 5: Create Fixup Commit (delegate to dev10x-coding:git-fixup)
 
-**IMPORTANT:** Delegate to the `dev10x:git-fixup` skill. It resolves
+**IMPORTANT:** Delegate to the `dev10x-coding:git-fixup` skill. It resolves
 the fixup target by blaming the staged hunks (GH-299), so each fixup
 lands adjacent to the commit that actually owns the touched lines.
 
@@ -201,16 +201,16 @@ lands adjacent to the commit that actually owns the touched lines.
 # Stage the changes
 git add {file_path}
 
-# Delegate to dev10x:git-fixup skill (handles target resolution + message format)
+# Delegate to dev10x-coding:git-fixup skill (handles target resolution + message format)
 ```
 
-**When the fix spans multiple owning commits**, `dev10x:git-fixup`
+**When the fix spans multiple owning commits**, `dev10x-coding:git-fixup`
 returns a `multi` status and refuses to create a cross-commit fixup.
 In that case:
 
 1. Restage hunks per owning commit (`git restore --staged .` then
    `git add -p` for each owner's files/hunks)
-2. Invoke `dev10x:git-fixup` once per owning commit
+2. Invoke `dev10x-coding:git-fixup` once per owning commit
 3. Collect every resulting commit hash; pass all of them to Step 6
    and reference each in the Step 7 reply (e.g. "Fixed in `abc1234`
    and `def5678` — payments service + regression tests")
@@ -233,7 +233,7 @@ https://github.com/{owner}/{repo}/pull/{pr}#discussion_r{comment_id}
 
 **Primary (MCP tool):** `mcp__plugin_dev10x_cli__push_safe(args=["origin", "HEAD"])`
 
-**Fallback:** `Skill(dev10x:git)` for safe push with protected branch checks.
+**Fallback:** `Skill(dev10x-coding:git)` for safe push with protected branch checks.
 
 **Re-ready a PR the push drafted (GH-1731).** A push to a ready PR can
 convert it to draft (`pr-draft-on-push.yml`, GH-1694), and a draft gets
@@ -354,22 +354,22 @@ If the file has changed since the comment was made:
 ## Integration
 
 ```
-dev10x:gh-pr-monitor → dev10x:gh-pr-respond (orchestrator)
-                 ├── dev10x:gh-pr-triage
-                 └── dev10x:gh-pr-fixup  ← this skill
-                      └── dev10x:git-fixup
+dev10x-coding:gh-pr-monitor → dev10x-coding:gh-pr-respond (orchestrator)
+                 ├── dev10x-coding:gh-pr-triage
+                 └── dev10x-coding:gh-pr-fixup  ← this skill
+                      └── dev10x-coding:git-fixup
 ```
 
 **Standalone usage:**
 ```bash
-/dev10x:gh-pr-fixup https://github.com/owner/repo/pull/123#discussion_r456
+/dev10x-coding:gh-pr-fixup https://github.com/owner/repo/pull/123#discussion_r456
 ```
 
-**Called by dev10x:gh-pr-respond:**
+**Called by dev10x-coding:gh-pr-respond:**
 ```
-dev10x:gh-pr-respond receives comment URL
-  → delegates to dev10x:gh-pr-triage → verdict: VALID
-  → delegates to dev10x:gh-pr-fixup (this skill)
+dev10x-coding:gh-pr-respond receives comment URL
+  → delegates to dev10x-coding:gh-pr-triage → verdict: VALID
+  → delegates to dev10x-coding:gh-pr-fixup (this skill)
   → fix implemented, pushed, replied
 ```
 

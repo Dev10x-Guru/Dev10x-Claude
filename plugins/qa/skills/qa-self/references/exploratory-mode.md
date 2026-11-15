@@ -14,7 +14,7 @@ PR.
 
 | Phase | Ticket-driven run | Exploratory run |
 |-------|-------------------|-----------------|
-| 1.1 Read the QA ticket | Test cases from the ticket | Cases derived from the `dev10x:qa-scope` report and the PR diff |
+| 1.1 Read the QA ticket | Test cases from the ticket | Cases derived from the `dev10x-coding:qa-scope` report and the PR diff |
 | 1.2 Verify deployment | Staging image or deployed branch | Same check, or a local stack running the PR head |
 | 2–3 Script and execute | One test per ticket case | One walkthrough per changed surface, plus one unscripted probe of edge states |
 | 4 Prepare evidence | Screenshots and video | Same, and the video is **narrated** (see the external-failure fallback below) |
@@ -43,7 +43,7 @@ gates downstream are unchanged.
 
 ## Deriving the cases
 
-1. Read the `dev10x:qa-scope` report for the PR. Its manual-test and
+1. Read the `dev10x-coding:qa-scope` report for the PR. Its manual-test and
    coverage-gap lists are the starting cases.
 2. For each changed route, screen or dialog in the diff, add one case
    that walks the change end to end with seed data.

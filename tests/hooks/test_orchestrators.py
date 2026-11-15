@@ -339,7 +339,7 @@ class TestSessionStopVerdict:
         assert result.returncode == 0
         envelope = json.loads(result.stdout)
         assert envelope["decision"] == "block"
-        assert "dev10x:git-commit" in envelope["reason"]
+        assert "dev10x-coding:git-commit" in envelope["reason"]
         # Porcelain collapses a wholly-untracked tree to its directory,
         # so this is `.claude/` rather than the plan file itself.
         assert ".claude" in envelope["reason"]

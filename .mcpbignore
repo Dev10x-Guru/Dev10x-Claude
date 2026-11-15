@@ -1,7 +1,8 @@
 # Files mcpb pack leaves out of dev10x-<version>.mcpb (GH-1675).
 # The cli server resolves its plugin root from its own path, so the
-# bundle keeps src/, servers/, skills/, hooks/, references/ and
-# .claude-plugin/ — everything else here is development-only.
+# bundle keeps src/, servers/, skills/, plugins/ (the coding scripts the
+# cli tools run, GH-1572), hooks/, references/ and .claude-plugin/ —
+# everything else here is development-only.
 .git/
 .github/
 .venv/

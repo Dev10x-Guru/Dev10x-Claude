@@ -1,14 +1,14 @@
 ---
-name: dev10x:gh-pr-respond
+name: dev10x-coding:gh-pr-respond
 description: >
   Validate and respond to PR review comments. Handles single comment
   (with follow-up offer) or batch mode for all unaddressed comments on
-  a PR/review. Orchestrates dev10x:gh-pr-triage and dev10x:gh-pr-fixup.
+  a PR/review. Orchestrates dev10x-coding:gh-pr-triage and dev10x-coding:gh-pr-fixup.
   TRIGGER when: PR has review comments that need responses or fixes.
   DO NOT TRIGGER when: no review comments exist, or user wants to
-  create a new PR (use dev10x:gh-pr-create).
+  create a new PR (use dev10x-coding:gh-pr-create).
 user-invocable: true
-invocation-name: dev10x:gh-pr-respond
+invocation-name: dev10x-coding:gh-pr-respond
 allowed-tools:
   - AskUserQuestion
   - mcp__plugin_dev10x_cli__pr_comment_reply
@@ -22,12 +22,12 @@ allowed-tools:
   - Bash(gh api graphql:*)
   - Bash(gh api repos/:*)
   - Bash(jq:*)
-  - Skill(dev10x:gh-pr-triage)
-  - Skill(dev10x:gh-pr-fixup)
-  - Skill(dev10x:git-groom)
-  - Skill(dev10x:gh-pr-monitor)
-  - Skill(dev10x:git)
-  - Skill(dev10x:gh-pr-merge)
+  - Skill(dev10x-coding:gh-pr-triage)
+  - Skill(dev10x-coding:gh-pr-fixup)
+  - Skill(dev10x-coding:git-groom)
+  - Skill(dev10x-coding:gh-pr-monitor)
+  - Skill(dev10x-coding:git)
+  - Skill(dev10x-coding:gh-pr-merge)
   - Skill(dev10x-scoping:ticket-create)
 ---
 
@@ -36,7 +36,7 @@ allowed-tools:
 Recommended entry point for all PR review comments. Orchestrates
 the full pipeline: collect comments, triage each one, implement
 fixes, reply, and resolve threads. Do not call
-`dev10x:gh-pr-fixup` or `dev10x:gh-pr-triage` directly unless
+`dev10x-coding:gh-pr-fixup` or `dev10x-coding:gh-pr-triage` directly unless
 you are handling the full pipeline yourself.
 
 ## Pre-read short-circuit (GH-1665 F3)

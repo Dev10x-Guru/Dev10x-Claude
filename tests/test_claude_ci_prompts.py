@@ -327,7 +327,7 @@ _ROUTING_AND_CORE: list[str] = [
 _SHARED_RULES: list[tuple[str, str]] = [
     *[
         (document, _COVERAGE_FIRST)
-        for document in [*_ROUTING_AND_CORE, "skills/review/references/domain-dispatch.md"]
+        for document in [*_ROUTING_AND_CORE, "plugins/coding/skills/review/references/domain-dispatch.md"]
     ],
     *[
         (document, rule)
@@ -345,7 +345,7 @@ _SHARED_RULES: list[tuple[str, str]] = [
 class TestSharedRouting:
     """CI and the local self-review route by one written rule set (GH-1741)."""
 
-    _SKILL: ClassVar[Path] = _REPO_ROOT / "skills" / "review" / "SKILL.md"
+    _SKILL: ClassVar[Path] = _REPO_ROOT / "plugins" / "coding" / "skills" / "review" / "SKILL.md"
 
     @pytest.mark.parametrize(("document", "rule"), _SHARED_RULES)
     def test_document_states_the_shared_rule(self, document: str, rule: str) -> None:
@@ -355,8 +355,8 @@ class TestSharedRouting:
         "relative",
         [
             ".github/claude/prompts/code-review.core.md",
-            "skills/review/SKILL.md",
-            "skills/review/references/domain-dispatch.md",
+            "plugins/coding/skills/review/SKILL.md",
+            "plugins/coding/skills/review/references/domain-dispatch.md",
         ],
     )
     def test_every_consumer_points_at_the_shared_doc(self, relative: str) -> None:
@@ -604,7 +604,14 @@ class TestKillSwitch:
     )
     def test_scaffolded_reviews_carry_the_switch(self, template: str) -> None:
         text = (
-            _REPO_ROOT / "skills" / "gh-review-setup" / "references" / "templates" / template
+            _REPO_ROOT
+            / "plugins"
+            / "coding"
+            / "skills"
+            / "gh-review-setup"
+            / "references"
+            / "templates"
+            / template
         ).read_text(encoding="utf-8")
 
         assert "vars.CLAUDE_REVIEW_ENABLED != 'false'" in text

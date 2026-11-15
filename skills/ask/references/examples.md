@@ -55,7 +55,7 @@ options:
    — the fix landed three turns ago, no test exists.
 3. A `git-groom` strategy decision was queued in task metadata
    under the Batched Decision Queue pattern and never presented.
-4. `dev10x:review` surfaced an N+1 query in `quotes/service.py`
+4. `dev10x-coding:review` surfaced an N+1 query in `quotes/service.py`
    that was noted and then scrolled past.
 
 **Invocation:** `/dev10x:ask --loops`

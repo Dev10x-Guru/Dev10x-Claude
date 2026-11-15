@@ -13,7 +13,13 @@ from pathlib import Path
 _repo_root = Path(__file__).resolve().parent.parent.parent.parent
 _spec = importlib.util.spec_from_file_location(
     "gh_unresolved_threads",
-    _repo_root / "skills" / "gh-pr-doctor" / "scripts" / "gh-unresolved-threads.py",
+    _repo_root
+    / "plugins"
+    / "coding"
+    / "skills"
+    / "gh-pr-doctor"
+    / "scripts"
+    / "gh-unresolved-threads.py",
 )
 assert _spec is not None and _spec.loader is not None
 _mod = importlib.util.module_from_spec(_spec)

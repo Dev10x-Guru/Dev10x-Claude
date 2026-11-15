@@ -167,4 +167,4 @@ hardcoding a context or namespace.
 ## Related Skills
 
 - `dev10x-infra:aws-vault` — secret retrieval and the kubectl wrapper
-- `dev10x:investigate` — root-causing a reported issue end to end
+- `dev10x-coding:investigate` — root-causing a reported issue end to end

@@ -157,28 +157,33 @@ RULES: tuple[Rule, ...] = (
         # commit-message pattern (still flag — the wrapper still applies).
         pattern=re.compile(_CMD_START + r"git\s+commit\b"),
         message="Raw `git commit` command in skill doc",
-        suggestion="Use `Skill(dev10x:git-commit)` (or `Skill(dev10x:git-fixup)` for fixups)",
+        suggestion=(
+            "Use `Skill(dev10x-coding:git-commit)` "
+            "(or `Skill(dev10x-coding:git-fixup)` for fixups)"
+        ),
     ),
     Rule(
         rule_id="raw-git-push",
         pattern=re.compile(_CMD_START + r"git\s+push\b"),
         message="Raw `git push` command in skill doc",
-        suggestion="Use `Skill(dev10x:git)` — enforces protected-branch checks",
+        suggestion="Use `Skill(dev10x-coding:git)` — enforces protected-branch checks",
     ),
     Rule(
         rule_id="raw-git-rebase",
         pattern=re.compile(_CMD_START + r"git\s+rebase\b"),
         message="Raw `git rebase` command in skill doc",
         suggestion=(
-            "Use `Skill(dev10x:git-groom)` for history rewrites, "
-            "`Skill(dev10x:git)` for unattended rebases"
+            "Use `Skill(dev10x-coding:git-groom)` for history rewrites, "
+            "`Skill(dev10x-coding:git)` for unattended rebases"
         ),
     ),
     Rule(
         rule_id="raw-git-branch",
         pattern=re.compile(_CMD_START + r"git\s+checkout\s+-b\b"),
         message="Raw `git checkout -b` command in skill doc",
-        suggestion="Use `Skill(dev10x:ticket-branch)` (enforces username/TICKET-ID/slug naming)",
+        suggestion=(
+            "Use `Skill(dev10x-coding:ticket-branch)` (enforces username/TICKET-ID/slug naming)"
+        ),
     ),
     Rule(
         rule_id="raw-pytest",
@@ -186,7 +191,7 @@ RULES: tuple[Rule, ...] = (
             _CMD_START + r"(?:uv\s+run\s+(?:--[\w=-]+\s+)*)?(?:python\s+-m\s+)?pytest\b"
         ),
         message="Raw `pytest` invocation in skill doc",
-        suggestion="Use `Skill(dev10x:py-test)` — enforces coverage gate",
+        suggestion="Use `Skill(dev10x-coding:py-test)` — enforces coverage gate",
     ),
     Rule(
         rule_id="no-verify",

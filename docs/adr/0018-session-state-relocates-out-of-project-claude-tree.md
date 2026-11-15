@@ -26,7 +26,7 @@ would happen on the hot path. That design was incomplete:
   *regardless of allow rules on disk*. GH-812 observed this twice in one
   day, with exact-path `Read/Write/Edit(.claude/Dev10x/session.yaml)`
   rules verified present. No `base_permissions` entry can suppress it.
-- **RC-B — skills still runtime-write the files.** `dev10x:work-on`
+- **RC-B — skills still runtime-write the files.** `dev10x-coding:work-on`
   Phase 0 still `Write`/`Edit`s `session.yaml` (branch/tickets identity)
   and `config.yaml` (friction choice) whenever the adoption gate reports
   `session_stale` or the friction choice changes. The provisioning hook

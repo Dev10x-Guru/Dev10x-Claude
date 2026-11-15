@@ -229,7 +229,7 @@ reinforcement mechanism:
 - **`dev10x:diag-friction`** — handles CLI-to-skill
   redirects and permission-friction diagnosis; `dev10x:ask`
   handles plain-text-to-widget redirects
-- **`dev10x:work-on`** — can invoke `dev10x:ask reinforce` if
+- **`dev10x-coding:work-on`** — can invoke `dev10x:ask reinforce` if
   an agent within the work-on pipeline uses plain text for a
   decision point, or `dev10x:ask --loops` before the Verify-AC
   gate to catch loops that never reached the task list

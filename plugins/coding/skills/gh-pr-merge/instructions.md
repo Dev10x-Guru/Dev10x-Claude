@@ -33,7 +33,7 @@ The merge strategy is resolved using the config resolution order
 
 Rationale for the `rebase` default: commits authored through this
 plugin already follow gitmoji + ticket + JTBD conventions enforced
-by `dev10x:git-commit`, and `dev10x:git-groom` produces a curated
+by `dev10x-coding:git-commit`, and `dev10x-coding:git-groom` produces a curated
 linear history before merge. Squashing erases that structure and
 breaks per-commit references in PR review threads. Rebase preserves
 the curated commits as-is.
@@ -104,10 +104,10 @@ Step 1." Do not jump to Step 5 (`gh pr merge` / `merge_pr`) based
 on the agent's recollection that "the checks just passed" — those
 checks belong to a sibling skill's context, not this one.
 
-**Re-invocation contract:** Every invocation of `dev10x:gh-pr-merge`
+**Re-invocation contract:** Every invocation of `dev10x-coding:gh-pr-merge`
 re-runs the full skill body from Step 1, including all 12 pre-merge
-checks. Check results from a prior `dev10x:gh-pr-monitor` phase,
-prior `dev10x:verify-acc-dod` run, or earlier invocation of this
+checks. Check results from a prior `dev10x-coding:gh-pr-monitor` phase,
+prior `dev10x-coding:verify-acc-dod` run, or earlier invocation of this
 same skill are NOT reusable. CI state, review comments, draft
 toggles, and force-push state can drift between invocations — the
 12 checks exist precisely to detect that drift.
@@ -220,7 +220,7 @@ context={"author_type": "bot"})`:
 
 - When its `effect == "auto-advance"` (AFK) **and every** unresolved
   thread has `author_type == "bot"`, do NOT stop here. Auto-delegate
-  to `Skill(dev10x:gh-pr-respond)` — the same auto-remediation shape
+  to `Skill(dev10x-coding:gh-pr-respond)` — the same auto-remediation shape
   Check 2 uses for CI failures — to address/auto-resolve the bot
   threads, then re-run Check 1.
 - Fall through to the hard stop only when **any** thread has
@@ -270,7 +270,7 @@ used to miss). Both buckets must be clear before this check passes:
 **Addressed findings are matched by key (GH-907, GH-884).** A finding
 (either bucket) is "addressed" when a later comment replies to it with
 the finding's **comment id on the `Re:` line** — the documented
-`dev10x:gh-pr-respond` format, `Re: comment <id> — …`. `top-level-comments.jq`
+`dev10x-coding:gh-pr-respond` format, `Re: comment <id> — …`. `top-level-comments.jq`
 collects every id keyed by a reply and drops those findings from the
 result, so the reply satisfies the disposition requirement for a
 `needs_disposition` finding just as it clears a `blocking` one, and
@@ -286,7 +286,7 @@ finding. A reply still never counts as a finding itself (GH-777).
 **Minimizing a comment does NOT address it (GH-920).** This scan reads
 the REST issue-comments array, which carries no `isMinimized` field, so
 a `minimizeComment` mutation is invisible here by design.
-`dev10x:gh-pr-respond` Gate 6 hiding is cosmetic noise reduction, not a
+`dev10x-coding:gh-pr-respond` Gate 6 hiding is cosmetic noise reduction, not a
 disposition. When this check blocks on a finding whose comment is
 already hidden, the fix is a keyed `Re:` reply — not another
 minimization, and not a merge override.
@@ -438,7 +438,7 @@ than reading the pass as "a bot reviewed the head" (GH-1857).
   mark the PR ready and wait), a review that is not at
   `head_sha`, or open inline comments from a blocking bot.
 - A stale blocking bot after a force-push is not a failure to
-  override: return to `dev10x:gh-pr-monitor` and wait for the bot
+  override: return to `dev10x-coding:gh-pr-monitor` and wait for the bot
   to review the new head.
 - For a bot with `kind: comment`, `at_head` rests on time, not a
   SHA (`at_head_basis: timestamp`): it spoke no earlier than
@@ -472,7 +472,7 @@ neither actually was.
 
 **Unattended contexts: prefer the wrapper (GH-1058).** When this
 skill runs the merge gate for an unattended harness (the
-`dev10x:foreman` watchdog, an afk session), reach for
+`dev10x-coding:foreman` watchdog, an afk session), reach for
 `mcp__plugin_dev10x_cli__ci_check_status(wait=false)` instead of
 the raw `gh pr checks` above. It returns the same verdict off the
 Bash layer, so it cannot raise a permission prompt that nobody is
@@ -489,7 +489,7 @@ been exhausted or the failure looks unrelated to the PR.
 **Pending CI delegation (GH-775, GH-955):** If any check is
 `PENDING` or `IN_PROGRESS`, do NOT poll inline with `sleep`
 + `gh pr checks` and do NOT ask the user. Instead, delegate
-to `Skill(dev10x:gh-pr-monitor)` to wait for CI to complete,
+to `Skill(dev10x-coding:gh-pr-monitor)` to wait for CI to complete,
 then retry the merge validation from Check 1. The monitor
 skill handles CI polling reliably; inline sleep loops bypass
 these guardrails. A pending check's verdict is by definition
@@ -498,7 +498,7 @@ unknown — waiting is the only correct behavior.
 **Code-failure auto-fix loop (GH-955):** If a check has
 `bucket: fail` and the failure looks caused by the PR's own
 changes (e.g., lint, type, test, coverage, formatting), do
-NOT ask the user. Delegate to `Skill(dev10x:gh-pr-monitor)` —
+NOT ask the user. Delegate to `Skill(dev10x-coding:gh-pr-monitor)` —
 its Phase 1 "CI Failure Handling" table maps each failure
 type to a fixup strategy (format, type annotations, test
 fixes, etc.). The monitor creates fixup commits, pushes,
@@ -553,7 +553,7 @@ prematurely).
   or wait?"
 - Options:
   - **Wait (Recommended)** — re-invoke
-    `Skill(dev10x:gh-pr-monitor)` to retry CI, then retry
+    `Skill(dev10x-coding:gh-pr-monitor)` to retry CI, then retry
     merge validation from Check 1
   - **Merge anyway** — user MUST supply a reason (free text
     via the `Other` notes field). Record the reason in the
@@ -592,7 +592,7 @@ from the same response before evaluating Checks 3/4/7:
    non-null), the PR self-merged — almost always because auto-merge
    was armed and CI went green before this gate ran. Do NOT attempt to
    merge again. **Short-circuit to post-merge verification**: confirm
-   the merge commit, then hand off to `dev10x:verify-acc-dod`. Report
+   the merge commit, then hand off to `dev10x-coding:verify-acc-dod`. Report
    that the merge already happened; the remaining checks are moot.
 
    **Report `ALREADY MERGED`, never the checklist (GH-1380).** The
@@ -629,7 +629,7 @@ those checks either moot (merged) or racing against the auto-merge
 path arms it on a created PR: `--auto` is reachable only through
 `merge_pr(auto=True)`, which defaults to `False` and is gated by the
 Step 5 admin/auto prompt below. `create_pr`, `create-pr.sh`, and
-`dev10x:gh-pr-monitor` never pass it. An armed PR therefore came from
+`dev10x-coding:gh-pr-monitor` never pass it. An armed PR therefore came from
 outside the plugin — a repo-level setting or a manual `gh pr merge
 --auto`.
 
@@ -715,7 +715,7 @@ git log --oneline origin/develop..HEAD
 
 Scan commit subjects for `fixup!` or `squash!` prefixes.
 If any exist, report that commit history must be groomed
-first (via `dev10x:git-groom`).
+first (via `dev10x-coding:git-groom`).
 
 ### Check 7: Review approval
 
@@ -930,14 +930,14 @@ appropriate skill for remediation:
 
 | Failed check | Remediation |
 |-------------|-------------|
-| Unresolved threads | `dev10x:gh-pr-respond` |
+| Unresolved threads | `dev10x-coding:gh-pr-respond` |
 | Unaddressed automated comments | Review and address findings |
 | Under-delivered Fixes scope | Narrow the `Fixes:` link or split a follow-up issue |
-| CI failing | `dev10x:gh-pr-monitor` |
+| CI failing | `dev10x-coding:gh-pr-monitor` |
 | Still in draft | `gh pr ready` |
 | Merge conflicts | Rebase onto base branch |
-| Dirty working copy | `dev10x:git-commit` |
-| Fixup commits | `dev10x:git-groom` |
+| Dirty working copy | `dev10x-coding:git-commit` |
+| Fixup commits | `dev10x-coding:git-groom` |
 | No approval | Request review |
 
 ### Step 6: Confirm merge
@@ -978,7 +978,7 @@ auto-fix loop is exhausted. See `references/friction-levels.md`
 - Never bypass checks even if "it looks fine" — any `PENDING`,
   `IN_PROGRESS`, or `FAILURE` (required or not) blocks the
   merge. Check 2 handles these by delegating to
-  `dev10x:gh-pr-monitor` (pending → wait; code failure →
+  `dev10x-coding:gh-pr-monitor` (pending → wait; code failure →
   fixup + re-check). The ALWAYS_ASK gate (GH-955, GH-730)
   only fires when the auto-fix loop is exhausted or the
   failure is clearly infrastructure-related. All
@@ -987,6 +987,6 @@ auto-fix loop is exhausted. See `references/friction-levels.md`
 - The solo-maintainer override only skips Check 7 (approval),
   not the other 11 checks
 - This skill must NOT be called from background agents
-  (`dev10x:gh-pr-monitor` explicitly forbids merge operations)
+  (`dev10x-coding:gh-pr-monitor` explicitly forbids merge operations)
 - Always use `gh pr merge` (not `git merge`) to ensure GitHub
   records the merge event properly

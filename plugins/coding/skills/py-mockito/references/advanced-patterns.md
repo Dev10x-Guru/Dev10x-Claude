@@ -1,6 +1,6 @@
 # Advanced Patterns
 
-Reference for `dev10x:py-mockito`: stubbing shapes beyond a plain
+Reference for `dev10x-coding:py-mockito`: stubbing shapes beyond a plain
 method on a collaborator class.
 
 ## Stubbing Callable Classes (`__call__`)

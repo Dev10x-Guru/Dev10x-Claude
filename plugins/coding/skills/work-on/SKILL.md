@@ -1,5 +1,5 @@
 ---
-name: dev10x:work-on
+name: dev10x-coding:work-on
 description: >
   Start work on any input — ticket URL, PR link, Slack thread,
   Sentry issue, or free text. Classifies inputs, gathers context
@@ -8,47 +8,46 @@ description: >
   TRIGGER when: user provides ticket URLs, PR links, Slack threads,
   Sentry issues, or free text to start structured work.
   DO NOT TRIGGER when: simple one-off tasks that don't need structured
-  planning, or parallel fanout of independent items (use dev10x:fanout).
+  planning, or parallel fanout of independent items (use dev10x-coding:fanout).
 user-invocable: true
-invocation-name: dev10x:work-on
+invocation-name: dev10x-coding:work-on
 allowed-tools:
   - mcp__plugin_dev10x_cli__*
   - Skill(dev10x-scoping:estimate)
   - Skill(dev10x:friction-setup)
   - Skill(dev10x:gh-context)
-  - Skill(dev10x:gh-pr-create)
-  - Skill(dev10x:gh-pr-merge)
-  - Skill(dev10x:gh-pr-monitor)
-  - Skill(dev10x:gh-pr-request-review)
-  - Skill(dev10x:gh-pr-respond)
-  - Skill(dev10x:git)
-  - Skill(dev10x:git-commit)
-  - Skill(dev10x:git-groom)
-  - Skill(dev10x:qa-scope)
+  - Skill(dev10x-coding:gh-pr-create)
+  - Skill(dev10x-coding:gh-pr-merge)
+  - Skill(dev10x-coding:gh-pr-monitor)
+  - Skill(dev10x-coding:gh-pr-request-review)
+  - Skill(dev10x-coding:gh-pr-respond)
+  - Skill(dev10x-coding:git)
+  - Skill(dev10x-coding:git-commit)
+  - Skill(dev10x-coding:git-groom)
+  - Skill(dev10x-coding:qa-scope)
   - Skill(dev10x-qa:qa-self)
   - Skill(dev10x-qa:review-pack)
   - Skill(dev10x-tasks:reflect)
-  - Skill(dev10x:review)
+  - Skill(dev10x-coding:review)
   - Skill(dev10x:session-config-seed)
   - Skill(dev10x-teach:skill-create)
-  - Skill(dev10x:ticket-branch)
-  - Skill(dev10x:verify-acc-dod)
+  - Skill(dev10x-coding:ticket-branch)
+  - Skill(dev10x-coding:verify-acc-dod)
   - Skill(test)
   - Bash(pre-commit run:*)
   - Read(.claude/Dev10x/playbooks/work-on.yaml)
   - Read(~/.config/Dev10x/playbooks/work-on.yaml)
   - Read(~/.claude/memory/Dev10x/playbooks/work-on.yaml)
-  - Read(${CLAUDE_PLUGIN_ROOT}/skills/playbook/references/playbook.yaml)
   - Read(${CLAUDE_PLUGIN_ROOT}/skills/work-on/references/playbook.d/coding.yaml)
   - Edit(.claude/Dev10x/**)
-  - Skill(skill="dev10x:verify-acc-dod")
+  - Skill(skill="dev10x-coding:verify-acc-dod")
   - Skill(skill="dev10x:friction-setup")
   - mcp__plugin_dev10x_cli__plan_sync_set_context
   - mcp__plugin_dev10x_cli__plan_sync_json_summary
   - AskUserQuestion
 ---
 
-# dev10x:work-on — Adaptive Work Orchestrator
+# dev10x-coding:work-on — Adaptive Work Orchestrator
 
 Turns any combination of inputs into a structured,
 supervisor-approved work plan executed in four phases: parse,

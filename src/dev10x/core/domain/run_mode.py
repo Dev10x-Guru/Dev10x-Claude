@@ -24,7 +24,7 @@ from dev10x.domain.documents.task import Task, TaskStatus
 
 AFK_OVERLAY = "afk"
 
-#: Metadata keys ``dev10x:work-on`` writes on every plan-step task it
+#: Metadata keys ``dev10x-coding:work-on`` writes on every plan-step task it
 #: creates from a play (``type``, plus ``skills`` / ``agent`` when the
 #: step names them). A task the supervisor or a callee created by hand
 #: carries none of them.

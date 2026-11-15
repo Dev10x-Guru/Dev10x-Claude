@@ -58,7 +58,7 @@ foreman subagent and every crew worker never had them at all, for a
 whole 27-hour run, while the watchdog session kept all of them
 throughout. Worker heartbeat, verbatim: "Dev10x CLI MCP server failed
 to connect this session — using documented fallbacks (gh api,
-scratchpad env file, uv run pytest, dev10x:git skill for push)".
+scratchpad env file, uv run pytest, dev10x-coding:git skill for push)".
 Foreman heartbeat: "MCP is still disconnected on my end, retrying
 periodically", all night.
 

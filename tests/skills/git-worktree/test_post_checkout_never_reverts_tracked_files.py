@@ -274,7 +274,7 @@ def _run_hook(
     worktree: Path,
     stub_bin: Path,
 ) -> None:
-    source = repo_root / "skills" / "git-worktree" / "templates" / template
+    source = repo_root / "plugins" / "coding" / "skills" / "git-worktree" / "templates" / template
     patched = worktree.parent / f"hook-{template}"
     patched.write_text(
         source.read_text().replace(

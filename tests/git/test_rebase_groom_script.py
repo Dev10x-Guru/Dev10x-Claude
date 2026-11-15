@@ -1,4 +1,4 @@
-"""End-to-end tests for ``skills/git/scripts/git-rebase-groom.sh`` (GH-1103).
+"""End-to-end tests for coding's ``git/scripts/git-rebase-groom.sh`` (GH-1103).
 
 The base-moved guard protects against silent history corruption: when the
 base already contains a branch's commits, ``git rebase -i`` drops the
@@ -15,9 +15,8 @@ from pathlib import Path
 
 import pytest
 
-GROOM_SCRIPT = (
-    Path(__file__).resolve().parents[2] / "skills" / "git" / "scripts" / "git-rebase-groom.sh"
-)
+CODING_SKILLS = Path(__file__).resolve().parents[2] / "plugins" / "coding" / "skills"
+GROOM_SCRIPT = CODING_SKILLS / "git" / "scripts" / "git-rebase-groom.sh"
 
 _SUBPROCESS_TIMEOUT_SECONDS = 60
 

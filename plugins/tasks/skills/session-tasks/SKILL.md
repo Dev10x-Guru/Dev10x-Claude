@@ -6,7 +6,7 @@ description: >
   TRIGGER when: managing in-session task tracking, viewing open loops,
   or adding work items mid-session.
   DO NOT TRIGGER when: starting structured work from inputs (use
-  dev10x:work-on), or wrapping up a session (use dev10x-tasks:session-wrap-up).
+  dev10x-coding:work-on), or wrapping up a session (use dev10x-tasks:session-wrap-up).
 user-invocable: true
 invocation-name: dev10x-tasks:session-tasks
 ---
@@ -97,4 +97,4 @@ lands as a TODO under the existing plan.
 
 - `dev10x-tasks:park` — when user picks "keep for this session"
 - `dev10x-tasks:session-wrap-up` — Phase 1 auto-scan reads the task list
-- `dev10x:verify-acc-dod` — owns the `Verify AC` task completion
+- `dev10x-coding:verify-acc-dod` — owns the `Verify AC` task completion

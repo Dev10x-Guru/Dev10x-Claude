@@ -68,7 +68,7 @@ So resolve it here, in Phase 0.3, while the supervisor is present —
 and prove it in Phase 0.4 with the merge-gate dry-run
 ([`preflight-checklist.md`](preflight-checklist.md) item 8). Setting
 `supervisor_review: none` is a real decision about the repo, not a
-formality: it also makes `dev10x:verify-acc-dod` skip its
+formality: it also makes `dev10x-coding:verify-acc-dod` skip its
 unresolved-threads and review-requested checks. If humans genuinely do
 review this repo, the honest composition is `guided + afk` with merges
 held for morning.

@@ -1,5 +1,5 @@
 ---
-name: dev10x:py-test
+name: dev10x-coding:py-test
 description: >
   Run pytest with coverage enforcement. Verifies test suite passes
   with 100% coverage for new code. Reports pass/fail status and
@@ -9,7 +9,7 @@ description: >
   DO NOT TRIGGER when: no Python code changed, or running non-pytest
   test frameworks.
 user-invocable: true
-invocation-name: dev10x:py-test
+invocation-name: dev10x-coding:py-test
 allowed-tools:
   - mcp__plugin_dev10x_cli__run_tests
   - Bash(pytest:*)

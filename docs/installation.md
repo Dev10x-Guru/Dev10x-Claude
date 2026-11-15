@@ -42,8 +42,8 @@ It ships both MCP servers (`cli` and `db`), the safety hooks, and the
 setup, permission, friction and playbook skills (`afk`, `ask`,
 `onboarding`, `friction-setup`, `upgrade-cleanup`, `plugin-doctor`,
 `plugin-maintenance`, `playbook` and the rest).
-The coding skills (commits, PRs, branch hygiene, code review) also
-ship inside it for now, until they move to their own plugin.
+The coding skills (commits, PRs, branch hygiene, code review) ship as
+`dev10x-coding`, described below.
 `/dev10x:plugin-doctor` reports a satellite enabled while `dev10x` is
 turned off, and permission rules that still name a moved skill by its
 old `dev10x:` name.
@@ -80,8 +80,8 @@ Install it where you post to Slack or Google Chat, or link sessions over
 the local bus; it also brings `dev10x` with it.
 The Chat bus MCP tools, the `dev10x skill notify` commands and the
 Overwatch hook stay in `dev10x` under their old names.
-`slack-review-request` and `gchat-review-request` stay in `dev10x` and
-hand the post to `dev10x-comm:slack` / `dev10x-comm:gchat`, so a review
+`slack-review-request` and `gchat-review-request` ship in
+`dev10x-coding` and hand the post to `dev10x-comm:slack` / `dev10x-comm:gchat`, so a review
 notification needs both plugins:
 
 ```bash
@@ -134,6 +134,26 @@ the spec-drift hook stay in `dev10x` under their old names:
 
 ```bash
 claude plugin install dev10x-scoping@Dev10x-Guru
+```
+
+The coding skills ship as `dev10x-coding`: the `git` and `git-*`
+skills, `ticket-branch`, the `gh-pr-*` skills and `gh-review-setup`,
+`review`, `review-fix`, `request-review`, `slack-review-request`,
+`gchat-review-request`, `work-on`, `fanout`, `foreman`,
+`verify-acc-dod`, `py-test`, `py-test-flaky`, `py-mockito`, `py-uv`,
+`investigate`, `qa-scope`, `release-notes`, `ide-normalize` and
+`ci-review` — forty in all.
+Install it wherever you commit, open PRs or run `work-on`; it brings
+`dev10x` and `dev10x-tasks` with it, because `work-on` keeps its
+terminal task open through the tasks plugin's `task-guard`.
+The git and GitHub MCP tools (`push_safe`, `create_pr`,
+`ci_check_status`, `merge_pr` and the rest) stay in `dev10x` under their
+old names, so a `dev10x`-only install still lists them; the scripts
+several of them run ship with `dev10x-coding`, so those tools need both
+plugins:
+
+```bash
+claude plugin install dev10x-coding@Dev10x-Guru
 ```
 
 Upgrading from a release where those skills were part of `dev10x`

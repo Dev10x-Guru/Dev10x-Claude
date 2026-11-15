@@ -78,7 +78,7 @@ async def reconcile_fixes_links(
 async def review_stamp_write(cwd: str | None = None) -> Result[dict]:
     """Record that a clean self-review covered the checked-out head (GH-1830).
 
-    Call only after a ``dev10x:review`` round that found no defects. The
+    Call only after a ``dev10x-coding:review`` round that found no defects. The
     stamp is built from local git state (HEAD, its tree, the ``origin``
     remote and the branch), never from caller-supplied SHAs; ``cwd``
     only selects the checkout. Where a repo's ``friction.yaml`` sets

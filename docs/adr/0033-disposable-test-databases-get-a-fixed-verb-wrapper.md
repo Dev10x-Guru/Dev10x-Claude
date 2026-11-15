@@ -52,7 +52,7 @@ That route has two properties that matter here:
   DSN points at.
 - **Nobody is told about it.** All three DX004 deny messages end in
   "print the SQL for the user" (`sql_safety.py:195-198, 523-528, 761-766`),
-  and `dev10x:py-test` says nothing about databases.
+  and `dev10x-coding:py-test` says nothing about databases.
 
 ## Options
 
@@ -106,7 +106,7 @@ names the reason, unless every check passes:
 
 Name `run_tests(args=["--create-db"])` and `run_node_tests(script=…)`
 in DX004's three deny messages. Document test-database recreation in
-`dev10x:py-test`. A database the runner does not own falls back to
+`dev10x-coding:py-test`. A database the runner does not own falls back to
 Option D (park the task).
 
 - **+** Zero new surface. "Dev10x has no database write tool" stays
@@ -147,7 +147,7 @@ tool.
    761-766`) name `run_tests(args=["--create-db"])` and
    `run_node_tests(script=…)` as the route for runner-owned test
    databases.
-2. `dev10x:py-test` gains a test-database recreation section.
+2. `dev10x-coding:py-test` gains a test-database recreation section.
 3. A database the runner does not own falls back to Option D (park the
    task). Option A is reopened only when such a case is on record.
 4. DX004's blanket deny and the GH-1732 binary denies are untouched.
@@ -186,7 +186,7 @@ The evaluation ranked **E first, then A on evidence**, with
 ## Consequences
 
 - **E:** DX004's three messages name the runner routes, and
-  `dev10x:py-test` gains a test-database section. The `db` server keeps
+  `dev10x-coding:py-test` gains a test-database section. The `db` server keeps
   one tool, and GH-1324 closes with A recorded as the evidence-gated
   follow-up.
 - **A:** the `db` server gains a second tool, which needs the three

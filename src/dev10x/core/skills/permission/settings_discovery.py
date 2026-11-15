@@ -175,7 +175,7 @@ def _worktree_settings(repos: list[Path]) -> tuple[list[Path], list[Path]]:
 
     A worktree's file counts as *missing* only when a sibling checkout of
     the same repo has one (GH-1664): the user opted that repo in, and a
-    worktree created outside ``dev10x:git-worktree`` — a herdr worktree,
+    worktree created outside ``dev10x-coding:git-worktree`` — a herdr worktree,
     a raw ``git worktree add`` — otherwise reads only the global files.
     A repo with no settings file anywhere is left alone.
     """

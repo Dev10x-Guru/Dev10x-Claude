@@ -3,7 +3,7 @@
 **This skill is the recommended entry point for all PR review
 comments.** It orchestrates the full pipeline: collect comments,
 triage each one, implement fixes, reply, and resolve threads.
-Do not call `dev10x:gh-pr-fixup` or `dev10x:gh-pr-triage`
+Do not call `dev10x-coding:gh-pr-fixup` or `dev10x-coding:gh-pr-triage`
 directly unless you are handling the full pipeline yourself.
 
 ## Orchestration
@@ -33,7 +33,7 @@ Never pause to ask "should I continue?" between steps.
 Set dependencies and update status as each completes.
 
 **Nested-mode exemption:** When invoked as a nested skill within
-a parent orchestrator (e.g., via `Skill()` from `dev10x:work-on`),
+a parent orchestrator (e.g., via `Skill()` from `dev10x-coding:work-on`),
 startup task creation is optional — at most 1 summary task. See
 `references/task-orchestration.md` § Delegated Invocation Exception.
 
@@ -122,13 +122,13 @@ branch on its `effect`; they never read `friction_level` /
     resolved option still fires so the user sees the bundled
     comment IDs recorded in the `record` line before the removal
     commit is created.
-7. VALID comments: `Skill(dev10x:gh-pr-fixup)` — NEVER inline,
+7. VALID comments: `Skill(dev10x-coding:gh-pr-fixup)` — NEVER inline,
    invoke immediately after triage verdict (no pause, no report)
-8. Triage: `Skill(dev10x:gh-pr-triage)` — NEVER inline, even
+8. Triage: `Skill(dev10x-coding:gh-pr-triage)` — NEVER inline, even
    for "obviously invalid" or bot-generated comments (GH-463)
 9. Pre-action checkpoint: BEFORE any `Edit` or `git commit` on
    a reviewed file, verify a `Skill()` call preceded it
-10. Merge: `Skill(dev10x:gh-pr-merge)` — NEVER inline
+10. Merge: `Skill(dev10x-coding:gh-pr-merge)` — NEVER inline
     `gh pr merge` (GH-759 F3)
 
 ## Gate Resolution (ADR-0016)
@@ -189,35 +189,35 @@ This skill handles PR review comments end-to-end in two modes:
    comments, triage them, and present a response plan for user approval.
 
 Sub-skills:
-- **`dev10x:gh-pr-triage`** — Validate the comment against the codebase
-- **`dev10x:gh-pr-fixup`** — Implement the fix if the comment is valid
+- **`dev10x-coding:gh-pr-triage`** — Validate the comment against the codebase
+- **`dev10x-coding:gh-pr-fixup`** — Implement the fix if the comment is valid
 
 ```
-dev10x:gh-pr-respond (this skill)
-    ├── dev10x:gh-pr-triage         → validate, reply if invalid (never auto-resolves)
+dev10x-coding:gh-pr-respond (this skill)
+    ├── dev10x-coding:gh-pr-triage         → validate, reply if invalid (never auto-resolves)
     ├── resolve gate      → ask user to confirm thread resolution
-    └── dev10x:gh-pr-fixup  → implement fix, fixup commit, reply with ref
-         └── dev10x:git-fixup → create the fixup! commit
+    └── dev10x-coding:gh-pr-fixup  → implement fix, fixup commit, reply with ref
+         └── dev10x-coding:git-fixup → create the fixup! commit
 ```
 
 ## Critical: Delegation is Mandatory
 
 **Never manually implement a fix and post a reply via `gh api`
 or MCP tool for VALID comments.** Always delegate the entire
-lifecycle to `dev10x:gh-pr-fixup` via `Skill()`, even if the
+lifecycle to `dev10x-coding:gh-pr-fixup` via `Skill()`, even if the
 fix is trivial or already committed. The delegation is about
 the *workflow boundary*, not just the code change — `gh-pr-fixup`
 ensures atomic push+reply, proper fixup commit format, and
 consistent thread management.
 
 Similarly, never triage comments inline — always delegate to
-`dev10x:gh-pr-triage` via `Skill()`. Never run raw `git rebase`,
+`dev10x-coding:gh-pr-triage` via `Skill()`. Never run raw `git rebase`,
 `git push`, or `gh pr checks --watch` — delegate to
-`dev10x:git-groom`, `dev10x:git`, and `dev10x:gh-pr-monitor`
+`dev10x-coding:git-groom`, `dev10x-coding:git`, and `dev10x-coding:gh-pr-monitor`
 respectively.
 
 **Post-step self-check:** Before marking any VALID comment as
-processed, verify that `Skill(dev10x:gh-pr-fixup)` was called
+processed, verify that `Skill(dev10x-coding:gh-pr-fixup)` was called
 for it — not `Edit` + `git commit` + `gh api`. If you used
 raw commands instead of `Skill()`, STOP and redo the step with
 proper delegation. Audit sessions show 3 of 4 invocations
@@ -228,26 +228,26 @@ bypass delegation under context pressure (GH-444).
 `git commit`, STOP and ask yourself: "Did I invoke `Skill()`
 for this?" If the answer is no, you are bypassing delegation.
 The correct sequence is ALWAYS:
-1. `Skill(dev10x:gh-pr-triage)` → verdict
-2. If VALID: `Skill(dev10x:gh-pr-fixup)` → fix + commit + reply
+1. `Skill(dev10x-coding:gh-pr-triage)` → verdict
+2. If VALID: `Skill(dev10x-coding:gh-pr-fixup)` → fix + commit + reply
 3. Never: `Edit` → `git commit` → `gh api` (this is the bypass)
 
 **Anti-pattern: "Stated-but-not-executed" bypass (GH-458).**
 The most common bypass is acknowledging the delegation requirement
-in your reasoning ("I need to call Skill(dev10x:gh-pr-fixup)")
+in your reasoning ("I need to call Skill(dev10x-coding:gh-pr-fixup)")
 then proceeding to implement the fix inline anyway. Three audit
 sessions caught this exact pattern — the agent says it will
 delegate, then does the work itself. Stating intent is not
 execution. Only a `Skill()` tool call counts as delegation.
 
 **Pre-push TaskList self-check (GH-97):** Before any `git push`
-or `Skill(dev10x:git)` invocation that ships fixup commits,
+or `Skill(dev10x-coding:git)` invocation that ships fixup commits,
 call `TaskList` and verify that every comment marked
 "completed" with verdict VALID has an associated
-`Skill(dev10x:gh-pr-fixup)` call recorded in the task
+`Skill(dev10x-coding:gh-pr-fixup)` call recorded in the task
 metadata or a sibling subtask. If a VALID comment is marked
 completed but no `Skill()` invocation is recorded for it, STOP
-and re-run that comment through `Skill(dev10x:gh-pr-fixup)`.
+and re-run that comment through `Skill(dev10x-coding:gh-pr-fixup)`.
 This guardrail exists because at `adaptive` friction, three
 audit sessions in a row bypassed the delegation under context
 pressure (~42% compliance). The REQUIRED markers above are
@@ -304,7 +304,7 @@ distinct diffs need three distinct fixups.
 
 ### Pre-fixup comment-ID checkpoint (GH-123)
 
-Before invoking `Skill(dev10x:gh-pr-fixup)`, record which review
+Before invoking `Skill(dev10x-coding:gh-pr-fixup)`, record which review
 comment ID(s) the fixup addresses in the task metadata for that
 step:
 
@@ -326,7 +326,7 @@ TaskUpdate(taskId, metadata={
 The `bundle_rationale` field is the audit trail. If the rationale
 matches the Rationalization Watchlist above, the task MUST be
 rejected and split into separate fixups before invoking
-`Skill(dev10x:gh-pr-fixup)`. This makes the "memory-only" rule a
+`Skill(dev10x-coding:gh-pr-fixup)`. This makes the "memory-only" rule a
 mechanical guardrail: the metadata records the decision, the
 watchlist filters bad rationales, and `dev10x-teach:skill-audit` can
 surface patterns of bundling decisions across sessions.
@@ -336,7 +336,7 @@ surface patterns of bundling decisions across sessions.
 When a single `fixup!` addresses N comments, every reply MUST
 include the same template, hyperlinked. Plain-text SHA tails
 (e.g., `` (fixup `<sha>`) ``) are PROHIBITED — they become
-orphan references the moment `dev10x:git-groom` rewrites
+orphan references the moment `dev10x-coding:git-groom` rewrites
 history.
 
 ```markdown
@@ -347,7 +347,7 @@ history.
 
 Note: this fix is bundled with {N-1} other thread(s) into a single
 `fixup!` commit and will be squashed into its parent during
-`dev10x:git-groom`.
+`dev10x-coding:git-groom`.
 ```
 
 Rules:
@@ -367,7 +367,7 @@ Rules:
 
 ### Post-Groom SHA Refresh (sub-phase of shipping pipeline)
 
-After `Skill(dev10x:git-groom)` rewrites history (fixups
+After `Skill(dev10x-coding:git-groom)` rewrites history (fixups
 squashed, force push complete), any reply posted earlier in
 this session that references a pre-groom SHA is now stale.
 Refresh those replies before the merge gate.
@@ -515,7 +515,7 @@ or `{review_id}` from the URL.
 
 **Optional additional context:**
 - User may provide extra context after the URL
-- Example: `/dev10x:gh-pr-respond https://...#discussion_r456 Note that PR #1135 is merged`
+- Example: `/dev10x-coding:gh-pr-respond https://...#discussion_r456 Note that PR #1135 is merged`
 
 ---
 
@@ -525,7 +525,7 @@ or `{review_id}` from the URL.
 
 ### Step 1: Process the comment
 
-**REQUIRED: Call `Skill(dev10x:gh-pr-triage)`** — never triage
+**REQUIRED: Call `Skill(dev10x-coding:gh-pr-triage)`** — never triage
 inline. Pass the comment URL (and any additional context).
 
 **Per-comment enforcement (GH-463, GH-502):** This delegation
@@ -533,7 +533,7 @@ is mandatory for EVERY comment, including ones that appear
 "obviously invalid" (e.g., bot-generated comments, trivially
 wrong suggestions). The agent MUST NOT read the comment, judge
 it inline, and post a reply directly. Even if you can determine
-the verdict in 2 seconds, call `Skill(dev10x:gh-pr-triage)` —
+the verdict in 2 seconds, call `Skill(dev10x-coding:gh-pr-triage)` —
 it ensures consistent reply format, audit trail, and workflow
 state tracking. Three audit sessions (GH-463, GH-458, GH-502)
 show the bypass happens when the agent rationalizes inline
@@ -545,7 +545,7 @@ comment, output this self-check before proceeding:
 
 ```
 TRIAGE CHECK: comment r{id}
-  Skill(dev10x:gh-pr-triage) called: YES/NO
+  Skill(dev10x-coding:gh-pr-triage) called: YES/NO
   Verdict: VALID/INVALID/QUESTION/OUT_OF_SCOPE
   If NO → STOP. Re-do with Skill() delegation.
 ```
@@ -556,15 +556,15 @@ bypassed delegation. Do not proceed — re-invoke the skill.
 **Exception — author-confirmed validity:** If the PR author has
 already replied to the comment explicitly acknowledging it as valid
 (e.g., "good catch", "you're right", "will fix"), you MAY skip
-triage and proceed directly to `Skill(dev10x:gh-pr-fixup)` with
+triage and proceed directly to `Skill(dev10x-coding:gh-pr-fixup)` with
 verdict `VALID`. This avoids redundant validation when the author
 has already confirmed the comment warrants a fix. The skip applies
 only when the author's reply is unambiguous — if there is any doubt,
 delegate to triage as normal.
 
-`dev10x:gh-pr-triage` returns a verdict: `VALID`, `INVALID`, `QUESTION`, or `OUT_OF_SCOPE`.
+`dev10x-coding:gh-pr-triage` returns a verdict: `VALID`, `INVALID`, `QUESTION`, or `OUT_OF_SCOPE`.
 
-- If **VALID** → **REQUIRED: Call `Skill(dev10x:gh-pr-fixup)`
+- If **VALID** → **REQUIRED: Call `Skill(dev10x-coding:gh-pr-fixup)`
   immediately in the same turn** — do NOT report the verdict and
   wait for user input. The triage-to-fixup transition is atomic:
   verdict received → `Skill()` invoked, no pause between. Never
@@ -572,7 +572,7 @@ delegate to triage as normal.
   The fixup skill handles the entire lifecycle: fix, commit, push,
   and reply.
 - If **YAGNI** → triage has posted a reply naming the scope mismatch.
-  Do NOT call `dev10x:gh-pr-fixup` to harden the code. Surface the
+  Do NOT call `dev10x-coding:gh-pr-fixup` to harden the code. Surface the
   scope mismatch to the user (one `AskUserQuestion` gate listing
   the YAGNI bundle's comment IDs and the proposed removal) and
   route per their choice: remove the code in a single commit
@@ -585,8 +585,8 @@ delegate to triage as normal.
 
 ### Step 1b: Confirm thread resolution (INVALID / QUESTION / OUT_OF_SCOPE)
 
-Fires only when `dev10x:gh-pr-triage` returns INVALID, QUESTION, or
-OUT_OF_SCOPE. VALID is handled by `dev10x:gh-pr-fixup`; YAGNI is
+Fires only when `dev10x-coding:gh-pr-triage` returns INVALID, QUESTION, or
+OUT_OF_SCOPE. VALID is handled by `dev10x-coding:gh-pr-fixup`; YAGNI is
 handled by Step 1d (which owns its own thread-resolution path
 per user choice).
 
@@ -624,7 +624,7 @@ If the thread was resolved in Step 1b, offer to minimize the root
 comment to reduce PR conversation noise.
 
 **Minimization is NOT a disposition (GH-920).** Hiding a comment is
-purely cosmetic — it never clears `dev10x:gh-pr-merge` Check 1b.
+purely cosmetic — it never clears `dev10x-coding:gh-pr-merge` Check 1b.
 `top-level-comments.jq` consumes the REST issue-comments array,
 which carries no `isMinimized` field, so a `minimizeComment`
 mutation is invisible to that scan. The disposition is the keyed
@@ -663,7 +663,7 @@ See `references/github_api.md` § Hiding (Minimizing) Comments.
 
 ### Step 1d: YAGNI routing (YAGNI verdict only)
 
-Fires only when `dev10x:gh-pr-triage` returns `YAGNI`. Triage has
+Fires only when `dev10x-coding:gh-pr-triage` returns `YAGNI`. Triage has
 already posted a reply naming the scope mismatch; this gate decides
 how to close the bundled threads.
 
@@ -690,7 +690,7 @@ YAGNI bundle on PR #{pr_number}:
 Options:
 - **"Remove out-of-scope code" (Recommended)** — Create one removal
   commit closing all bundled threads. Delegate to
-  `Skill(dev10x:gh-pr-fixup)` with the bundled comment IDs and an
+  `Skill(dev10x-coding:gh-pr-fixup)` with the bundled comment IDs and an
   instruction to revert/remove the speculative feature rather than
   harden it. Reply on each thread with the removal-commit reference
   using the bundled-reply template.
@@ -700,12 +700,12 @@ Options:
   thread linking the ticket. No fixup commit is created.
 - **"Keep and harden each thread"** — Override the YAGNI verdict.
   Treat each comment as `VALID` and delegate to
-  `dev10x:gh-pr-fixup` per comment. Use only when the user
+  `dev10x-coding:gh-pr-fixup` per comment. Use only when the user
   intentionally wants the speculative feature shipped in this PR.
 
 **Bundling guarantee:** When "Remove out-of-scope code" is selected,
 all bundled comment IDs from the YAGNI verdict MUST be passed to
-`dev10x:gh-pr-fixup` in a single call with `bundled: true` metadata
+`dev10x-coding:gh-pr-fixup` in a single call with `bundled: true` metadata
 (see § Bundled Fixup Mode). Splitting a YAGNI bundle into separate
 removal commits defeats the audit signal that motivated the verdict.
 
@@ -860,12 +860,12 @@ comments sequentially in the main thread. Execute these steps:
 defeats the purpose of this step — it increases processing time
 linearly and blocks the main thread. Even for 2 comments, use
 parallel agents. Each subagent MUST invoke
-`Skill(dev10x:gh-pr-triage)` — never inline the triage logic
+`Skill(dev10x-coding:gh-pr-triage)` — never inline the triage logic
 within the subagent prompt itself (GH-502).
 
 **Mandatory delegation in subagent prompt (GH-759 F2):**
 Include this instruction in every triage subagent prompt:
-"You MUST invoke `Skill(dev10x:gh-pr-triage)` with the
+"You MUST invoke `Skill(dev10x-coding:gh-pr-triage)` with the
 comment URL. Never investigate inline or post replies
 directly." Without this explicit instruction, subagents
 bypass the skill and triage inline — 3 of 3 subagents
@@ -919,7 +919,7 @@ as a manual reviewer decision per comment.
 
 | Priority | Applies to | Action at Step 4 |
 |----------|-----------|------------------|
-| `now`    | `VALID` comments that block correctness, security, or contract guarantees | Delegate to `dev10x:gh-pr-fixup` in this batch |
+| `now`    | `VALID` comments that block correctness, security, or contract guarantees | Delegate to `dev10x-coding:gh-pr-fixup` in this batch |
 | `fast-follow` | `VALID` comments that are non-blocking enhancements (test-coverage gaps, type narrowing, dedup, edge-case hardening, doc improvements, nice-to-have refactors) | Acknowledge on the thread, create or append to a fast-follow ticket via `dev10x-scoping:ticket-create`, skip fixup in this batch |
 | `n/a`    | `INVALID`, `QUESTION`, `OUT_OF_SCOPE`, `YAGNI` | Verdict already determines the action; priority does not apply |
 
@@ -970,7 +970,7 @@ Mark phase transition: `TaskUpdate(taskId=execute_task, status="in_progress")`
 For each approved comment, route by **verdict + priority**:
 
 - **VALID + priority=`now`** → **REQUIRED: Call
-  `Skill(dev10x:gh-pr-fixup)` immediately after verdict** — do
+  `Skill(dev10x-coding:gh-pr-fixup)` immediately after verdict** — do
   NOT report the verdict and wait for user input between
   comments. The triage-to-fixup transition is atomic: verdict
   received → `Skill()` invoked, no pause. Never manually
@@ -983,7 +983,7 @@ For each approved comment, route by **verdict + priority**:
   every affected reply to use the hyperlinked bundled-reply
   template plus the post-groom SHA refresh sub-phase.
 - **VALID + priority=`fast-follow`** → do NOT call
-  `dev10x:gh-pr-fixup` in this batch. Collect all fast-follow
+  `dev10x-coding:gh-pr-fixup` in this batch. Collect all fast-follow
   rows, draft a single follow-up ticket via
   `dev10x-scoping:ticket-create` (one ticket per PR, listing each
   fast-follow comment link as an acceptance criterion), then
@@ -1002,7 +1002,7 @@ For each approved comment, route by **verdict + priority**:
   (see Mode A § Step 1d, including its `resolve_gate(gate=
   "yagni_routing")` call) covering the whole bundle. The selected
   option (remove / defer / keep-and-harden) determines whether
-  `dev10x:gh-pr-fixup` is invoked once with all bundled comment
+  `dev10x-coding:gh-pr-fixup` is invoked once with all bundled comment
   IDs (`bundled: true`), whether a deferral ticket is created, or
   whether the comments fall back to individual VALID handling.
 - **INVALID / QUESTION / OUT_OF_SCOPE** → post reply using MCP tool:
@@ -1081,7 +1081,7 @@ GitHub, showing "This comment was marked as outdated" instead.
 
 **Minimization is NOT a disposition (GH-920).** This step is
 cosmetic noise reduction only — it never clears
-`dev10x:gh-pr-merge` Check 1b or Check 1. The keyed `Re:` reply
+`dev10x-coding:gh-pr-merge` Check 1b or Check 1. The keyed `Re:` reply
 (GH-907) is the disposition and Step 5's thread resolution is what
 closes the thread; both must already have happened before this
 step runs. An agent that minimizes instead of replying still lands
@@ -1201,7 +1201,7 @@ pipeline.
 ### Parent Context Detection
 
 **Before offering the shipping pipeline, check if a parent
-orchestrator (e.g., `dev10x:work-on`) is managing the shipping
+orchestrator (e.g., `dev10x-coding:work-on`) is managing the shipping
 sequence.** When invoked as a delegated skill via `Skill()` from
 a parent that has its own shipping pipeline tasks (groom, push,
 monitor, ready), skip the Post-Response Continuation gate entirely
@@ -1234,15 +1234,15 @@ Options:
 - **"Full shipping pipeline" (Recommended)** — Execute the complete
   post-response shipping sequence. **REQUIRED: Use `Skill()` for
   each step** — never run raw git/gh commands directly:
-  1. `Skill(dev10x:git-groom)` — squash fixup commits
+  1. `Skill(dev10x-coding:git-groom)` — squash fixup commits
   2. **Post-Groom SHA Refresh** — PATCH any session-posted
      replies that referenced pre-groom SHAs. See the
      **Bundled Fixup Mode → Post-Groom SHA Refresh** section
      above. Use `mcp__plugin_dev10x_cli__pr_comments(action="edit")`,
      never raw `gh api -X PATCH`. Skip when no replies were
      posted this session.
-  3. `Skill(dev10x:git)` — push with `--force-with-lease`
-  4. `Skill(dev10x:gh-pr-monitor)` — watch CI after force push
+  3. `Skill(dev10x-coding:git)` — push with `--force-with-lease`
+  4. `Skill(dev10x-coding:gh-pr-monitor)` — watch CI after force push
   5. **CI guard (GH-684):** Only after CI passes, run
      `gh pr ready` to mark the PR ready for review. Do NOT
      run `gh pr ready` before CI is green — this was the #1
@@ -1250,7 +1250,7 @@ Options:
      Also verify no unresolved review threads remain before
      marking ready.
   6. If CI passes and no new comments → merge via
-     `Skill(dev10x:gh-pr-merge)` — NEVER raw `gh pr merge`
+     `Skill(dev10x-coding:gh-pr-merge)` — NEVER raw `gh pr merge`
      (GH-759 F3). The skill validates 9 pre-merge conditions
      including unaddressed review comments that raw merge
      bypasses.
@@ -1297,8 +1297,8 @@ Input URL
     │
     ├─ Has #discussion_r{id} ──► MODE A (single)
     │       │
-    │       ├── dev10x:gh-pr-triage → verdict
-    │       ├── if VALID → dev10x:gh-pr-fixup
+    │       ├── dev10x-coding:gh-pr-triage → verdict
+    │       ├── if VALID → dev10x-coding:gh-pr-fixup
     │       ├── if not VALID → reply posted, ask user to resolve
     │       ├── if resolved → offer to hide (minimize) comment
     │       ├── check remaining
@@ -1319,34 +1319,34 @@ Input URL
 ## Integration
 
 ```
-dev10x:gh-pr-monitor → dev10x:gh-pr-respond (this skill)
-                 ├── dev10x:gh-pr-triage
-                 └── dev10x:gh-pr-fixup
-                      └── dev10x:git-fixup
+dev10x-coding:gh-pr-monitor → dev10x-coding:gh-pr-respond (this skill)
+                 ├── dev10x-coding:gh-pr-triage
+                 └── dev10x-coding:gh-pr-fixup
+                      └── dev10x-coding:git-fixup
 ```
 
 **Standalone usage:**
 ```bash
 # Single comment
-/dev10x:gh-pr-respond https://github.com/owner/repo/pull/123#discussion_r456
+/dev10x-coding:gh-pr-respond https://github.com/owner/repo/pull/123#discussion_r456
 
 # Single comment with context
-/dev10x:gh-pr-respond https://github.com/owner/repo/pull/123#discussion_r456 Note that PR #1135 is merged
+/dev10x-coding:gh-pr-respond https://github.com/owner/repo/pull/123#discussion_r456 Note that PR #1135 is merged
 
 # Batch — all unaddressed comments on PR
-/dev10x:gh-pr-respond https://github.com/owner/repo/pull/123
+/dev10x-coding:gh-pr-respond https://github.com/owner/repo/pull/123
 
 # Batch — all comments from a specific review
-/dev10x:gh-pr-respond https://github.com/owner/repo/pull/123#pullrequestreview-789
+/dev10x-coding:gh-pr-respond https://github.com/owner/repo/pull/123#pullrequestreview-789
 
 # Batch — PR number only
-/dev10x:gh-pr-respond 1164
+/dev10x-coding:gh-pr-respond 1164
 ```
 
-**Called by dev10x:gh-pr-monitor:**
+**Called by dev10x-coding:gh-pr-monitor:**
 ```
-dev10x:gh-pr-monitor detects new comments →
-  delegate to dev10x:gh-pr-respond with PR URL (batch mode)
+dev10x-coding:gh-pr-monitor detects new comments →
+  delegate to dev10x-coding:gh-pr-respond with PR URL (batch mode)
 ```
 
 ## References

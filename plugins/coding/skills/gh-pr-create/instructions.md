@@ -36,7 +36,7 @@ appropriate reason). This preserves supervisor visibility into
 the full workflow.
 
 **Unattended mode:** When this skill is invoked by an
-orchestrating skill (e.g., `dev10x:work-on`, `dev10x:git-promote`,
+orchestrating skill (e.g., `dev10x-coding:work-on`, `dev10x-coding:git-promote`,
 `test:fix-flaky`) and the orchestrator has already approved the
 work plan, all interactive decision gates are bypassed:
 - PR preview gate → skip (orchestrator already approved the plan)
@@ -55,8 +55,8 @@ high-level progress.
 
 Detection: unattended mode activates when **both** conditions
 are met:
-1. The skill is invoked via `Skill(dev10x:gh-pr-create)` (not
-   directly by the user via `/dev10x:gh-pr-create`)
+1. The skill is invoked via `Skill(dev10x-coding:gh-pr-create)` (not
+   directly by the user via `/dev10x-coding:gh-pr-create`)
 2. The caller is executing a plan step with an active task
    list (i.e., an orchestrating skill like `work-on`)
 
@@ -232,7 +232,7 @@ The Actor frame is one option among four, not the default. Reach for it
 when the *role* is the news; when the outcome is the news, the Outcome
 or Prevention frame says more in the same width. For commit titles the
 same choice is made from the ROI bucket and the shape of the change —
-see `dev10x:git-commit` Step 2.5, whose shape table and title checks
+see `dev10x-coding:git-commit` Step 2.5, whose shape table and title checks
 (generated-only diffs, sibling PRs, revert and re-land subjects) apply
 to PR titles as well.
 
@@ -276,7 +276,7 @@ Dispatch based on TRACKER:
 
 | TRACKER | How to search |
 |---------|--------------|
-| `github` | `${CLAUDE_PLUGIN_ROOT}/skills/gh-context/scripts/gh-issue-get.sh` for body, `${CLAUDE_PLUGIN_ROOT}/skills/gh-context/scripts/gh-issue-comments.sh` for comments |
+| `github` | `mcp__plugin_dev10x_cli__issue_get` for body, `mcp__plugin_dev10x_cli__issue_comments` for comments |
 | `linear` | Linear MCP tools for description and comments |
 | `jira` | JIRA API for description |
 | `unknown` | Skip ticket search, rely on commit messages |
@@ -555,7 +555,7 @@ Next steps:
 ## Important Notes
 
 - **DO NOT use raw `git push` or `gh pr create` commands.**
-  Always use `Skill(dev10x:git)` for push and the MCP tool
+  Always use `Skill(dev10x-coding:git)` for push and the MCP tool
   `mcp__plugin_dev10x_cli__create_pr` (or the `create-pr.sh`
   script as fallback) for PR creation. Raw commands bypass
   protected branch checks and body formatting. Audit sessions
@@ -603,6 +603,6 @@ Next steps:
 This skill is designed to be used standalone or as part of larger workflows:
 
 - **ticket:work-on**: Could add an optional final step to create PR when work is done
-- **dev10x:git-promote**: Uses this skill for Push and Create PR
+- **dev10x-coding:git-promote**: Uses this skill for Push and Create PR
 - **test:fix-flaky**: Uses this skill for Create PR
 - **Standalone usage**: User manually invokes when ready to create PR

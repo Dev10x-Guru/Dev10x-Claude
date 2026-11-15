@@ -55,7 +55,7 @@
       "id": "unattended_skips_gate",
       "name": "Unattended filing skips the gate",
       "description": "Invoked via Skill() from an orchestrator with an active task list, the skill files with the triaged milestone and labels without asking",
-      "input": "Skill(dev10x-scoping:ticket-create) from dev10x:work-on while a plan task is in_progress",
+      "input": "Skill(dev10x-scoping:ticket-create) from dev10x-coding:work-on while a plan task is in_progress",
       "assertions": [
         {
           "dimension": "mode_detection",

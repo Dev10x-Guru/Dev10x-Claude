@@ -1,4 +1,4 @@
-# Spec Gate Dispatch — Step 1b of `dev10x:review` (GH-69)
+# Spec Gate Dispatch — Step 1b of `dev10x-coding:review` (GH-69)
 
 The dispatch template for the Phase 0 `spec-reviewer` gate. When to
 skip the gate, and how to branch on its verdict, stay in SKILL.md

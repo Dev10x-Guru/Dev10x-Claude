@@ -137,7 +137,7 @@ class TestGh609RoutingEntries:
     def test_handrolled_ci_loop_routes_to_ci_check_status(self) -> None:
         rule = _rule_by_name("ci-loop-handrolled")
         assert "mcp__plugin_dev10x_cli__ci_check_status" in _compensation_targets(rule)
-        assert "dev10x:gh-pr-monitor" in _compensation_targets(rule)
+        assert "dev10x-coding:gh-pr-monitor" in _compensation_targets(rule)
 
     def test_cat_grep_pipeline_recognized(self) -> None:
         rule = _rule_by_name("cat-grep-pipeline")

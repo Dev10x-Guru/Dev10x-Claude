@@ -116,7 +116,7 @@ class TestGitCommitRedirect:
         inp = _make_input(command='git commit -m "Enable feature X"')
         result = validator.validate(inp=inp)
         assert result is not None
-        assert "dev10x:git-commit" in result.message
+        assert "dev10x-coding:git-commit" in result.message
 
     def test_blocks_git_commit_with_m_single_quotes(
         self, validator: SkillRedirectValidator
@@ -124,7 +124,7 @@ class TestGitCommitRedirect:
         inp = _make_input(command="git commit -m 'Enable feature X'")
         result = validator.validate(inp=inp)
         assert result is not None
-        assert "dev10x:git-commit" in result.message
+        assert "dev10x-coding:git-commit" in result.message
 
     def test_allows_git_commit_f_with_skill_temp(self, validator: SkillRedirectValidator) -> None:
         inp = _make_input(command="git commit -F /tmp/Dev10x/git/commit-msg.W9DryMXsQ5Aw.txt")
@@ -151,7 +151,7 @@ class TestGitCommitRedirect:
         inp = _make_input(command="git commit -F /tmp/random/msg.txt")
         result = validator.validate(inp=inp)
         assert result is not None
-        assert "dev10x:git-commit" in result.message
+        assert "dev10x-coding:git-commit" in result.message
 
     def test_blocks_git_commit_f_with_non_git_namespace(
         self, validator: SkillRedirectValidator
@@ -172,7 +172,7 @@ class TestGitCommitRedirect:
         inp = _make_input(command="git commit")
         result = validator.validate(inp=inp)
         assert result is not None
-        assert "dev10x:git-commit" in result.message
+        assert "dev10x-coding:git-commit" in result.message
 
     def test_allows_git_commit_fixup(self, validator: SkillRedirectValidator) -> None:
         inp = _make_input(command="git commit --fixup=abc1234")
@@ -190,13 +190,13 @@ class TestGhPrCreateRedirect:
         inp = _make_input(command="gh pr create --title 'Fix bug' --body 'details'")
         result = validator.validate(inp=inp)
         assert result is not None
-        assert "dev10x:gh-pr-create" in result.message
+        assert "dev10x-coding:gh-pr-create" in result.message
 
     def test_blocks_gh_pr_create_minimal(self, validator: SkillRedirectValidator) -> None:
         inp = _make_input(command="gh pr create")
         result = validator.validate(inp=inp)
         assert result is not None
-        assert "dev10x:gh-pr-create" in result.message
+        assert "dev10x-coding:gh-pr-create" in result.message
 
 
 class TestGitPushRedirect:
@@ -204,7 +204,7 @@ class TestGitPushRedirect:
         inp = _make_input(command="git push origin main")
         result = validator.validate(inp=inp)
         assert result is not None
-        assert "dev10x:git" in result.message
+        assert "dev10x-coding:git" in result.message
 
     def test_allows_git_push_force_with_lease(self, validator: SkillRedirectValidator) -> None:
         inp = _make_input(command="git push --force-with-lease")
@@ -217,7 +217,7 @@ class TestGitPushRedirect:
         inp = _make_input(command="git push -u origin develop")
         result = validator.validate(inp=inp)
         assert result is not None
-        assert "dev10x:git" in result.message
+        assert "dev10x-coding:git" in result.message
 
 
 class TestGitPushUnattendedEscapeHatch:
@@ -487,13 +487,13 @@ class TestGitRebaseRedirect:
         inp = _make_input(command="git rebase -i HEAD~3")
         result = validator.validate(inp=inp)
         assert result is not None
-        assert "dev10x:git-groom" in result.message
+        assert "dev10x-coding:git-groom" in result.message
 
     def test_blocks_git_rebase_interactive(self, validator: SkillRedirectValidator) -> None:
         inp = _make_input(command="git rebase --interactive HEAD~5")
         result = validator.validate(inp=inp)
         assert result is not None
-        assert "dev10x:git-groom" in result.message
+        assert "dev10x-coding:git-groom" in result.message
 
     def test_allows_git_rebase_continue(self, validator: SkillRedirectValidator) -> None:
         inp = _make_input(command="git rebase --continue")
@@ -511,13 +511,13 @@ class TestGhPrChecksWatchRedirect:
         inp = _make_input(command="gh pr checks --watch")
         result = validator.validate(inp=inp)
         assert result is not None
-        assert "dev10x:gh-pr-monitor" in result.message
+        assert "dev10x-coding:gh-pr-monitor" in result.message
 
     def test_blocks_gh_pr_checks_w(self, validator: SkillRedirectValidator) -> None:
         inp = _make_input(command="gh pr checks -w")
         result = validator.validate(inp=inp)
         assert result is not None
-        assert "dev10x:gh-pr-monitor" in result.message
+        assert "dev10x-coding:gh-pr-monitor" in result.message
 
     def test_allows_gh_pr_checks_without_watch(self, validator: SkillRedirectValidator) -> None:
         inp = _make_input(command="gh pr checks")
@@ -535,19 +535,19 @@ class TestGhPrMergeRedirect:
         inp = _make_input(command="gh pr merge 111 --squash --delete-branch")
         result = validator.validate(inp=inp)
         assert result is not None
-        assert "dev10x:gh-pr-merge" in result.message
+        assert "dev10x-coding:gh-pr-merge" in result.message
 
     def test_blocks_gh_pr_merge_minimal(self, validator: SkillRedirectValidator) -> None:
         inp = _make_input(command="gh pr merge")
         result = validator.validate(inp=inp)
         assert result is not None
-        assert "dev10x:gh-pr-merge" in result.message
+        assert "dev10x-coding:gh-pr-merge" in result.message
 
     def test_blocks_gh_pr_merge_rebase(self, validator: SkillRedirectValidator) -> None:
         inp = _make_input(command="gh pr merge 42 --rebase")
         result = validator.validate(inp=inp)
         assert result is not None
-        assert "dev10x:gh-pr-merge" in result.message
+        assert "dev10x-coding:gh-pr-merge" in result.message
 
     def test_should_run_true_for_gh_pr_merge(self, validator: SkillRedirectValidator) -> None:
         inp = _make_input(command="gh pr merge 111 --squash")
@@ -901,7 +901,7 @@ class TestMessageContent:
         inp = _make_input(command="git push origin main")
         result = validator.validate(inp=inp)
         assert result is not None
-        assert "Skill(dev10x:git)" in result.message
+        assert "Skill(dev10x-coding:git)" in result.message
 
     def test_message_includes_guardrails(self, validator: SkillRedirectValidator) -> None:
         inp = _make_input(command="git push origin main")
@@ -1066,7 +1066,7 @@ class TestAnExemptionClearsOneRuleNotTheCommand:
         result = validator.correct(inp=inp)
 
         assert result is not None
-        assert "dev10x:git" in result.message
+        assert "dev10x-coding:git" in result.message
 
     def test_a_backgrounded_loop_with_a_harmless_body_still_passes(
         self, validator: SkillRedirectValidator

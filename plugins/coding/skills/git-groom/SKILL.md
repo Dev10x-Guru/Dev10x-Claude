@@ -1,5 +1,5 @@
 ---
-name: dev10x:git-groom
+name: dev10x-coding:git-groom
 description: >
   Restructure, polish, and clean up git commit history in the current
   branch before merging. Creates atomic, well-organized commits that
@@ -7,12 +7,12 @@ description: >
   TRIGGER when: branch is ready for merge and commit history needs
   cleanup (squash fixups, reorder, reword).
   DO NOT TRIGGER when: branch has clean history already, or splitting
-  individual commits (use dev10x:git-commit-split).
+  individual commits (use dev10x-coding:git-commit-split).
 user-invocable: true
-invocation-name: dev10x:git-groom
+invocation-name: dev10x-coding:git-groom
 allowed-tools:
   - mcp__plugin_dev10x_cli__mass_rewrite
-  - Skill(dev10x:git-commit-split)
+  - Skill(dev10x-coding:git-commit-split)
   - mcp__plugin_dev10x_cli__rebase_groom
   - mcp__plugin_dev10x_cli__update_pr
   # Phase 4 rewrites commit permalinks on both comment surfaces (GH-996):
@@ -93,7 +93,7 @@ documented there is REQUIRED.
 
 ## Legacy script path warning (GH-97)
 
-This skill MUST be invoked via `Skill('dev10x:git-groom')`.
+This skill MUST be invoked via `Skill('dev10x-coding:git-groom')`.
 Direct script invocation is unsupported and the historical
 path `~/.claude/skills/dx:git/scripts/git-rebase-groom.sh`
 no longer exists (it predates the current plugin layout).

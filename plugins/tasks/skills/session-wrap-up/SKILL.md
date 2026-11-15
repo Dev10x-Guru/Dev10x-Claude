@@ -6,7 +6,7 @@ description: >
   TRIGGER when: session ending, user says "wrap up" / "pause" / "done
   for today", or too many open loops pile up.
   DO NOT TRIGGER when: mid-session active work with manageable task
-  list, or starting new work (use dev10x:work-on).
+  list, or starting new work (use dev10x-coding:work-on).
 user-invocable: true
 invocation-name: dev10x-tasks:session-wrap-up
 allowed-tools:
@@ -38,7 +38,7 @@ invoked, and the parent orchestrator marked its wrap-up task
   and the user is stepping away
 - Open loops (PRs awaiting review, deferred tasks, unfiled
   follow-ups) exist with no plan-sync archive
-- Orchestrators (`dev10x:work-on`, `dev10x:fanout`) reach the
+- Orchestrators (`dev10x-coding:work-on`, `dev10x-coding:fanout`) reach the
   plan completion gate with non-empty pending tasks
 
 **Anti-pattern (PROHIBITED):** Marking a "Session wrap-up" or
@@ -108,7 +108,7 @@ needed.
 session is **not** complete — "shippable / handed off to review" is
 not terminal. When a detected PR is unmerged, the right deferral is
 a **"Monitor PR #<N> for review / merge"** task (owned by
-`dev10x:gh-pr-monitor`), not a passive "Verify AC and close". This
+`dev10x-coding:gh-pr-monitor`), not a passive "Verify AC and close". This
 mirrors `verify-acc-dod`'s merge-gated Decision Gate and keeps the
 task-list invariant (GH-149) pointed at the real remaining work.
 
@@ -272,11 +272,11 @@ of them still lives here:
 
 **Integration with `/clear`:** After persisting, inform the user:
 "Session state saved. To resume after `/clear`, invoke
-`dev10x:work-on` — it will detect the saved state and offer to
+`dev10x-coding:work-on` — it will detect the saved state and offer to
 continue."
 
 > **Rehomed in GH-1009 (ADR-0018 D5).** This phase — and the `park`
-> family and `dev10x:gh-pr-bookmark` — used to Write/Edit the task
+> family and `dev10x-coding:gh-pr-bookmark` — used to Write/Edit the task
 > index at `.claude/Dev10x/session.yaml`. GH-1001 left that in place
 > as a documented exception pending a destination decision; GH-1009
 > made it, because a Write/Edit under a project's `.claude/` trips

@@ -1,4 +1,4 @@
-# dev10x:work-on — Adaptive Work Orchestrator (Instructions)
+# dev10x-coding:work-on — Adaptive Work Orchestrator (Instructions)
 
 ## Overview
 
@@ -34,7 +34,7 @@ and is a Phase 4 violation.
 ends with `Reflect lessons into the knowledge vault` (the
 `session-reflection` fragment → `dev10x-tasks:reflect`), listed right
 after Verify AC. It is **non-blocking**: run it once
-`dev10x:verify-acc-dod` has reported, complete or skip it within
+`dev10x-coding:verify-acc-dod` has reported, complete or skip it within
 the same turn, and leave Verify AC open. It never replaces or
 closes the terminal gate — it only files what the session
 learned. With no vault configured it prints one line and is done.
@@ -65,7 +65,7 @@ review posture, so the gates downstream have a policy to resolve
 against.
 
 **Skip this entirely when:** running as a nested invocation from
-`dev10x:fanout` (fanout settles posture once for the entire
+`dev10x-coding:fanout` (fanout settles posture once for the entire
 session).
 
 **Otherwise, resolve the session-adoption gate first.** Call
@@ -218,7 +218,7 @@ extracted identifiers. Collect all sources into a list for Phase 2.
 
 ### Embedded Questions Are Side Quests (GH-865)
 
-`dev10x:work-on` delivers a **real artifact** — a merged PR, a
+`dev10x-coding:work-on` delivers a **real artifact** — a merged PR, a
 committed fix, a shipped change — in ~99% of invocations.
 Answering a question or "just investigating" is almost never the
 terminal goal. When the input mixes an artifact target (a ticket
@@ -885,13 +885,13 @@ The supervisor may extend or modify the AC at this point —
 treat new instructions as additional tasks inserted **before**
 Verify-AC, never as replacements for it.
 
-**REQUIRED:** Delegate to `dev10x:verify-acc-dod` skill:
+**REQUIRED:** Delegate to `dev10x-coding:verify-acc-dod` skill:
 
-1. `Skill(skill="dev10x:verify-acc-dod", args="<work_type>")`
+1. `Skill(skill="dev10x-coding:verify-acc-dod", args="<work_type>")`
 
 The skill handles criteria resolution (YAML file, defaults,
 overrides), automated state checks (CI, PR, working copy),
-and user confirmation. See the `dev10x:verify-acc-dod` skill
+and user confirmation. See the `dev10x-coding:verify-acc-dod` skill
 for the full criteria schema and verification protocol.
 
 **Playbook override note:** Solo-maintainer or project-specific
@@ -957,7 +957,7 @@ omit it for brevity; Phase 3 still creates it as a task (GH-1822).
 Plays that ship a user-facing change (`feature`, `bugfix`,
 `local-only` on the PR path, `structured-spec`, `business`) also
 carry `[detailed] Record self-QA video and review pack →
-dev10x:qa-scope, dev10x-qa:qa-self, dev10x-qa:review-pack` after
+dev10x-coding:qa-scope, dev10x-qa:qa-self, dev10x-qa:review-pack` after
 the Verify (tests and lint) step and right before the review
 request — in `business`, before the review responses, since that
 play requests no review (GH-1827). The trees omit it too. It
@@ -978,7 +978,7 @@ modes apply.
 
 **Feature from ticket** (subtasks of Phase 4):
 ```
-4.1  [detailed] Set up workspace          → dev10x:ticket-branch
+4.1  [detailed] Set up workspace          → dev10x-coding:ticket-branch
 4.2  [detailed] Draft Job Story           → dev10x-scoping:jtbd
 4.3  [epic]     Design implementation approach
        ├─ Read relevant code
@@ -989,14 +989,14 @@ modes apply.
 4.6  [epic]     Verify
        ├─ Run tests                       → test
        └─ Run lint
-4.7  [detailed] Code review               → dev10x:review + dev10x:review-fix
-4.8  [detailed] Commit outstanding changes → dev10x:git-commit
-4.9  [detailed] Create draft PR           → dev10x:gh-pr-create (--unattended)
-4.10 [detailed] Monitor CI                → dev10x:gh-pr-monitor
-4.11 [epic]     Apply fixups              → dev10x:gh-pr-respond
-4.12 [detailed] Groom commit history      → dev10x:git-groom
-4.13 [detailed] Update PR description     → dev10x:gh-pr-create (update mode)
-4.14 [detailed] Request review            → dev10x:gh-pr-request-review
+4.7  [detailed] Code review               → dev10x-coding:review + dev10x-coding:review-fix
+4.8  [detailed] Commit outstanding changes → dev10x-coding:git-commit
+4.9  [detailed] Create draft PR           → dev10x-coding:gh-pr-create (--unattended)
+4.10 [detailed] Monitor CI                → dev10x-coding:gh-pr-monitor
+4.11 [epic]     Apply fixups              → dev10x-coding:gh-pr-respond
+4.12 [detailed] Groom commit history      → dev10x-coding:git-groom
+4.13 [detailed] Update PR description     → dev10x-coding:gh-pr-create (update mode)
+4.14 [detailed] Request review            → dev10x-coding:gh-pr-request-review
 4.15 [detailed] Verify acceptance criteria
 ```
 
@@ -1027,7 +1027,7 @@ the ticket title alone. If Sentry or Linear evidence names a
 specific file/line, that is the starting point for investigation.
 
 ```
-4.1  [detailed] Set up workspace          → dev10x:ticket-branch
+4.1  [detailed] Set up workspace          → dev10x-coding:ticket-branch
 4.2  [detailed] Reproduce the issue
 4.3  [epic]     Investigate root cause
        ├─ Analyze error traces
@@ -1036,14 +1036,14 @@ specific file/line, that is the starting point for investigation.
 4.5  [epic]     Verify fix
        ├─ Run existing tests              → test
        └─ Add regression test
-4.6  [detailed] Code review               → dev10x:review + dev10x:review-fix
-4.7  [detailed] Commit outstanding changes → dev10x:git-commit
-4.8  [detailed] Create draft PR           → dev10x:gh-pr-create (--unattended)
-4.9  [detailed] Monitor CI                → dev10x:gh-pr-monitor
-4.10 [epic]     Apply fixups              → dev10x:gh-pr-respond
-4.11 [detailed] Groom commit history      → dev10x:git-groom
-4.12 [detailed] Update PR description     → dev10x:gh-pr-create (update mode)
-4.13 [detailed] Request review            → dev10x:gh-pr-request-review
+4.6  [detailed] Code review               → dev10x-coding:review + dev10x-coding:review-fix
+4.7  [detailed] Commit outstanding changes → dev10x-coding:git-commit
+4.8  [detailed] Create draft PR           → dev10x-coding:gh-pr-create (--unattended)
+4.9  [detailed] Monitor CI                → dev10x-coding:gh-pr-monitor
+4.10 [epic]     Apply fixups              → dev10x-coding:gh-pr-respond
+4.11 [detailed] Groom commit history      → dev10x-coding:git-groom
+4.12 [detailed] Update PR description     → dev10x-coding:gh-pr-create (update mode)
+4.13 [detailed] Request review            → dev10x-coding:gh-pr-request-review
 4.14 [detailed] Verify acceptance criteria
 ```
 
@@ -1051,13 +1051,13 @@ specific file/line, that is the starting point for investigation.
 ```
 4.1  [detailed] Fetch PR and review context
 4.2  [epic]     Address review comments
-4.3  [epic]     Apply fixups              → dev10x:gh-pr-respond
-4.4  [detailed] Code review               → dev10x:review + dev10x:review-fix
-4.5  [detailed] Commit outstanding changes → dev10x:git-commit
-4.6  [detailed] Monitor CI                → dev10x:gh-pr-monitor
-4.7  [detailed] Groom commit history      → dev10x:git-groom
-4.8  [detailed] Update PR description     → dev10x:gh-pr-create (update mode)
-4.9  [detailed] Request re-review         → dev10x:gh-pr-request-review
+4.3  [epic]     Apply fixups              → dev10x-coding:gh-pr-respond
+4.4  [detailed] Code review               → dev10x-coding:review + dev10x-coding:review-fix
+4.5  [detailed] Commit outstanding changes → dev10x-coding:git-commit
+4.6  [detailed] Monitor CI                → dev10x-coding:gh-pr-monitor
+4.7  [detailed] Groom commit history      → dev10x-coding:git-groom
+4.8  [detailed] Update PR description     → dev10x-coding:gh-pr-create (update mode)
+4.9  [detailed] Request re-review         → dev10x-coding:gh-pr-request-review
 4.10 [detailed] Verify acceptance criteria
 ```
 
@@ -1069,7 +1069,7 @@ GH-764 F2) before building the continuation plan. When the PR is
 already `MERGED`, do NOT instantiate the full triage → fixup →
 re-review plan — collapse to a **post-merge cleanup** scope
 (answer any still-unresolved bot/human comments for the record,
-then Verify AC). `dev10x:gh-pr-respond` enforces the same
+then Verify AC). `dev10x-coding:gh-pr-respond` enforces the same
 short-circuit in its Merge-State Check preamble, so a respond
 cycle dispatched from 4.3 stays safe even if this guard is
 missed; catching it at 4.1 avoids planning work that will be
@@ -1079,7 +1079,7 @@ discarded.
 (Monitor CI), 4.8 (Update PR description), 4.9 (Request
 re-review), and 4.10 (Verify acceptance criteria) MUST NOT be
 marked `status=deleted` while still `pending`. The terminal
-gate is `dev10x:verify-acc-dod`, NOT a mid-session pivot to an
+gate is `dev10x-coding:verify-acc-dod`, NOT a mid-session pivot to an
 inline edit. When the user pivots inside Phase 4 — for example,
 "actually, also fix this nit" — the pivot becomes a **new
 subtask inserted before 4.10**; it does not replace the existing
@@ -1090,7 +1090,7 @@ review comments slip through. The recurrence in GH-117 evidence
 regression is easy to repeat under user-pivot pressure.
 
 **Post-push auto-advance (GH-117 #2).** After
-`Skill(dev10x:git)` returns a successful push on a branch that
+`Skill(dev10x-coding:git)` returns a successful push on a branch that
 already has an open PR, the next active task is **always**
 `Monitor CI`. Move task 4.6 to `in_progress` immediately on
 push success — do not wait for the user to ask "did CI run?".
@@ -1107,14 +1107,14 @@ in `TaskList`).
        ├─ Run tests                       → test
        └─ Run lint
 4.4  [detailed] Decide: create ticket, create PR, or done
-4.5  [detailed] Code review               → dev10x:review + dev10x:review-fix (if-pr-decided)
-4.6  [detailed] Commit outstanding changes → dev10x:git-commit (if-pr-decided)
-4.7  [detailed] Create draft PR           → dev10x:gh-pr-create (if-pr-decided)
-4.8  [detailed] Monitor CI                → dev10x:gh-pr-monitor (if-pr-decided)
-4.9  [epic]     Apply fixups              → dev10x:gh-pr-respond (if-pr-decided)
-4.10 [detailed] Groom commit history      → dev10x:git-groom (if-pr-decided)
-4.11 [detailed] Update PR description     → dev10x:gh-pr-create (if-pr-decided)
-4.12 [detailed] Request review            → dev10x:gh-pr-request-review (if-pr-decided)
+4.5  [detailed] Code review               → dev10x-coding:review + dev10x-coding:review-fix (if-pr-decided)
+4.6  [detailed] Commit outstanding changes → dev10x-coding:git-commit (if-pr-decided)
+4.7  [detailed] Create draft PR           → dev10x-coding:gh-pr-create (if-pr-decided)
+4.8  [detailed] Monitor CI                → dev10x-coding:gh-pr-monitor (if-pr-decided)
+4.9  [epic]     Apply fixups              → dev10x-coding:gh-pr-respond (if-pr-decided)
+4.10 [detailed] Groom commit history      → dev10x-coding:git-groom (if-pr-decided)
+4.11 [detailed] Update PR description     → dev10x-coding:gh-pr-create (if-pr-decided)
+4.12 [detailed] Request review            → dev10x-coding:gh-pr-request-review (if-pr-decided)
 4.13 [detailed] Verify acceptance criteria
 ```
 
@@ -1137,7 +1137,7 @@ Suitability Gate) marks the ticket as good-fit. Routes through
 shipping pipeline tail.
 
 ```
-4.1  [detailed] Set up workspace                 → dev10x:ticket-branch
+4.1  [detailed] Set up workspace                 → dev10x-coding:ticket-branch
 4.2  [detailed] Scope ticket with REASONS        → dev10x-scoping:ticket-scope
 4.3  [detailed] Record ADR (if architectural)    → dev10x-scoping:adr
 4.4  [detailed] Spec-update gate (Golden Rule)   → dev10x-scoping:spec-update
@@ -1146,14 +1146,14 @@ shipping pipeline tail.
 4.7  [detailed] Verify — API tests               → test
 4.8  [detailed] Verify — unit tests              → test
 4.9  [detailed] Spec-sync gate before merge      → dev10x-scoping:spec-sync
-4.10 [detailed] Code review                      → dev10x:review
-4.11 [detailed] Commit outstanding changes       → dev10x:git-commit
-4.12 [detailed] Create draft PR                  → dev10x:gh-pr-create
-4.13 [detailed] Monitor CI                       → dev10x:gh-pr-monitor
-4.14 [epic]     Apply fixups                     → dev10x:gh-pr-respond
-4.15 [detailed] Groom commit history             → dev10x:git-groom
-4.16 [detailed] Update PR description            → dev10x:gh-pr-create
-4.17 [detailed] Request review                   → dev10x:gh-pr-request-review
+4.10 [detailed] Code review                      → dev10x-coding:review
+4.11 [detailed] Commit outstanding changes       → dev10x-coding:git-commit
+4.12 [detailed] Create draft PR                  → dev10x-coding:gh-pr-create
+4.13 [detailed] Monitor CI                       → dev10x-coding:gh-pr-monitor
+4.14 [epic]     Apply fixups                     → dev10x-coding:gh-pr-respond
+4.15 [detailed] Groom commit history             → dev10x-coding:git-groom
+4.16 [detailed] Update PR description            → dev10x-coding:gh-pr-create
+4.17 [detailed] Request review                   → dev10x-coding:gh-pr-request-review
 4.18 [detailed] Verify acceptance criteria
 ```
 
@@ -1195,7 +1195,7 @@ Phase 4: Execute <work-type>
 │        ├─ <child step>
 │        └─ <child step>
 ├─ 4.3  <step subject>             → <skill>
-└─ 4.N  Verify acceptance criteria → dev10x:verify-acc-dod
+└─ 4.N  Verify acceptance criteria → dev10x-coding:verify-acc-dod
 ```
 
 Use `├─` for every node except the last at a given depth, `└─`
@@ -1340,7 +1340,7 @@ begin Phase 4.
 **REQUIRED after plan approval (GH-760 F2).** Execute these
 calls immediately — do NOT defer or skip:
 
-1. `mcp__plugin_dev10x_cli__plan_sync_set_context(args=["work_type=<detected_work_type>", "tickets=<JSON array of ticket IDs>", "routing_table={\"commit\":\"Skill(dev10x:git-commit)\",\"create_pr\":\"Skill(dev10x:gh-pr-create)\",\"monitor_ci\":\"Skill(dev10x:gh-pr-monitor)\",\"monitor_pr\":\"Skill(dev10x:gh-pr-monitor)\",\"push\":\"Skill(dev10x:git)\",\"groom\":\"Skill(dev10x:git-groom)\",\"branch\":\"Skill(dev10x:ticket-branch)\",\"verify_acceptance\":\"Skill(dev10x:verify-acc-dod)\",\"merge_pr\":\"Skill(dev10x:gh-pr-merge)\",\"work_on\":\"work-on\"}"])`
+1. `mcp__plugin_dev10x_cli__plan_sync_set_context(args=["work_type=<detected_work_type>", "tickets=<JSON array of ticket IDs>", "routing_table={\"commit\":\"Skill(dev10x-coding:git-commit)\",\"create_pr\":\"Skill(dev10x-coding:gh-pr-create)\",\"monitor_ci\":\"Skill(dev10x-coding:gh-pr-monitor)\",\"monitor_pr\":\"Skill(dev10x-coding:gh-pr-monitor)\",\"push\":\"Skill(dev10x-coding:git)\",\"groom\":\"Skill(dev10x-coding:git-groom)\",\"branch\":\"Skill(dev10x-coding:ticket-branch)\",\"verify_acceptance\":\"Skill(dev10x-coding:verify-acc-dod)\",\"merge_pr\":\"Skill(dev10x-coding:gh-pr-merge)\",\"work_on\":\"work-on\"}"])`
 2. `mcp__plugin_dev10x_cli__plan_sync_set_context(args=["gathered_summary=<1-3 sentence summary>"])`
 3. **When bundling (GH-196):** `mcp__plugin_dev10x_cli__plan_sync_set_context(args=["bundling=true", "batches=<JSON array of arrays, e.g. [[\"GH-12\",\"GH-14\"],[\"GH-21\"]]>"])`. Skip this call entirely when `tickets` has fewer than 2 ticket IDs or the user chose Strategy A (fanout). When skipped, downstream consumers treat the absence as `bundling=false`.
 
@@ -1357,7 +1357,7 @@ it — the plan-sync calls above are the whole of the identity write.
 
 **Attribution keys (GH-152):** The `work_on` key with value
 `"work-on"` is the audit attribution string — skill audits
-match on this exact value to confirm `dev10x:work-on`
+match on this exact value to confirm `dev10x-coding:work-on`
 orchestrated the plan. Include both `monitor_ci` and
 `monitor_pr` keys with the same value so callers can use
 either name without losing the routing.
@@ -1456,17 +1456,17 @@ early to measure meaningfully).
 | Run tests (Python) — EVERY run, incl. narrow ones | `Skill(test)` | `pytest`, `uv run pytest`, `python -m pytest` |
 | Run tests (JS/TS) — EVERY run | `mcp__plugin_dev10x_cli__run_node_tests` (`runner` omitted (auto-detect) or explicit; `script=` for a package script) | `jest`, `vitest`, `yarn test`, `npm test`, `pnpm test` |
 | Lint | `pre-commit run` (Python projects with pre-commit) or `run_node_tests(script="lint")` (JS/TS) | inline `ruff`, `black`, `eslint`, `tsc` |
-| Create a commit | `Skill(dev10x:git-commit)` | `git commit` |
-| Create a PR | `Skill(dev10x:gh-pr-create)` | `gh pr create` |
-| Monitor CI | `Skill(dev10x:gh-pr-monitor)` | `gh pr checks --watch` |
-| Push to remote | `Skill(dev10x:git)` | `git push` |
-| Groom history | `Skill(dev10x:git-groom)` | `git rebase -i`, `git develop-log` for assessment |
-| Create branch | `Skill(dev10x:ticket-branch)` | `git checkout -b` |
+| Create a commit | `Skill(dev10x-coding:git-commit)` | `git commit` |
+| Create a PR | `Skill(dev10x-coding:gh-pr-create)` | `gh pr create` |
+| Monitor CI | `Skill(dev10x-coding:gh-pr-monitor)` | `gh pr checks --watch` |
+| Push to remote | `Skill(dev10x-coding:git)` | `git push` |
+| Groom history | `Skill(dev10x-coding:git-groom)` | `git rebase -i`, `git develop-log` for assessment |
+| Create branch | `Skill(dev10x-coding:ticket-branch)` | `git checkout -b` |
 | Create a skill | `Skill(dev10x-teach:skill-create)` | Writing SKILL.md directly |
 | Check PR state | `mcp__plugin_dev10x_cli__pr_detect` | `gh pr view --json` |
 | Verify PR readiness | `mcp__plugin_dev10x_cli__verify_pr_state` | `gh pr checks` |
-| Verify acceptance criteria | `Skill(dev10x:verify-acc-dod)` | Inline checks |
-| Merge PR | `Skill(dev10x:gh-pr-merge)` | `gh pr merge`, `git merge` |
+| Verify acceptance criteria | `Skill(dev10x-coding:verify-acc-dod)` | Inline checks |
+| Merge PR | `Skill(dev10x-coding:gh-pr-merge)` | `gh pr merge`, `git merge` |
 
 This table survives context compaction — it is the canonical
 routing for shipping actions. If you are about to run a raw
@@ -1496,7 +1496,7 @@ session. A narrow routed run is the cheaper of the two calls:
 `pytest-inner-loop` (DX006) blocks the narrow raw shape and carries
 that translation, so a slip is caught at the call rather than at the
 terminal DoD check — which runs after the work merged. The
-full-coverage raw form stays unblocked: it is `dev10x:py-test`'s
+full-coverage raw form stays unblocked: it is `dev10x-coding:py-test`'s
 fallback when no MCP server is reachable, and the shape that seeds a
 fresh worktree's virtualenv.
 
@@ -1510,7 +1510,7 @@ Re-inject the table into the compacted context as a
 as advisory examples per `skill-orchestration-format.md`).
 **Self-check after compaction:** After any context compaction
 event, verify the routing table is still present by scanning
-for "Skill(dev10x:git-commit)" in the current context. If
+for "Skill(dev10x-coding:git-commit)" in the current context. If
 missing, re-read this section before proceeding.
 
 1. run tests (Python) → `Skill(test)`
@@ -1518,23 +1518,23 @@ missing, re-read this section before proceeding.
    (`script=` for a package script)
 3. lint → `pre-commit run` (Python) or `run_node_tests(script="lint")`
    (JS/TS) — never inline `ruff`/`black`/`eslint`
-4. commit → `Skill(dev10x:git-commit)`
-5. create PR → `Skill(dev10x:gh-pr-create)`
-6. monitor CI → `Skill(dev10x:gh-pr-monitor)`
-7. push → `Skill(dev10x:git)`
-8. groom → `Skill(dev10x:git-groom)`
-9. branch → `Skill(dev10x:ticket-branch)`
+4. commit → `Skill(dev10x-coding:git-commit)`
+5. create PR → `Skill(dev10x-coding:gh-pr-create)`
+6. monitor CI → `Skill(dev10x-coding:gh-pr-monitor)`
+7. push → `Skill(dev10x-coding:git)`
+8. groom → `Skill(dev10x-coding:git-groom)`
+9. branch → `Skill(dev10x-coding:ticket-branch)`
 10. create skill → `Skill(dev10x-teach:skill-create)`
 11. check PR state → `mcp__plugin_dev10x_cli__pr_detect`
 12. verify PR readiness → `mcp__plugin_dev10x_cli__verify_pr_state`
-13. verify acceptance → `Skill(dev10x:verify-acc-dod)`
-14. merge PR → `Skill(dev10x:gh-pr-merge)`
+13. verify acceptance → `Skill(dev10x-coding:verify-acc-dod)`
+14. merge PR → `Skill(dev10x-coding:gh-pr-merge)`
 
 ### Groom Step: Always Delegate, Never Self-Assess
 
 **Hard rule (GH-505, GH-776, GH-929):** When the plan includes
 a "Groom commit history" step, you MUST invoke
-`Skill(dev10x:git-groom)` and let the skill run its own
+`Skill(dev10x-coding:git-groom)` and let the skill run its own
 analysis. **As the orchestrator, outside the skill,** do NOT run
 `git develop-log`, `git log`, or any commit inspection to
 pre-assess whether grooming is needed — not before invoking the
@@ -1544,12 +1544,12 @@ whether grooming is required — that decision belongs to the
 skill, not to the orchestrator.
 
 **Scope of the prohibition (GH-997).** This rule binds the
-*caller*, not the callee. `dev10x:git-groom` Phase 1 opens with
+*caller*, not the callee. `dev10x-coding:git-groom` Phase 1 opens with
 its own `git log` / `git merge-base` analysis — that is the
 skill's first documented step, and running it while executing
 the skill is compliant, not a violation. Read the rule as: do
 not inspect history to **predict** the groom's outcome from
-outside; inspection **inside** `dev10x:git-groom` Phase 1 is the
+outside; inspection **inside** `dev10x-coding:git-groom` Phase 1 is the
 skill doing its job. Without this scoping the two documents read
 as contradictory instructions, which plausibly contributed to
 the three recorded recurrences below.
@@ -1564,9 +1564,9 @@ history to predict the outcome.
 
 ### CI Re-Monitoring After Force Push
 
-**Hard rule:** Force push (from `dev10x:git-groom` or conflict
+**Hard rule:** Force push (from `dev10x-coding:git-groom` or conflict
 rebase) invalidates all previous CI results. After any force
-push, you MUST re-invoke `Skill(dev10x:gh-pr-monitor)` to
+push, you MUST re-invoke `Skill(dev10x-coding:gh-pr-monitor)` to
 monitor the new CI runs. Do NOT declare CI green based on
 pre-groom results — the new HEAD has different commit SHAs
 and GitHub runs fresh checks against it.
@@ -1581,8 +1581,8 @@ ANY unexpected branch-head change — the local HEAD sha no longer
 matches what this session last pushed, most commonly because a
 maintainer ran GitHub's "Update branch" button — resolve the PR
 merge state via `mcp__plugin_dev10x_cli__pr_get` (read `state` /
-`mergedAt`) BEFORE re-invoking `dev10x:gh-pr-monitor` or any
-rebase/rewrite. Same pattern as `dev10x:gh-pr-respond`'s
+`mergedAt`) BEFORE re-invoking `dev10x-coding:gh-pr-monitor` or any
+rebase/rewrite. Same pattern as `dev10x-coding:gh-pr-respond`'s
 Merge-State Check preamble. If `state == "MERGED"`, stop — do not
 rebase, force-push, or re-monitor a PR that already merged.
 
@@ -1591,8 +1591,8 @@ rebase, force-push, or re-monitor a PR that already merged.
 **Hard rule:** When `mcp__plugin_dev10x_cli__resolve_gate(gate=
 "request_review", context={})` returns `effect: "skip"` — nobody
 else is being asked to look at this PR — the Phase 4 shipping
-sequence MUST invoke `Skill(dev10x:gh-pr-monitor)` immediately
-after `Skill(dev10x:gh-pr-create)` completes (success OR "PR
+sequence MUST invoke `Skill(dev10x-coding:gh-pr-monitor)` immediately
+after `Skill(dev10x-coding:gh-pr-create)` completes (success OR "PR
 already exists"). No gate effect suppresses this: an
 `auto-advance` elsewhere advances *through* gates, it must never
 advance *past* the monitor step. The monitor task remains a
@@ -1616,14 +1616,14 @@ Phase 3.5 (milestone cleanup), and Phase 4 (acceptance
 verification).
 
 The orchestrator MUST NOT mark the shipping phase complete
-until `Skill(dev10x:gh-pr-monitor)` has run end-to-end.
+until `Skill(dev10x-coding:gh-pr-monitor)` has run end-to-end.
 
 ### Swarm-Child Auto-Advance (GH-368 F2, GH-385 F1)
 
 **Hard rule:** When the dispatch prompt carries the fanout
 swarm-context marker (the `wave_id` line — ADR-0019 / GH-950 keep
 swarm-child identity out of every config file), work-on MUST
-auto-advance past `Skill(dev10x:ticket-branch)` without a
+auto-advance past `Skill(dev10x-coding:ticket-branch)` without a
 continuation prompt. The branch is not a milestone — it is
 setup infrastructure. After the branch is created, immediately
 proceed to the next Phase 4 step (design or implement).
@@ -1635,7 +1635,7 @@ waits indefinitely and terminates when the turn budget
 expires, leaving only a branch and no PR.
 
 **Required behavior in swarm-child mode:**
-1. `Skill(dev10x:ticket-branch)` creates the branch.
+1. `Skill(dev10x-coding:ticket-branch)` creates the branch.
 2. Without any pause, continue to the implementation steps.
 3. Run through the full shipping pipeline (commit → push →
    PR → monitor → merge).
@@ -1677,7 +1677,7 @@ direct-CLI alternative is a violation. The skill's design — including
 background dispatch, gates, and side effects — is the contract.
 
 **Anti-pattern (GH-44):** Agent invokes
-`Skill(dev10x:gh-pr-monitor)`, partially reads instructions.md
+`Skill(dev10x-coding:gh-pr-monitor)`, partially reads instructions.md
 (e.g., `Read(..., limit=100)`), encounters background-agent
 dispatch logic, rationalizes "this is overkill, let me just run
 `gh pr checks --watch` synchronously", and bypasses the skill.
@@ -1701,7 +1701,7 @@ guardrails that appear later in the file.
 
 **Hard rule:** ANY review comment on the PR — human OR bot
 (claude-review, hygiene-review, openai-review) — MUST be
-addressed via `Skill(dev10x:gh-pr-respond)`. Do NOT use raw
+addressed via `Skill(dev10x-coding:gh-pr-respond)`. Do NOT use raw
 `gh api PATCH`, `gh pr edit`, or `gh pr comment` to "just edit
 the PR body" or "just post a quick reply" inline. The
 gh-pr-respond skill runs the documented triage → fixup →
@@ -1718,7 +1718,7 @@ regardless of the comment's apparent simplicity.
 
 **Detection signal:** If you are about to call `gh api PATCH
 .../pulls/`, `gh pr edit`, or `gh pr comment` to respond to a
-PR review comment, STOP and invoke `Skill(dev10x:gh-pr-respond)`
+PR review comment, STOP and invoke `Skill(dev10x-coding:gh-pr-respond)`
 instead. The skill handles single-comment cases just as well as
 batch.
 
@@ -1738,9 +1738,9 @@ proceed to the next task. Never pause to show the commit or ask
 for confirmation — the commit is done, move on.
 
 **Auto-advance on code review (GH-932):** When delegating to
-`dev10x:review` from the shipping pipeline, pass
+`dev10x-coding:review` from the shipping pipeline, pass
 `args="--unattended"` so the skill skips the zero-findings
-AskUserQuestion gate and auto-advances to `dev10x:review-fix`.
+AskUserQuestion gate and auto-advances to `dev10x-coding:review-fix`.
 Session `da0d9c73` invoked the skill without this flag,
 causing it to skip the mandatory attended-mode gate and the
 findings file write. The playbook `prompt:` says to use
@@ -1755,12 +1755,12 @@ immediately proceed to **Monitor CI** — this is mandatory, not
 optional. Do not block on PR preview approval when executing
 the shipping pipeline — the PR body and title can always be
 updated later via the "Update PR description" step. When
-delegating to `dev10x:gh-pr-create`, pass
+delegating to `dev10x-coding:gh-pr-create`, pass
 `args="--unattended"` to skip the preview gate.
 
 **Hard rule: Always invoke CI monitor after PR creation.**
-After `dev10x:gh-pr-create` completes, the very next action
-MUST be `Skill(dev10x:gh-pr-monitor)`. Do NOT skip this step
+After `dev10x-coding:gh-pr-create` completes, the very next action
+MUST be `Skill(dev10x-coding:gh-pr-monitor)`. Do NOT skip this step
 even if the PR "looks fine" or CI "should pass." Session
 GH-477 showed the monitor was not invoked for 12+ hours after
 PR creation, requiring 9 user prompts. The monitor is part of
@@ -1826,7 +1826,7 @@ the `completion_signoff` gate, verify ALL of the following:
 5. No pending fixup commits that haven't been pushed — compare
    local HEAD with remote tracking branch
 6. **verify-acc-dod was invoked** — check the conversation for
-   a `Skill(dev10x:verify-acc-dod)` call. If absent, invoke it
+   a `Skill(dev10x-coding:verify-acc-dod)` call. If absent, invoke it
    NOW before presenting the gate. This is the #1 bypass pattern
    (GH-471, GH-497, GH-930) — agents perform inline checks
    instead of delegating. Session `da0d9c73` repeated this —
@@ -1870,7 +1870,7 @@ the scope decision explicit so the DoD reflects it:
    `mcp__plugin_dev10x_cli__supervisor_review_status()` (default
    `required`) — never by reading the durable file directly — and branch:
    - **`supervisor_review: none`** — the project already says no
-     supervisor pass is needed. `dev10x:verify-acc-dod` skips the
+     supervisor pass is needed. `dev10x-coding:verify-acc-dod` skips the
      unresolved-threads and review-requested checks on its own; nothing
      to set. Note it in the next status line and go to step 3.
    - **`supervisor_review: required`** — the project says humans review, so the
@@ -1911,7 +1911,7 @@ terminal. Resolve the PR merge state (via
 - **Merged / no PR**, checks green → recommend **"Work complete"**.
 - **Open, awaiting review** (CI green, comments addressed) →
   recommend **"Monitor PR for review"**: dispatch
-  `Skill(dev10x:gh-pr-monitor)` to background-watch the PR (~5 min)
+  `Skill(dev10x-coding:gh-pr-monitor)` to background-watch the PR (~5 min)
   and keep the session open. Under `solo-maintainer` the monitor →
   auto-merge path already runs (see § Solo-Maintainer Post-Create
   Monitor Mandate); the gate simply must not auto-select "Work
@@ -1930,7 +1930,7 @@ them `completed` on dispatch — only mark `completed` when the
 agent's result notification arrives and confirms success.
 
 **After all checks pass** (including the non-waivable
-`Skill(dev10x:verify-acc-dod)` run from the pre-gate checklist
+`Skill(dev10x-coding:verify-acc-dod)` run from the pre-gate checklist
 above — that delegation ALWAYS runs first, regardless of the
 gate's resolved effect below):
 
@@ -1950,12 +1950,12 @@ required.
      `AskUserQuestion(questions=[{question: "All tasks completed. How would you like to proceed?", header: "Done", options: [{label: "Work complete — hand over (Recommended)", description: "PR merged (or PR-less), all checks pass — ready to close"}, {label: "Add more tasks", description: "Continue with additional work"}, {label: "Revisit a step", description: "Re-examine a completed task"}], multiSelect: false}])`
    - **When an associated PR is open/unmerged but otherwise green
      (GH-729):**
-     `AskUserQuestion(questions=[{question: "All checks pass and PR #<N> is awaiting review. How would you like to proceed?", header: "Done", options: [{label: "Monitor PR for review (Recommended)", description: "Keep the session open; background-watch PR #<N> every ~5 min via dev10x:gh-pr-monitor and surface review/ready-to-merge"}, {label: "Add more tasks", description: "Continue with additional work"}, {label: "Override — complete anyway", description: "Accept the unmerged PR as done"}], multiSelect: false}])`
+     `AskUserQuestion(questions=[{question: "All checks pass and PR #<N> is awaiting review. How would you like to proceed?", header: "Done", options: [{label: "Monitor PR for review (Recommended)", description: "Keep the session open; background-watch PR #<N> every ~5 min via dev10x-coding:gh-pr-monitor and surface review/ready-to-merge"}, {label: "Add more tasks", description: "Continue with additional work"}, {label: "Override — complete anyway", description: "Accept the unmerged PR as done"}], multiSelect: false}])`
    - **When the PR is open/green under solo-maintainer + adaptive
      (GH-883) — `completion_gate_recommendation()` returns
      `AUTO_MERGE`:** there is no external reviewer to wait for and the
      adaptive contract forbids a manual checkpoint, so the terminal
-     action is to auto-advance directly to `Skill(dev10x:gh-pr-merge)`
+     action is to auto-advance directly to `Skill(dev10x-coding:gh-pr-merge)`
      (its solo-maintainer config supplies the approval override) — NOT
      "monitor for review". Under `adaptive` the `completion_signoff`
      gate resolves to `auto-advance` (no widget). If it nonetheless
@@ -1980,7 +1980,7 @@ required.
 
 Never auto-complete the plan without the gate resolving to
 `auto-advance` or `skip`, and never skip the mandatory
-`dev10x:verify-acc-dod` delegation above regardless of `effect`.
+`dev10x-coding:verify-acc-dod` delegation above regardless of `effect`.
 Plain text questions (e.g., "Ready to merge?") are NOT
 acceptable in the `ask` branch — they allow the session to
 auto-proceed without structured confirmation.
@@ -2000,8 +2000,8 @@ skill's logic breaks these guarantees.
 **Unattended mode compliance — no checkpoints, but no shortcuts
 either:** Auto-advance pressure in unattended mode makes it
 tempting to perform operations directly (e.g., `git checkout -b`
-instead of `dev10x:ticket-branch`, inline review instead of
-`dev10x:review`). This is still a violation — "no checkpoints"
+instead of `dev10x-coding:ticket-branch`, inline review instead of
+`dev10x-coding:review`). This is still a violation — "no checkpoints"
 eliminates implicit pauses between steps;
 it does NOT license raw-CLI substitutions for skill wrappers.
 Unattended mode changes the *pace*, not the *rules*. If you catch
@@ -2030,31 +2030,31 @@ the raw command directly bypasses the skill's setup, validation,
 and side effects.
 
 **Anti-pattern (GH-45):** Step subject "Mark PR ready for
-review" with `skills: [dev10x:gh-pr-request-review]` and
+review" with `skills: [dev10x-coding:gh-pr-request-review]` and
 `solo-maintainer` mode override `prompt: "Run gh pr ready. No
 reviewers, no Slack."` Agent reads the prompt, runs `gh pr
 ready 37` directly, never invokes the skill. Correct behavior:
-invoke `Skill(dev10x:gh-pr-request-review)`; the skill resolves
+invoke `Skill(dev10x-coding:gh-pr-request-review)`; the skill resolves
 the `request_review` gate and takes the no-reviewer path itself.
 
 Common skill delegations:
 
 | Task | Delegated to |
 |------|-------------|
-| Set up workspace (branch) | `dev10x:ticket-branch` skill |
-| Set up workspace (worktree) | `dev10x:git-worktree` skill |
+| Set up workspace (branch) | `dev10x-coding:ticket-branch` skill |
+| Set up workspace (worktree) | `dev10x-coding:git-worktree` skill |
 | Draft Job Story | `dev10x-scoping:jtbd` skill (attended mode) |
 | Update ticket status | Linear MCP (see references/team-info.md) |
 | Fetch PR context | `gh pr view` + `gh pr diff` |
-| Code review | `dev10x:review` (`--unattended --loop`) + `dev10x:review-fix` skills |
-| Commit changes | `dev10x:git-commit` skill |
-| Create draft PR | `dev10x:gh-pr-create` skill (`--unattended`) |
-| Monitor CI | `dev10x:gh-pr-monitor` skill |
-| Apply fixups to review | `dev10x:gh-pr-respond` skill |
-| Groom commit history | `dev10x:git-groom` skill |
-| Update PR description | `dev10x:gh-pr-create` skill (update mode) |
-| Request review | `dev10x:gh-pr-request-review` skill |
-| Merge PR | `dev10x:gh-pr-merge` skill |
+| Code review | `dev10x-coding:review` (`--unattended --loop`) + `dev10x-coding:review-fix` skills |
+| Commit changes | `dev10x-coding:git-commit` skill |
+| Create draft PR | `dev10x-coding:gh-pr-create` skill (`--unattended`) |
+| Monitor CI | `dev10x-coding:gh-pr-monitor` skill |
+| Apply fixups to review | `dev10x-coding:gh-pr-respond` skill |
+| Groom commit history | `dev10x-coding:git-groom` skill |
+| Update PR description | `dev10x-coding:gh-pr-create` skill (update mode) |
+| Request review | `dev10x-coding:gh-pr-request-review` skill |
+| Merge PR | `dev10x-coding:gh-pr-merge` skill |
 
 ### Post-Step Skill Delegation Verification
 
@@ -2064,7 +2064,7 @@ the task `completed`, confirm:
 
 1. The `Skill()` tool was called for each listed skill
 2. Raw CLI commands were NOT used as substitutes (e.g.,
-   `git commit` instead of `Skill(dev10x:git-commit)`)
+   `git commit` instead of `Skill(dev10x-coding:git-commit)`)
 3. If you used raw commands instead of `Skill()`, STOP —
    re-do the step with proper delegation before proceeding
 
@@ -2078,7 +2078,7 @@ commands skip.
 acceptance criteria step is the most commonly bypassed
 delegation (GH-471, GH-930). Agents perform inline AC checks
 (e.g., "CI green, PR merged, looks good") instead of
-invoking `Skill(dev10x:verify-acc-dod)`. The inline check
+invoking `Skill(dev10x-coding:verify-acc-dod)`. The inline check
 skips structured PR state verification (`gh pr checks`,
 `gh pr view --json isDraft`) and the skill's own
 `AskUserQuestion` gate. Always delegate — unless a playbook
@@ -2090,7 +2090,7 @@ After verification, mark the task `completed` via
 ### Task Reconciliation After Skill Delegation
 
 **REQUIRED:** After a delegated skill completes (e.g.,
-`dev10x:gh-pr-respond`, `dev10x:gh-pr-monitor`), reconcile
+`dev10x-coding:gh-pr-respond`, `dev10x-coding:gh-pr-monitor`), reconcile
 the task list before proceeding. Delegated skills may create
 their own tasks that overlap with the parent's remaining
 pipeline steps. Without reconciliation, parent tasks remain
@@ -2153,7 +2153,7 @@ When multiple issues are provided, two strategies exist:
 **Strategy A: Separate PRs (fanout — default)**
 
 Each issue gets its own branch, PR, and full playbook play.
-Use `dev10x:fanout` for parallel execution or sequential
+Use `dev10x-coding:fanout` for parallel execution or sequential
 execution within `work-on`.
 
 Each issue MUST execute the **full playbook play** — not a
@@ -2198,9 +2198,9 @@ Before step 3b (Design) of each batch:
 1. Resolve `<base>` via `mcp__plugin_dev10x_cli__detect_base_branch`
    (develop → main fallback). Always rebase onto `origin/<base>`,
    never the possibly-stale local ref (same caution
-   `dev10x:git-groom` documents in Phase 1, GH-486).
+   `dev10x-coding:git-groom` documents in Phase 1, GH-486).
 2. Fetch `origin/<base>` and rebase the bundle branch onto it via
-   `Skill(dev10x:git-groom)` / the existing rebase wrapper —
+   `Skill(dev10x-coding:git-groom)` / the existing rebase wrapper —
    never raw `git rebase`.
 3. After any force-push from this pre-review rebase, re-monitor
    CI (already required — see § CI Re-Monitoring After Force Push).
@@ -2210,7 +2210,7 @@ The auto re-sync applies **only before reviews start**. Once
 fixup commits are addressing in-progress review threads, a rebase
 rewrites the base SHAs that review-thread permalinks reference
 (`/pull/N/commits/<sha>` → 404) and destroys the per-comment
-audit trail. This is the same invariant `dev10x:git-groom`
+audit trail. This is the same invariant `dev10x-coding:git-groom`
 enforces in **Phase 0 (refuse pre-merge groom with open
 unresolved threads, GH-68 Fix E)** — the two rules compose:
 
@@ -2263,7 +2263,7 @@ single batch — review readability degrades past that point.
 **Shared-file tickets always collapse into one batch (GH-591).**
 When two bundle members edit the **same file**, they CANNOT become
 separate per-issue commits: splitting them would require hunk-level
-selective staging, which `dev10x:git-commit` explicitly prohibits
+selective staging, which `dev10x-coding:git-commit` explicitly prohibits
 ("NEVER stage individual files by name"). A shared file is a strong
 form of the **shared component** signal — treat it as decisive on
 its own and place the members in one batch even if no second signal
@@ -2355,7 +2355,7 @@ implementation children complete.
 
 **Pre-review commit step (GH-858 F3):** The shipping pipeline now
 opens with a `Commit implementation changes` step *before* `Code
-review`. `dev10x:review` diffs commits against base (`develop-diff`),
+review`. `dev10x-coding:review` diffs commits against base (`develop-diff`),
 not the working tree, so a single-ticket branch whose implementation
 is still uncommitted would review an empty diff. The new step commits
 that work first. In bundle mode this is a no-op — the per-issue
@@ -2476,10 +2476,10 @@ safest fallback for permission-sensitive operations.
 
 | State | Action |
 |-------|--------|
-| Main repo, user wants worktree | Invoke `dev10x:git-worktree` (creates branch internally — do NOT call `dev10x:ticket-branch` first) |
-| Any, worktree wanted, `HERDR_ENV=1` | Invoke `dev10x:git-worktree` — it takes Path C on its own (GH-1617): Herdr creates the worktree, a Claude agent named after the ticket starts there and is briefed through a file. That agent owns the ticket from then on; this session does not continue the ticket's plan |
-| Main repo, work here | Invoke `dev10x:ticket-branch` to create feature branch |
-| Worktree, generic WT branch | Invoke `dev10x:ticket-branch` to create work-specific branch from within the worktree |
+| Main repo, user wants worktree | Invoke `dev10x-coding:git-worktree` (creates branch internally — do NOT call `dev10x-coding:ticket-branch` first) |
+| Any, worktree wanted, `HERDR_ENV=1` | Invoke `dev10x-coding:git-worktree` — it takes Path C on its own (GH-1617): Herdr creates the worktree, a Claude agent named after the ticket starts there and is briefed through a file. That agent owns the ticket from then on; this session does not continue the ticket's plan |
+| Main repo, work here | Invoke `dev10x-coding:ticket-branch` to create feature branch |
+| Worktree, generic WT branch | Invoke `dev10x-coding:ticket-branch` to create work-specific branch from within the worktree |
 | Worktree, matching feature branch | No action needed — branch already exists |
 
 If the Phase 1 workspace decision was deferred (local-only
@@ -2564,7 +2564,7 @@ No custom bookmarking needed — leverage existing
 - Handle errors gracefully — if a fetch fails, continue with
   what was gathered and note the failure in the context summary
 - Linear team UUID is in `references/team-info.md` (template)
-- After completing work, use `dev10x:gh-pr-create` to create the PR
+- After completing work, use `dev10x-coding:gh-pr-create` to create the PR
 - Do not modify ticket description or add comments unless the
   user explicitly approves (e.g., Job Story write-back)
 - **Batch data files must use `.json` format** — never `.env`.
@@ -2577,7 +2577,7 @@ No custom bookmarking needed — leverage existing
 - **Worktree cleanup:** No skill currently handles worktree
   teardown after work completes. Users must manually run
   `git worktree remove <path>` when done.
-- **PR merge-to-completion lifecycle:** The `dev10x:gh-pr-monitor`
+- **PR merge-to-completion lifecycle:** The `dev10x-coding:gh-pr-monitor`
   skill stops after CI passes and review is requested — it does
   not monitor through to merge. Users must manually merge or
   re-invoke monitoring after approval.
@@ -2599,7 +2599,7 @@ branch naming, Sentry integration patterns.
 
 ### Example 1: Single Ticket URL
 
-**User:** `/dev10x:work-on https://github.com/org/repo/issues/15`
+**User:** `/dev10x-coding:work-on https://github.com/org/repo/issues/15`
 
 **Phase 1:** Classify → `github-issue`, repo=`org/repo`, number=15
 
@@ -2609,20 +2609,20 @@ issue. Body mentions PR #42 → fetch PR. Produce context summary.
 **Phase 3:** Load `feature` plan template (user overrides →
 defaults → schema). Build subtasks of Phase 4:
 ```
-4.1  [detailed] Set up workspace          → dev10x:ticket-branch
+4.1  [detailed] Set up workspace          → dev10x-coding:ticket-branch
 4.2  [detailed] Draft Job Story           → dev10x-scoping:jtbd
 4.3  [epic]     Design implementation approach (3 children)
 4.4  [detailed] Plan the commit sequence
 4.5  [epic]     Implement changes
 4.6  [epic]     Verify (2 children)
-4.7  [detailed] Code review               → dev10x:review + dev10x:review-fix
-4.8  [detailed] Commit outstanding changes → dev10x:git-commit
-4.9  [detailed] Create draft PR           → dev10x:gh-pr-create
-4.10 [detailed] Monitor CI                → dev10x:gh-pr-monitor
-4.11 [epic]     Apply fixups              → dev10x:gh-pr-respond
-4.12 [detailed] Groom commit history      → dev10x:git-groom
-4.13 [detailed] Update PR description     → dev10x:gh-pr-create
-4.14 [detailed] Request review            → dev10x:gh-pr-request-review
+4.7  [detailed] Code review               → dev10x-coding:review + dev10x-coding:review-fix
+4.8  [detailed] Commit outstanding changes → dev10x-coding:git-commit
+4.9  [detailed] Create draft PR           → dev10x-coding:gh-pr-create
+4.10 [detailed] Monitor CI                → dev10x-coding:gh-pr-monitor
+4.11 [epic]     Apply fixups              → dev10x-coding:gh-pr-respond
+4.12 [detailed] Groom commit history      → dev10x-coding:git-groom
+4.13 [detailed] Update PR description     → dev10x-coding:gh-pr-create
+4.14 [detailed] Request review            → dev10x-coding:gh-pr-request-review
 4.15 [detailed] Verify acceptance criteria
 ```
 Supervisor approves.
@@ -2633,7 +2633,7 @@ decision is needed.
 
 ### Example 2: Multiple Inputs
 
-**User:** `/dev10x:work-on TEAM-133 https://slack.com/archives/C123/p456 "check the retry logic"`
+**User:** `/dev10x-coding:work-on TEAM-133 https://slack.com/archives/C123/p456 "check the retry logic"`
 
 **Phase 1:** Classify →
 - `linear-ticket` TEAM-133
@@ -2647,25 +2647,25 @@ sources.
 **Phase 3:** Load `bugfix` plan template (Sentry issue detected):
 
 ```
-4.1  [detailed] Set up workspace          → dev10x:ticket-branch
+4.1  [detailed] Set up workspace          → dev10x-coding:ticket-branch
 4.2  [detailed] Reproduce the issue
 4.3  [epic]     Investigate root cause (2 children)
 4.4  [epic]     Implement fix
 4.5  [epic]     Verify fix (2 children)
-4.6  [detailed] Code review               → dev10x:review + dev10x:review-fix
-4.7  [detailed] Commit outstanding changes → dev10x:git-commit
-4.8  [detailed] Create draft PR           → dev10x:gh-pr-create
-4.9  [detailed] Monitor CI                → dev10x:gh-pr-monitor
-4.10 [epic]     Apply fixups              → dev10x:gh-pr-respond
-4.11 [detailed] Groom commit history      → dev10x:git-groom
-4.12 [detailed] Update PR description     → dev10x:gh-pr-create
-4.13 [detailed] Request review            → dev10x:gh-pr-request-review
+4.6  [detailed] Code review               → dev10x-coding:review + dev10x-coding:review-fix
+4.7  [detailed] Commit outstanding changes → dev10x-coding:git-commit
+4.8  [detailed] Create draft PR           → dev10x-coding:gh-pr-create
+4.9  [detailed] Monitor CI                → dev10x-coding:gh-pr-monitor
+4.10 [epic]     Apply fixups              → dev10x-coding:gh-pr-respond
+4.11 [detailed] Groom commit history      → dev10x-coding:git-groom
+4.12 [detailed] Update PR description     → dev10x-coding:gh-pr-create
+4.13 [detailed] Request review            → dev10x-coding:gh-pr-request-review
 4.14 [detailed] Verify acceptance criteria
 ```
 
 ### Example 3: PR Continuation
 
-**User:** `/dev10x:work-on https://github.com/org/repo/pull/42`
+**User:** `/dev10x-coding:work-on https://github.com/org/repo/pull/42`
 
 **Phase 1:** Classify → `github-pr`, number=42
 
@@ -2676,13 +2676,13 @@ PR has 3 review comments → note them.
 ```
 4.1  [detailed] Fetch PR and review context
 4.2  [epic]     Address review comments
-4.3  [epic]     Apply fixups              → dev10x:gh-pr-respond
-4.4  [detailed] Code review               → dev10x:review + dev10x:review-fix
-4.5  [detailed] Commit outstanding changes → dev10x:git-commit
-4.6  [detailed] Monitor CI                → dev10x:gh-pr-monitor
-4.7  [detailed] Groom commit history      → dev10x:git-groom
-4.8  [detailed] Update PR description     → dev10x:gh-pr-create
-4.9  [detailed] Request re-review         → dev10x:gh-pr-request-review
+4.3  [epic]     Apply fixups              → dev10x-coding:gh-pr-respond
+4.4  [detailed] Code review               → dev10x-coding:review + dev10x-coding:review-fix
+4.5  [detailed] Commit outstanding changes → dev10x-coding:git-commit
+4.6  [detailed] Monitor CI                → dev10x-coding:gh-pr-monitor
+4.7  [detailed] Groom commit history      → dev10x-coding:git-groom
+4.8  [detailed] Update PR description     → dev10x-coding:gh-pr-create
+4.9  [detailed] Request re-review         → dev10x-coding:gh-pr-request-review
 4.10 [detailed] Verify acceptance criteria
 ```
 
@@ -2701,7 +2701,7 @@ resume where they left off.
 
 ### Example 5: Bundled Execution with Batches (GH-196)
 
-**User:** `/dev10x:work-on GH-12 GH-14 GH-21`
+**User:** `/dev10x-coding:work-on GH-12 GH-14 GH-21`
 
 **Phase 1:** Classify three `github-issue` sources.
 `bundling_candidate = true` (3 ticket inputs).

@@ -16,7 +16,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from dev10x.core.paths import skill_script
+from dev10x.core.paths import SCRIPTS_DIR, SKILLS_DIR, skill_script
 from dev10x.skills.doctor.strategy import (
     Context,
     Finding,
@@ -71,6 +71,13 @@ class ScriptDriftRemediation:
         )
 
 
+def _plugin_relative(*, skill: str, rel: str) -> str:
+    # GH-1572: a token, not a path to run. Matched as a substring, it hits a
+    # script whether it sits in core's tree or in a satellite's
+    # (`plugins/coding/...`, `.../dev10x-coding/<ver>/...`).
+    return f"{SKILLS_DIR}/{skill}/{SCRIPTS_DIR}/{rel}"
+
+
 SCRIPT_TO_MCP: dict[str, str] = {
     "/tmp/Dev10x/bin/mktmp.sh": "mcp__plugin_dev10x_cli__mktmp",
     skill_script(skill="gh-context", rel="gh-issue-get.sh"): "mcp__plugin_dev10x_cli__issue_get",
@@ -81,11 +88,13 @@ SCRIPT_TO_MCP: dict[str, str] = {
         skill="gh-context", rel="gh-issue-create.sh"
     ): "mcp__plugin_dev10x_cli__issue_create",
     skill_script(skill="gh-context", rel="gh-pr-detect.sh"): "mcp__plugin_dev10x_cli__pr_detect",
-    skill_script(
+    _plugin_relative(
         skill="gh-pr-monitor", rel="ci-check-status.py"
     ): "mcp__plugin_dev10x_cli__ci_check_status",
-    skill_script(skill="git", rel="git-push-safe.sh"): "mcp__plugin_dev10x_cli__push_safe",
-    skill_script(skill="gh-pr-create", rel="create-pr.sh"): "mcp__plugin_dev10x_cli__create_pr",
+    _plugin_relative(skill="git", rel="git-push-safe.sh"): "mcp__plugin_dev10x_cli__push_safe",
+    _plugin_relative(
+        skill="gh-pr-create", rel="create-pr.sh"
+    ): "mcp__plugin_dev10x_cli__create_pr",
 }
 
 

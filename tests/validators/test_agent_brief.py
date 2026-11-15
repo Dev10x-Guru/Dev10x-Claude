@@ -91,14 +91,14 @@ class TestAdvisoryMode:
         )
 
         assert isinstance(result, HookHint)
-        assert "`dev10x:git-commit`" in result.message
+        assert "`dev10x-coding:git-commit`" in result.message
 
     @pytest.mark.parametrize(
         "prompt",
         [
             "Use Skill(dev10x-qa:qa-self) to run the Playwright walkthrough.",
             "Run the playwright flow through qa-self.",
-            "Commit the changes via Skill(dev10x:git-commit).",
+            "Commit the changes via Skill(dev10x-coding:git-commit).",
             "Run pytest through the run_tests MCP tool.",
             "Summarize the module structure.",
             "Write a Playwright test.\ndev10x-ok: the test file itself is the deliverable",
@@ -169,7 +169,7 @@ class TestProjectConfig:
     def test_removed_skill_is_not_checked(
         self, validator: AgentBriefValidator, checkout: Path, write_prefs: Callable[..., None]
     ) -> None:
-        write_prefs(section={"skill_keywords": {"remove": ["dev10x:py-test"]}})
+        write_prefs(section={"skill_keywords": {"remove": ["dev10x-coding:py-test"]}})
 
         assert validator.validate(_agent_call(prompt="Run pytest.", cwd=checkout)) is None
 
@@ -318,35 +318,35 @@ class TestSkillKeywordNames:
 class TestFindUnnamedSkills:
     def test_longer_skill_name_does_not_name_its_prefix(self) -> None:
         findings = find_unnamed_skills(
-            brief="git push the branch, then Skill(dev10x:git-commit)",
+            brief="git push the branch, then Skill(dev10x-coding:git-commit)",
             entries=agent_brief.default_entries(),
         )
 
-        assert [finding.skill for finding in findings] == ["dev10x:git"]
+        assert [finding.skill for finding in findings] == ["dev10x-coding:git"]
 
     @pytest.mark.parametrize(
         ("brief", "unnamed"),
         [
             pytest.param("via mcp__plugin_dev10x_cli__push_safe", [], id="mcp-qualified"),
             pytest.param("via push_safe", [], id="bare-alias"),
-            pytest.param("via push_safe_v2", ["dev10x:git"], id="suffixed"),
-            pytest.param("via my_push_safe", ["dev10x:git"], id="snake-prefixed"),
+            pytest.param("via push_safe_v2", ["dev10x-coding:git"], id="suffixed"),
+            pytest.param("via my_push_safe", ["dev10x-coding:git"], id="snake-prefixed"),
             pytest.param(
-                "via mcp__plugin_dev10x_cli__push_safe_v2", ["dev10x:git"], id="mcp-suffixed"
+                "via mcp__plugin_dev10x_cli__push_safe_v2", ["dev10x-coding:git"], id="mcp-suffixed"
             ),
-            pytest.param("via foo__push_safe", ["dev10x:git"], id="double-underscore-prefixed"),
+            pytest.param("via foo__push_safe", ["dev10x-coding:git"], id="double-underscore-prefixed"),
             pytest.param(
-                "via mcp__plugin_other_cli__push_safe", ["dev10x:git"], id="other-mcp-server"
+                "via mcp__plugin_other_cli__push_safe", ["dev10x-coding:git"], id="other-mcp-server"
             ),
             pytest.param("via `push_safe`.", [], id="punctuated"),
             pytest.param("via PUSH_SAFE", [], id="case-insensitive"),
             pytest.param("via push_safe.", [], id="sentence-final"),
-            pytest.param("see src/dev10x/push_safe.py", ["dev10x:git"], id="path-mention"),
-            pytest.param("see foo.push_safe", ["dev10x:git"], id="dotted-mention"),
-            pytest.param("run ./push_safe", ["dev10x:git"], id="relative-path"),
-            pytest.param("see /push_safe", ["dev10x:git"], id="rooted-path"),
+            pytest.param("see src/dev10x/push_safe.py", ["dev10x-coding:git"], id="path-mention"),
+            pytest.param("see foo.push_safe", ["dev10x-coding:git"], id="dotted-mention"),
+            pytest.param("run ./push_safe", ["dev10x-coding:git"], id="relative-path"),
+            pytest.param("see /push_safe", ["dev10x-coding:git"], id="rooted-path"),
             pytest.param(
-                "via push_safe/pr_ready", ["dev10x:git"], id="slash-joined-list-over-reports"
+                "via push_safe/pr_ready", ["dev10x-coding:git"], id="slash-joined-list-over-reports"
             ),
         ],
     )
@@ -363,11 +363,11 @@ class TestFindUnnamedSkills:
             pytest.param("Run pytest via Skill(test).", [], id="parenthesised-alias"),
             pytest.param("Run pytest via skill(TEST).", [], id="alias-case-insensitive"),
             pytest.param(
-                "Run pytest, then test the Skill output.", ["dev10x:py-test"], id="split"
+                "Run pytest, then test the Skill output.", ["dev10x-coding:py-test"], id="split"
             ),
-            pytest.param("Run a skill test with pytest.", ["dev10x:py-test"], id="prose"),
-            pytest.param("Run pytest via mySkill(test).", ["dev10x:py-test"], id="prefixed"),
-            pytest.param("Run pytest via dev10x:py-test-flaky.", ["dev10x:py-test"], id="longer"),
+            pytest.param("Run a skill test with pytest.", ["dev10x-coding:py-test"], id="prose"),
+            pytest.param("Run pytest via mySkill(test).", ["dev10x-coding:py-test"], id="prefixed"),
+            pytest.param("Run pytest via dev10x-coding:py-test-flaky.", ["dev10x-coding:py-test"], id="longer"),
         ],
     )
     def test_multi_token_alias_matches_only_verbatim(self, brief: str, unnamed: list[str]) -> None:
@@ -381,4 +381,7 @@ class TestFindUnnamedSkills:
             entries=agent_brief.default_entries(),
         )
 
-        assert [finding.skill for finding in findings] == ["dev10x:git-commit", "dev10x:git"]
+        assert [finding.skill for finding in findings] == [
+            "dev10x-coding:git-commit",
+            "dev10x-coding:git",
+        ]

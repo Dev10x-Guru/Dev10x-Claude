@@ -10,17 +10,17 @@ hidden:
   - dev10x-tasks:session-tasks
   - dev10x-scoping:scope
   - dev10x:gh-context
-  - dev10x:gh-pr-bookmark
-  - dev10x:git
-  - dev10x:git-alias-setup
-  - dev10x:git-worktree
+  - dev10x-coding:gh-pr-bookmark
+  - dev10x-coding:git
+  - dev10x-coding:git-alias-setup
+  - dev10x-coding:git-worktree
   - dev10x-tasks:park-todo
   - dev10x-tasks:park-remind
-  - dev10x:py-uv
+  - dev10x-coding:py-uv
   - dev10x-qa:playwright
   - dev10x-comm:slack
   - dev10x-scoping:ticket-jtbd
-  - dev10x:gh-pr-review
+  - dev10x-coding:gh-pr-review
   - example-slides
   - Dev10x-db
   - refactor

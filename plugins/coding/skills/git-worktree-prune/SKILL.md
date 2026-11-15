@@ -1,5 +1,5 @@
 ---
-name: dev10x:git-worktree-prune
+name: dev10x-coding:git-worktree-prune
 description: >
   Use when worktree checkouts of merged work have piled up — so the safe
   ones are removed behind one approval, without a 70-call manual sweep
@@ -7,10 +7,10 @@ description: >
   TRIGGER when: `git worktree list` has grown long after fanout, crew or
   herdr sessions, or someone asks to clean up merged worktrees.
   DO NOT TRIGGER when: removing local branches (use
-  dev10x:git-branch-prune), or removing the one worktree a session just
+  dev10x-coding:git-branch-prune), or removing the one worktree a session just
   finished with (the git-worktree SessionEnd prompt covers it).
 user-invocable: true
-invocation-name: dev10x:git-worktree-prune
+invocation-name: dev10x-coding:git-worktree-prune
 allowed-tools:
   - AskUserQuestion
   - mcp__plugin_dev10x_cli__detect_base_branch
@@ -20,9 +20,9 @@ allowed-tools:
   - Bash(git worktree prune:*)
 ---
 
-# dev10x:git-worktree-prune
+# dev10x-coding:git-worktree-prune
 
-**Announce:** "Using dev10x:git-worktree-prune to classify worktrees and
+**Announce:** "Using dev10x-coding:git-worktree-prune to classify worktrees and
 remove the ones whose work has already merged."
 
 ## Orchestration
@@ -44,7 +44,7 @@ AC")` — and never complete it yourself
 
 ## Overview
 
-`dev10x:git-worktree` only creates checkouts, and `git worktree prune`
+`dev10x-coding:git-worktree` only creates checkouts, and `git worktree prune`
 drops admin entries for paths that are already gone. Nothing removes a
 live checkout whose branch merged, so they accumulate. A hand sweep is
 slow and gets the hard cases wrong:
@@ -160,7 +160,7 @@ For each approved path, one at a time:
 1. Run `git worktree prune` to clear admin entries of missing paths.
 2. Report removed, skipped (with the fresh reason) and kept paths.
 3. Point to branch cleanup: "Local branches are untouched — run
-   `dev10x:git-branch-prune` to remove merged ones."
+   `dev10x-coding:git-branch-prune` to remove merged ones."
 
 ## Permissions
 
@@ -170,7 +170,7 @@ prompts (GH-1942, supervisor decision). Do not seed them.
 
 ## Anti-Patterns
 
-- Never delete a branch — `dev10x:git-branch-prune` owns that.
+- Never delete a branch — `dev10x-coding:git-branch-prune` owns that.
 - Never pass `--force` unless the fresh read says `force_required: true`.
 - Never act on a survey result without the Step 3 re-read.
 - Never touch a worktree that appeared after the survey.

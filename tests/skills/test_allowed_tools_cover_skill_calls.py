@@ -84,23 +84,26 @@ def _own_name(*, skill_md: Path) -> str:
     return match.group(1) if match else f"dev10x:{skill_md.parent.name}"
 
 
-def _plugin_skill_names() -> set[str]:
-    return {path.parent.name for path in skill_files(repo_root=_REPO_ROOT)}
+def _plugin_skill_names() -> dict[str, str]:
+    return {
+        path.parent.name: _own_name(skill_md=path) for path in skill_files(repo_root=_REPO_ROOT)
+    }
 
 
-def _canonical(*, target: str, plugin_skills: set[str]) -> str:
+def _canonical(*, target: str, plugin_skills: dict[str, str]) -> str:
     """Resolve a bare name the way a reader would.
 
     Prose and ASCII diagrams write ``Skill(qa-scope)`` where the
-    invocation is really ``dev10x:qa-scope``. Taking those literally
-    would have this guard demand a declaration for a skill that does
-    not exist — worse than no guard, because the fix it asks for is
-    wrong. A bare name matching a directory under ``skills/`` is this
-    plugin's; anything else (``test``, a user skill) is left alone.
+    invocation is really ``dev10x-coding:qa-scope``. Taking those
+    literally would have this guard demand a declaration for a skill
+    that does not exist — worse than no guard, because the fix it asks
+    for is wrong. A bare name matching a shipped skill directory takes
+    that skill's invocation name, satellite prefix included (GH-1572);
+    anything else (``test``, a user skill) is left alone.
     """
     if ":" in target:
         return target
-    return f"dev10x:{target}" if target in plugin_skills else target
+    return plugin_skills.get(target, target)
 
 
 def _invoked(*, bodies: list[Path], own_name: str) -> set[str]:

@@ -46,7 +46,7 @@ open task. Mark the task `completed` on **every** exit — after Step 6,
 after the Step 0 skip, and after a Step 0 config error.
 
 **Never close Verify AC from here.** As a play's final step this skill
-runs *after* `dev10x:verify-acc-dod` has reported, while the terminal
+runs *after* `dev10x-coding:verify-acc-dod` has reported, while the terminal
 "Verify acceptance criteria" task stays open for the supervisor
 (GH-149). Reflection is non-blocking: it finishes or skips within the
 turn and never holds the plan open. If this task would be the last
@@ -102,7 +102,7 @@ lesson contradicts an existing note. Options:
 - Leave the note — record the conflict in the retro only
 
 **Unattended mode** skips this gate and takes the recommended option.
-It applies only when **both** hold, the same test `dev10x:git-commit`
+It applies only when **both** hold, the same test `dev10x-coding:git-commit`
 uses:
 
 1. The skill was invoked via `Skill(dev10x-tasks:reflect)` by an

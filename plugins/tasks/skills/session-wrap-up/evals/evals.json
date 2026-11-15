@@ -263,7 +263,7 @@
     "should_not_trigger": [
       {
         "query": "let's start on https://github.com/example-org/app-pos/issues/247",
-        "rationale": "Starting new work — use dev10x:work-on"
+        "rationale": "Starting new work — use dev10x-coding:work-on"
       },
       {
         "query": "add a TODO: fix the retry logic here",

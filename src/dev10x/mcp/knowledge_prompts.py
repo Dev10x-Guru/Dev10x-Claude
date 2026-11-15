@@ -3,7 +3,7 @@
 Exposes reusable, parametrized prompt templates as MCP prompts so
 clients can invoke them with argument autocomplete instead of
 re-deriving Dev10x conventions by hand. Each prompt mirrors the
-intent of its namesake skill (dev10x:review, dev10x:git-commit,
+intent of its namesake skill (dev10x-coding:review, dev10x-coding:git-commit,
 dev10x:jtbd) without re-implementing the skill's orchestration — the
 returned text is a ready-to-run instruction the client model acts on.
 

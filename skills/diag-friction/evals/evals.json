@@ -84,7 +84,7 @@
         {
           "dimension": "command-identification",
           "check": "behavioral",
-          "signal": "recommends_git_skill — Output recommends dev10x:git as the replacement"
+          "signal": "recommends_git_skill — Output recommends dev10x-coding:git as the replacement"
         }
       ]
     },
@@ -104,7 +104,7 @@
           "dimension": "follow-up-retry-gate",
           "check": "tool_parameters",
           "tool": "AskUserQuestion",
-          "signal": "offers_invoke_recommended_skill — Options include invoking the recommended skill (e.g., dev10x:gh-pr-monitor) as the Recommended choice"
+          "signal": "offers_invoke_recommended_skill — Options include invoking the recommended skill (e.g., dev10x-coding:gh-pr-monitor) as the Recommended choice"
         },
         {
           "dimension": "follow-up-retry-gate",

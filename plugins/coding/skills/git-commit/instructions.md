@@ -43,7 +43,7 @@ Set sequential dependencies: draft blocked by gather, review blocked
 by draft, create blocked by review.
 
 **Nested-mode exemption:** When invoked as a nested skill within
-a parent orchestrator (e.g., via `Skill()` from `dev10x:work-on`),
+a parent orchestrator (e.g., via `Skill()` from `dev10x-coding:work-on`),
 the four startup tasks above are condensed into **exactly one**
 summary task — not zero. The parent's task list provides phase
 visibility; the nested summary task makes the commit step itself
@@ -62,7 +62,7 @@ orchestrator with no record that the commit step ran.
 **Decision gates in nested mode:** ALL `AskUserQuestion` gates
 documented below are skipped only when **both** unattended-mode
 conditions in the next paragraph are met (invoked via
-`Skill(dev10x:git-commit)` AND the parent has an active task
+`Skill(dev10x-coding:git-commit)` AND the parent has an active task
 list). When in doubt — for example, when called from a script
 or one-off invocation with no parent task list — default to
 **attended mode** and fire all gates. "Nested" alone does not
@@ -78,8 +78,8 @@ and approve" in unattended mode), still create the task via
 visibility into the full workflow.
 
 **Unattended mode:** When this skill is invoked by an
-orchestrating skill (e.g., `dev10x:work-on`, `test:fix-flaky`,
-`dev10x:git-promote`) and the orchestrator has already approved
+orchestrating skill (e.g., `dev10x-coding:work-on`, `test:fix-flaky`,
+`dev10x-coding:git-promote`) and the orchestrator has already approved
 the work plan, all interactive decision gates are bypassed:
 - Staging → auto-stage all changes
 - Commit type → auto-select from context
@@ -90,8 +90,8 @@ the work plan, all interactive decision gates are bypassed:
 
 Detection: unattended mode activates when **both** conditions
 are met:
-1. The skill is invoked via `Skill(dev10x:git-commit)` (not
-   directly by the user via `/dev10x:git-commit`)
+1. The skill is invoked via `Skill(dev10x-coding:git-commit)` (not
+   directly by the user via `/dev10x-coding:git-commit`)
 2. The caller is executing a plan step with an active task
    list (i.e., an orchestrating skill like `work-on`)
 
@@ -133,7 +133,7 @@ points. In unattended mode, these gates are skipped:
 **One commit scope per invocation.** If a second unrelated change
 surfaces mid-flow (e.g., during staging review, the agent spots an
 incidental edit in a different module), finish the current
-invocation first, then re-invoke `dev10x:git-commit` for the new
+invocation first, then re-invoke `dev10x-coding:git-commit` for the new
 scope. Do NOT extend the in-flight invocation to cover multiple
 scopes.
 
@@ -141,9 +141,9 @@ scopes.
 hook denies a raw `git commit -F <path>` you reached for mid-flow
 because a second scope appeared, the correct response is to:
 
-1. Complete the current `dev10x:git-commit` invocation with the
+1. Complete the current `dev10x-coding:git-commit` invocation with the
    original scope.
-2. Re-invoke `Skill(dev10x:git-commit)` for the new scope.
+2. Re-invoke `Skill(dev10x-coding:git-commit)` for the new scope.
 
 **Do NOT reach for env-level hook bypasses as a workaround.** Hook
 overrides live in the hook layer, not at the skill caller — see
@@ -260,8 +260,8 @@ Read `plan.context.tickets` from the response. If the call returns
 an empty dict, the `tickets` list is missing, or the list is
 empty, **skip this step entirely** — no orchestrator is tracking
 expected work, so drift cannot be detected. This preserves
-backward compatibility for ad-hoc `/dev10x:git-commit`
-invocations outside `dev10x:work-on`.
+backward compatibility for ad-hoc `/dev10x-coding:git-commit`
+invocations outside `dev10x-coding:work-on`.
 
 **Compare against current HEAD:**
 
@@ -316,7 +316,7 @@ git rev-parse --verify <expected-branch>
 
 - **Switch back to expected branch** — run `git checkout
   <expected-branch>` and stop the skill. The orchestrator (or
-  user) re-invokes `dev10x:git-commit` after the checkout. Do
+  user) re-invokes `dev10x-coding:git-commit` after the checkout. Do
   NOT auto-resume — the working tree state on the expected
   branch may differ and Step 1's status check must re-run.
 - **Archive stale plan** (shown instead of switch when branch
@@ -366,7 +366,7 @@ fi
 ### Step 2.5: Optional JTBD Title Derivation
 
 This step activates when **any** of these conditions are met:
-- **Explicit request:** User passes "use dev10x-scoping:jtbd" (or similar) in `/dev10x:git-commit` args
+- **Explicit request:** User passes "use dev10x-scoping:jtbd" (or similar) in `/dev10x-coding:git-commit` args
 - **First commit:** Ticket ID extracted, zero commits ahead of develop, and
   commit type is Feature (✨) or Bug (🐛)
 
@@ -378,7 +378,7 @@ This step activates when **any** of these conditions are met:
    transposing the "so [beneficiary] can" clause into an imperative.
    Transposing a fixed-shape clause yields a fixed-shape title; a release of
    17 PRs derived that way read `Let <actor> <verb>` eleven times (GH-1225).
-   The same rules govern PR titles — `dev10x:gh-pr-create` § Title Frames
+   The same rules govern PR titles — `dev10x-coding:gh-pr-create` § Title Frames
    names four PR-title frames (Outcome, Prevention, Actor, Subject); they
    map onto the shape table below, and the Actor frame is only available
    for a human role.
@@ -835,7 +835,7 @@ the commit body if it deviates from the staged set.
 Audit GH-157 caught a session where manual `git reset HEAD` +
 selective `git add` set an irreversible boundary that the skill
 inherited without confirmation — remediation required invoking
-`dev10x:git-commit-split` from scratch.
+`dev10x-coding:git-commit-split` from scratch.
 
 **Hard rule: NEVER stage individual files by name** (e.g.,
 `git add file1.py file2.py`) to PICK files into a commit.
@@ -850,7 +850,7 @@ captured incidentally while editing `skills/`), prefer **one of**
 the following over selective `git add`:
 
 1. **Commit the unrelated paths first.** Re-invoke
-   `Skill(dev10x:git-commit)` for the unrelated change with
+   `Skill(dev10x-coding:git-commit)` for the unrelated change with
    its own message, then return to this commit with a clean
    working tree. This is the default — keep commits atomic by
    *time*, not by `git add` argument lists.
@@ -956,7 +956,7 @@ fi
 
 **Error recovery:** If the hook blocks the commit, you are
 likely using a non-mktmp path or running outside the skill
-context. Restart via `Skill(dev10x:git-commit)` with no args.
+context. Restart via `Skill(dev10x-coding:git-commit)` with no args.
 Do NOT attempt to bypass hooks with `python3 subprocess` or
 `--no-verify`.
 
@@ -973,13 +973,13 @@ Commit created successfully!
 Next steps:
 1. Continue working
 2. Create another commit
-3. Create PR (/dev10x:gh-pr-create)
+3. Create PR (/dev10x-coding:gh-pr-create)
 
 What would you like to do? (1/2/3/done)
 ```
 
 **If 3 (Create PR):**
-- Use `dev10x:gh-pr-create` skill
+- Use `dev10x-coding:gh-pr-create` skill
 - PR title will use this commit message
 
 ## Important Notes
@@ -1009,10 +1009,10 @@ What would you like to do? (1/2/3/done)
 ## Integration with Other Skills
 
 ```
-dev10x:git-commit
+dev10x-coding:git-commit
 ├── Used during development workflow
 ├── Output: Properly formatted commit
-└── Can be followed by: dev10x:gh-pr-create
+└── Can be followed by: dev10x-coding:gh-pr-create
 ```
 
 ## Example Usage
@@ -1021,7 +1021,7 @@ dev10x:git-commit
 
 **User request:**
 ```
-/dev10x:git-commit
+/dev10x-coding:git-commit
 ```
 
 **Current branch:** `janusz/PAY-310/fix-flaky-tests`
@@ -1051,7 +1051,7 @@ dev10x:git-commit
 
 **User request:**
 ```
-/dev10x:git-commit
+/dev10x-coding:git-commit
 ```
 
 **Current branch:** `janusz/PAY-133/fix-motor-timeout`
@@ -1080,7 +1080,7 @@ dev10x:git-commit
 
 **User request:**
 ```
-/dev10x:git-commit
+/dev10x-coding:git-commit
 ```
 
 **Current branch:** `feature/improve-search` (no ticket ID)
@@ -1103,7 +1103,7 @@ dev10x:git-commit
 
 **User request:**
 ```
-/dev10x:git-commit
+/dev10x-coding:git-commit
 ```
 
 **Current branch:** `fix-typo-in-readme`

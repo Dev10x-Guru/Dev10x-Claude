@@ -145,21 +145,21 @@ that is renamed or comes from elsewhere is listed by hand in
 
 | Skill | Config type | Tiers used |
 |-------|------------|------------|
-| `dev10x:work-on` | playbook, session | 1, 2, 3 |
+| `dev10x-coding:work-on` | playbook, session | 1, 2, 3 |
 | `dev10x:playbook` | playbook | 1, 2, 3 |
-| `dev10x:gh-pr-respond` | playbook | 1, 2, 3 |
-| `dev10x:release-notes` | playbook | 1, 2, 3 |
-| `dev10x:investigate` | playbook | 1, 2, 3 |
-| `dev10x:gh-pr-merge` | settings | 2 |
-| `dev10x:verify-acc-dod` | acceptance criteria | 2, 3 |
-| `dev10x:git-commit` | gitmoji | 2, 3 |
-| `dev10x:gh-pr-request-review` | reviewers | 2 |
+| `dev10x-coding:gh-pr-respond` | playbook | 1, 2, 3 |
+| `dev10x-coding:release-notes` | playbook | 1, 2, 3 |
+| `dev10x-coding:investigate` | playbook | 1, 2, 3 |
+| `dev10x-coding:gh-pr-merge` | settings | 2 |
+| `dev10x-coding:verify-acc-dod` | acceptance criteria | 2, 3 |
+| `dev10x-coding:git-commit` | gitmoji | 2, 3 |
+| `dev10x-coding:gh-pr-request-review` | reviewers | 2 |
 | `dev10x-db:db` | schema, databases | 2 |
 | `dev10x-db:db-psql` | databases | 2 |
 | `dev10x-comm:slack` | slack-config | 2 |
 | `dev10x-comm:slack-setup` | slack-config | 2 |
-| `dev10x:slack-review-request` | slack-config | 2 |
-| `dev10x:request-review` | reviewers, slack-config | 2 |
-| `dev10x:fanout` | session | 1 |
+| `dev10x-coding:slack-review-request` | slack-config | 2 |
+| `dev10x-coding:request-review` | reviewers, slack-config | 2 |
+| `dev10x-coding:fanout` | session | 1 |
 | `dev10x:plugin-maintenance` | preferences | 2 |
 | `dev10x-tasks:reflect` | knowledge-vault | 2 |

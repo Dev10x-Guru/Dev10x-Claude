@@ -128,18 +128,18 @@
     "description": "Queries that should/should-not trigger the jtbd skill (not user-invocable — only via composing skills)",
     "should_trigger": [
       {
-        "query": "Skill(dev10x-scoping:jtbd) invoked by dev10x:gh-pr-create to source a missing Job Story",
+        "query": "Skill(dev10x-scoping:jtbd) invoked by dev10x-coding:gh-pr-create to source a missing Job Story",
         "rationale": "Composed invocation from the PR creation skill — the core use case"
       },
       {
-        "query": "Skill(dev10x-scoping:jtbd) invoked by dev10x:release-notes in unattended mode for a batch of PRs",
+        "query": "Skill(dev10x-scoping:jtbd) invoked by dev10x-coding:release-notes in unattended mode for a batch of PRs",
         "rationale": "Composed invocation from release-notes — unattended batch mode"
       }
     ],
     "should_not_trigger": [
       {
         "query": "write a commit message for this change",
-        "rationale": "Commit message formatting — use dev10x:git-commit (which internally may invoke jtbd for the title, but the user-facing entry point differs)"
+        "rationale": "Commit message formatting — use dev10x-coding:git-commit (which internally may invoke jtbd for the title, but the user-facing entry point differs)"
       },
       {
         "query": "the PR already has a Job Story in its description",

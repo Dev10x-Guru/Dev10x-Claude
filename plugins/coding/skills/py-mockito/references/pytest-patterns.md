@@ -1,6 +1,6 @@
 # Pytest Integration Patterns
 
-Reference for `dev10x:py-mockito`: cleanup and fixture patterns that
+Reference for `dev10x-coding:py-mockito`: cleanup and fixture patterns that
 keep mockito stubs scoped to the tests that declare them.
 
 ## Cleanup with `unstub()`

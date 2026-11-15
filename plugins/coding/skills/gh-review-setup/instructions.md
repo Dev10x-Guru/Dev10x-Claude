@@ -1,4 +1,4 @@
-# dev10x:gh-review-setup — Instructions
+# dev10x-coding:gh-review-setup — Instructions
 
 Provision Claude code-review GitHub Actions on any repo. Five phases:
 Discover → Pick modules → Strategy decisions → Scaffold → Verify & hand off.

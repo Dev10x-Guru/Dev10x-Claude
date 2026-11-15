@@ -1,5 +1,5 @@
 ---
-name: dev10x:release-notes
+name: dev10x-coding:release-notes
 description: >
   Generate JTBD-driven release notes from git commits between releases.
   Playbook-powered workflow with configurable ticket patterns, output
@@ -9,7 +9,7 @@ description: >
   DO NOT TRIGGER when: writing individual commit messages, or updating
   documentation unrelated to releases.
 user-invocable: true
-invocation-name: dev10x:release-notes
+invocation-name: dev10x-coding:release-notes
 allowed-tools:
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/release-notes/scripts/collect-prs.py:*)
   - mcp__plugin_dev10x_cli__collect_prs
@@ -212,7 +212,7 @@ to a temp file and use the Slack posting mechanism. For GitHub, use
 ## Arguments
 
 ```
-/dev10x:release-notes [--play release|hotfix] [--from TAG] [--to TAG]
+/dev10x-coding:release-notes [--play release|hotfix] [--from TAG] [--to TAG]
 ```
 
 - `--play`: Which playbook play to use (default: `release`)

@@ -12,7 +12,7 @@ after a recurring incident where the background haiku decided
 on its own to revert reviewer-directed code.
 
 **When to use this skill:**
-- After creating a draft PR with `/dev10x:gh-pr-create`
+- After creating a draft PR with `/dev10x-coding:gh-pr-create`
 - When you want to automate the PR review cycle without blocking your session
 
 ## Orchestration
@@ -46,7 +46,7 @@ sees progress without reading the agent output file.
 ## Execution Model
 
 ```
-User invokes /dev10x:gh-pr-monitor
+User invokes /dev10x-coding:gh-pr-monitor
     │
     └── Supervisor session IS the orchestrator (GH-68)
             │
@@ -64,7 +64,7 @@ User invokes /dev10x:gh-pr-monitor
             ├── Phase 2: Comment monitoring
             │       ├── dispatch micro-agent: haiku-thread-scan
             │       │     (read-only enumerate unresolved threads + findings)
-            │       └── supervisor invokes Skill(dev10x:gh-pr-respond)
+            │       └── supervisor invokes Skill(dev10x-coding:gh-pr-respond)
             │
             ├── Phase 2.5: QA scope (supervisor + Skill(qa-scope))
             ├── Phase 2.7: Re-review notification (supervisor)
@@ -90,7 +90,7 @@ delegate further. The user explicitly chose this trade-off
 
 ## Launch Instructions
 
-When the user invokes `/dev10x:gh-pr-monitor`:
+When the user invokes `/dev10x-coding:gh-pr-monitor`:
 
 ### Step 1: Detect PR context
 
@@ -104,19 +104,15 @@ via `/mcp` or a session restart. Do NOT fall back to the wrapper
 script or env-level bypasses — see
 `references/mcp-unavailable-escape-hatch.md`.
 
-**Fallback (script):** Only when the MCP server is healthy but the
-tool call errored for another reason:
-
-```bash
-${CLAUDE_PLUGIN_ROOT}/skills/gh-context/scripts/gh-pr-detect.sh "$ARG"
-# Parse PR_NUMBER, REPO, PR_URL, BRANCH from KEY=VALUE stdout
-```
+**When the tool errors** while the MCP server is healthy, call it
+once more; if it errors again, tell the user and stop. The
+`gh-pr-detect.sh` script behind it ships with core's `gh-context`
+skill, outside this plugin's root (GH-1572), so there is no
+script fallback from here.
 
 Pass `$ARG` as the skill argument (PR URL, bare number, or empty).
-Both methods fetch `BRANCH` via `gh pr view --json headRefName`
+The tool fetches `BRANCH` via `gh pr view --json headRefName`
 — never from local git — which is critical in multi-worktree setups.
-
-If the script exits non-zero, tell the user and stop.
 
 ### Step 2: Check for resume state
 
@@ -205,7 +201,7 @@ constraints into its own context and treats them with the same
 authority as user instructions:
 
 **Directives from the user's invocation arguments.** Scan the
-args passed to `/dev10x:gh-pr-monitor` (case-insensitive) for:
+args passed to `/dev10x-coding:gh-pr-monitor` (case-insensitive) for:
 
 - `do NOT ...` / `do not ...` (capture trailing clause up to
   newline or `.`)
@@ -217,7 +213,7 @@ args passed to `/dev10x:gh-pr-monitor` (case-insensitive) for:
 
 Restate each matched directive verbatim at the start of the
 supervisor's monitoring plan ("Per the dispatch prompt: …"). Before
-invoking `Skill(dev10x:git-groom)`, `Skill(dev10x:gh-pr-respond)`,
+invoking `Skill(dev10x-coding:git-groom)`, `Skill(dev10x-coding:gh-pr-respond)`,
 or making any code change, re-read these directives and confirm
 the planned action does not match a prohibition. If it does,
 stop, summarise the conflict, and ask the user — never improvise
@@ -280,8 +276,8 @@ file so its Step 3a review-request rules are read as a unit.
 |---|---|---|
 | 0, 0.5 | [`phase-0-readiness.md`](references/phase-0-readiness.md) | none |
 | 1 | [`phase-1-ci.md`](references/phase-1-ci.md) | If `ci_check_status` returns `infra_unavailable` repeatedly: **REQUIRED: Call `AskUserQuestion`** (keep waiting / escalate) |
-| 2 | [`phase-2-comments.md`](references/phase-2-comments.md) | none of its own — `Skill(dev10x:gh-pr-respond)` fires its own gates |
-| 2.5 | [`phase-2-comments.md`](references/phase-2-comments.md) | **REQUIRED: Call `AskUserQuestion`** — always fires, through `Skill(dev10x:qa-scope)` |
+| 2 | [`phase-2-comments.md`](references/phase-2-comments.md) | none of its own — `Skill(dev10x-coding:gh-pr-respond)` fires its own gates |
+| 2.5 | [`phase-2-comments.md`](references/phase-2-comments.md) | **REQUIRED: Call `AskUserQuestion`** — always fires, through `Skill(dev10x-coding:qa-scope)` |
 | 2.7 | [`phase-2-comments.md`](references/phase-2-comments.md) | `resolve_gate(gate="external_notify")`; on `ask`, **REQUIRED: Call `AskUserQuestion`** (post re-review notification / skip) |
 | 3, 3.5, 3.6 | [`phase-3-notification.md`](references/phase-3-notification.md) | `resolve_gate(gate="external_notify")`; on `ask`, **REQUIRED: Call `AskUserQuestion`** (post notification / skip notification) |
 | 4 | [`phase-4-verification.md`](references/phase-4-verification.md) | none |
@@ -325,7 +321,7 @@ directly.
   review request (Phase 3), then acceptance verification
   (Phase 4). Does NOT cover merge.
 - **Do NOT merge PRs.** Merging is the supervisor's manual
-  responsibility (or a separate `dev10x:gh-pr-merge` invocation).
+  responsibility (or a separate `dev10x-coding:gh-pr-merge` invocation).
 - **Phase gates**: 2.5 (QA) always fires `AskUserQuestion`. 2.7
   (re-review) and 3 (notification) each call
   `resolve_gate(gate="external_notify")` and branch on `ask` /
@@ -339,7 +335,7 @@ directly.
   retry count in its task list, not in the micro-agent.
 - **No regular force push**: Use
   `mcp__plugin_dev10x_cli__push_safe`. Exception: post-rebase
-  force-with-lease goes through `Skill(dev10x:git-groom)`.
+  force-with-lease goes through `Skill(dev10x-coding:git-groom)`.
 - **Working directory**: Resolve branch via `gh pr view --json
   headRefName` — never hardcode a worktree path.
 - **Micro-agent contract (GH-68)**: `haiku-ci-poll` and
@@ -351,19 +347,19 @@ directly.
 
 ## Integration with Other Skills
 
-1. **dev10x:gh-pr-create** — Use before this skill to create the draft PR
+1. **dev10x-coding:gh-pr-create** — Use before this skill to create the draft PR
 2. **dev10x-scoping:ticket-jtbd** — Delegated by the supervisor in Phase 0
-3. **dev10x:gh-pr-respond** — Delegated by the supervisor for review comments (Phase 2)
-4. **dev10x:qa-scope** — Delegated by the supervisor in Phase 2.5
-5. **dev10x:request-review** — Delegated by the supervisor in Phase 3
-6. **dev10x:slack-review-request** — Delegated by the supervisor in Phase 2.7
-7. **dev10x:verify-acc-dod** — Delegated by the supervisor in Phase 4
+3. **dev10x-coding:gh-pr-respond** — Delegated by the supervisor for review comments (Phase 2)
+4. **dev10x-coding:qa-scope** — Delegated by the supervisor in Phase 2.5
+5. **dev10x-coding:request-review** — Delegated by the supervisor in Phase 3
+6. **dev10x-coding:slack-review-request** — Delegated by the supervisor in Phase 2.7
+7. **dev10x-coding:verify-acc-dod** — Delegated by the supervisor in Phase 4
 8. **pr-notify.py** — Phase 3 helper (checklist update only)
 
 ## Delegation Pattern
 
 ```
-/dev10x:gh-pr-monitor (supervisor session)
+/dev10x-coding:gh-pr-monitor (supervisor session)
     │
     ├── Step 0: Load BLOCKED OPERATIONS + memory guardrails
     │
@@ -376,24 +372,24 @@ directly.
     ├── Phase 1: CI monitoring
     │       └── Agent(haiku-ci-poll) — background, returns verdict JSON
     │       (on failing → supervisor handles in-band, may delegate
-    │        to Skill(dev10x:git-commit) / Skill(dev10x:git-groom))
+    │        to Skill(dev10x-coding:git-commit) / Skill(dev10x-coding:git-groom))
     │
     ├── Phase 2: Comment monitoring
     │       ├── Agent(haiku-thread-scan) — inline, returns surfaces JSON
-    │       └── Skill(dev10x:gh-pr-respond) batch mode if surfaces non-empty
+    │       └── Skill(dev10x-coding:gh-pr-respond) batch mode if surfaces non-empty
     │
     ├── Phase 2.5: QA scope
-    │       └── Skill(dev10x:qa-scope)
+    │       └── Skill(dev10x-coding:qa-scope)
     │
     ├── Phase 2.7: Re-review notification
     │       ├── resolve_gate(gate="external_notify")
-    │       └── Skill(dev10x:slack-review-request)
+    │       └── Skill(dev10x-coding:slack-review-request)
     │
     ├── Phase 3: Notification
     │       ├── resolve_gate(gate="external_notify")
-    │       ├── Skill(dev10x:request-review)
+    │       ├── Skill(dev10x-coding:request-review)
     │       └── pr-notify.py send (checklist-only)
     │
     └── Phase 4: Acceptance criteria
-            └── Skill(dev10x:verify-acc-dod)
+            └── Skill(dev10x-coding:verify-acc-dod)
 ```

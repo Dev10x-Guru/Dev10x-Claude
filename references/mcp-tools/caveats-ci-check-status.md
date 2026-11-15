@@ -64,7 +64,7 @@ Behavioural caveats for the only sanctioned CI-wait path, moved out of
   on the command inside it. Which steer a *PR-shaped* loop receives is a
   separate, still-open question: `gh pr view` is matched by an earlier
   rule, so such a loop gets the one-shot `pr_get` steer rather than
-  `dev10x:gh-pr-monitor` (tracked on #1100 E21).
+  `dev10x-coding:gh-pr-monitor` (tracked on #1100 E21).
 - `ci_check_status(wait=true)` budgets its own wait against the
   transport ceiling, and `max_polls` is a request rather than a grant
   (GH-1288). The cap used to be summed inline as `initial_wait +

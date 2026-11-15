@@ -104,7 +104,7 @@ rules:
               argument instead of two. No allow rule can cover it: a
               `*` before `:*` is literal, and the space form would also
               match `-c <cmd>` (GH-1472) — so it prompts. Route mutating
-              verbs to dev10x:git / dev10x:git-groom.
+              verbs to dev10x-coding:git / dev10x-coding:git-groom.
 
           Never `cd <path>; <cmd>` as a recovery — chaining is blocked, and
           for an unattended agent that prompt is another silent wedge.
@@ -129,7 +129,7 @@ rules:
       deliberately NOT blocked: when `pwd` != the target it is the only
       route left, and blocking it would turn a prompt into a dead end.
     related:
-      - dev10x:foreman
+      - dev10x-coding:foreman
 
   # ── Advisory-only Bash rules (hook_block: false) ───────────
 
@@ -211,8 +211,8 @@ rules:
       not-pre-created semantics introduced by GH-39, and lives in
       the routing table for skills.
     related:
-      - dev10x:git-commit
-      - dev10x:gh-pr-create
+      - dev10x-coding:git-commit
+      - dev10x-coding:gh-pr-create
 
   # GH-1590: ci-loop-handrolled steers to coding's ci_check_status and
   # gh-pr-monitor, but it stays in core with the other loop rules. A CI
@@ -235,7 +235,7 @@ rules:
           that returns a structured pass/fail/unknown verdict — no
           bespoke loop needed.
       - type: use-skill
-        skill: dev10x:gh-pr-monitor
+        skill: dev10x-coding:gh-pr-monitor
         guardrails: failure detection, fixup commits, re-monitor after push
         description: >
           Watching review comments, approval, or merge state rather
@@ -265,7 +265,7 @@ rules:
       exactly this loop and stalled on a Yes/No; the wrapper now takes
       `wait_for`, so the compensation is executable in that case too.
     related:
-      - dev10x:gh-pr-monitor
+      - dev10x-coding:gh-pr-monitor
 
   - name: watch-loop-handrolled
     matcher: Bash
@@ -363,8 +363,8 @@ rules:
       mentioning `gh pr view`. The defect is the loop, not the command
       inside it.
     related:
-      - dev10x:foreman
-      - dev10x:gh-pr-monitor
+      - dev10x-coding:foreman
+      - dev10x-coding:gh-pr-monitor
 
   # Placed AFTER ci-loop-handrolled and watch-loop-handrolled: this is the
   # general loop case, and `;\s*do\b` also matches their shapes. First-match-

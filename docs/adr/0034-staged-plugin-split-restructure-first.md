@@ -567,6 +567,25 @@ The supervisor decided the Stage B open decisions on 2026-10-19
      nowhere, and `extracted-skill-rules` flags a hand-written
      `Skill(dev10x:<skill>)` rule for a skill that now lives in a
      satellite. Both read `plugins.yaml`, so B9 needs no doctor change.
+   - B9 (GH-1572) moves all forty skills `plugins.yaml` assigns to
+     `coding` to `plugins/coding/`; no agent moves, since core and the CI
+     review read the reviewer agents too. The manifest declares
+     `["dev10x", "dev10x-tasks"]`, as `plugins.yaml` derives it. Per
+     decision 3 every `dev10x.coding` MCP tool stays registered by core's
+     `cli` server, so the tool list is unchanged with both plugins
+     installed and with core alone; a test pins both shapes against the
+     pre-move list. Those tools reach the moved scripts through
+     `dev10x.coding.coding_script`, the `satellite_script` resolver B3
+     and B5 use. The seven uv-script shims find core's `src/` through
+     one `skills/git/lib/core_src.py`, a copy of the comm and teach
+     helper. `gh-context` stays in core, so `gh-pr-create` and
+     `gh-pr-monitor` read issues and PRs through the MCP tools instead
+     of its scripts. Playbook readers (`dev10x playbook diff`, the
+     skill-playbook MCP resource) now search each installed satellite's
+     root, since `dev10x-coding` is the first satellite to ship playbook
+     defaults and work-on's plays. Its fragments (`hooks.d/coding.json`,
+     `command-skill-map.d/coding.yaml`, `projects.d/coding.yaml`,
+     `families.d/coding.yaml`) stay in core's tree, per decision 4.
 5. **Old names stay readable for two releases (GH-1564).** Each moved
    skill gets one `SKILL_NAME_ALIASES` row, and
    `dev10x config migrate-skill-names` rewrites user configs. QA ships
@@ -590,6 +609,8 @@ The supervisor decided the Stage B open decisions on 2026-10-19
      `0.118.0` and the register entry stays put.
    - B7 (GH-1570) lands before `0.116.0` as well, so its nineteen rows
      end at `0.118.0` and the register entry stays put.
+   - B9 (GH-1572) lands before `0.116.0` too, so its forty rows end at
+     `0.118.0` and the register entry stays put.
 
 ### Open decisions (record before the dependent step)
 

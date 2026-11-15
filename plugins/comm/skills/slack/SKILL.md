@@ -7,7 +7,7 @@ description: >
   messages in Slack channels.
   DO NOT TRIGGER when: setting up Slack integration (use
   dev10x-comm:slack-setup), or posting review requests (use
-  dev10x:slack-review-request).
+  dev10x-coding:slack-review-request).
 user-invocable: true
 invocation-name: dev10x-comm:slack
 allowed-tools:
@@ -278,7 +278,7 @@ To discover user IDs, use MCP `slack_search_users` tool.
 
 This script is used by:
 - **dev10x-tasks:park-remind** — sends deferred-item DMs to yourself
-- **dev10x:gh-pr-monitor** — posts PR review notifications
+- **dev10x-coding:gh-pr-monitor** — posts PR review notifications
 
 For multi-line messages, use the Write tool to create a temp file,
 then pass via `--message-file` or `$(cat /tmp/msg.txt)`. Do NOT use

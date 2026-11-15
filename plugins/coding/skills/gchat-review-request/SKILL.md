@@ -1,14 +1,14 @@
 ---
-name: dev10x:gchat-review-request
+name: dev10x-coding:gchat-review-request
 description: >
   Post a Google Chat review request for a PR using per-repo config
-  (space, mentions). Mirrors dev10x:slack-review-request. Invoked
-  standalone or delegated to by dev10x:request-review.
+  (space, mentions). Mirrors dev10x-coding:slack-review-request. Invoked
+  standalone or delegated to by dev10x-coding:request-review.
   TRIGGER when: a PR needs a Google Chat review notification.
   DO NOT TRIGGER when: Google Chat is not configured, or posting to Slack
-  (use dev10x:slack-review-request).
+  (use dev10x-coding:slack-review-request).
 user-invocable: true
-invocation-name: dev10x:gchat-review-request
+invocation-name: dev10x-coding:gchat-review-request
 allowed-tools:
   - Bash(uvx dev10x skill notify gchat-review-prepare:*)
   - Bash(gh pr view:*)
@@ -78,7 +78,7 @@ the URL as a line in the message instead, rather than losing it.
 ### Step 0: Approval-state precheck
 
 Skip the ping if the PR is already human-approved on its current HEAD (bot
-approvals do not count). Mirror `dev10x:slack-review-request` Step 0:
+approvals do not count). Mirror `dev10x-coding:slack-review-request` Step 0:
 
 ```bash
 gh pr view {pr_number} --repo {repo} --json reviewDecision,reviews,headRefOid  # cli-friction: allow raw-gh-pr — review-state precheck
@@ -93,7 +93,7 @@ approved" and stop. Skip this precheck when invoked with `--force`.
 If the PR is still a draft, do NOT post the review request — a draft is not
 ready for review.
 Report that the PR must be marked ready first (via
-`dev10x:gh-pr-request-review` / `gh pr ready`) and stop.
+`dev10x-coding:gh-pr-request-review` / `gh pr ready`) and stop.
 Skip this check when invoked with `--force`.
 
 ### Step 1: Prepare

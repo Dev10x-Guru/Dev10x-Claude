@@ -15,7 +15,7 @@
     },
     {
       "name": "regeneration-handoff",
-      "description": "After spec is updated, skill delegates to dev10x:work-on for code regeneration"
+      "description": "After spec is updated, skill delegates to dev10x-coding:work-on for code regeneration"
     },
     {
       "name": "drift-verification",
@@ -48,7 +48,7 @@
         },
         {
           "check": "skill_invoked",
-          "name": "dev10x:work-on",
+          "name": "dev10x-coding:work-on",
           "assertion": "regeneration-handoff"
         }
       ]

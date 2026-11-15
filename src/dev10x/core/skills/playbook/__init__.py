@@ -9,7 +9,9 @@ from dev10x.skills.playbook.compare import (
 )
 from dev10x.skills.playbook.discovery import (
     UserPlaybook,
+    default_path_in,
     find_user_playbooks,
+    installed_plugin_roots,
     load_plugin_default,
     plugin_default_path,
     shared_fragment_directories,
@@ -23,7 +25,9 @@ __all__ = [
     "StepDiff",
     "UserPlaybook",
     "compare_playbooks",
+    "default_path_in",
     "find_user_playbooks",
+    "installed_plugin_roots",
     "load_plugin_default",
     "plugin_default_path",
     "render_markdown_report",

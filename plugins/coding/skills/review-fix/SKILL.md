@@ -1,13 +1,13 @@
 ---
-name: dev10x:review-fix
-invocation-name: dev10x:review-fix
+name: dev10x-coding:review-fix
+invocation-name: dev10x-coding:review-fix
 description: >
-  Consume structured findings from dev10x:review and create one
-  standalone fixup! commit per finding via dev10x:git-fixup.
-  TRIGGER when: dev10x:review has produced a findings JSON file that
+  Consume structured findings from dev10x-coding:review and create one
+  standalone fixup! commit per finding via dev10x-coding:git-fixup.
+  TRIGGER when: dev10x-coding:review has produced a findings JSON file that
   needs fixup commits.
   DO NOT TRIGGER when: no findings file exists, or addressing PR review
-  comments from external reviewers (use dev10x:gh-pr-fixup).
+  comments from external reviewers (use dev10x-coding:gh-pr-fixup).
 user-invocable: false
 allowed-tools:
   - Bash(git log:*)
@@ -22,18 +22,18 @@ allowed-tools:
 
 # Review Fix
 
-Consume structured findings from `dev10x:review` and create one
+Consume structured findings from `dev10x-coding:review` and create one
 `fixup!` commit per finding using the standalone mode of
-`dev10x:git-fixup`.
+`dev10x-coding:git-fixup`.
 
 ## Arguments
 
 - **findings file path** — path to the JSON findings file produced
-  by `dev10x:review` (e.g., `/tmp/Dev10x/review/findings-abc.json`)
+  by `dev10x-coding:review` (e.g., `/tmp/Dev10x/review/findings-abc.json`)
 
 ## When to Use
 
-- Called by `dev10x:review` after findings are approved
+- Called by `dev10x-coding:review` after findings are approved
 - Part of the `work-on` shipping pipeline (review → fix cycle)
 - Not intended for standalone invocation
 
@@ -95,7 +95,7 @@ For each finding:
    ```
 
    This uses the same `Standalone fixup` marker that
-   `dev10x:git-fixup` uses, so the pre-commit hook accepts it.
+   `dev10x-coding:git-fixup` uses, so the pre-commit hook accepts it.
 
 6. **Mark subtask completed**
 
@@ -120,7 +120,7 @@ Review fix complete:
 
 ## Finding Format (Input Contract)
 
-Reads the same JSON format produced by `dev10x:review`:
+Reads the same JSON format produced by `dev10x-coding:review`:
 
 ```json
 [
@@ -142,15 +142,15 @@ Optional fields: `severity`, `confidence`, `source`,
 `suggested_fix`, `category`
 
 `source` is `automated` or `manual`. A finding with `category: spec`
-is a Phase 0 spec-compliance verdict from `dev10x:review`: it names a
+is a Phase 0 spec-compliance verdict from `dev10x-coding:review`: it names a
 scope or acceptance-criteria gap, not a code location, so list it in
 the summary and create no fixup for it (GH-1749).
 
 ## Integration
 
 ```
-dev10x:review (produces findings JSON)
-└─ dev10x:review-fix (this skill)
+dev10x-coding:review (produces findings JSON)
+└─ dev10x-coding:review-fix (this skill)
    └─ git commit -F <msg-file> (one fixup! commit per finding)
 ```
 

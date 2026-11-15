@@ -1,5 +1,5 @@
 {
-  "skill_name": "dev10x:fanout",
+  "skill_name": "dev10x-coding:fanout",
   "eval_dimensions": [
     {
       "id": "phase0-gate",
@@ -16,7 +16,7 @@
     {
       "id": 1,
       "name": "phase0-posture-check",
-      "prompt": "/dev10x:fanout GH-100 GH-101 GH-102",
+      "prompt": "/dev10x-coding:fanout GH-100 GH-101 GH-102",
       "description": "Tests that Phase 0 settles the review posture through supervisor_review_status before dispatching any work items, delegating the ask rather than offering a friction-level picker (ADR-0022).",
       "expected_output": "supervisor_review_status is called before any issue processing begins; an unpinned project delegates to dev10x:friction-setup, a pinned one proceeds silently. No friction-level options are offered and no session file is written.",
       "dimensions": ["phase0-gate"],
@@ -56,7 +56,7 @@
     {
       "id": 2,
       "name": "per-item-template-follows-posture",
-      "prompt": "/dev10x:fanout GH-200 GH-201",
+      "prompt": "/dev10x-coding:fanout GH-200 GH-201",
       "setup": {
         "supervisor_review": "required",
         "playbook": "work-on.yaml",
@@ -64,7 +64,7 @@
         "note": "Requires the user's work-on.yaml playbook to set merge_mode: draft and supervisor_review pinned to required"
       },
       "description": "Tests that the per-item prompt is filled from the orchestrator's resolved posture and merge mode, includes the self-review step, and that a child report without a Review line is not accepted as DONE (GH-1609 F1, GH-1604 F1/F2).",
-      "expected_output": "Each child prompt carries an overlay list without solo-maintainer and MERGE MODE: draft; children stop at a draft PR with a CI result, run dev10x:review + dev10x:review-fix, and report a Review line. A report missing it is treated as NEEDS_CONTEXT.",
+      "expected_output": "Each child prompt carries an overlay list without solo-maintainer and MERGE MODE: draft; children stop at a draft PR with a CI result, run dev10x-coding:review + dev10x-coding:review-fix, and report a Review line. A report missing it is treated as NEEDS_CONTEXT.",
       "dimensions": ["parallel-dispatch"],
       "assertions": [
         {
@@ -81,9 +81,9 @@
         },
         {
           "id": "child-runs-self-review",
-          "text": "Each child invokes dev10x:review --unattended and dev10x:review-fix before opening the PR",
+          "text": "Each child invokes dev10x-coding:review --unattended and dev10x-coding:review-fix before opening the PR",
           "check": "tool_called",
-          "signals": ["Skill", "dev10x:review"]
+          "signals": ["Skill", "dev10x-coding:review"]
         },
         {
           "id": "missing-review-line-is-needs-context",
@@ -96,7 +96,7 @@
     {
       "id": 3,
       "name": "herdr-dispatch-status-file",
-      "prompt": "/dev10x:fanout GH-300 GH-301",
+      "prompt": "/dev10x-coding:fanout GH-300 GH-301",
       "setup": {
         "env": {"HERDR_ENV": "1"},
         "note": "Runs inside Herdr; one item's agent stops without writing its status file"
@@ -107,9 +107,9 @@
       "assertions": [
         {
           "id": "herdr-path-c-per-item",
-          "text": "Under HERDR_ENV=1 each item is dispatched through dev10x:git-worktree Path C, not Agent(isolation=\"worktree\")",
+          "text": "Under HERDR_ENV=1 each item is dispatched through dev10x-coding:git-worktree Path C, not Agent(isolation=\"worktree\")",
           "check": "tool_called",
-          "signals": ["Skill", "dev10x:git-worktree", "herdr worktree create"]
+          "signals": ["Skill", "dev10x-coding:git-worktree", "herdr worktree create"]
         },
         {
           "id": "brief-names-status-file",

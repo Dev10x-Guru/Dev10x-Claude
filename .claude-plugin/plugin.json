@@ -1,6 +1,6 @@
 {
   "name": "dev10x",
-  "description": "v0.116.0.dev0 — 57 skills: the core every Dev10x plugin needs (setup, permissions, friction diagnosis, playbooks, both MCP servers and the safety hooks) and, until they ship as their own plugin, the coding skills for commits, PRs, branch hygiene and code review.",
+  "description": "v0.116.0.dev0 — 17 skills: the core every Dev10x plugin needs (setup, permissions, friction diagnosis, playbooks, both MCP servers and the safety hooks).",
   "version": "0.116.0.dev0",
   "author": {
     "name": "Janusz Skonieczny",
@@ -9,7 +9,7 @@
   "homepage": "https://www.skool.com/Dev10x-1892",
   "repository": "https://github.com/Dev10x-Guru/dev10x-claude",
   "license": "MIT",
-  "keywords": ["core", "permissions", "hooks", "MCP", "playbooks", "git", "pull-requests", "code-review"],
+  "keywords": ["core", "permissions", "hooks", "MCP", "playbooks"],
   "hooks": ["./hooks/hooks.d/comm.json", "./hooks/hooks.d/tasks.json", "./hooks/hooks.d/coding.json"],
   "mcpServers": {
     "cli": {

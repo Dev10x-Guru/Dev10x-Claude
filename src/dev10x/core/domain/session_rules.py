@@ -88,7 +88,7 @@ def completion_gate_recommendation(
       (GH-883) → :attr:`CompletionRecommendation.AUTO_MERGE`: there is no
       external reviewer to wait for and the adaptive contract forbids a
       manual checkpoint, so the terminal action is to auto-advance to
-      ``dev10x:gh-pr-merge`` (whose solo-maintainer config supplies the
+      ``dev10x-coding:gh-pr-merge`` (whose solo-maintainer config supplies the
       approval override). Without this branch the session dead-ends at
       "monitor for review" and has to improvise a manual prompt that
       violates the adaptive no-checkpoints contract. Repo policy still
@@ -98,7 +98,7 @@ def completion_gate_recommendation(
     * Otherwise the PR is open and otherwise-green →
       :attr:`CompletionRecommendation.MONITOR_REVIEW`: keep the session
       open and background-watch the PR for review / ready-to-merge via
-      ``dev10x:gh-pr-monitor``.
+      ``dev10x-coding:gh-pr-monitor``.
     """
     if not blocking_checks_pass:
         return CompletionRecommendation.GO_BACK

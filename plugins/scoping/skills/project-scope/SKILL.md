@@ -432,7 +432,7 @@ Report any failures with:
 | Free-text needs parent ticket | `dev10x-scoping:ticket-create` | Delegates to |
 | Parent needs Job Story | `dev10x-scoping:jtbd` | Delegates to (optional) |
 | User refines a child ticket | `dev10x-scoping:ticket-scope` | User invokes manually |
-| User starts work on a ticket | `dev10x:work-on` | User invokes manually |
+| User starts work on a ticket | `dev10x-coding:work-on` | User invokes manually |
 
 Child tickets are NOT auto-scoped via `dev10x-scoping:ticket-scope`.
 High-level fidelity is intentional.

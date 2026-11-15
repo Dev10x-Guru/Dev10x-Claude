@@ -19,7 +19,7 @@ What `active_modes` still feeds — its only remaining consumers:
 1. **Structural skill behaviour** — the non-gate steps in the mode
    catalog below (draft state, reviewer assignment, Slack
    notification, milestone cleanup).
-2. **`dev10x:verify-acc-dod`'s check filter** — the
+2. **`dev10x-coding:verify-acc-dod`'s check filter** — the
    `modes.<name>.skip` clauses in
    `skills/verify-acc-dod/references/defaults.yaml`.
 3. **Playbook step `modes:` blocks** — which steps exist in a play
@@ -44,14 +44,14 @@ the maintainer's own and ship directly.
 Documented behaviors:
 
 - PRs ship ready-for-review (no draft state)
-- No reviewer assignment — `dev10x:gh-pr-request-review` is
+- No reviewer assignment — `dev10x-coding:gh-pr-request-review` is
   skipped
-- No Slack review notification — `dev10x:slack-review-request`
+- No Slack review notification — `dev10x-coding:slack-review-request`
   is skipped
-- `dev10x:gh-pr-create` finishes with `pr_ready` instead of
+- `dev10x-coding:gh-pr-create` finishes with `pr_ready` instead of
   `gh pr create --draft`
-- Auto-dispatch `dev10x:gh-pr-monitor` after PR creation
-- `dev10x:gh-pr-merge` accepts solo-maintainer approval override
+- Auto-dispatch `dev10x-coding:gh-pr-monitor` after PR creation
+- `dev10x-coding:gh-pr-merge` accepts solo-maintainer approval override
   (no second review required)
 - Auto-merge with `--rebase` when CI is green and no unresolved
   review threads exist
@@ -79,7 +79,7 @@ Documented behaviors:
 
 - `qa-off` removes the "Record self-QA video and review pack" step
   from every play
-- `qa-record-only` keeps the step, runs `dev10x:qa-scope` and
+- `qa-record-only` keeps the step, runs `dev10x-coding:qa-scope` and
   `dev10x-qa:qa-self --exploratory`, and publishes nothing: no
   review pack, no upload; the run directory is named in Verify AC
 - Without either mode the step runs in full and skips with one
@@ -127,10 +127,10 @@ would auto-advance.
 
 Documented behaviors:
 
-- `dev10x:verify-acc-dod` skips the **"No unresolved review threads"**
+- `dev10x-coding:verify-acc-dod` skips the **"No unresolved review threads"**
   check (the `modes.review-deferred.skip: true` clause in
   `skills/verify-acc-dod/references/defaults.yaml`)
-- `dev10x:verify-acc-dod` skips the **"Review requested" /
+- `dev10x-coding:verify-acc-dod` skips the **"Review requested" /
   "Re-review requested"** check
 - The Plan Completion Gate then resolves honestly: with the deferred
   checks excluded, a green run recommends **Work complete** (merged /

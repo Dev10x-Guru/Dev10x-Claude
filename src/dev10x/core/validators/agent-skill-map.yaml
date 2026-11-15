@@ -20,7 +20,7 @@
 #       add:
 #         - skill: my:deploy
 #           patterns: ['\bkubectl apply\b']
-#       remove: [dev10x:git-commit]
+#       remove: [dev10x-coding:git-commit]
 #
 # Patterns aim at the action, not the noun: "commit" alone is in almost
 # every brief, "git commit" is a subagent about to make one.
@@ -32,38 +32,38 @@ entries:
       - '\bheadless (?:browser|chrome|chromium)\b'
     accept: [qa-self]
 
-  - skill: dev10x:git-commit
+  - skill: dev10x-coding:git-commit
     patterns:
       - '\bgit commit\b'
       - '\bcommit (?:the|your|these|all) (?:changes|work|edits)\b'
     accept: [git-commit]
 
-  - skill: dev10x:gh-pr-create
+  - skill: dev10x-coding:gh-pr-create
     patterns:
       - '\bgh pr create\b'
       - '\b(?:open|create) (?:a |the )?(?:draft )?(?:pr|pull request)\b'
     accept: [gh-pr-create, create_pr, mcp__plugin_dev10x_cli__create_pr]
 
-  - skill: dev10x:git
+  - skill: dev10x-coding:git
     patterns:
       - '\bgit push\b'
       - '\bforce[- ]push\b'
     accept: [push_safe, mcp__plugin_dev10x_cli__push_safe]
 
-  - skill: dev10x:gh-pr-merge
+  - skill: dev10x-coding:gh-pr-merge
     patterns:
       - '\bgh pr merge\b'
       - '\bmerge (?:the |this )?(?:pr|pull request)\b'
     accept: [gh-pr-merge, merge_pr, mcp__plugin_dev10x_cli__merge_pr]
 
-  - skill: dev10x:git-groom
+  - skill: dev10x-coding:git-groom
     patterns:
       - '\bgit rebase -i\b'
       - '\binteractive rebase\b'
       - '\bsquash (?:the )?(?:fixups?|commits)\b'
     accept: [git-groom, rebase_groom, mcp__plugin_dev10x_cli__rebase_groom]
 
-  - skill: dev10x:py-test
+  - skill: dev10x-coding:py-test
     patterns:
       - '\bpytest\b'
     accept: [py-test, run_tests, mcp__plugin_dev10x_cli__run_tests, Skill(test)]

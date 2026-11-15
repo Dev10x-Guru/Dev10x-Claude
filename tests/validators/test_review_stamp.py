@@ -199,7 +199,7 @@ class TestVerdicts:
         assert "DX019" in result.message
         assert "has no review stamp" in result.message
         assert HEAD in result.message
-        assert "dev10x:review --loop" in result.message
+        assert "dev10x-coding:review --loop" in result.message
 
     def test_current_stamp_passes(
         self, validator: ReviewStampValidator, checkout: Path, store: ReviewStampStore

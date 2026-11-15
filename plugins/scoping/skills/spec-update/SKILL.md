@@ -6,7 +6,7 @@ description: >
   changes. When the user wants to change behaviour (not refactor),
   walk them through editing the canonical spec at
   docs/specs/<TICKET-ID>.md FIRST, then re-invoke
-  dev10x:work-on to regenerate code from the updated spec. Refuses
+  dev10x-coding:work-on to regenerate code from the updated spec. Refuses
   to proceed if the user tries to edit code directly without a
   spec update.
   TRIGGER when: requirements shift mid-implementation and the
@@ -14,7 +14,7 @@ description: >
   ticket that already has docs/specs/<TICKET-ID>.md.
   DO NOT TRIGGER when: refactor without behavior change (use
   dev10x-scoping:spec-sync instead); ticket has no canonical spec (regular
-  dev10x:work-on applies); user is creating a new spec for the
+  dev10x-coding:work-on applies); user is creating a new spec for the
   first time (use dev10x-scoping:ticket-scope).
 user-invocable: true
 allowed-tools:
@@ -50,7 +50,7 @@ directly without first updating the spec.
 1. `TaskCreate(subject="Update spec before regenerating code",
    activeForm="Walking through spec edit")`
 
-Mark completed after Step 5 (re-invoke `dev10x:work-on`) succeeds.
+Mark completed after Step 5 (re-invoke `dev10x-coding:work-on`) succeeds.
 
 ## Interface Contract
 
@@ -61,11 +61,11 @@ INPUTS:
   spec_path: Path | None   — defaults to docs/specs/<TICKET-ID>.md
 
 OUTPUTS:
-  regenerated: bool — true if dev10x:work-on ran successfully
+  regenerated: bool — true if dev10x-coding:work-on ran successfully
 
 SIDE EFFECTS:
   - Modifies docs/specs/<TICKET-ID>.md
-  - Invokes dev10x:work-on which may modify source files
+  - Invokes dev10x-coding:work-on which may modify source files
 ```
 
 ## Workflow
@@ -126,12 +126,12 @@ modify source code, **STOP**. Refuse with:
 > the prompt, then regenerate. Editing code first creates drift
 > that the next generation pass will silently revert."
 
-### Step 5: Re-invoke `dev10x:work-on`
+### Step 5: Re-invoke `dev10x-coding:work-on`
 
 After the spec is saved:
 
 ```
-Skill(skill="dev10x:work-on", args="<ticket_id>")
+Skill(skill="dev10x-coding:work-on", args="<ticket_id>")
 ```
 
 `work-on` will pick up the updated spec and regenerate code from
@@ -173,19 +173,19 @@ See `.claude/rules/skill-gates.md` for the pattern.
   skill updates.
 - **`dev10x-scoping:spec-sync`** — the inverse path (refactor-only).
   Shares the `drift_detector` module (GH-172).
-- **`dev10x:work-on`** — invoked at Step 5 to regenerate code
+- **`dev10x-coding:work-on`** — invoked at Step 5 to regenerate code
   from the updated spec.
-- **`dev10x:gh-pr-respond`** — runs drift check before applying
+- **`dev10x-coding:gh-pr-respond`** — runs drift check before applying
   fixups (GH-173). If drift is found, the user is prompted to
   invoke this skill.
-- **`dev10x:git-groom`** — pre-merge drift check (GH-173) blocks
+- **`dev10x-coding:git-groom`** — pre-merge drift check (GH-173) blocks
   the merge if a behaviour change shipped without a spec update.
 
 ## Anti-Patterns
 
 - ❌ Editing the spec **after** the code change (drift created,
   not fixed).
-- ❌ Skipping Step 5 — without re-invoking `dev10x:work-on`, the
+- ❌ Skipping Step 5 — without re-invoking `dev10x-coding:work-on`, the
   code does not yet reflect the new spec.
 - ❌ Editing only Implementation Steps without touching Job
   Story / Acceptance Criteria / Safeguards. Implementation Steps

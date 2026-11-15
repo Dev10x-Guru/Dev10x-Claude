@@ -43,7 +43,7 @@ if TYPE_CHECKING:
 # An unattended agent with no human channel and no MCP server can
 # get permanently stuck: `push_safe` is unreachable, the wrapper
 # script is blocked with "use the MCP tool", and raw `git push` is
-# blocked with "use Skill(dev10x:git)" — each block names the other
+# blocked with "use Skill(dev10x-coding:git)" — each block names the other
 # as the remedy. This narrows the `git-push` deny (Option 1 from the
 # issue) so the ordinary, safe case — a non-force push that names an
 # explicit, non-protected branch — never needs MCP or the skill at
@@ -657,7 +657,7 @@ class SkillRedirectValidator(ValidatorBase):
         comp = rule.compensations[0] if rule.compensations else None
         if not comp:
             return None
-        if comp.skill == "dev10x:git-commit" and _WRONG_TEMP_PATH_RE.search(inp.command):
+        if comp.skill == "dev10x-coding:git-commit" and _WRONG_TEMP_PATH_RE.search(inp.command):
             return HookResult(message=_COMMIT_HEAL_MSG)
         label = _rule_label(rule=rule)
         if comp.type == "use-alternative":

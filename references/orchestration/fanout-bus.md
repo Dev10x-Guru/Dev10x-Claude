@@ -1,6 +1,6 @@
 # Fanout JSONL Pub/Sub Bus (v1)
 
-Sibling-to-sibling coordination protocol for `dev10x:fanout`
+Sibling-to-sibling coordination protocol for `dev10x-coding:fanout`
 swarm children. Lets concurrently-running agents publish and
 consume file-lock requests, conflict signals, progress
 heartbeats, and bailout notices without serialising the wave
@@ -12,7 +12,7 @@ insufficient, promote to `mcp__plugin_dev10x_fanout_bus__*`
 (see § Future Work).
 
 **Scope:** This document is referenced by the
-`dev10x:fanout` Phase 3 dispatch prompt and consumed directly
+`dev10x-coding:fanout` Phase 3 dispatch prompt and consumed directly
 by swarm-child agents. ADR 0004 leaves real-time coordination
 out of the native-Agent swarm baseline and points at this
 follow-up.
@@ -199,7 +199,7 @@ the bailed item in a follow-up wave.
 
 ## Orchestrator rules
 
-The orchestrator (the main `dev10x:fanout` session) is a
+The orchestrator (the main `dev10x-coding:fanout` session) is a
 passive consumer in v1:
 
 1. Create the bus directory and file before each wave

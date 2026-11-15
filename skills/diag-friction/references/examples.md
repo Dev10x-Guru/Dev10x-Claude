@@ -34,14 +34,14 @@ Skill("dev10x-infra:k8s")
 ## Skill Reinforcement
 
 **Command detected:** `git push origin feature-branch`
-**Use instead:** `/dev10x:git` — Safe git push with
+**Use instead:** `/dev10x-coding:git` — Safe git push with
 protected branch checks
 
 **Why:** Direct git push bypasses force-push protection
 on develop/main branches.
 
 **How to invoke:**
-Skill("dev10x:git")
+Skill("dev10x-coding:git")
 ```
 
 ## Example 3: friction from chaining (pre-approved alternative)
@@ -85,7 +85,7 @@ chained form is not.
 
 Available skills that might help:
 - `/dev10x-infra:k8s` — if checking service health in k8s
-- `/dev10x:investigate` — if investigating a bug report
+- `/dev10x-coding:investigate` — if investigating a bug report
 
 Check ~/.claude/SKILLS.md for the full list of available skills.
 ```
