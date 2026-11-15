@@ -74,6 +74,16 @@ def _declared(*, skill_md: Path) -> set[str]:
     }
 
 
+_INVOCATION_NAME_RE = re.compile(r"^invocation-name:\s*(\S+)\s*$", re.MULTILINE)
+
+
+def _own_name(*, skill_md: Path) -> str:
+    """The skill's own invocation name, satellite prefix included (GH-1569)."""
+    matter = _front_matter(text=skill_md.read_text(encoding="utf-8"))
+    match = _INVOCATION_NAME_RE.search(matter)
+    return match.group(1) if match else f"dev10x:{skill_md.parent.name}"
+
+
 def _plugin_skill_names() -> set[str]:
     return {path.parent.name for path in skill_files(repo_root=_REPO_ROOT)}
 
@@ -117,7 +127,7 @@ def _undeclared(*, skill_md: Path, bodies: list[Path]) -> set[str]:
         # A wildcard grant covers whatever it covers; this guard is
         # about silence, not about narrowing an explicit choice.
         return set()
-    own_name = f"dev10x:{skill_md.parent.name}"
+    own_name = _own_name(skill_md=skill_md)
     plugin_skills = _plugin_skill_names()
     canonical_declarations = {
         _canonical(target=name, plugin_skills=plugin_skills) for name in declared
@@ -150,7 +160,7 @@ def test_the_guard_sees_the_delegation_surface() -> None:
     prevent for MCP tools (GH-1215).
     """
     total = sum(
-        len(_invoked(bodies=bodies, own_name=f"dev10x:{skill_md.parent.name}"))
+        len(_invoked(bodies=bodies, own_name=_own_name(skill_md=skill_md)))
         for skill_md, bodies in _skill_documents()
     )
 
