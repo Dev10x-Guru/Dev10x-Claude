@@ -23,7 +23,9 @@ Higher tiers produce better results but cost more tokens.
 
 ## Agent Model Assignments
 
-### Named Agents (`agents/`)
+### Named Agents (`agents/`, `plugins/scoping/agents/`)
+
+`adr-reviewer` and the `architect-*` agents ship with `dev10x-scoping`.
 
 | Agent | Model | Tier |
 |-------|-------|------|
@@ -60,7 +62,7 @@ explicitly per task tier:
 | `dev10x:gh-pr-monitor` | CI polling | haiku | Monitor |
 | `dev10x:gh-pr-monitor` | Long CI (>10 min) | sonnet | Analyze |
 | `dev10x-teach:skill-audit` | Wave 1+2 (5 phases) | sonnet | Analyze |
-| `dev10x:adr-evaluate` | Architect advocates | opus | Design |
+| `dev10x-scoping:adr-evaluate` | Architect advocates | opus | Design |
 
 ## Per-Project Model Overrides
 

@@ -1,15 +1,15 @@
 ---
-name: dev10x:adr-evaluate
+name: dev10x-scoping:adr-evaluate
 description: >
   Orchestrate adversarial evaluation of architectural options using
   domain-specific architect agents and produce ranked ADR drafts.
   TRIGGER when: evaluating design decisions with multiple competing
   approaches, running architecture trade-off analysis, or needing
   structured multi-perspective evaluation.
-  DO NOT TRIGGER when: creating a simple ADR (use dev10x:adr),
+  DO NOT TRIGGER when: creating a simple ADR (use dev10x-scoping:adr),
   or making code changes without architecture impact.
 user-invocable: true
-invocation-name: dev10x:adr-evaluate
+invocation-name: dev10x-scoping:adr-evaluate
 allowed-tools:
   - Agent
   - Glob
@@ -157,7 +157,7 @@ Options:
 ## Usage Example
 
 ```
-/dev10x:adr-evaluate
+/dev10x-scoping:adr-evaluate
 
 Topic: State management approach for the dashboard
 ADR Number: 025

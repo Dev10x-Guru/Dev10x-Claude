@@ -42,6 +42,10 @@ evaluation, and testing — usable on any project.
 
 ### Architecture Evaluation Agents (for ADRs)
 
+These ship with the `dev10x-scoping` plugin under
+`plugins/scoping/agents/` (GH-1570), next to `adr-evaluate`, their only
+caller.
+
 | File | Purpose |
 |------|---------|
 | `architect-api.md` | API design evaluation |

@@ -1,6 +1,6 @@
 ---
-name: dev10x:ddd
-invocation-name: dev10x:ddd
+name: dev10x-scoping:ddd
+invocation-name: dev10x-scoping:ddd
 description: >
   Run or continue a DDD Event Storming workshop to explore, model, and
   stress-test domain architecture.
@@ -11,7 +11,7 @@ description: >
   add goods pricing". Always use before ticket-scope when the feature area
   is new or crosses bounded context boundaries.
   DO NOT TRIGGER when: implementing code within a well-understood domain, or
-  scoping a ticket in a known bounded context (use dev10x:ticket-scope).
+  scoping a ticket in a known bounded context (use dev10x-scoping:ticket-scope).
 user-invocable: true
 allowed-tools:
   - TaskCreate
@@ -259,7 +259,7 @@ dependencies (see `epics.md`).
 **Optional presentation:** for a long workshop record, or a decision
 whose alternatives are easier to weigh side by side, consider also
 rendering it as an HTML artifact — see
-[`../../references/html-artifact-reporting.md`](../../references/html-artifact-reporting.md).
+[`../../references/html-artifact-reporting.md`](../../../../references/html-artifact-reporting.md).
 Optional, never a gate: the markdown deliverables above remain the
 durable record and the quality checklist passes without an artifact.
 

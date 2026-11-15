@@ -136,7 +136,7 @@ Only on *Yes*, **REQUIRED: Call `AskUserQuestion`** with `multiSelect: true`
 (no "None" checkbox) listing the skippable steps, each stating what it
 produces and what happens without it:
 
-- **Draft Job Story (JTBD)** — produces the `dev10x:jtbd` Job Story that
+- **Draft Job Story (JTBD)** — produces the `dev10x-scoping:jtbd` Job Story that
   opens the PR body. Without it the agent opens PRs with no Job Story, and the
   PR-hygiene check may flag the body. Persists for this repo.
 

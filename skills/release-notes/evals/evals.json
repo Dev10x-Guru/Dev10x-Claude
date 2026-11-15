@@ -14,7 +14,7 @@
     {
       "id": "jtbd-unattended-delegation",
       "name": "Missing JTBDs Delegate to jtbd in Unattended Mode",
-      "description": "Step 3 invokes dev10x:jtbd in unattended mode (not attended) for each PR missing a Job Story, then batches all drafts into a single approval prompt rather than approving one-by-one."
+      "description": "Step 3 invokes dev10x-scoping:jtbd in unattended mode (not attended) for each PR missing a Job Story, then batches all drafts into a single approval prompt rather than approving one-by-one."
     }
   ],
   "evals": [
@@ -66,14 +66,14 @@
     {
       "id": "missing-jtbds-batch-via-unattended-mode",
       "name": "Missing JTBDs are drafted in unattended mode and batched",
-      "description": "Step 3 invokes dev10x:jtbd in unattended mode for every PR missing a Job Story, collects all drafts, then presents one combined approval prompt — not per-PR gates.",
+      "description": "Step 3 invokes dev10x-scoping:jtbd in unattended mode for every PR missing a Job Story, collects all drafts, then presents one combined approval prompt — not per-PR gates.",
       "input": "/dev10x:release-notes --play release (3 PRs missing JTBDs)",
       "assertions": [
         {
           "dimension": "jtbd-unattended-delegation",
           "check": "tool_called",
           "tool": "Skill",
-          "signal": "Skill(dev10x:jtbd) is invoked once per missing-JTBD PR with mode=unattended"
+          "signal": "Skill(dev10x-scoping:jtbd) is invoked once per missing-JTBD PR with mode=unattended"
         },
         {
           "dimension": "jtbd-unattended-delegation",
@@ -102,7 +102,7 @@
       },
       {
         "query": "draft a Job Story for this one PR",
-        "rationale": "Single-story drafting — use dev10x:jtbd directly"
+        "rationale": "Single-story drafting — use dev10x-scoping:jtbd directly"
       }
     ]
   }

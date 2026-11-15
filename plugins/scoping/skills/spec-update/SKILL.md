@@ -1,6 +1,6 @@
 ---
-name: dev10x:spec-update
-invocation-name: dev10x:spec-update
+name: dev10x-scoping:spec-update
+invocation-name: dev10x-scoping:spec-update
 description: >
   Enforce SPDD's "fix the prompt first" Golden Rule for logic
   changes. When the user wants to change behaviour (not refactor),
@@ -13,9 +13,9 @@ description: >
   canonical spec exists; user describes a behaviour change for a
   ticket that already has docs/specs/<TICKET-ID>.md.
   DO NOT TRIGGER when: refactor without behavior change (use
-  dev10x:spec-sync instead); ticket has no canonical spec (regular
+  dev10x-scoping:spec-sync instead); ticket has no canonical spec (regular
   dev10x:work-on applies); user is creating a new spec for the
-  first time (use dev10x:ticket-scope).
+  first time (use dev10x-scoping:ticket-scope).
 user-invocable: true
 allowed-tools:
   - AskUserQuestion
@@ -30,7 +30,7 @@ allowed-tools:
   - TaskList
 ---
 
-# dev10x:spec-update — Spec-First Behaviour Change
+# dev10x-scoping:spec-update — Spec-First Behaviour Change
 
 ## Overview
 
@@ -85,7 +85,7 @@ If the file does not exist, **STOP**. Surface to the user:
 > "No canonical spec found at `docs/specs/<TICKET-ID>.md`. This
 > skill enforces spec-first behaviour changes — a missing spec
 > means there is no source of truth to update. Run
-> `dev10x:ticket-scope` first to create one, then re-invoke
+> `dev10x-scoping:ticket-scope` first to create one, then re-invoke
 > this skill."
 
 ### Step 2: Classify the Change
@@ -96,9 +96,9 @@ Classify the change so the right path runs:
 - **Behaviour change (Recommended)** — Requirements / Acceptance
   Criteria / Job Story / Safeguards change. This skill applies.
 - **Structural refactor** — Code shape changes, behaviour stable.
-  This skill bails out and delegates to `dev10x:spec-sync`.
+  This skill bails out and delegates to `dev10x-scoping:spec-sync`.
 - **New feature, no spec yet** — There is no spec to update. This
-  skill bails out and delegates to `dev10x:ticket-scope`.
+  skill bails out and delegates to `dev10x-scoping:ticket-scope`.
 
 If anything other than "Behaviour change" is selected, route to
 the named skill via `Skill(...)` and exit.
@@ -140,14 +140,14 @@ landed) routes through this skill automatically.
 
 ### Step 6: Verify Code Matches Spec
 
-After regeneration, run `dev10x:spec-sync` in **check-only mode**
+After regeneration, run `dev10x-scoping:spec-sync` in **check-only mode**
 to confirm no structural drift remains:
 
 ```
-Skill(skill="dev10x:spec-sync", args="--check-only <ticket_id>")
+Skill(skill="dev10x-scoping:spec-sync", args="--check-only <ticket_id>")
 ```
 
-`dev10x:spec-sync` runs `dev10x spec drift docs/specs/<TICKET-ID>.md`
+`dev10x-scoping:spec-sync` runs `dev10x spec drift docs/specs/<TICKET-ID>.md`
 under the hood — see that skill for the exit-code contract.
 
 If drift remains, surface it to the user. The session terminates
@@ -159,7 +159,7 @@ updated spec.
 This skill has **two REQUIRED `AskUserQuestion` gates**:
 
 1. **Step 2 — Change classification.** Routes between this skill,
-   `dev10x:spec-sync`, and `dev10x:ticket-scope`. Plain-text
+   `dev10x-scoping:spec-sync`, and `dev10x-scoping:ticket-scope`. Plain-text
    substitution would silently default to "behaviour change" and
    break the contract.
 2. **Step 4 — Per-section edit approval.** Whenever the proposed
@@ -169,9 +169,9 @@ See `.claude/rules/skill-gates.md` for the pattern.
 
 ## Integration Points
 
-- **`dev10x:ticket-scope`** — creates the canonical spec this
+- **`dev10x-scoping:ticket-scope`** — creates the canonical spec this
   skill updates.
-- **`dev10x:spec-sync`** — the inverse path (refactor-only).
+- **`dev10x-scoping:spec-sync`** — the inverse path (refactor-only).
   Shares the `drift_detector` module (GH-172).
 - **`dev10x:work-on`** — invoked at Step 5 to regenerate code
   from the updated spec.

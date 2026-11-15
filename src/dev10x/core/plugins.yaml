@@ -28,6 +28,7 @@ extracted:
   - comm
   - teach
   - tasks
+  - scoping
 dependencies:
   coding:
     - tasks

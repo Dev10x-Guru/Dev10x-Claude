@@ -7,7 +7,7 @@ is **not** in the current git working set (staged or unstaged
 changes), warn before any source edit is applied.
 
 This moves the Golden Rule from "skill-if-invoked" (output
-backpressure via ``dev10x:spec-update``) to "hook-always" (action
+backpressure via ``dev10x-scoping:spec-update``) to "hook-always" (action
 backpressure that fires whenever the spec is untouched).
 
 Spawned from GH-430 recommendation P2. Full spec: GH-434.
@@ -52,12 +52,12 @@ You are about to edit a source file while the canonical spec at
 ``{spec_path}`` has not been touched in the current working set.
 
 Options:
-  1. Run ``dev10x:spec-update`` first to update the spec, then regenerate.
+  1. Run ``dev10x-scoping:spec-update`` first to update the spec, then regenerate.
   2. Edit the spec file directly (``{spec_path}``) before this file.
   3. Disable this check for the session: ``DEV10X_HOOK_DISABLE=DX015``.
 
 Rule ID and profile: ``.claude/rules/hook-validator-profiles.md`` (DX015 row).
-Spec-first flow: ``skills/spec-update/SKILL.md`` and ADR-0005.
+Spec-first flow: ``plugins/scoping/skills/spec-update/SKILL.md`` and ADR-0005.
 """
 
 

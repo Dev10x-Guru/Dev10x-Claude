@@ -2,10 +2,10 @@
 
 Runs NS-35 (``dev10x skill rename``) and NS-36 (the user-config
 migration) end to end against a copy of the repository's skill tree in
-``tmp_path``. ``estimate`` is the subject: it leaves with scoping in a
-later step. ``gog`` was the subject until B4 (GH-1567), ``context-audit``
-until B5 (GH-1568) and ``park-remind`` until B6 (GH-1569) moved each for
-real. The live checkout is never written; the rehearsal proves the round
+``tmp_path``. ``release-notes`` is the subject: it leaves with coding in
+a later step. ``gog`` was the subject until B4 (GH-1567),
+``context-audit`` until B5 (GH-1568), ``park-remind`` until B6 (GH-1569)
+and ``estimate`` until B7 (GH-1570) moved each for real. The live checkout is never written; the rehearsal proves the round
 trip leaves the copy byte-identical and the NS-05b reference inventory
 unchanged.
 """
@@ -37,11 +37,11 @@ from dev10x.core.skills.upgrade_cleanup.skill_names import (
 from dev10x.subprocess_utils import get_plugin_root
 
 INVENTORY_PATH = Path(__file__).parents[1] / "fixtures" / "skill_reference_inventory.json"
-SUBJECT = "estimate"
+SUBJECT = "release-notes"
 OLD = f"dev10x:{SUBJECT}"
-NEW = f"dev10x-scoping:{SUBJECT}"
+NEW = f"dev10x-coding:{SUBJECT}"
 REHEARSAL_REMOVED_IN = "0.120.0"
-USER_FRICTION = f"defaults:\n  estimate_skill: {OLD}\n"
+USER_FRICTION = f"defaults:\n  release_notes_skill: {OLD}\n"
 
 
 @dataclass(frozen=True)
@@ -150,7 +150,7 @@ class TestForwardRename:
 
 class TestUserConfigMigration:
     def test_rewrites_the_old_name(self, rehearsal: Rehearsal) -> None:
-        assert rehearsal.migrated_friction == f"defaults:\n  estimate_skill: {NEW}\n"
+        assert rehearsal.migrated_friction == f"defaults:\n  release_notes_skill: {NEW}\n"
 
     def test_is_idempotent(self, rehearsal: Rehearsal) -> None:
         assert rehearsal.second_migration == []

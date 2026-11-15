@@ -125,7 +125,7 @@ This protocol applies to any multi-session orchestration:
   swarm agents
 - `dev10x-teach:skill-audit` — dispatches finder and judge agents; death
   mid-wave requires resumption
-- `dev10x:adr-evaluate` — architect dispatch vulnerable to account
+- `dev10x-scoping:adr-evaluate` — architect dispatch vulnerable to account
   session limits
 - `dev10x:foreman` — unattended orchestration; assumes all rules above
 

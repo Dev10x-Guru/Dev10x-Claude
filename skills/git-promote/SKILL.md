@@ -8,7 +8,7 @@ description: >
   typically for tech debt fixes, bug fixes, or improvements committed
   without a ticket reference.
   DO NOT TRIGGER when: commit already has a ticket reference, or creating
-  a new ticket before committing (use dev10x:ticket-create).
+  a new ticket before committing (use dev10x-scoping:ticket-create).
 user-invocable: true
 invocation-name: dev10x:git-promote
 allowed-tools:
@@ -36,7 +36,7 @@ Mark completed when done: `TaskUpdate(taskId, status="completed")`
 
 ## Prerequisites Check
 
-**IMPORTANT:** This skill uses the `dev10x:ticket-create` skill which supports GitHub Issues, Linear, and JIRA.
+**IMPORTANT:** This skill uses the `dev10x-scoping:ticket-create` skill which supports GitHub Issues, Linear, and JIRA.
 
 ## When to Use This Skill
 
@@ -66,7 +66,7 @@ git show <commit-hash>
 
 ### Step 3: Create Ticket
 
-Use the `dev10x:ticket-create` skill to create a properly structured ticket from the commit.
+Use the `dev10x-scoping:ticket-create` skill to create a properly structured ticket from the commit.
 
 ### Step 4: Create Branch
 
@@ -96,7 +96,7 @@ Use the `dev10x:gh-pr-create` skill to push the branch and create a PR.
 
 ```
 dev10x:git-promote
-├── Uses: dev10x:ticket-create (Step 3)
+├── Uses: dev10x-scoping:ticket-create (Step 3)
 ├── Uses: dev10x:ticket-branch (Step 4)
 └── Uses: dev10x:gh-pr-create (Step 8, optional)
 ```

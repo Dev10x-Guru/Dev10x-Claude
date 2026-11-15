@@ -16,7 +16,7 @@ allowed-tools:
   - Skill(dev10x:git-groom)
   - Skill(dev10x:qa-scope)
   - Skill(dev10x:slack-review-request)
-  - Skill(dev10x:ticket-jtbd)
+  - Skill(dev10x-scoping:ticket-jtbd)
   - Skill(dev10x:verify-acc-dod)
   - AskUserQuestion
   - mcp__plugin_dev10x_cli__pr_notify

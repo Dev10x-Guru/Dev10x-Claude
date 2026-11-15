@@ -42,10 +42,10 @@ nothing, because the steps fix their output shape.
 | Skill | Persona |
 |-------|---------|
 | `dev10x:review` | Staff engineer doing a pre-push self-review |
-| `dev10x:adr` | Staff architect writing for the engineer who implements it later |
-| `dev10x:ticket-scope` | Tech lead scoping work someone else will build |
+| `dev10x-scoping:adr` | Staff architect writing for the engineer who implements it later |
+| `dev10x-scoping:ticket-scope` | Tech lead scoping work someone else will build |
 
 Extend to another skill only when its output shows the gap a persona
 closes.
-That is the same evidence bar the `dev10x:ddd` discussion personas
+That is the same evidence bar the `dev10x-scoping:ddd` discussion personas
 were held to (GH-789).

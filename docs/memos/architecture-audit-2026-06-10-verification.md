@@ -1,6 +1,6 @@
 # Architecture Audit Verification Pass — 2026-06-10 (Phases A–I, second run)
 
-Independent re-run of `/Dev10x:project-audit` (all 9 phases, 9 parallel
+Independent re-run of `/Dev10x-scoping:project-audit` (all 9 phases, 9 parallel
 read-only Explore agents) executed the same day as the per-package
 audit recorded in `architecture-audit-2026-06-10.md` (77 issues,
 #494–#570, milestones PKG-M1…PKG-M11). This pass was deduplicated

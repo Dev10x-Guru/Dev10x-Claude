@@ -26,7 +26,7 @@ Behavioural caveats moved out of `.claude/rules/mcp-tools.md`
 
 - `issue_create` / `issues_bulk_create` accept `milestone` and
   `labels`, and filing is expected to POPULATE them (GH-1102). Reach
-  them through `dev10x:ticket-create`, whose Step 4 reads the live
+  them through `dev10x-scoping:ticket-create`, whose Step 4 reads the live
   roster via `triage_roster` and proposes a milestone plus label set;
   calling `issue_create` bare is what left 11 of 16 open issues
   unmilestoned and 10 of 13 unlabeled in the 2026-08-30 sweep. When no

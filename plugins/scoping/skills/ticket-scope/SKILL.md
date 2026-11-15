@@ -1,5 +1,5 @@
 ---
-name: dev10x:ticket-scope
+name: dev10x-scoping:ticket-scope
 description: >
   Scope Linear tickets with technical research and architecture design.
   Extends the base scope skill with Linear ticket integration, story
@@ -8,10 +8,10 @@ description: >
   technical approach, estimating story points, or writing acceptance
   criteria.
   DO NOT TRIGGER when: scoping non-Linear tickets, multi-ticket
-  projects (use dev10x:project-scope), or new domain areas (use
-  dev10x:ddd first).
+  projects (use dev10x-scoping:project-scope), or new domain areas (use
+  dev10x-scoping:ddd first).
 user-invocable: true
-invocation-name: dev10x:ticket-scope
+invocation-name: dev10x-scoping:ticket-scope
 persona: >
   Tech lead scoping work someone else will build: labels every
   assumption, still gives an estimate, and states the open questions
@@ -21,8 +21,8 @@ allowed-tools:
   - mcp__claude_ai_Linear__list_issues
   - mcp__claude_ai_Linear__list_comments
   - mcp__claude_ai_Linear__save_comment
-  - Skill(dev10x:jtbd)
-  - Skill(dev10x:estimate)
+  - Skill(dev10x-scoping:jtbd)
+  - Skill(dev10x-scoping:estimate)
   - Agent
   - WebFetch
   - Grep
@@ -40,7 +40,7 @@ every assumption, still gives an estimate, and states the open
 questions that would move it.
 
 Create comprehensive technical scoping documents for Linear
-tickets. Extends the base `dev10x:scope` skill with Linear-
+tickets. Extends the base `dev10x-scoping:scope` skill with Linear-
 specific workflows (ticket fetch, comment back, story point
 estimation, acceptance criteria).
 
@@ -54,7 +54,7 @@ lives in [`instructions.md`](instructions.md).
 [`instructions.md`](instructions.md) end-to-end. The
 orchestration contract (TaskCreate calls, phase ordering,
 AskUserQuestion gates, mandatory delegations like
-`Skill(dev10x:jtbd)` and template selection) lives there —
+`Skill(dev10x-scoping:jtbd)` and template selection) lives there —
 not in this SKILL.md. Skipping the read causes downstream
 phase bypasses (GH-26, GH-27, GH-28).
 

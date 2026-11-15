@@ -175,7 +175,7 @@ Include `# language: <code>` when writing feature-file-style blocks.
 
 [Data shapes touched by this fix. For bug fixes, the entities are
 usually the existing types whose contracts were silently violated.
-Listing them helps `dev10x:spec-sync` detect future drift.]
+Listing them helps `dev10x-scoping:spec-sync` detect future drift.]
 
 **Affected entities:**
 
@@ -221,7 +221,7 @@ surface.
 ## Norms
 
 [Project rules and conventions this fix MUST follow. Populated by
-the Norms / Safeguards autopopulator (`dev10x:ticket-scope`
+the Norms / Safeguards autopopulator (`dev10x-scoping:ticket-scope`
 Phase 5).]
 
 **Auto-populated rules**:
@@ -271,7 +271,7 @@ We've fixed a bug where tax-exempt customers were incorrectly charged sales tax 
 
 ## Estimate
 **3 points** — well-understood fix plus a regression test
-(produced by `dev10x:estimate`, default ranges)
+(produced by `dev10x-scoping:estimate`, default ranges)
 
 | Line item            | Effort | Elapsed |
 |----------------------|--------|---------|

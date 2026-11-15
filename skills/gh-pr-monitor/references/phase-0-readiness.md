@@ -19,7 +19,7 @@ The PR body **must** start with a JTBD Job Story as its first paragraph.
 
 3. If a valid Job Story is present → skip to Phase 1.
 
-4. If missing or malformed → generate one using the `dev10x:ticket-jtbd` skill.
+4. If missing or malformed → generate one using the `dev10x-scoping:ticket-jtbd` skill.
 
 5. After the skill completes, verify the PR body now starts with the
    Job Story.

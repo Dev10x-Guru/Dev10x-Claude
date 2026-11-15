@@ -1779,7 +1779,7 @@ revision discussion.
 
 Section 9 names the skills that will eventually automate parts
 of these practices.
-In particular, `Dev10x:project-audit` is the candidate vehicle for
+In particular, `Dev10x-scoping:project-audit` is the candidate vehicle for
 Practice 1: given a repository and a date range, the skill samples
 N recent PRs, scores each against the five lenses and the CFO test,
 and produces the retro-note artifact without requiring the

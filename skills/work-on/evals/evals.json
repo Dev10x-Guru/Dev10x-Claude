@@ -768,7 +768,7 @@
       },
       {
         "query": "create a ticket for the webhook retry bug we found yesterday",
-        "rationale": "Wants ticket creation (dev10x:ticket-create), not to start working"
+        "rationale": "Wants ticket creation (dev10x-scoping:ticket-create), not to start working"
       },
       {
         "query": "what's the status of DEV-42? Is it in progress or still in backlog?",
@@ -780,7 +780,7 @@
       },
       {
         "query": "can you scope out JIRA-789 and estimate story points for the planning meeting?",
-        "rationale": "Wants scoping (dev10x:ticket-scope), not implementation"
+        "rationale": "Wants scoping (dev10x-scoping:ticket-scope), not implementation"
       },
       {
         "query": "push this branch and create a PR for the changes we just made",

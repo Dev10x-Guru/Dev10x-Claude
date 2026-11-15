@@ -1,5 +1,5 @@
 {
-  "skill_name": "dev10x:estimate",
+  "skill_name": "dev10x-scoping:estimate",
   "eval_dimensions": [
     {
       "id": "line-items",
@@ -27,7 +27,7 @@
       "id": "ticket-level-estimate",
       "name": "Ticket-level estimate breaks out the human gates",
       "description": "A single 3-point ticket on a team repo is estimated with all five line items and separate effort and elapsed totals.",
-      "input": "/dev10x:estimate GH-1495 — one skill, three skill edits, a SessionStart pointer and a test, on a team repo with one reviewer",
+      "input": "/dev10x-scoping:estimate GH-1495 — one skill, three skill edits, a SessionStart pointer and a test, on a team repo with one reviewer",
       "assertions": [
         {
           "dimension": "line-items",
@@ -50,7 +50,7 @@
       "id": "project-level-estimate",
       "name": "Project-level estimate rolls up along the critical path",
       "description": "A two-milestone project with six tickets, where four have no blockers, is rolled up with overlapping agent work and serialised review.",
-      "input": "/dev10x:estimate the Codex port, release R1: six tickets over two milestones, four unblocked, one reviewer",
+      "input": "/dev10x-scoping:estimate the Codex port, release R1: six tickets over two milestones, four unblocked, one reviewer",
       "assertions": [
         {
           "dimension": "rollup",
@@ -96,7 +96,7 @@
       "id": "thirteen-points-splits",
       "name": "An epic-sized change gets a split, not a number",
       "description": "When sizing reaches 13 points the skill recommends decomposition and proposes the parts instead of planning on one figure.",
-      "input": "/dev10x:estimate a single ticket that rewrites the permission catalog, every hook and plugin-doctor in one change",
+      "input": "/dev10x-scoping:estimate a single ticket that rewrites the permission catalog, every hook and plugin-doctor in one change",
       "assertions": [
         {
           "dimension": "agent-baseline",
@@ -114,7 +114,7 @@
         "rationale": "Ad-hoc estimate outside a scoping skill — the GH-1495 case the SessionStart pointer routes here"
       },
       {
-        "query": "/dev10x:estimate PAY-133",
+        "query": "/dev10x-scoping:estimate PAY-133",
         "rationale": "Direct invocation for a ticket-level estimate"
       }
     ],

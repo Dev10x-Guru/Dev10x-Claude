@@ -1,4 +1,4 @@
-// Unit tests for skills/diagram-bpmn/scripts/lanes.mjs (GH-1637).
+// Unit tests for plugins/scoping/skills/diagram-bpmn/scripts/lanes.mjs (GH-1637).
 // Pure geometry, so these run on bare Node with no npm toolchain.
 
 import assert from "node:assert/strict";
@@ -11,7 +11,7 @@ import {
   arrangeLanes,
   route,
   unassignedNodes,
-} from "../../../skills/diagram-bpmn/scripts/lanes.mjs";
+} from "../../../plugins/scoping/skills/diagram-bpmn/scripts/lanes.mjs";
 
 const task = (id, lane, x, y) => ({ id, lane, x, y, width: 100, height: 80 });
 const centerY = (node) => node.y + node.height / 2;

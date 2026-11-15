@@ -1,5 +1,5 @@
 ---
-name: dev10x:artifact
+name: dev10x-scoping:artifact
 description: >
   Use when someone asks for a report, analysis, status page, rollout
   review or decision page — so it lands on the first try (full width,
@@ -11,10 +11,10 @@ description: >
   DO NOT TRIGGER when: the answer fits in a few lines of markdown, the
   Artifact quickstart names a typed Artifact that fits (slides, a
   document, a live-data dashboard), or a diagram file is the
-  deliverable (use dev10x:diagram-sequence, dev10x:diagram-c4 or
-  dev10x:diagram-bpmn).
+  deliverable (use dev10x-scoping:diagram-sequence, dev10x-scoping:diagram-c4 or
+  dev10x-scoping:diagram-bpmn).
 user-invocable: true
-invocation-name: dev10x:artifact
+invocation-name: dev10x-scoping:artifact
 allowed-tools:
   - Read
   - Write
@@ -24,9 +24,9 @@ allowed-tools:
   - Bash(dev10x overwatch artifact:*)
 ---
 
-# dev10x:artifact
+# dev10x-scoping:artifact
 
-**Announce:** "Using dev10x:artifact to build the <topic> page."
+**Announce:** "Using dev10x-scoping:artifact to build the <topic> page."
 
 ## Orchestration
 

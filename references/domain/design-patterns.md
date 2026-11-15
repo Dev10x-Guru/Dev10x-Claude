@@ -95,7 +95,7 @@ inventing terms: Domain Model vs Transaction Script vs Table
 Module; Repository vs Data Mapper vs Active Record; Unit of Work;
 Identity Map; Lazy Load; Money; Special Case. The workshop names
 the pattern; the implementation ticket carries the reference.
-(Catalog: `skills/project-audit/references/pattern-catalogs.md`
+(Catalog: `plugins/scoping/skills/project-audit/references/pattern-catalogs.md`
 lists the full PoEAA and GoF tables.)
 
 ## Pattern Selection Heuristics

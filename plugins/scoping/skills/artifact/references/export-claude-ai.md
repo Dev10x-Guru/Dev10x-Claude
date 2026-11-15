@@ -13,7 +13,7 @@ here or in the page.
 When the session exposes no Artifact tool, say so and write the filled
 page as a local `.html` file, adding the `<!doctype html>`, charset and
 viewport the host would supply, then give its path. As
-[`references/html-artifact-reporting.md`](../../../references/html-artifact-reporting.md)
+[`references/html-artifact-reporting.md`](../../../../../references/html-artifact-reporting.md)
 says, an artifact is a rendering, never the durable record.
 
 ## Order of work

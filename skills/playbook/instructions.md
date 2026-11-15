@@ -126,7 +126,7 @@ Show plays for a specific skill, or drill into one play.
 | # | Type | Step | Skills | Children |
 |---|------|------|--------|----------|
 | 1 | detailed | Set up workspace | dev10x:ticket-branch | — |
-| 2 | detailed | Draft Job Story | dev10x:jtbd | — |
+| 2 | detailed | Draft Job Story | dev10x-scoping:jtbd | — |
 | 3 | epic | Design implementation approach | — | 3 children |
 |   |   | ├─ Read relevant code | — | |
 |   |   | ├─ Identify affected components | — | |

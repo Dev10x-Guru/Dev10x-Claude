@@ -1,5 +1,5 @@
 {
-  "skill_name": "dev10x:diagram-sequence",
+  "skill_name": "dev10x-scoping:diagram-sequence",
   "eval_dimensions": [
     {
       "id": "notation-follows-destination",
@@ -22,7 +22,7 @@
       "id": "pr-description-gets-mermaid",
       "name": "PR-description request produces Mermaid, not PlantUML",
       "description": "RED baseline: without the skill the agent wrote PlantUML only for a PR description. With the skill, a GitHub destination yields a ```mermaid block.",
-      "input": "/dev10x:diagram-sequence \"draw the push_safe flow for our PR description\"",
+      "input": "/dev10x-scoping:diagram-sequence \"draw the push_safe flow for our PR description\"",
       "assertions": [
         {
           "dimension": "notation-follows-destination",
@@ -41,7 +41,7 @@
       "id": "both-destinations-share-one-source",
       "name": "PR plus PNG request keeps one Mermaid source",
       "description": "A request for the PR body and a PNG for a design doc renders the PNG from the same .mmd rather than maintaining a second PlantUML copy.",
-      "input": "/dev10x:diagram-sequence \"diagram the login flow for the PR and give me a PNG for the design doc\"",
+      "input": "/dev10x-scoping:diagram-sequence \"diagram the login flow for the PR and give me a PNG for the design doc\"",
       "assertions": [
         {
           "dimension": "notation-follows-destination",
@@ -60,7 +60,7 @@
       "id": "failed-render-is-not-handed-back",
       "name": "Syntax error is fixed, not shipped",
       "description": "When render.sh exits non-zero with a line number, the agent edits that line and re-runs the script until it exits 0.",
-      "input": "/dev10x:diagram-sequence \"draw the retry loop as a PlantUML PNG for ADR 0040\" — first render reports a syntax error",
+      "input": "/dev10x-scoping:diagram-sequence \"draw the retry loop as a PlantUML PNG for ADR 0040\" — first render reports a syntax error",
       "assertions": [
         {
           "dimension": "render-before-handback",

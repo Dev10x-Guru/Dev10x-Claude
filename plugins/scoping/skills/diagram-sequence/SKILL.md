@@ -1,15 +1,15 @@
 ---
-name: dev10x:diagram-sequence
+name: dev10x-scoping:diagram-sequence
 description: >
   Use when someone asks for a sequence diagram, a call flow, a
   request/response timeline, or "who calls whom" between services,
   agents, or APIs — for a PR description, issue, ADR, or design doc.
   TRIGGER when: drawing interactions between participants over time.
   DO NOT TRIGGER when: drawing system structure (use
-  dev10x:diagram-c4) or a business process with lanes and gateways
-  (use dev10x:diagram-bpmn).
+  dev10x-scoping:diagram-c4) or a business process with lanes and gateways
+  (use dev10x-scoping:diagram-bpmn).
 user-invocable: true
-invocation-name: dev10x:diagram-sequence
+invocation-name: dev10x-scoping:diagram-sequence
 allowed-tools:
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/diagram-sequence/scripts/:*)
   - Write
@@ -17,9 +17,9 @@ allowed-tools:
   - Read
 ---
 
-# dev10x:diagram-sequence
+# dev10x-scoping:diagram-sequence
 
-**Announce:** "Using dev10x:diagram-sequence to draw <flow name>."
+**Announce:** "Using dev10x-scoping:diagram-sequence to draw <flow name>."
 
 ## Orchestration
 
@@ -36,7 +36,7 @@ Mark completed when done: `TaskUpdate(taskId, status="completed")`
 | Destination | Notation | Why |
 |-------------|----------|-----|
 | PR body, issue, comment, any GitHub-rendered `.md` | **Mermaid** (default) | GitHub renders a ` ```mermaid ` block inline — no image to host or keep in sync |
-| ADR, design doc, slide, anything needing a PNG/SVG file | **PlantUML** | Finer layout control (`box`, activation bars, `autonumber` formats); matches `dev10x:adr` |
+| ADR, design doc, slide, anything needing a PNG/SVG file | **PlantUML** | Finer layout control (`box`, activation bars, `autonumber` formats); matches `dev10x-scoping:adr` |
 | Both ("for the PR, and a PNG for the doc") | Mermaid source + rendered PNG from the same `.mmd` | One source of truth; never maintain two notations of one flow |
 
 Mermaid is the default. Choose PlantUML only when the destination

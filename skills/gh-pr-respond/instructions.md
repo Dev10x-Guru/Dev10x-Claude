@@ -469,7 +469,7 @@ if spec_path.exists():
         # SURFACE AS BLOCKER — do not auto-fix.
         ...
     elif report.has_structural:
-        # SURFACE AS WARNING with dev10x:spec-sync suggestion.
+        # SURFACE AS WARNING with dev10x-scoping:spec-sync suggestion.
         ...
 ```
 
@@ -477,7 +477,7 @@ if spec_path.exists():
 
 > "Spec drift detected: behavioural drift in
 > `docs/specs/<TICKET-ID>.md`. Per the Golden Rule, fix the
-> prompt first. Invoke `dev10x:spec-update` before responding
+> prompt first. Invoke `dev10x-scoping:spec-update` before responding
 > to review comments — otherwise fixup commits will compound
 > the drift."
 
@@ -492,7 +492,7 @@ allow the response flow to continue:
 > "Spec drift detected: structural drift in
 > `docs/specs/<TICKET-ID>.md`. The Architecture / Implementation
 > Steps sections lag the current code shape. Consider running
-> `dev10x:spec-sync` after this PR merges."
+> `dev10x-scoping:spec-sync` after this PR merges."
 
 **No spec means no-op.** If `docs/specs/<TICKET-ID>.md` does
 not exist, skip this preamble silently and continue to Input
@@ -695,7 +695,7 @@ Options:
   harden it. Reply on each thread with the removal-commit reference
   using the bundled-reply template.
 - **"Defer to follow-up ticket"** — Leave the code in place, create
-  a tracking ticket via `dev10x:ticket-create` capturing the
+  a tracking ticket via `dev10x-scoping:ticket-create` capturing the
   speculative feature + the listed concerns, and reply on each
   thread linking the ticket. No fixup commit is created.
 - **"Keep and harden each thread"** — Override the YAGNI verdict.
@@ -920,7 +920,7 @@ as a manual reviewer decision per comment.
 | Priority | Applies to | Action at Step 4 |
 |----------|-----------|------------------|
 | `now`    | `VALID` comments that block correctness, security, or contract guarantees | Delegate to `dev10x:gh-pr-fixup` in this batch |
-| `fast-follow` | `VALID` comments that are non-blocking enhancements (test-coverage gaps, type narrowing, dedup, edge-case hardening, doc improvements, nice-to-have refactors) | Acknowledge on the thread, create or append to a fast-follow ticket via `dev10x:ticket-create`, skip fixup in this batch |
+| `fast-follow` | `VALID` comments that are non-blocking enhancements (test-coverage gaps, type narrowing, dedup, edge-case hardening, doc improvements, nice-to-have refactors) | Acknowledge on the thread, create or append to a fast-follow ticket via `dev10x-scoping:ticket-create`, skip fixup in this batch |
 | `n/a`    | `INVALID`, `QUESTION`, `OUT_OF_SCOPE`, `YAGNI` | Verdict already determines the action; priority does not apply |
 
 **Heuristics for assigning `now` vs `fast-follow`:**
@@ -985,7 +985,7 @@ For each approved comment, route by **verdict + priority**:
 - **VALID + priority=`fast-follow`** → do NOT call
   `dev10x:gh-pr-fixup` in this batch. Collect all fast-follow
   rows, draft a single follow-up ticket via
-  `dev10x:ticket-create` (one ticket per PR, listing each
+  `dev10x-scoping:ticket-create` (one ticket per PR, listing each
   fast-follow comment link as an acceptance criterion), then
   reply on each thread acknowledging the deferral with a link
   to the new ticket:

@@ -70,9 +70,9 @@ defaults:
         type: detailed
         prompt: >
           Create when fix is not trivial, issue affects production/staging,
-          or user requests. Delegate to dev10x:ticket-create.
+          or user requests. Delegate to dev10x-scoping:ticket-create.
         condition: fix-warrants-ticket
-        skills: [dev10x:ticket-create]
+        skills: [dev10x-scoping:ticket-create]
       - subject: Mention the ticket in the thread
         type: detailed
         prompt: >

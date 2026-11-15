@@ -11,10 +11,11 @@ rows, a ``SKILL_NAME_ALIASES`` entry in
 The table is empty between extractions. The B1–B3 rows (``dev10x-qa``,
 ``dev10x-infra``, ``dev10x-db``) shipped in 0.114.0 and 0.115.0 and were
 retired at 0.116.0 (GH-1865). B4 (GH-1567) adds the seven skills that moved
-to ``dev10x-comm``, B5 (GH-1568) the seven that moved to ``dev10x-teach``
-and B6 (GH-1569) the eight that moved to ``dev10x-tasks``; all three ship
-in 0.116.0, so their rows end two releases later. Every write takes the file's lock and lands atomically, and a second
-run finds nothing left to rewrite.
+to ``dev10x-comm``, B5 (GH-1568) the seven that moved to ``dev10x-teach``,
+B6 (GH-1569) the eight that moved to ``dev10x-tasks`` and B7 (GH-1570) the
+nineteen that moved to ``dev10x-scoping``; all four ship in 0.116.0, so
+their rows end two releases later. Every write takes the file's lock and
+lands atomically, and a second run finds nothing left to rewrite.
 """
 
 from __future__ import annotations
@@ -73,6 +74,27 @@ _MOVED_IN_0_116_EXTRACTIONS: dict[str, tuple[str, ...]] = {
         "reflect",
         "session-tasks",
         "session-wrap-up",
+    ),
+    "dev10x-scoping": (
+        "adr",
+        "adr-evaluate",
+        "artifact",
+        "ddd",
+        "diagram-bpmn",
+        "diagram-c4",
+        "diagram-sequence",
+        "estimate",
+        "jira",
+        "jtbd",
+        "linear",
+        "project-audit",
+        "project-scope",
+        "scope",
+        "spec-sync",
+        "spec-update",
+        "ticket-create",
+        "ticket-jtbd",
+        "ticket-scope",
     ),
 }
 

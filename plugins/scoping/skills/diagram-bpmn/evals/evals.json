@@ -1,5 +1,5 @@
 {
-  "skill_name": "dev10x:diagram-bpmn",
+  "skill_name": "dev10x-scoping:diagram-bpmn",
   "eval_dimensions": [
     {
       "id": "semantic-only-source",
@@ -22,7 +22,7 @@
       "id": "pr-review-with-two-lanes",
       "name": "Two-role review process is modeled with lanes and no coordinates",
       "description": "RED baseline: without the skill the agent hand-computed every coordinate, produced overlapping labels and crossing edges, used plain task everywhere, and left a placeholder namespace.",
-      "input": "/dev10x:diagram-bpmn \"model our PR review: author opens a PR, CI runs, author fixes until green, reviewer approves or requests changes, then merge; lanes Author and Reviewer\"",
+      "input": "/dev10x-scoping:diagram-bpmn \"model our PR review: author opens a PR, CI runs, author fixes until green, reviewer approves or requests changes, then merge; lanes Author and Reviewer\"",
       "assertions": [
         {
           "dimension": "semantic-only-source",
@@ -52,7 +52,7 @@
       "id": "unassigned-node-is-fixed",
       "name": "A node outside every lane is fixed, not shipped",
       "description": "When render.sh reports '<id> is in no lane', the agent adds the node to the right lane and re-runs rather than dropping the lanes.",
-      "input": "/dev10x:diagram-bpmn \"model refund approval with lanes Support and Finance\" — first render reports Task_Notify is in no lane",
+      "input": "/dev10x-scoping:diagram-bpmn \"model refund approval with lanes Support and Finance\" — first render reports Task_Notify is in no lane",
       "assertions": [
         {
           "dimension": "roles-and-types",

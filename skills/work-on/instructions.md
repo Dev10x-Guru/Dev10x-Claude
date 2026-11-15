@@ -174,7 +174,7 @@ a resumed session shows the real feature branch, not the base.
 |------------|-------------|------|
 | GitHub CLI | GitHub issues, PRs | `gh` CLI |
 | Linear MCP | Linear tickets | `mcp__claude_ai_Linear__*` |
-| JIRA | JIRA tickets | `dev10x:jira` plugin + `JIRA_TENANT` env var + keyring |
+| JIRA | JIRA tickets | `dev10x-scoping:jira` plugin + `JIRA_TENANT` env var + keyring |
 | Sentry MCP | Sentry issues | `mcp__sentry__*` |
 | Slack MCP | Slack threads | `mcp__claude_ai_Slack__*` |
 
@@ -357,7 +357,7 @@ Questions Are Side Quests).
    - **Work without a ticket (Recommended)** — proceed as
      `local-only` work type with the note as context
    - **Create a ticket first** — delegate to
-     `dev10x:ticket-create` and re-classify
+     `dev10x-scoping:ticket-create` and re-classify
    - **Search again with different terms** — user provides
      refined search terms
 
@@ -505,7 +505,7 @@ Choose the agent type based on the source's tool requirements:
 | `github-issue` | `general-purpose` | Needs Bash for `gh` CLI |
 | `github-pr` | `general-purpose` | Needs Bash for `gh` CLI |
 | `linear-ticket` | `general-purpose` | Needs Linear MCP tools |
-| `jira-ticket` | `general-purpose` | Needs Bash for `dev10x:jira` skill |
+| `jira-ticket` | `general-purpose` | Needs Bash for `dev10x-scoping:jira` skill |
 | `slack-thread` | `general-purpose` | Needs Slack MCP tools |
 | `sentry-issue` | `general-purpose` | Needs Sentry MCP tools |
 | `note` | (none) | Pass through as-is |
@@ -613,7 +613,7 @@ in the main session via `WebFetch`, not dispatched to subagents.
 | `github-issue` | general-purpose | Call `mcp__plugin_dev10x_cli__issue_get(issue_number=$NUMBER, repo="$REPO")`. Return title, status, labels, body summary, linked PRs. |
 | `github-pr` | general-purpose | Run `gh pr view --json title,body,headRefName,state,mergedAt,reviews`. Return title, status, branch, review comment count. |
 | `linear-ticket` | general-purpose | Call `mcp__claude_ai_Linear__get_issue(issueId)`. Return title, status, parent ID, relations, comment summaries. |
-| `jira-ticket` | general-purpose | Use `dev10x:jira` skill to fetch ticket. Return title, status, assignee, linked issues. |
+| `jira-ticket` | general-purpose | Use `dev10x-scoping:jira` skill to fetch ticket. Return title, status, assignee, linked issues. |
 | `slack-thread` | general-purpose | Call `mcp__claude_ai_Slack__slack_read_thread(channelId, threadTs)`. Return message count, key decisions, action items. |
 | `sentry-issue` | general-purpose | Call `mcp__sentry__get_issue_details(issueId)`. Return error type, frequency, first/last seen, top stack frame. |
 | `note` | (none) | No subagent needed — pass through as-is. |
@@ -979,7 +979,7 @@ modes apply.
 **Feature from ticket** (subtasks of Phase 4):
 ```
 4.1  [detailed] Set up workspace          → dev10x:ticket-branch
-4.2  [detailed] Draft Job Story           → dev10x:jtbd
+4.2  [detailed] Draft Job Story           → dev10x-scoping:jtbd
 4.3  [epic]     Design implementation approach
        ├─ Read relevant code
        ├─ Identify affected components
@@ -1012,7 +1012,7 @@ silently improvised.
 
 **Estimates (GH-1495).** Whenever the supervisor asks how long the
 plan will take, or the plan needs a size (e.g. deciding between
-Strategy A and B), call `Skill(dev10x:estimate)`. Never size the
+Strategy A and B), call `Skill(dev10x-scoping:estimate)`. Never size the
 plan inline: the skill reports agent implementation, human review,
 review wait, testing and documentation, with effort separate from
 elapsed time.
@@ -1132,20 +1132,20 @@ in `TaskList`).
 
 Selected when the Phase 1 suitability gate (see § Structured-Spec
 Suitability Gate) marks the ticket as good-fit. Routes through
-`dev10x:ticket-scope` (with REASONS autopopulator),
-`dev10x:spec-update` / `dev10x:spec-sync` gates, and the regular
+`dev10x-scoping:ticket-scope` (with REASONS autopopulator),
+`dev10x-scoping:spec-update` / `dev10x-scoping:spec-sync` gates, and the regular
 shipping pipeline tail.
 
 ```
 4.1  [detailed] Set up workspace                 → dev10x:ticket-branch
-4.2  [detailed] Scope ticket with REASONS        → dev10x:ticket-scope
-4.3  [detailed] Record ADR (if architectural)    → dev10x:adr
-4.4  [detailed] Spec-update gate (Golden Rule)   → dev10x:spec-update
+4.2  [detailed] Scope ticket with REASONS        → dev10x-scoping:ticket-scope
+4.3  [detailed] Record ADR (if architectural)    → dev10x-scoping:adr
+4.4  [detailed] Spec-update gate (Golden Rule)   → dev10x-scoping:spec-update
 4.5  [detailed] Plan the commit sequence         → (see below)
 4.6  [epic]     Implement changes
 4.7  [detailed] Verify — API tests               → test
 4.8  [detailed] Verify — unit tests              → test
-4.9  [detailed] Spec-sync gate before merge      → dev10x:spec-sync
+4.9  [detailed] Spec-sync gate before merge      → dev10x-scoping:spec-sync
 4.10 [detailed] Code review                      → dev10x:review
 4.11 [detailed] Commit outstanding changes       → dev10x:git-commit
 4.12 [detailed] Create draft PR                  → dev10x:gh-pr-create
@@ -1159,7 +1159,7 @@ shipping pipeline tail.
 
 The structured-spec play differs from `feature` in two ways:
 
-1. **Scope step uses REASONS sections** — `dev10x:ticket-scope`
+1. **Scope step uses REASONS sections** — `dev10x-scoping:ticket-scope`
    renders Entities / Norms / Safeguards via the autopopulator
    (GH-170) so the saved spec at `docs/specs/<TICKET-ID>.md` is
    the single source of truth.
@@ -2043,7 +2043,7 @@ Common skill delegations:
 |------|-------------|
 | Set up workspace (branch) | `dev10x:ticket-branch` skill |
 | Set up workspace (worktree) | `dev10x:git-worktree` skill |
-| Draft Job Story | `dev10x:jtbd` skill (attended mode) |
+| Draft Job Story | `dev10x-scoping:jtbd` skill (attended mode) |
 | Update ticket status | Linear MCP (see references/team-info.md) |
 | Fetch PR context | `gh pr view` + `gh pr diff` |
 | Code review | `dev10x:review` (`--unattended --loop`) + `dev10x:review-fix` skills |
@@ -2502,7 +2502,7 @@ branch on `effect`:
    the widget in step 1.
 
 **Job Story drafting:**
-- MUST invoke `Skill(dev10x:jtbd)` explicitly — never draft inline
+- MUST invoke `Skill(dev10x-scoping:jtbd)` explicitly — never draft inline
 - Pass gathered context to avoid redundant API calls
 - If approved, write back to the ticket:
 
@@ -2510,7 +2510,7 @@ branch on `effect`:
 |---------|-----------|
 | GitHub | `gh issue comment` |
 | Linear | Prepend to description via `save_issue` |
-| JIRA | `dev10x:jira` skill |
+| JIRA | `dev10x-scoping:jira` skill |
 
 **Ticket status update (Linear only):**
 
@@ -2610,7 +2610,7 @@ issue. Body mentions PR #42 → fetch PR. Produce context summary.
 defaults → schema). Build subtasks of Phase 4:
 ```
 4.1  [detailed] Set up workspace          → dev10x:ticket-branch
-4.2  [detailed] Draft Job Story           → dev10x:jtbd
+4.2  [detailed] Draft Job Story           → dev10x-scoping:jtbd
 4.3  [epic]     Design implementation approach (3 children)
 4.4  [detailed] Plan the commit sequence
 4.5  [epic]     Implement changes

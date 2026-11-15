@@ -38,7 +38,7 @@ QUICK_START_WORKFLOWS = [
     ),
     (
         "architecture",
-        "/dev10x:adr",
+        "/dev10x-scoping:adr",
         "Author Architecture Decision Records with diagrams",
     ),
 ]

@@ -129,7 +129,7 @@ git log <from_tag>..<to_tag> --no-merges --format="### %s%n%n%b%n---"
 
 For feature PRs listed as "MISSING JTBDs":
 
-1. Invoke `dev10x:jtbd` in unattended mode with ticket ID and PR number
+1. Invoke `dev10x-scoping:jtbd` in unattended mode with ticket ID and PR number
 2. Collect all drafts
 3. Present as a batch for user approval:
 

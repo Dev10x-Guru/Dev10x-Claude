@@ -1,5 +1,5 @@
 ---
-name: dev10x:diagram-bpmn
+name: dev10x-scoping:diagram-bpmn
 description: >
   Use when someone asks to model a business process, workflow, approval
   chain, or hand-off between roles as BPMN — a file that opens in
@@ -7,9 +7,9 @@ description: >
   TRIGGER when: drawing who does what, in which order, with decisions
   and loops, across roles or lanes.
   DO NOT TRIGGER when: drawing calls between services over time (use
-  dev10x:diagram-sequence) or system structure (use dev10x:diagram-c4).
+  dev10x-scoping:diagram-sequence) or system structure (use dev10x-scoping:diagram-c4).
 user-invocable: true
-invocation-name: dev10x:diagram-bpmn
+invocation-name: dev10x-scoping:diagram-bpmn
 allowed-tools:
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/diagram-bpmn/scripts/:*)
   - Write
@@ -17,9 +17,9 @@ allowed-tools:
   - Read
 ---
 
-# dev10x:diagram-bpmn
+# dev10x-scoping:diagram-bpmn
 
-**Announce:** "Using dev10x:diagram-bpmn to model <process name>."
+**Announce:** "Using dev10x-scoping:diagram-bpmn to model <process name>."
 
 ## Orchestration
 

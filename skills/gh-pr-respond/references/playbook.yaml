@@ -114,13 +114,13 @@ defaults:
           dev10x:gh-pr-fixup (one fixup commit per comment, or
           bundled per § Bundled Fixup Mode). VALID+fast-follow →
           batch into a single follow-up ticket via
-          dev10x:ticket-create, reply on each thread linking the
+          dev10x-scoping:ticket-create, reply on each thread linking the
           ticket, skip fixup in this batch. YAGNI bundles → fire
           Gate 7 (Step 1d-style, resolve_gate(gate="yagni_routing"))
           per bundle and route per its effect. INVALID/QUESTION/
           OUT_OF_SCOPE → post reply via MCP tool. Do NOT resolve
           threads yet.
-        skills: [dev10x:gh-pr-fixup, dev10x:ticket-create]
+        skills: [dev10x:gh-pr-fixup, dev10x-scoping:ticket-create]
       - subject: Resolve threads
         type: detailed
         prompt: >

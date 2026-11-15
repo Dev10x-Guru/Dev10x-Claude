@@ -14,7 +14,7 @@ allowed-tools:
   - AskUserQuestion
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/investigate/scripts/parse-slack-url.sh:*)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/investigate/scripts/reply.sh:*)
-  - Skill(skill="dev10x:ticket-create")
+  - Skill(skill="dev10x-scoping:ticket-create")
   - Skill(skill="dev10x:gh-pr-review")
 ---
 
@@ -149,7 +149,7 @@ Create a ticket when:
 - The issue affects users in production or staging
 - The user asks for one (e.g. "scope a ticket")
 
-Invoke `dev10x:ticket-create` skill with the gathered context.
+Invoke `dev10x-scoping:ticket-create` skill with the gathered context.
 
 ### Step 8 — Mention the Ticket in the Thread
 

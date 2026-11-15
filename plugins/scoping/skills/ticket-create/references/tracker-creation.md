@@ -71,7 +71,7 @@ If a `project` parameter was provided by the caller, resolve the
 project UUID first via `list_projects(team: "TEAM_UUID")` — never
 pass a display name (name matching is exact and fails silently).
 After creation, verify linkage with `get_issue(id)` and confirm
-`projectId` matches the expected UUID. See `dev10x:linear`
+`projectId` matches the expected UUID. See `dev10x-scoping:linear`
 § Project Assignment.
 
 ```
@@ -87,7 +87,7 @@ mcp__claude_ai_Linear__save_issue(
 ### JIRA
 
 Create via the Atlassian MCP `createJiraIssue` tool, mirroring the
-GitHub/Linear branches above. The `dev10x:jira` skill ships only
+GitHub/Linear branches above. The `dev10x-scoping:jira` skill ships only
 read / search / update / comment / link scripts — it has **no create
 path** — so the Atlassian MCP is the JIRA-creation surface (GH-631):
 
@@ -121,4 +121,4 @@ intended design. Re-apply base permissions with
 invokes it in full mode), then retry. See Step 5's inline-creation
 exception in `SKILL.md` for a stopgap while the sync gap persists.
 
-> Team-specific IDs are documented in the tracker skill (`dev10x:linear`, `dev10x:jira`).
+> Team-specific IDs are documented in the tracker skill (`dev10x-scoping:linear`, `dev10x-scoping:jira`).

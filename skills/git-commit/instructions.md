@@ -366,14 +366,14 @@ fi
 ### Step 2.5: Optional JTBD Title Derivation
 
 This step activates when **any** of these conditions are met:
-- **Explicit request:** User passes "use dev10x:jtbd" (or similar) in `/dev10x:git-commit` args
+- **Explicit request:** User passes "use dev10x-scoping:jtbd" (or similar) in `/dev10x:git-commit` args
 - **First commit:** Ticket ID extracted, zero commits ahead of develop, and
   commit type is Feature (✨) or Bug (🐛)
 
 **Flow:**
-1. Invoke the `dev10x:jtbd` base skill in **unattended** mode with `ticket_id`.
+1. Invoke the `dev10x-scoping:jtbd` base skill in **unattended** mode with `ticket_id`.
    The returned story carries one ROI bucket and an evidence rank (see
-   `dev10x:jtbd` § Guiding Principle and § Step 1).
+   `dev10x-scoping:jtbd` § Guiding Principle and § Step 1).
 2. Derive the title from the **bucket and the shape of the truth**, never by
    transposing the "so [beneficiary] can" clause into an imperative.
    Transposing a fixed-shape clause yields a fixed-shape title; a release of

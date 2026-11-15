@@ -1,5 +1,5 @@
 {
-  "skill_name": "dev10x:project-audit",
+  "skill_name": "dev10x-scoping:project-audit",
   "eval_dimensions": [
     {
       "name": "task_tracking",
@@ -23,14 +23,14 @@
     },
     {
       "name": "skill_delegation",
-      "description": "Delegates to dev10x:project-scope for backlog creation"
+      "description": "Delegates to dev10x-scoping:project-scope for backlog creation"
     }
   ],
   "evals": [
     {
       "name": "full_audit_happy_path",
       "description": "User runs full audit with all phases selected",
-      "input": "/dev10x:project-audit",
+      "input": "/dev10x-scoping:project-audit",
       "assertions": [
         {
           "check": "tool_called",
@@ -61,7 +61,7 @@
     {
       "name": "selected_phases_only",
       "description": "User specifies --phases B,C,E to skip selection gate",
-      "input": "/dev10x:project-audit --phases B,C,E",
+      "input": "/dev10x-scoping:project-audit --phases B,C,E",
       "assertions": [
         {
           "check": "tool_not_called_with",
@@ -80,13 +80,13 @@
     {
       "name": "memo_only_mode",
       "description": "User runs --memo-only to skip backlog creation",
-      "input": "/dev10x:project-audit --memo-only",
+      "input": "/dev10x-scoping:project-audit --memo-only",
       "assertions": [
         {
           "check": "tool_not_called",
           "tool": "Skill",
           "assertion": "skips_project_scope",
-          "signal": "dev10x:project-scope is not invoked in memo-only mode"
+          "signal": "dev10x-scoping:project-scope is not invoked in memo-only mode"
         }
       ]
     }

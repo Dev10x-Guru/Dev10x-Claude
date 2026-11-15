@@ -2,8 +2,8 @@
 
 **Status:** Accepted (2026-05-16)
 **Context:** GH-70, GH-169, GH-170, GH-171, GH-172, GH-173, GH-174, GH-175
-**Related:** ADR 0001 (skill-instruction trust), `dev10x:scope`,
-`dev10x:ticket-scope`, `dev10x:adr`, `dev10x:jtbd`,
+**Related:** ADR 0001 (skill-instruction trust), `dev10x-scoping:scope`,
+`dev10x-scoping:ticket-scope`, `dev10x-scoping:adr`, `dev10x-scoping:jtbd`,
 `references/skill-pipelines.md`
 
 ## Context
@@ -41,13 +41,13 @@ adopt parts of SPDD and, if so, how.
 
 | SPDD layer  | Current Dev10x output                          | Source skill(s)                              | Coverage |
 |-------------|------------------------------------------------|----------------------------------------------|----------|
-| Requirements | Job Story (1 sentence) + Objective / AC       | `dev10x:jtbd`, `dev10x:ticket-scope`         | ✅ Full   |
-| Entities    | "Models / DTOs" bullets under Architecture     | `dev10x:ticket-scope` templates              | ⚠️ Partial — no relationships, no property schema |
-| Approach    | Technical Approach + Design Discussion + Alts  | `dev10x:scope`, `dev10x:adr`                  | ✅ Full   |
-| Structure   | Architecture > Components, Clean-arch layering | `dev10x:scope`, `dev10x:ticket-scope`, ADR   | ✅ Full   |
-| Operations  | Implementation Steps, GraphQL Changes, API     | `dev10x:ticket-scope` templates              | ✅ Full   |
+| Requirements | Job Story (1 sentence) + Objective / AC       | `dev10x-scoping:jtbd`, `dev10x-scoping:ticket-scope`         | ✅ Full   |
+| Entities    | "Models / DTOs" bullets under Architecture     | `dev10x-scoping:ticket-scope` templates              | ⚠️ Partial — no relationships, no property schema |
+| Approach    | Technical Approach + Design Discussion + Alts  | `dev10x-scoping:scope`, `dev10x-scoping:adr`                  | ✅ Full   |
+| Structure   | Architecture > Components, Clean-arch layering | `dev10x-scoping:scope`, `dev10x-scoping:ticket-scope`, ADR   | ✅ Full   |
+| Operations  | Implementation Steps, GraphQL Changes, API     | `dev10x-scoping:ticket-scope` templates              | ✅ Full   |
 | Norms       | `.claude/rules/essentials.md`, `CLAUDE.md`     | (project rules — *not* on the ticket prompt) | ❌ Gap — implicit only |
-| Safeguards  | Risks + Mitigations                            | `dev10x:scope`, `dev10x:adr`                  | ⚠️ Partial — defensive only, no first-class invariants/validations |
+| Safeguards  | Risks + Mitigations                            | `dev10x-scoping:scope`, `dev10x-scoping:adr`                  | ⚠️ Partial — defensive only, no first-class invariants/validations |
 
 ### Gaps SPDD highlights
 
@@ -68,9 +68,9 @@ adopt parts of SPDD and, if so, how.
    DTOs by name but do not capture property names, types, or
    relationships — exactly the part LLMs hallucinate most
    often during generation.
-5. **No drift detection.** There is no `dev10x:spec-update`
+5. **No drift detection.** There is no `dev10x-scoping:spec-update`
    (logic changes: edit spec → regenerate) or
-   `dev10x:spec-sync` (refactors: edit code → update spec).
+   `dev10x-scoping:spec-sync` (refactors: edit code → update spec).
    `dev10x:gh-pr-respond` and `dev10x:git-groom` do not check
    for spec drift.
 
@@ -78,7 +78,7 @@ adopt parts of SPDD and, if so, how.
 
 Adopt SPDD selectively in three layers, ordered by ROI:
 
-### Layer 1 — Extend `dev10x:scope` and ticket-scope templates (in-scope)
+### Layer 1 — Extend `dev10x-scoping:scope` and ticket-scope templates (in-scope)
 
 Add three sections to the three ticket-scope templates
 (`business-feature`, `technical-task`, `bug-fix`) so every
@@ -98,8 +98,8 @@ Safeguards ("what must always be true post-change").
 
 | New skill             | Trigger                                           | Behaviour |
 |-----------------------|---------------------------------------------------|-----------|
-| `dev10x:spec-update`  | Logic change: requirements / behaviour shift     | Edit spec first, regenerate code via `dev10x:work-on` |
-| `dev10x:spec-sync`    | Refactor: code shape changes but behaviour stable | Diff code against spec, update spec to match |
+| `dev10x-scoping:spec-update`  | Logic change: requirements / behaviour shift     | Edit spec first, regenerate code via `dev10x:work-on` |
+| `dev10x-scoping:spec-sync`    | Refactor: code shape changes but behaviour stable | Diff code against spec, update spec to match |
 
 Wire them into `dev10x:gh-pr-respond` (catch drift at review)
 and `dev10x:git-groom` (catch drift at merge). The spec is
@@ -129,7 +129,7 @@ a suitability gate in Phase 1 classification.
 
 Reasons:
 
-- `dev10x:scope` already runs the seven dimensions across its
+- `dev10x-scoping:scope` already runs the seven dimensions across its
   Phases 1–4; the missing pieces are *template sections*, not
   *workflow steps*. A new skill would duplicate scope's
   context-gathering and Design-It-Twice phases.
@@ -139,7 +139,7 @@ Reasons:
 - The Norms/Safeguards autopopulator is a small renderer, not
   a skill. It can live as a helper called by the templates.
 - The two genuinely net-new behaviours
-  (`dev10x:spec-update` / `dev10x:spec-sync`) are *separate*
+  (`dev10x-scoping:spec-update` / `dev10x-scoping:spec-sync`) are *separate*
   from canvas authoring — they're drift management. They
   deserve their own skills regardless of how the canvas is
   produced.
@@ -153,7 +153,7 @@ canvas as a fresh artifact.
 
 - **Pros:** Clean separation from existing scope; SPDD
   vocabulary preserved 1:1; easier to swap out later.
-- **Cons:** Duplicates 70% of `dev10x:scope` (Phases 1–3 are
+- **Cons:** Duplicates 70% of `dev10x-scoping:scope` (Phases 1–3 are
   already context gathering + Approach + Structure); creates
   two scoping skills users have to choose between; the
   templates already exist and downstream consumers (PR
@@ -241,8 +241,8 @@ records the *decision*; the tickets carry the work.
 |--------|---------|----------------------------------------------------------------------------------------|
 | 1      | GH-169  | Add `## Entities`, `## Norms`, `## Safeguards` to the three ticket-scope templates    |
 | 2      | GH-170  | Build Norms/Safeguards autopopulator (path-aware rule matching, render-on-generation) |
-| 3      | GH-171  | Create `dev10x:spec-update` skill (logic-change flow)                                  |
-| 4      | GH-172  | Create `dev10x:spec-sync` skill (refactor flow)                                        |
+| 3      | GH-171  | Create `dev10x-scoping:spec-update` skill (logic-change flow)                                  |
+| 4      | GH-172  | Create `dev10x-scoping:spec-sync` skill (refactor flow)                                        |
 | 5      | GH-173  | Wire spec-drift checks into `dev10x:gh-pr-respond` + `dev10x:git-groom`                |
 | 6      | GH-174  | Add `structured-spec` play to `dev10x:work-on` + suitability gate in Phase 1          |
 | 7      | GH-175  | Document the SPDD-style pipeline in `references/skill-pipelines.md`                    |

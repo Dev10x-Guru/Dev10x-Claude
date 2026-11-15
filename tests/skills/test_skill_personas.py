@@ -17,7 +17,11 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 SKILL_FILES = sorted(
     [*REPO_ROOT.glob("skills/*/SKILL.md"), *REPO_ROOT.glob("plugins/*/skills/*/SKILL.md")]
 )
-PILOT_SKILLS = ["skills/review/SKILL.md", "skills/adr/SKILL.md", "skills/ticket-scope/SKILL.md"]
+PILOT_SKILLS = [
+    "skills/review/SKILL.md",
+    "plugins/scoping/skills/adr/SKILL.md",
+    "plugins/scoping/skills/ticket-scope/SKILL.md",
+]
 MAX_PERSONA_LENGTH = 300
 PERSONA_LABEL = "**Persona:**"
 FRONT_MATTER = re.compile(r"\A---\n(?P<yaml>.*?)\n---\n(?P<body>.*)\Z", re.DOTALL)

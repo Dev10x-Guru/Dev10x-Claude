@@ -39,7 +39,8 @@ class TestInstruction:
         [
             (
                 CLAUDE_AI,
-                "Use the export path of dev10x:artifact to publish it as a claude.ai Artifact",
+                "Use the export path of dev10x-scoping:artifact to publish it as a claude.ai "
+                "Artifact",
             ),
             (
                 Publisher(id="docs", label="Docs", kind="skill", target="example:publish"),

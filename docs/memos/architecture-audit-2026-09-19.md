@@ -4,7 +4,7 @@ Full-project audit of the Dev10x plugin: design patterns, software
 archetypes, domain-model health, concurrency safety, test coverage,
 cross-cutting consistency, and industry best practices.
 
-Run via `Dev10x:project-audit` with all phases selected, twelve
+Run via `Dev10x-scoping:project-audit` with all phases selected, twelve
 read-only agents dispatched in parallel.
 
 ## Late phases — C, G, H, I, K (all twelve now reported)

@@ -530,7 +530,7 @@ defaults:
           Accept what the skill produces, use it in the session,
           and improve if needed. Auto-advance without approval,
           then write the story back to the ticket as a comment.
-        skills: [dev10x:jtbd]
+        skills: [dev10x-scoping:jtbd]
         modes:
           solo-maintainer:
             prompt: >
@@ -856,29 +856,29 @@ defaults:
       - subject: Scope ticket with REASONS sections
         type: detailed
         prompt: >
-          Invoke dev10x:ticket-scope. The skill renders Entities,
+          Invoke dev10x-scoping:ticket-scope. The skill renders Entities,
           Norms, and Safeguards sections inline using the
           autopopulator (`dev10x.scope.render_norms` /
           `render_safeguards`). The saved spec at
           docs/specs/<TICKET-ID>.md becomes the source of truth
           for the rest of the pipeline.
-        skills: [dev10x:ticket-scope]
+        skills: [dev10x-scoping:ticket-scope]
       - subject: Record ADR (if architectural decision involved)
         type: detailed
         prompt: >
           When the spec introduces or changes an architectural
           boundary, an ADR is required. Skip otherwise.
-        skills: [dev10x:adr]
+        skills: [dev10x-scoping:adr]
         condition: if-architectural
         optional: true
       - subject: Spec-update gate (Golden Rule)
         type: detailed
         prompt: >
           Before implementing, check whether requirements shifted
-          since the spec was saved. If yes, run dev10x:spec-update
+          since the spec was saved. If yes, run dev10x-scoping:spec-update
           (spec-first edit) and re-enter this step. If no, proceed
           to Implement.
-        skills: [dev10x:spec-update]
+        skills: [dev10x-scoping:spec-update]
         condition: if-requirements-shifted
         optional: true
       - subject: Plan the commit sequence
@@ -915,11 +915,11 @@ defaults:
       - subject: Spec-sync gate before merge
         type: detailed
         prompt: >
-          Run dev10x:spec-sync in check-only mode. Behavioural
+          Run dev10x-scoping:spec-sync in check-only mode. Behavioural
           drift blocks the pipeline (route back to spec-update).
           Structural drift triggers a regenerate-and-commit pass
           so the spec matches the final code shape.
-        skills: [dev10x:spec-sync]
+        skills: [dev10x-scoping:spec-sync]
         optional: true
       - fragment: shipping-pipeline
 

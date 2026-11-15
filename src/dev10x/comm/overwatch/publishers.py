@@ -51,9 +51,9 @@ CLAUDE_AI = Publisher(
     id="claude-ai",
     label="claude.ai",
     kind="skill",
-    target="dev10x:artifact",
+    target="dev10x-scoping:artifact",
     instruction_text=(
-        "Use the export path of dev10x:artifact to publish it as a claude.ai Artifact"
+        "Use the export path of dev10x-scoping:artifact to publish it as a claude.ai Artifact"
     ),
 )
 

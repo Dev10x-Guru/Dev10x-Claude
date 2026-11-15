@@ -21,7 +21,7 @@ Mechanism numbers follow the article.
 | 2 | Manual testing | `plugins/qa/skills/playwright`, `plugins/qa/skills/qa-self` (staging + screenshot evidence), `skills/qa-scope` |
 | 3 | Benchmarking | `.claude/rules/performance.md` baseline, `tests/benchmarks/` — gate exists but CI wiring is a known gap (GH-432) |
 | 4 | Review agents | 8 specs in `.claude/agents/` + plugin-distributed `agents/` (code-reviewer, architect-*, reviewer-*), `claude-code-review.yml`, `skills/gh-pr-review`, `skills/review` + `review-fix` |
-| 5 | Planning reviews | `skills/scope`, `ticket-scope`, `project-scope`, `adr`, `adr-evaluate` (adversarial architect panel); `work-on` Phase 3 plan-approval gate |
+| 5 | Planning reviews | `plugins/scoping/skills/scope`, `ticket-scope`, `project-scope`, `adr`, `adr-evaluate` (adversarial architect panel); `work-on` Phase 3 plan-approval gate |
 | 6 | Visual design review | `qa-self` screenshots — no automated diff against design specs today (future: perceptual-diff gate, project-flag-gated) |
 | 7 | PR monitoring | `skills/gh-pr-monitor` (background CI + comment watcher, auto-fixup), `gh-pr-doctor`, privacy audit CI |
 

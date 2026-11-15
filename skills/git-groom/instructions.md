@@ -198,7 +198,7 @@ no longer matches the spec's Requirements / Acceptance Criteria
 / Safeguards sections. Squashing pre-merge would lock the
 contradiction into history.
 
-Run `dev10x:spec-update` to fix the spec first (Golden Rule:
+Run `dev10x-scoping:spec-update` to fix the spec first (Golden Rule:
 fix the prompt, then regenerate), then re-invoke git-groom.
 
 To override (rare — only when the spec is intentionally being
@@ -208,14 +208,14 @@ retired with this merge), pass `--skip-spec-check` explicitly.
 Exit non-zero. Do NOT continue to Phase 1.
 
 **Warn on structural drift.** Allow the groom to continue, but
-surface a warning that `dev10x:spec-sync` should run before the
+surface a warning that `dev10x-scoping:spec-sync` should run before the
 next session:
 
 ```
 WARNING: structural spec drift detected at
 docs/specs/{TICKET-ID}.md. The Architecture / Implementation
 Steps sections describe a different code shape. Consider running
-`dev10x:spec-sync` after this merge so the next agent generating
+`dev10x-scoping:spec-sync` after this merge so the next agent generating
 from this spec gets the right file layout.
 ```
 

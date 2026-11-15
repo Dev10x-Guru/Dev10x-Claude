@@ -542,6 +542,20 @@ The supervisor decided the Stage B open decisions on 2026-10-19
      the entries are never registered twice. The `task_index_*` and
      `plan_sync_*` MCP tools and the `dev10x skill reflect` command stay
      in core under their old names.
+   - B7 (GH-1570) moves all nineteen skills `plugins.yaml` assigns to
+     `scoping`: the fifteen in the target table plus `artifact` and the
+     three `diagram-*` skills, mapped to scoping later. The five
+     `architect-*` agents and `adr-reviewer` move to
+     `plugins/scoping/agents/`, since `adr-evaluate` is their only
+     caller, and so does `references/diagrams/rendering.md`, whose every
+     reader is now a scoping skill. Coding↔scoping stays the
+     `soft_dependencies` edge in `plugins.yaml`; per decision 2 it is
+     not emitted to either manifest, so the satellite declares
+     `["dev10x"]` only. The tracker MCP tools, the spec-drift validator
+     (DX015) and `projects.d/scoping.yaml` stay in core. Three
+     `allowed-tools` grants on core's `gh-context` scripts are dropped:
+     no scoping skill ran those scripts, and from the satellite's root
+     the path would no longer resolve.
 5. **Old names stay readable for two releases (GH-1564).** Each moved
    skill gets one `SKILL_NAME_ALIASES` row, and
    `dev10x config migrate-skill-names` rewrites user configs. QA ships
@@ -563,6 +577,8 @@ The supervisor decided the Stage B open decisions on 2026-10-19
      seven rows end at `0.118.0` and the register entry stays put.
    - B6 (GH-1569) lands before `0.116.0` too, so its eight rows end at
      `0.118.0` and the register entry stays put.
+   - B7 (GH-1570) lands before `0.116.0` as well, so its nineteen rows
+     end at `0.118.0` and the register entry stays put.
 
 ### Open decisions (record before the dependent step)
 

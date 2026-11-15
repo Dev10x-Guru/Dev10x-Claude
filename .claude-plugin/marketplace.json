@@ -11,7 +11,7 @@
     {
       "name": "dev10x",
       "source": "./",
-      "description": "v0.116.0.dev0 — 76 skills for structured commits, PR lifecycle, branch hygiene, ticket management, task tracking, code review, and scoping in Claude Code.",
+      "description": "v0.116.0.dev0 — 57 skills for structured commits, PR lifecycle, branch hygiene, task tracking, and code review in Claude Code.",
       "version": "0.116.0.dev0",
       "keywords": [
         "git", "commits", "pull-requests", "code-review",
@@ -62,6 +62,13 @@
       "description": "v0.116.0.dev0 — 8 skills for task management: track session tasks, sync the plan mirror, park and rediscover deferred work, wrap up a session and reflect its lessons into a vault.",
       "version": "0.116.0.dev0",
       "keywords": ["tasks", "plan-sync", "park", "session", "reflect"]
+    },
+    {
+      "name": "dev10x-scoping",
+      "source": "./plugins/scoping",
+      "description": "v0.116.0.dev0 — 19 skills for tickets and scoping: create and scope tickets on GitHub, Linear or JIRA, draft Job Stories, estimate, record and evaluate ADRs, keep specs in sync, and draw diagrams.",
+      "version": "0.116.0.dev0",
+      "keywords": ["tickets", "scoping", "jtbd", "adr", "estimation"]
     }
   ]
 }

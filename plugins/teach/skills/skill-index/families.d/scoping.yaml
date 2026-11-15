@@ -6,12 +6,12 @@ families:
   - label: Scoping
     description: "Scope work and file tickets"
     skills:
-      - dev10x:ticket-scope
-      - dev10x:ticket-create
+      - dev10x-scoping:ticket-scope
+      - dev10x-scoping:ticket-create
   - label: Diagrams
     description: "Draw sequence, C4, and BPMN diagrams; publish report pages"
     skills:
-      - dev10x:diagram-sequence
-      - dev10x:diagram-c4
-      - dev10x:diagram-bpmn
-      - dev10x:artifact
+      - dev10x-scoping:diagram-sequence
+      - dev10x-scoping:diagram-c4
+      - dev10x-scoping:diagram-bpmn
+      - dev10x-scoping:artifact

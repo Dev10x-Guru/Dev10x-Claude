@@ -106,6 +106,25 @@ list whether or not `dev10x-tasks` is installed:
 claude plugin install dev10x-tasks@Dev10x-Guru
 ```
 
+The ticket and scoping skills (`ticket-create`, `ticket-jtbd`,
+`ticket-scope`, `jira`, `linear`, `scope`, `project-scope`,
+`project-audit`, `estimate`, `jtbd`, `ddd`, `spec-sync`, `spec-update`,
+`adr`, `adr-evaluate`, `artifact` and the three `diagram-*` skills),
+with the `architect-*` and `adr-reviewer` agents, ship as
+`dev10x-scoping`.
+Install it where you file and scope tickets, estimate, or record
+architecture decisions; it also brings `dev10x` with it.
+Coding and scoping call each other's skills, but neither installs the
+other: the edge is a declared soft dependency, so install
+`dev10x-scoping` wherever your coding plays include ticket or scoping
+steps.
+The tracker MCP tools (`issue_*`, `milestone_*`, `triage_roster`) and
+the spec-drift hook stay in `dev10x` under their old names:
+
+```bash
+claude plugin install dev10x-scoping@Dev10x-Guru
+```
+
 Upgrading from a release where those skills were part of `dev10x`
 and carried its `dev10x:` prefix: install each `dev10x-*` plugin whose
 skills you used, then run `/dev10x:upgrade-cleanup` to rewrite the old

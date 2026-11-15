@@ -51,7 +51,7 @@ Example:
 [Data shapes introduced or modified by this change. For pure
 refactors, the entities are usually class hierarchies / interfaces,
 not database tables. List them anyway — downstream tooling
-(`dev10x:spec-sync`) uses this section to detect structural drift.]
+(`dev10x-scoping:spec-sync`) uses this section to detect structural drift.]
 
 **New / changed types:**
 
@@ -201,7 +201,7 @@ by the Norms / Safeguards autopopulator from `.claude/rules/INDEX.md`
 at scope-render time. Do NOT hand-copy rules here — list manual
 additions only.]
 
-**Auto-populated rules** (filled by `dev10x:ticket-scope` Phase 5):
+**Auto-populated rules** (filled by `dev10x-scoping:ticket-scope` Phase 5):
 - [Placeholder — renderer walks `.claude/rules/INDEX.md` and
   path-matches against affected files]
 
@@ -245,7 +245,7 @@ Safeguards describe what must always be true **post-change**.]
 
 ## Estimate
 **5 points** — base-class change plus one refactored repository
-(produced by `dev10x:estimate`, default ranges)
+(produced by `dev10x-scoping:estimate`, default ranges)
 
 | Line item            | Effort | Elapsed |
 |----------------------|--------|---------|

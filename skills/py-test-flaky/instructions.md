@@ -48,7 +48,7 @@ between steps except at documented decision gates.
 1. `TaskCreate(subject="Reproduce flakiness", activeForm="Reproducing")`
 2. `TaskCreate(subject="Identify root cause", activeForm="Investigating")`
 3. `TaskCreate(subject="Draft proposed patch", activeForm="Drafting patch")`
-4. `TaskCreate(subject="File ticket via dev10x:ticket-create", activeForm="Filing ticket")`
+4. `TaskCreate(subject="File ticket via dev10x-scoping:ticket-create", activeForm="Filing ticket")`
 5. `TaskCreate(subject="Hand off to dev10x:work-on", activeForm="Handing off")`
 
 Mark each task `completed` as its step finishes; auto-advance
@@ -126,12 +126,12 @@ Prefer **deterministic seeds** over retries for randomized data.
 
 ### Step 4: File the Ticket
 
-Delegate to `dev10x:ticket-create` with a structured
+Delegate to `dev10x-scoping:ticket-create` with a structured
 description that becomes the spec `dev10x:work-on` will scope
 against. The skill routes to the configured tracker (GitHub
 Issues, Linear, or JIRA) and returns the ticket ID.
 
-`Skill(skill="dev10x:ticket-create", args="<title> | <description>")`
+`Skill(skill="dev10x-scoping:ticket-create", args="<title> | <description>")`
 
 **Suggested title:** `Fix flaky test: <TestClass>::<test_method>`
 
@@ -211,7 +211,7 @@ Before marking the hand-off task complete, verify:
 
 ```
 dev10x:py-test-flaky (narrow investigator + scoper)
-├── delegates to: dev10x:ticket-create   (Step 4)
+├── delegates to: dev10x-scoping:ticket-create   (Step 4)
 └── hands off to: dev10x:work-on          (Step 5)
                   └── owns: branch → implement → py-test
                             → review → pr-create → monitor

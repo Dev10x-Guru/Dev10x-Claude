@@ -1,5 +1,5 @@
 ---
-name: dev10x:project-scope
+name: dev10x-scoping:project-scope
 description: >
   Scope a multi-ticket project with milestones, blocking relationships,
   and tracker integration. Accepts a parent ticket URL/ID or free-text
@@ -7,10 +7,10 @@ description: >
   or GitHub Issues.
   TRIGGER when: scoping a multi-ticket project with milestones and
   blocking relationships.
-  DO NOT TRIGGER when: scoping a single ticket (use dev10x:ticket-scope),
-  or creating individual tickets (use dev10x:ticket-create).
+  DO NOT TRIGGER when: scoping a single ticket (use dev10x-scoping:ticket-scope),
+  or creating individual tickets (use dev10x-scoping:ticket-create).
 user-invocable: true
-invocation-name: dev10x:project-scope
+invocation-name: dev10x-scoping:project-scope
 allowed-tools:
   - mcp__claude_ai_Linear__get_issue
   - mcp__claude_ai_Linear__save_issue
@@ -20,11 +20,10 @@ allowed-tools:
   - mcp__claude_ai_Linear__save_milestone
   - mcp__claude_ai_Linear__list_milestones
   - mcp__claude_ai_Linear__list_issue_statuses
-  - Bash(${CLAUDE_PLUGIN_ROOT}/skills/gh-context/scripts/:*)
   - Bash(gh label create:*)
   - Bash(/tmp/Dev10x/bin/mktmp.sh:*)
-  - Skill(dev10x:ticket-create)
-  - Skill(dev10x:estimate)
+  - Skill(dev10x-scoping:ticket-create)
+  - Skill(dev10x-scoping:estimate)
   - mcp__plugin_dev10x_cli__detect_tracker
   - mcp__plugin_dev10x_cli__milestone_create
   - mcp__plugin_dev10x_cli__milestones_bulk_create
@@ -50,9 +49,9 @@ description and produces a complete project structure in the tracker.
 - Creating a project with blocking chains between tickets
 
 **Do NOT use for:**
-- Single-ticket scoping (use `dev10x:ticket-scope`)
-- Architectural decisions without implementation tickets (use `dev10x:adr`)
-- Creating a single ticket (use `dev10x:ticket-create`)
+- Single-ticket scoping (use `dev10x-scoping:ticket-scope`)
+- Architectural decisions without implementation tickets (use `dev10x-scoping:adr`)
+- Creating a single ticket (use `dev10x-scoping:ticket-create`)
 
 > **[OVERRIDE DETECTED]** — over the 200-line SKILL.md budget
 > (GH-1705). The four phases form one pipeline whose gates (scope
@@ -136,7 +135,7 @@ Generate the following sections:
    priority, estimated complexity — **only for startable work**
    (see Ticket gating below)
 4. **Blocking chain** — which tickets block which and why
-5. **Estimate** — **REQUIRED: Call `Skill(dev10x:estimate)`** with
+5. **Estimate** — **REQUIRED: Call `Skill(dev10x-scoping:estimate)`** with
    the created tickets and the blocking chain. Each ticket's
    "estimated complexity" is the skill's points plus the elapsed
    range. The project roll-up follows the skill's § Project-level
@@ -147,7 +146,7 @@ Generate the following sections:
    scoped tickets with guesses reads as a commitment nobody made.
 
 Tickets are intentionally high-level. Further refinement via
-`dev10x:ticket-scope` is expected for individual tickets.
+`dev10x-scoping:ticket-scope` is expected for individual tickets.
 
 **Milestone rules (GH-1509):**
 
@@ -247,12 +246,12 @@ the relevant instructions in the agent's prompt.
 
 | Operation | Linear | JIRA | GitHub Issues |
 |-----------|--------|------|---------------|
-| Create project | `save_project` (optional) | Epic via `dev10x:jira` | N/A (use milestones) |
-| Create milestone | `save_milestone` | Sprint/Fix Version via `dev10x:jira` | `mcp__plugin_dev10x_cli__milestone_create` (single) / `milestones_bulk_create` (batch) |
-| Create label | (via `save_issue`) | (via `dev10x:jira`) | `gh label create` |
-| Create ticket | `save_issue` + milestone + project | via `dev10x:jira` | `mcp__plugin_dev10x_cli__issue_create` (single) / `issues_bulk_create` (batch) |
-| Edit ticket | `save_issue` (upsert) | via `dev10x:jira` | `mcp__plugin_dev10x_cli__issue_edit` / `issues_bulk_edit` (batch) |
-| Set blocking | `save_issue` blockedBy/blocks | Link via `dev10x:jira` | `mcp__plugin_dev10x_cli__issue_comment` cross-reference (no native blocking) |
+| Create project | `save_project` (optional) | Epic via `dev10x-scoping:jira` | N/A (use milestones) |
+| Create milestone | `save_milestone` | Sprint/Fix Version via `dev10x-scoping:jira` | `mcp__plugin_dev10x_cli__milestone_create` (single) / `milestones_bulk_create` (batch) |
+| Create label | (via `save_issue`) | (via `dev10x-scoping:jira`) | `gh label create` |
+| Create ticket | `save_issue` + milestone + project | via `dev10x-scoping:jira` | `mcp__plugin_dev10x_cli__issue_create` (single) / `issues_bulk_create` (batch) |
+| Edit ticket | `save_issue` (upsert) | via `dev10x-scoping:jira` | `mcp__plugin_dev10x_cli__issue_edit` / `issues_bulk_edit` (batch) |
+| Set blocking | `save_issue` blockedBy/blocks | Link via `dev10x-scoping:jira` | `mcp__plugin_dev10x_cli__issue_comment` cross-reference (no native blocking) |
 
 GitHub Issues operations route through MCP wrappers — raw `gh issue
 edit`, `gh issue comment`, `gh api .../milestones POST`, and `gh
@@ -262,7 +261,7 @@ responses.
 
 ### 3.2 Create/Resolve Parent Ticket
 
-**If free text:** Invoke `Skill(skill="dev10x:ticket-create")` to
+**If free text:** Invoke `Skill(skill="dev10x-scoping:ticket-create")` to
 create the parent ticket using the executive summary as description.
 
 **If ticket reference:** Use the fetched ticket as parent.
@@ -299,7 +298,7 @@ Options:
 immediately via `list_projects(team: "TEAM_UUID")` and store
 it for all subsequent calls. Never pass a project name or slug
 to `save_issue` — name matching is exact and fails silently.
-See `dev10x:linear` § Project Assignment for the full pattern.
+See `dev10x-scoping:linear` § Project Assignment for the full pattern.
 
 ### 3.4 Create Milestones
 
@@ -430,10 +429,10 @@ Report any failures with:
 
 | Trigger | Skill | Direction |
 |---------|-------|-----------|
-| Free-text needs parent ticket | `dev10x:ticket-create` | Delegates to |
-| Parent needs Job Story | `dev10x:jtbd` | Delegates to (optional) |
-| User refines a child ticket | `dev10x:ticket-scope` | User invokes manually |
+| Free-text needs parent ticket | `dev10x-scoping:ticket-create` | Delegates to |
+| Parent needs Job Story | `dev10x-scoping:jtbd` | Delegates to (optional) |
+| User refines a child ticket | `dev10x-scoping:ticket-scope` | User invokes manually |
 | User starts work on a ticket | `dev10x:work-on` | User invokes manually |
 
-Child tickets are NOT auto-scoped via `dev10x:ticket-scope`.
+Child tickets are NOT auto-scoped via `dev10x-scoping:ticket-scope`.
 High-level fidelity is intentional.
