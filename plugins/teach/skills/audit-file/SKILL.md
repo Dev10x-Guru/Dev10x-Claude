@@ -14,7 +14,7 @@ allowed-tools:
   - Read(/tmp/Dev10x/skill-audit/**)
   - Edit(/tmp/Dev10x/skill-audit/**)
   - Bash(/tmp/Dev10x/bin/mktmp.sh:*)
-  - Skill(dev10x:ticket-create)
+  - Skill(dev10x-scoping:ticket-create)
   - Bash(ls ~/.claude/plugins/cache/:*)
   - Bash(gh issue create:*)
   - Bash(gh label list:*)
@@ -269,7 +269,7 @@ unlabelled one is merely harder to bundle.
 
 ### Step 9: File the issue
 
-Delegate to `dev10x:ticket-create` — never use raw `gh issue create`.
+Delegate to `dev10x-scoping:ticket-create` — never use raw `gh issue create`.
 Write the title as the first line of the temp file (followed by a
 blank line and the body) to avoid permission friction from special
 characters in the args string. Pass the comma-separated label set
@@ -277,7 +277,7 @@ derived in Step 7 **only when Step 8 confirmed every label exists
 and is applicable**:
 
 ```
-Skill(skill="dev10x:ticket-create",
+Skill(skill="dev10x-scoping:ticket-create",
   args="--repo {TARGET_REPO} --body-file {temp-file-path} --label {LABELS}")
 ```
 
@@ -285,7 +285,7 @@ When Step 8 hit any failure above, omit the `--label` flag and
 rely on the in-body "Suggested labels" line instead:
 
 ```
-Skill(skill="dev10x:ticket-create",
+Skill(skill="dev10x-scoping:ticket-create",
   args="--repo {TARGET_REPO} --body-file {temp-file-path}")
 ```
 

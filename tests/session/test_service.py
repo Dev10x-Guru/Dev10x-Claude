@@ -122,7 +122,7 @@ class TestBuildGuidanceContext:
         """GH-1495: SessionStart guidance is the one channel present in a
         session with no scoping skill loaded, so it must carry the pointer."""
         result = SessionService().build_guidance_context()
-        assert "/dev10x:estimate" in result
+        assert "/dev10x-scoping:estimate" in result
         assert "outside a scoping skill" in result
 
 

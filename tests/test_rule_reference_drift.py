@@ -167,7 +167,10 @@ def reference_resolves(citing: Path, prefix: str, path: str) -> bool:
     ]
     # A skill often names a sibling skill's reference by its short
     # `references/<file>.md` form, so any skill's copy satisfies it.
-    sibling_skills = (_REPO_ROOT / "skills").glob(f"*/{path}")
+    sibling_skills = [
+        *(_REPO_ROOT / "skills").glob(f"*/{path}"),
+        *(_REPO_ROOT / "plugins").glob(f"*/skills/*/{path}"),
+    ]
     return any(candidate.is_file() for candidate in [*candidates, *sibling_skills])
 
 

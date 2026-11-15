@@ -1,7 +1,7 @@
 # Architecture Audit — 2026-07-10 (Phases A–I)
 
 Full nine-phase architecture audit of the Dev10x plugin, run via
-`Dev10x:project-audit` with one parallel Explore agent per phase.
+`Dev10x-scoping:project-audit` with one parallel Explore agent per phase.
 Baseline: `architecture-audit-2026-06-10.md` and its verification memo.
 Scope: `src/dev10x/` (~38.7k lines, 226 files), `skills/` (82),
 `hooks/`, `agents/`, `tests/` (~52.8k lines, 279 files), ADRs 0001–0017.

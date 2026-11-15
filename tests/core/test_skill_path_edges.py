@@ -59,7 +59,9 @@ class TestRepositoryEdges:
     @pytest.mark.parametrize("skill", ["ticket-create", "ticket-jtbd", "project-scope"])
     def test_ticket_skills_reach_no_coding_folder(self, skill: str) -> None:
         plugin_map = load_plugin_map()
-        text = (get_plugin_root() / "skills" / skill / "SKILL.md").read_text()
+        text = (
+            get_plugin_root() / "plugins" / "scoping" / "skills" / skill / "SKILL.md"
+        ).read_text()
 
         targets = {
             plugin_map.plugin_for(skill=target) for target in skill_folder_targets(text=text)

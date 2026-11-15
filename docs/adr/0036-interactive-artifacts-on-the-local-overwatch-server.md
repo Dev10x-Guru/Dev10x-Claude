@@ -9,18 +9,18 @@ return channel, the fate of the claude.ai path and the pluggable
 share menu before acceptance.
 
 Related: GH-1938, ADR-0011 (file atomicity), ADR-0035 (local chat
-bus), `dev10x-comm:overwatch`, `dev10x-comm:bus`, `dev10x:artifact`.
+bus), `dev10x-comm:overwatch`, `dev10x-comm:bus`, `dev10x-scoping:artifact`.
 
 ## Context
 
-`dev10x:artifact` builds report and decision pages for the
+`dev10x-scoping:artifact` builds report and decision pages for the
 supervisor. The supervisor reads them and then retypes each decision
 into the session that asked, which defeats the point of a decision
 page when several sessions run at once.
 
 ### Current State
 
-- `dev10x:artifact` fills `skills/artifact/template.html` and
+- `dev10x-scoping:artifact` fills `plugins/scoping/skills/artifact/template.html` and
   publishes it with the claude.ai `Artifact` tool. The page is
   read-only and has no channel back to its session.
 - Overwatch (`dev10x overwatch serve`) serves a Svelte 5 SPA on
@@ -131,7 +131,7 @@ bridge for controls.
 
 **Cons:**
 - Controls are untyped; the bridge must trust page script
-- Theming and layout drift per page, the problem `dev10x:artifact`
+- Theming and layout drift per page, the problem `dev10x-scoping:artifact`
   exists to prevent
 
 **Verdict:** Rejected — the supervisor chose typed blocks.
@@ -205,7 +205,7 @@ per-publisher code, and private publisher names would enter the repo.
 ### Phase 3: Page and skill
 
 1. Svelte artifact view, block components, share menu; rebuild static
-2. `dev10x:artifact` local flow, schema and publisher references
+2. `dev10x-scoping:artifact` local flow, schema and publisher references
 
 BPMN rendering stays on the export path in v1.
 

@@ -81,7 +81,7 @@ prompts or brittle command matching.
 
 ## Estimates
 
-Any estimate goes through `/dev10x:estimate`, including an ad-hoc
+Any estimate goes through `/dev10x-scoping:estimate`, including an ad-hoc
 "how long would it take to…?" outside a scoping skill.
 Do not fall back to a single "one engineer, N days" figure.
 The skill sizes implementation at agent pace, and it breaks out
@@ -97,7 +97,7 @@ reported separately from elapsed time.
 | Review PR | `/dev10x:gh-pr-review` |
 | Respond to PR review | `/dev10x:gh-pr-respond` |
 | Create branch from ticket | `/dev10x:ticket-branch` |
-| Estimate a ticket or project | `/dev10x:estimate` |
+| Estimate a ticket or project | `/dev10x-scoping:estimate` |
 | Create worktree | `/dev10x:git-worktree` |
 | Groom commits before merge | `/dev10x:git-groom` |
 | Push safely | `/dev10x:git` (validates protected branches) |

@@ -1,11 +1,11 @@
 {
-  "skill_name": "dev10x:project-scope",
+  "skill_name": "dev10x-scoping:project-scope",
   "description": "Multi-ticket project scoping with milestones and blocking relationships",
   "evals": [
     {
       "name": "linear-ticket-input",
       "description": "Given a Linear ticket URL, fetches context and scopes project",
-      "setup": "/dev10x:project-scope https://linear.app/team/issue/PAY-662/adr-mcp",
+      "setup": "/dev10x-scoping:project-scope https://linear.app/team/issue/PAY-662/adr-mcp",
       "checks": [
         {"type": "tool_called", "tool": "mcp__claude_ai_Linear__get_issue", "assertion": "fetches_parent", "signal": "Fetches the parent ticket"},
         {"type": "tool_called", "tool": "AskUserQuestion", "assertion": "gate2_uses_tool", "signal": "Presents structure for approval"},
@@ -16,17 +16,17 @@
     {
       "name": "free-text-input",
       "description": "Given free text, asks for tracker and creates parent ticket",
-      "setup": "/dev10x:project-scope Build a payment reconciliation system with 3 phases",
+      "setup": "/dev10x-scoping:project-scope Build a payment reconciliation system with 3 phases",
       "checks": [
         {"type": "tool_called", "tool": "AskUserQuestion", "assertion": "gate1_uses_tool", "signal": "Asks which tracker to use"},
-        {"type": "tool_called", "tool": "Skill", "assertion": "delegates_ticket_create", "signal": "Creates parent ticket via dev10x:ticket-create"},
+        {"type": "tool_called", "tool": "Skill", "assertion": "delegates_ticket_create", "signal": "Creates parent ticket via dev10x-scoping:ticket-create"},
         {"type": "tool_called", "tool": "AskUserQuestion", "assertion": "gate2_uses_tool", "signal": "Presents structure for approval"}
       ]
     },
     {
       "name": "decision-gates-enforced",
       "description": "Gates use AskUserQuestion, not plain text; the project-entity gate fires only for a scope with no milestones",
-      "setup": "/dev10x:project-scope PAY-662 (scope with tickets but no milestones)",
+      "setup": "/dev10x-scoping:project-scope PAY-662 (scope with tickets but no milestones)",
       "checks": [
         {"type": "tool_called", "tool": "AskUserQuestion", "assertion": "gate2_uses_tool", "signal": "Structure approval uses AskUserQuestion"},
         {"type": "tool_called", "tool": "AskUserQuestion", "assertion": "gate3_uses_tool", "signal": "Project entity gate uses AskUserQuestion when no milestones are planned"},
@@ -36,7 +36,7 @@
     {
       "name": "linear-milestones-require-project",
       "description": "On Linear, a scope with milestones creates the project entity without offering Skip (GH-1509)",
-      "setup": "/dev10x:project-scope https://linear.app/team/issue/PAY-662/adr-mcp",
+      "setup": "/dev10x-scoping:project-scope https://linear.app/team/issue/PAY-662/adr-mcp",
       "checks": [
         {"type": "tool_called", "tool": "mcp__claude_ai_Linear__save_project", "assertion": "creates_project_for_milestones", "signal": "Project entity is created because milestones are planned"},
         {"type": "behavioral", "assertion": "no_skip_project_offer", "signal": "The project-entity gate is not presented when milestones are planned"}
@@ -45,7 +45,7 @@
     {
       "name": "github-scope-skips-project-entity-gate",
       "description": "On GitHub Issues, which has no project entity, the project-entity gate never fires and the summary says so (GH-1513)",
-      "setup": "/dev10x:project-scope https://github.com/org/repo/issues/42 (GitHub Issues tracker, milestones planned)",
+      "setup": "/dev10x-scoping:project-scope https://github.com/org/repo/issues/42 (GitHub Issues tracker, milestones planned)",
       "checks": [
         {"type": "behavioral", "assertion": "no_project_entity_gate_on_github", "signal": "No AskUserQuestion offering 'Create project entity' / 'Skip' is presented"},
         {"type": "tool_called", "tool": "mcp__plugin_dev10x_cli__milestones_bulk_create", "assertion": "proceeds_to_milestones", "signal": "Moves straight from 3.2 to milestone creation"},
@@ -55,7 +55,7 @@
     {
       "name": "unnumbered-milestones-gated-tickets",
       "description": "Milestones carry no ordinal prefixes and tickets are created only for startable work (GH-1509)",
-      "setup": "/dev10x:project-scope Replace graphene with strawberry; a spike must decide feasibility first",
+      "setup": "/dev10x-scoping:project-scope Replace graphene with strawberry; a spike must decide feasibility first",
       "checks": [
         {"type": "behavioral", "assertion": "no_ordinal_milestone_names", "signal": "No milestone title starts with M0/M1, Phase N, or a number"},
         {"type": "behavioral", "assertion": "depends_on_in_descriptions", "signal": "Milestone descriptions carry a 'Depends on:' line for ordering"},
@@ -67,14 +67,14 @@
   ],
   "trigger_evals": {
     "should_trigger": [
-      "/dev10x:project-scope PAY-662",
-      "/dev10x:project-scope https://linear.app/team/issue/PAY-662/adr-mcp",
-      "/dev10x:project-scope Build a multi-phase payment system"
+      "/dev10x-scoping:project-scope PAY-662",
+      "/dev10x-scoping:project-scope https://linear.app/team/issue/PAY-662/adr-mcp",
+      "/dev10x-scoping:project-scope Build a multi-phase payment system"
     ],
     "should_not_trigger": [
-      "/dev10x:ticket-scope PAY-662",
-      "/dev10x:ticket-create Fix the login bug",
-      "/dev10x:adr Should we use microservices?"
+      "/dev10x-scoping:ticket-scope PAY-662",
+      "/dev10x-scoping:ticket-create Fix the login bug",
+      "/dev10x-scoping:adr Should we use microservices?"
     ]
   }
 }

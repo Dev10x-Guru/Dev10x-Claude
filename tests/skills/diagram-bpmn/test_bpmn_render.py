@@ -20,7 +20,7 @@ import pytest
 from tests.skills.diagram_render import install_stub, run_script, stub_path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-SCRIPTS = REPO_ROOT / "skills" / "diagram-bpmn" / "scripts"
+SCRIPTS = REPO_ROOT / "plugins" / "scoping" / "skills" / "diagram-bpmn" / "scripts"
 SCRIPT = SCRIPTS / "render.sh"
 LANES_TESTS = Path(__file__).with_name("lanes.test.mjs")
 CACHED_DEPS = (

@@ -279,7 +279,7 @@
     {
       "id": 12,
       "name": "batch-title-distinctiveness",
-      "prompt": "/dev10x:git-commit use dev10x:jtbd\n\n(Run once per branch, eight branches, each a first feature/bug commit)",
+      "prompt": "/dev10x:git-commit use dev10x-scoping:jtbd\n\n(Run once per branch, eight branches, each a first feature/bug commit)",
       "description": "GH-1225: eight tickets spanning Risk, Revenue (new value and leak), Cost (manual step and prevention), Retention, and one generated-types-only diff. The shipped release this reproduces emitted `Let <actor> <verb>` eleven times in seventeen. Titles must be derived from bucket + shape of the truth, not from the story clause, and must read as distinct real-world use cases side by side.",
       "setup": {
         "branches": [
@@ -498,12 +498,12 @@
     {
       "id": 10,
       "name": "jtbd-title-frame-is-chosen-not-transposed",
-      "prompt": "/dev10x:git-commit use dev10x:jtbd",
+      "prompt": "/dev10x:git-commit use dev10x-scoping:jtbd",
       "description": "GH-1225: Step 2.5 must pick a title frame rather than transposing the 'so X can' clause word by word. A literal transposition has exactly one output shape, 'Let <beneficiary> <outcome>', which produced 11 of 17 identical-sounding titles in a release bundle. The story's beneficiary here is a system, so the trace-upward rule must also resolve it to a human role.",
       "setup": {
         "branch": "janusz/PAY-620/schema-poller-backoff",
         "staged_changes": true,
-        "prior_context": "dev10x:jtbd returned: 'When the upstream schema changes mid-sync, the schema poller wants to back off and retry, so the schema poller can avoid hammering the vendor API.'"
+        "prior_context": "dev10x-scoping:jtbd returned: 'When the upstream schema changes mid-sync, the schema poller wants to back off and retry, so the schema poller can avoid hammering the vendor API.'"
       },
       "dimensions": ["jtbd"],
       "assertions": [

@@ -1,5 +1,5 @@
 ---
-name: dev10x:estimate
+name: dev10x-scoping:estimate
 description: >
   Estimate how long a ticket or project will take when AI agents do
   the implementation and humans still gate review, testing and
@@ -12,7 +12,7 @@ description: >
   DO NOT TRIGGER when: tracking time already spent (use a time
   tracker), or reporting what shipped (use dev10x:release-notes).
 user-invocable: true
-invocation-name: dev10x:estimate
+invocation-name: dev10x-scoping:estimate
 allowed-tools:
   - Read
   - Grep
@@ -21,12 +21,12 @@ allowed-tools:
   - mcp__plugin_dev10x_cli__pr_get
 ---
 
-# dev10x:estimate — Agent-Built Work Estimation
+# dev10x-scoping:estimate — Agent-Built Work Estimation
 
-**Announce:** "Using dev10x:estimate to size [ticket/project]."
+**Announce:** "Using dev10x-scoping:estimate to size [ticket/project]."
 
 This is the single source of truth for estimation in Dev10x.
-`dev10x:project-scope`, `dev10x:ticket-scope` and `dev10x:work-on`
+`dev10x-scoping:project-scope`, `dev10x-scoping:ticket-scope` and `dev10x:work-on`
 delegate here, and the SessionStart guidance points every other
 estimate here too (GH-1495).
 
@@ -120,7 +120,7 @@ Estimate each ticket with steps 1-4, then roll up:
    per reviewer, and add one review wait per cycle along the chain.
 4. Report per milestone and for the whole project.
 
-`dev10x:project-scope`'s "estimated complexity" column carries the
+`dev10x-scoping:project-scope`'s "estimated complexity" column carries the
 points from step 1 plus the ticket's elapsed range.
 
 ## Output format

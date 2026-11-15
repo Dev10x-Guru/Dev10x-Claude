@@ -1,6 +1,6 @@
 ---
-name: dev10x:jtbd
-invocation-name: dev10x:jtbd
+name: dev10x-scoping:jtbd
+invocation-name: dev10x-scoping:jtbd
 description: >
   Pure JTBD story drafting skill. Gathers context from issue tracker
   tickets, parent tickets, and PR diffs to craft a situation-driven Job
@@ -24,7 +24,7 @@ allowed-tools:
   - Bash(curl:*atlassian.net*)
 ---
 
-# dev10x:jtbd — Pure Job Story Drafting
+# dev10x-scoping:jtbd — Pure Job Story Drafting
 
 ## Orchestration
 
@@ -396,27 +396,27 @@ if unclear (attended mode) or make best effort (unattended mode).
 This skill is designed to be composed by other skills:
 
 ### Ticket write layer
-The write layer. Invokes `dev10x:jtbd` in attended mode, then writes the
+The write layer. Invokes `dev10x-scoping:jtbd` in attended mode, then writes the
 approved story to a target (PR description, issue tracker ticket).
 
 ### PR creation skill
-Sources an existing story or invokes `dev10x:jtbd` to generate one. The
+Sources an existing story or invokes `dev10x-scoping:jtbd` to generate one. The
 story becomes the first paragraph of the PR body.
 
 ### Ticket work-on skill
-Invokes `dev10x:jtbd` in attended mode using ticket context already
+Invokes `dev10x-scoping:jtbd` in attended mode using ticket context already
 gathered. If approved, prepends the story to the ticket description.
 
 ### Ticket scoping skill
-Invokes `dev10x:jtbd` in attended mode. The approved story is included
+Invokes `dev10x-scoping:jtbd` in attended mode. The approved story is included
 in the scoping document under a `## Job Story` section.
 
 ### Release-notes skill
-Invokes `dev10x:jtbd` in **unattended** mode for PRs missing a story.
+Invokes `dev10x-scoping:jtbd` in **unattended** mode for PRs missing a story.
 The caller batches multiple drafts and presents them all for approval.
 
 ### Commit skill
-Invokes `dev10x:jtbd` in **unattended** mode and derives the commit title
+Invokes `dev10x-scoping:jtbd` in **unattended** mode and derives the commit title
 from the story's ROI bucket and the shape of the change (new value, leak,
 prevention, manual step, owner's choice, contract) — never by transposing
 the "so X can" clause into an imperative, which yields one frame for every

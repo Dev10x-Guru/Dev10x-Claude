@@ -17,7 +17,7 @@ import pytest
 from tests.skills.diagram_render import install_stub, run_script, stub_path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-SCRIPT = REPO_ROOT / "skills" / "diagram-c4" / "scripts" / "render.sh"
+SCRIPT = REPO_ROOT / "plugins" / "scoping" / "skills" / "diagram-c4" / "scripts" / "render.sh"
 
 STUB_JAVA = """#!/usr/bin/env bash
 printf '%s\\n' "$*" >> "$FAKE_DIR/java_calls.txt"

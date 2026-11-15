@@ -1,5 +1,5 @@
 ---
-name: dev10x:ticket-create
+name: dev10x-scoping:ticket-create
 description: >
   Create an issue tracker ticket (GitHub issue, Linear, or JIRA) with
   proper formatting, description structure, and labels. Accepts title,
@@ -7,14 +7,13 @@ description: >
   description with Root Cause, Solution, and Files Changed sections.
   Returns the created ticket ID.
   TRIGGER when: a new ticket needs to be created for tracking work.
-  DO NOT TRIGGER when: ticket already exists (use dev10x:ticket-scope
+  DO NOT TRIGGER when: ticket already exists (use dev10x-scoping:ticket-scope
   to enrich it), or user wants to update an existing ticket.
 user-invocable: true
-invocation-name: dev10x:ticket-create
+invocation-name: dev10x-scoping:ticket-create
 allowed-tools:
   - AskUserQuestion
   - Read(${CLAUDE_PLUGIN_ROOT}/skills/ticket-create/references/*)
-  - Bash(${CLAUDE_PLUGIN_ROOT}/skills/gh-context/scripts/:*)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/ticket-create/scripts/:*)
   - Bash(gh issue create:*)
   - Bash(/tmp/Dev10x/bin/mktmp.sh:*)
@@ -58,13 +57,13 @@ Mark completed when done: `TaskUpdate(taskId, status="completed")`
 Detected the same way `dev10x:git-commit` detects it. **Unattended**
 mode applies only when **both** hold:
 
-1. The skill was invoked via `Skill(dev10x:ticket-create)` by another
-   skill or agent, not typed by the user as `/dev10x:ticket-create`.
+1. The skill was invoked via `Skill(dev10x-scoping:ticket-create)` by another
+   skill or agent, not typed by the user as `/dev10x-scoping:ticket-create`.
 2. The caller is executing a plan step with an active task list
    (an orchestrator such as `dev10x:work-on`, `dev10x-teach:audit-file`,
    or a `dev10x:foreman` crew).
 
-When either is absent — including any direct `/dev10x:ticket-create`
+When either is absent — including any direct `/dev10x-scoping:ticket-create`
 — run **attended**. When in doubt, run attended. Only the Step 4e
 gate differs between the two modes.
 
@@ -114,7 +113,7 @@ that this skill enforces.
 The raw MCP tool is a low-level primitive — this skill is the
 project wrapper that adds structured description formatting,
 milestone/label triage, and tracker-detection. Always reach for
-`Skill(dev10x:ticket-create)` first; the skill's Step 5 will
+`Skill(dev10x-scoping:ticket-create)` first; the skill's Step 5 will
 dispatch the appropriate MCP tool internally.
 
 **This binds every filing path (GH-1102).** `dev10x-teach:audit-file`,
@@ -218,7 +217,7 @@ roster's own description.
 the open milestones' titles and descriptions, respecting the
 initiative prefixes (no sequence numbers — older `<INIT>-M<n>` titles
 are legacy, not a pattern to copy) and close-at-zero lifecycle in
-[`references/milestone-naming.md`](../../references/milestone-naming.md).
+[`references/milestone-naming.md`](../../../../references/milestone-naming.md).
 A milestone whose description already names this ticket's theme is a
 direct hit.
 
@@ -316,7 +315,7 @@ Agent().
 section in the agent prompt. GitHub Issues writes the body to a
 mktmp file and passes `--milestone` unless Step 4d found no match;
 Linear resolves a project UUID before `save_issue`; JIRA creates via
-the Atlassian MCP `createJiraIssue` (the `dev10x:jira` skill has no
+the Atlassian MCP `createJiraIssue` (the `dev10x-scoping:jira` skill has no
 create path, GH-631).
 
 ### Step 6: Return Ticket Information

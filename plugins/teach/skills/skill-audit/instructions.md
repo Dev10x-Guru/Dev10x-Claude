@@ -1229,7 +1229,7 @@ Instead report: "Skill X invoked `gh pr view` directly 3 times
 5. **File the findings that survive both checks.**
    Iterate over the remaining findings classified as
    SKILL_UPDATE, GAP, or SKIPPED_STEP. For each:
-   - Invoke `Skill(dev10x:ticket-create)` with:
+   - Invoke `Skill(dev10x-scoping:ticket-create)` with:
      - Title: `[<classification>] <affected skill>: <short description>`
      - Body: finding classification, affected skill, description
        of the gap/deviation, and session evidence (turn numbers)

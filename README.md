@@ -131,27 +131,27 @@ projects — the ones that span bounded contexts, require
 migration sequencing, and involve three teams — are where AI
 sessions usually produce shallow plans that miss dependencies.
 
-[`dev10x:project-scope`](skills/project-scope/SKILL.md) turns a
+[`dev10x-scoping:project-scope`](plugins/scoping/skills/project-scope/SKILL.md) turns a
 parent ticket or free-text description into a structured project
 with milestones, blocking relationships, and tracker integration
 (Linear, JIRA, or GitHub Issues). Each child ticket gets
 acceptance criteria, estimates, and clear dependency links so
 future sessions know what to build next.
 
-[`dev10x:estimate`](skills/estimate/SKILL.md) is the one method
+[`dev10x-scoping:estimate`](plugins/scoping/skills/estimate/SKILL.md) is the one method
 behind every estimate. It sizes implementation at agent pace and
 counts the human gates that still decide the calendar: review,
 review wait, testing and documentation. Effort and elapsed time
 are reported separately.
 
-[`dev10x:ticket-scope`](skills/ticket-scope/SKILL.md) goes
+[`dev10x-scoping:ticket-scope`](plugins/scoping/skills/ticket-scope/SKILL.md) goes
 deeper on individual tickets — technical research, architecture
 design, component identification, and implementation strategy.
 The output is a scoping document that replaces ad-hoc
 implementation decisions with structured planning before code is
 written.
 
-[`dev10x:ddd`](skills/ddd/SKILL.md) supports the earliest phase:
+[`dev10x-scoping:ddd`](plugins/scoping/skills/ddd/SKILL.md) supports the earliest phase:
 domain exploration via Event Storming workshops. When a feature
 spans multiple bounded contexts and the right decomposition isn't
 obvious, the skill guides structured discovery of domain events,
@@ -177,7 +177,7 @@ their phone:
 
 | Step | Skill | Output |
 |------|-------|--------|
-| Scope | [`dev10x:ticket-scope`](skills/ticket-scope/SKILL.md) | Architecture research, ticket update |
+| Scope | [`dev10x-scoping:ticket-scope`](plugins/scoping/skills/ticket-scope/SKILL.md) | Architecture research, ticket update |
 | Branch | [`dev10x:work-on`](skills/work-on/SKILL.md) | Named branch, gathered context |
 | Commit | [`dev10x:git-commit`](skills/git-commit/SKILL.md) | Atomic commits with benefit-focused titles |
 | Groom | [`dev10x:git-groom`](skills/git-groom/SKILL.md) | Clean history, no fixup commits |
@@ -220,9 +220,9 @@ review comment) is concise enough to evaluate in seconds.
 |--------|--------|-------------------|
 | **Git** | [`git-commit`](skills/git-commit/SKILL.md), [`git-commit-split`](skills/git-commit-split/SKILL.md), [`git-fixup`](skills/git-fixup/SKILL.md), [`git-groom`](skills/git-groom/SKILL.md), [`git-promote`](skills/git-promote/SKILL.md), [`git-worktree`](skills/git-worktree/SKILL.md), [`git`](skills/git/SKILL.md), [`git-alias-setup`](skills/git-alias-setup/SKILL.md), [`release-notes`](skills/release-notes/SKILL.md) | Atomic commits, clean history, workspace isolation, release notes |
 | **PR** | [`gh-pr-create`](skills/gh-pr-create/SKILL.md), [`gh-pr-review`](skills/gh-pr-review/SKILL.md), [`gh-pr-respond`](skills/gh-pr-respond/SKILL.md), [`gh-pr-monitor`](skills/gh-pr-monitor/SKILL.md), [`gh-pr-triage`](skills/gh-pr-triage/SKILL.md), [`gh-pr-fixup`](skills/gh-pr-fixup/SKILL.md), [`gh-pr-request-review`](skills/gh-pr-request-review/SKILL.md), [`gh-pr-bookmark`](skills/gh-pr-bookmark/SKILL.md), [`gh-pr-doctor`](skills/gh-pr-doctor/SKILL.md), [`gh-pr-merge`](skills/gh-pr-merge/SKILL.md), [`gh-context`](skills/gh-context/SKILL.md), [`request-review`](skills/request-review/SKILL.md), [`review`](skills/review/SKILL.md), [`review-fix`](skills/review-fix/SKILL.md), [`review-pack`](plugins/qa/skills/review-pack/SKILL.md) (`dev10x-qa`) | Full PR lifecycle, domain-routed review, self-review, reviewer-facing evidence packs |
-| **Tickets** | [`ticket-create`](skills/ticket-create/SKILL.md), [`ticket-branch`](skills/ticket-branch/SKILL.md), [`ticket-scope`](skills/ticket-scope/SKILL.md), [`ticket-jtbd`](skills/ticket-jtbd/SKILL.md), [`work-on`](skills/work-on/SKILL.md), [`linear`](skills/linear/SKILL.md), [`project-scope`](skills/project-scope/SKILL.md), [`investigate`](skills/investigate/SKILL.md) | Issue tracker integration, ticket scoping, bug investigation |
+| **Tickets** | [`ticket-branch`](skills/ticket-branch/SKILL.md), [`work-on`](skills/work-on/SKILL.md), [`investigate`](skills/investigate/SKILL.md); in the `dev10x-scoping` plugin: [`ticket-create`](plugins/scoping/skills/ticket-create/SKILL.md), [`ticket-scope`](plugins/scoping/skills/ticket-scope/SKILL.md), [`ticket-jtbd`](plugins/scoping/skills/ticket-jtbd/SKILL.md), [`linear`](plugins/scoping/skills/linear/SKILL.md), [`jira`](plugins/scoping/skills/jira/SKILL.md), [`project-scope`](plugins/scoping/skills/project-scope/SKILL.md), [`project-audit`](plugins/scoping/skills/project-audit/SKILL.md), [`spec-sync`](plugins/scoping/skills/spec-sync/SKILL.md), [`spec-update`](plugins/scoping/skills/spec-update/SKILL.md) | Issue tracker integration, ticket scoping, bug investigation, spec-first changes |
 | **Park** | in the `dev10x-tasks` plugin: [`park`](plugins/tasks/skills/park/SKILL.md), [`park-todo`](plugins/tasks/skills/park-todo/SKILL.md), [`park-remind`](plugins/tasks/skills/park-remind/SKILL.md), [`park-discover`](plugins/tasks/skills/park-discover/SKILL.md) | Deferred work parking |
-| **Scoping** | [`scope`](skills/scope/SKILL.md), [`estimate`](skills/estimate/SKILL.md), [`jtbd`](skills/jtbd/SKILL.md), [`adr`](skills/adr/SKILL.md), [`adr-evaluate`](skills/adr-evaluate/SKILL.md), [`ddd`](skills/ddd/SKILL.md), [`diagram-sequence`](skills/diagram-sequence/SKILL.md), [`diagram-c4`](skills/diagram-c4/SKILL.md), [`diagram-bpmn`](skills/diagram-bpmn/SKILL.md), [`artifact`](skills/artifact/SKILL.md) | Architecture decisions, Job Story format, DDD workshops, diagrams, shareable report pages |
+| **Scoping** | in the `dev10x-scoping` plugin: [`scope`](plugins/scoping/skills/scope/SKILL.md), [`estimate`](plugins/scoping/skills/estimate/SKILL.md), [`jtbd`](plugins/scoping/skills/jtbd/SKILL.md), [`adr`](plugins/scoping/skills/adr/SKILL.md), [`adr-evaluate`](plugins/scoping/skills/adr-evaluate/SKILL.md), [`ddd`](plugins/scoping/skills/ddd/SKILL.md), [`diagram-sequence`](plugins/scoping/skills/diagram-sequence/SKILL.md), [`diagram-c4`](plugins/scoping/skills/diagram-c4/SKILL.md), [`diagram-bpmn`](plugins/scoping/skills/diagram-bpmn/SKILL.md), [`artifact`](plugins/scoping/skills/artifact/SKILL.md) | Architecture decisions, Job Story format, DDD workshops, diagrams, shareable report pages |
 | **QA** | [`qa-scope`](skills/qa-scope/SKILL.md), [`py-test`](skills/py-test/SKILL.md); in the `dev10x-qa` plugin: [`qa-self`](plugins/qa/skills/qa-self/SKILL.md), [`playwright`](plugins/qa/skills/playwright/SKILL.md), [`qa-publish`](plugins/qa/skills/qa-publish/SKILL.md), [`tts`](plugins/qa/skills/tts/SKILL.md), [`yt-upload`](plugins/qa/skills/yt-upload/SKILL.md) | Test planning, self-review, browser testing, narrated walkthroughs, pytest runner |
 | **Session** | [`fanout`](skills/fanout/SKILL.md), [`verify-acc-dod`](skills/verify-acc-dod/SKILL.md); in the `dev10x-tasks` plugin: [`session-tasks`](plugins/tasks/skills/session-tasks/SKILL.md), [`session-wrap-up`](plugins/tasks/skills/session-wrap-up/SKILL.md), [`plan-sync`](plugins/tasks/skills/plan-sync/SKILL.md), [`reflect`](plugins/tasks/skills/reflect/SKILL.md) | In-session work tracking, parallel execution, acceptance verification, lessons into a vault |
 | **DB** | [`db`](plugins/db/skills/db/SKILL.md), [`db-psql`](plugins/db/skills/db-psql/SKILL.md), [`sql-handoff`](plugins/db/skills/sql-handoff/SKILL.md) | Safe database query planning, execution, and hand-run write handoff |
@@ -246,6 +246,7 @@ claude plugin install dev10x-db@Dev10x-Guru      # optional: read-only SQL
 claude plugin install dev10x-comm@Dev10x-Guru    # optional: Slack, Chat, bus
 claude plugin install dev10x-teach@Dev10x-Guru   # optional: skill authoring, audits, index
 claude plugin install dev10x-tasks@Dev10x-Guru   # optional: park, wrap-up, reflect
+claude plugin install dev10x-scoping@Dev10x-Guru # optional: tickets, scoping, ADRs, diagrams
 ```
 
 Run these in your shell, not inside a Claude Code session — the

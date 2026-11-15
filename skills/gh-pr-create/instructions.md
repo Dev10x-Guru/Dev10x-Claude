@@ -43,7 +43,7 @@ work plan, all interactive decision gates are bypassed:
 - Title → auto-generate from commit(s) (single-commit: use
   title; multi-commit: derive from JTBD "so [beneficiary] can" clause)
 - Job Story → auto-generate inline for simple changes; reuse
-  session context for complex ones (skip full `dev10x:jtbd` skill)
+  session context for complex ones (skip full `dev10x-scoping:jtbd` skill)
 - Pre-PR checks → still run (safety gate, not interactive)
 - Browser open → skip
 - Next steps → return control to orchestrator immediately
@@ -306,8 +306,8 @@ If none found, generate a Job Story:
 - **For simple/trivial fixes** (flaky tests, typos, single-line changes):
   generate the Job Story inline in
   `**When** / **[actor] wants to** / **so [beneficiary] can**`
-  format without invoking the full `dev10x:jtbd` skill.
-- **For features, bug fixes, and multi-commit PRs**: follow the `dev10x:jtbd`
+  format without invoking the full `dev10x-scoping:jtbd` skill.
+- **For features, bug fixes, and multi-commit PRs**: follow the `dev10x-scoping:jtbd`
   base skill workflow:
   1. Gather context (ticket, parent ticket, diff)
   2. Identify the situation (who, trigger, current pain)
@@ -593,7 +593,7 @@ Next steps:
 - Handle existing PR case gracefully
 - Link to issue tracker ticket in PR body (when FIXES_URL is available)
 - **PR body starts with the Job Story** — sourced from ticket description,
-  ticket comments, or generated fresh using the `dev10x:jtbd` base skill.
+  ticket comments, or generated fresh using the `dev10x-scoping:jtbd` base skill.
 - **PR body contains the checklist** — Job Story + separator + commit
   list + issue tracker link + separator + checklist.
 - Open PR in browser for immediate review

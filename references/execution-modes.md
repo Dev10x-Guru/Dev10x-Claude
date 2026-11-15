@@ -117,7 +117,7 @@ Steps declare how they adapt under each mode:
 ```yaml
 - subject: Draft Job Story
   type: detailed
-  skills: [dev10x:jtbd]
+  skills: [dev10x-scoping:jtbd]
   prompt: >
     Accept what the skill produces and auto-advance.
     No approval needed.

@@ -1,8 +1,9 @@
 # Diagram Rendering Toolchain
 
-Shared by the `dev10x:diagram-*` skills and by every other skill that
-renders a diagram (`dev10x:scope`, `dev10x:adr`). The `render.sh`
-scripts under `skills/diagram-*/scripts/` implement this; read this
+Shared by the `dev10x-scoping:diagram-*` skills and by every other
+skill that renders a diagram (`dev10x-scoping:scope`,
+`dev10x-scoping:adr`). The `render.sh` scripts under
+`plugins/scoping/skills/diagram-*/scripts/` implement this; read this
 page when a render fails for a reason the script's message does not
 explain.
 
@@ -26,11 +27,12 @@ Jar lookup order:
 
 1. `$PLANTUML_JAR`
 2. The jar bundled with the plugin at `skills/scope/bin/plantuml.jar`
+   (under `plugins/scoping/` in a checkout of this repository)
 3. `~/.local/bin/plantuml.jar`
 
-`skills/diagram-sequence/scripts/render.sh` is the one script that runs
-PlantUML; `dev10x:diagram-c4` delegates to it after its C4 checks, and
-`dev10x:scope` and `dev10x:adr` call it directly. It runs both passes
+`plugins/scoping/skills/diagram-sequence/scripts/render.sh` is the one script that runs
+PlantUML; `dev10x-scoping:diagram-c4` delegates to it after its C4 checks, and
+`dev10x-scoping:scope` and `dev10x-scoping:adr` call it directly. It runs both passes
 (syntax check and render) with `-DPLANTUML_SECURITY_PROFILE=SANDBOX`. With no profile set, the
 bundled jar (1.2026.2) lets a source `!include` any local file and
 read environment variables with `%getenv()`, and draws the result into
@@ -84,7 +86,7 @@ broken block on GitHub renders as an error box in front of reviewers.
 
 ## BPMN
 
-`dev10x:diagram-bpmn` installs a pinned toolchain (`bpmn-moddle`,
+`dev10x-scoping:diagram-bpmn` installs a pinned toolchain (`bpmn-moddle`,
 `bpmn-auto-layout`, `bpmn-to-image`) once into
 `${XDG_CACHE_HOME:-~/.cache}/dev10x/diagram-bpmn` with `pnpm`, and
 reinstalls only when the skill's pinned `package.json` (or its

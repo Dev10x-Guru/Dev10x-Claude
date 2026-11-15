@@ -451,7 +451,7 @@
       },
       {
         "query": "I need to write a job story for JIRA-789 and add it to the ticket",
-        "rationale": "Wants dev10x:ticket-jtbd to write JTBD to a ticket, not create a PR"
+        "rationale": "Wants dev10x-scoping:ticket-jtbd to write JTBD to a ticket, not create a PR"
       }
     ]
   }

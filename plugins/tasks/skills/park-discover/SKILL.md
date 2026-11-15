@@ -144,7 +144,7 @@ git log --oneline origin/develop..HEAD
 ```
 
 Only flag TODOs introduced on the current branch as actionable;
-the rest are tech-debt notes for `dev10x:project-audit`.
+the rest are tech-debt notes for `dev10x-scoping:project-audit`.
 
 ### 4. Open PR bookmark comments
 

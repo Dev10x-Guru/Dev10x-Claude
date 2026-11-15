@@ -77,7 +77,7 @@ the agent is not the author. Propose one of:
    `Bash(scripts/run-hard-rules.sh:*)` covers. Then triage the new
    form and route it like any other `grant`.
 2. **An MCP tool** when the operation recurs across projects. File it
-   with `dev10x:ticket-create` (upstream for Dev10x, project tracker
+   with `dev10x-scoping:ticket-create` (upstream for Dev10x, project tracker
    otherwise).
 
 Say which of the two you recommend and why. Do not propose a rule.

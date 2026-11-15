@@ -1,5 +1,5 @@
 {
-  "skill_name": "dev10x:diagram-c4",
+  "skill_name": "dev10x-scoping:diagram-c4",
   "eval_dimensions": [
     {
       "id": "level-follows-question",
@@ -27,7 +27,7 @@
       "id": "container-view-is-fully-specified",
       "name": "Container view names technologies, stores, and labeled edges",
       "description": "RED baseline: without the skill the agent guessed macros, omitted the legend, and never looked at the PNG. With the skill every element is typed and the image is read.",
-      "input": "/dev10x:diagram-c4 \"container diagram of the Dev10x plugin: skills, hooks, an MCP server calling GitHub, state in ~/.config/Dev10x\"",
+      "input": "/dev10x-scoping:diagram-c4 \"container diagram of the Dev10x plugin: skills, hooks, an MCP server calling GitHub, state in ~/.config/Dev10x\"",
       "assertions": [
         {
           "dimension": "level-follows-question",
@@ -51,7 +51,7 @@
       "id": "structurizr-repo-is-edited-not-duplicated",
       "name": "Repo with workspace.dsl gets a model edit, not a new .puml",
       "description": "In a repo whose root holds workspace.dsl, a request for a container view edits the Structurizr model.",
-      "input": "/dev10x:diagram-c4 \"add the new billing service to our container diagram\" — repo root contains workspace.dsl",
+      "input": "/dev10x-scoping:diagram-c4 \"add the new billing service to our container diagram\" — repo root contains workspace.dsl",
       "assertions": [
         {
           "dimension": "existing-model-respected",
@@ -70,7 +70,7 @@
       "id": "multi-level-request-splits-files",
       "name": "Context plus component request yields two files",
       "description": "A request for both the big picture and the inside of one service produces a context diagram and a component diagram, not one mixed picture.",
-      "input": "/dev10x:diagram-c4 \"show how the platform fits together and what's inside the payments service\"",
+      "input": "/dev10x-scoping:diagram-c4 \"show how the platform fits together and what's inside the payments service\"",
       "assertions": [
         {
           "dimension": "level-follows-question",

@@ -185,7 +185,7 @@ class TestCommExtractionAliases:
 
         assert {(alias.old, alias.new) for alias in SKILL_NAME_ALIASES} == {
             (f"dev10x:{skill}", f"{plugin_map.plugin_names[key]}:{skill}")
-            for key in ("comm", "teach", "tasks")
+            for key in ("comm", "teach", "tasks", "scoping")
             for skill in plugin_map.plugins[key]
         }
 
@@ -322,6 +322,77 @@ class TestTasksExtractionAliases:
             "friction.yaml": "defaults:\n  wrap_up: dev10x-tasks:session-wrap-up\n",
             "playbooks/work-on.yaml": (
                 "steps:\n  - skill: dev10x-tasks:reflect\n  - skill: dev10x:session-config-seed\n"
+            ),
+        }
+
+
+MOVED_TO_SCOPING_IN_GH_1570 = (
+    "adr",
+    "adr-evaluate",
+    "artifact",
+    "ddd",
+    "diagram-bpmn",
+    "diagram-c4",
+    "diagram-sequence",
+    "estimate",
+    "jira",
+    "jtbd",
+    "linear",
+    "project-audit",
+    "project-scope",
+    "scope",
+    "spec-sync",
+    "spec-update",
+    "ticket-create",
+    "ticket-jtbd",
+    "ticket-scope",
+)
+
+
+class TestScopingExtractionAliases:
+    @pytest.mark.parametrize("skill", MOVED_TO_SCOPING_IN_GH_1570)
+    def test_old_name_resolves_to_the_scoping_plugin(self, skill: str) -> None:
+        assert resolve_skill_alias(name=f"dev10x:{skill}") == f"dev10x-scoping:{skill}"
+
+    def test_rewrites_names_that_share_a_suffix_separately(self) -> None:
+        text = (
+            "skills:\n  - dev10x:scope\n  - dev10x:ticket-scope\n  - dev10x:project-scope\n"
+            "  - dev10x:jtbd\n  - dev10x:ticket-jtbd\n  - dev10x:adr\n  - dev10x:adr-evaluate\n"
+        )
+
+        assert migrate_text(text=text, aliases=SKILL_NAME_ALIASES) == (
+            "skills:\n  - dev10x-scoping:scope\n  - dev10x-scoping:ticket-scope\n"
+            "  - dev10x-scoping:project-scope\n  - dev10x-scoping:jtbd\n"
+            "  - dev10x-scoping:ticket-jtbd\n  - dev10x-scoping:adr\n"
+            "  - dev10x-scoping:adr-evaluate\n",
+            7,
+        )
+
+    def test_leaves_a_coding_name_that_shares_a_prefix(self) -> None:
+        text = "skill: dev10x:ticket-branch\n"
+
+        assert migrate_text(text=text, aliases=SKILL_NAME_ALIASES) == (text, 0)
+
+    @pytest.fixture
+    def migrated_home(self, tmp_path: Path) -> Path:
+        home = tmp_path / "config-home"
+        (home / "playbooks").mkdir(parents=True)
+        (home / "friction.yaml").write_text("defaults:\n  scope: dev10x:ticket-scope\n")
+        (home / "playbooks" / "work-on.yaml").write_text(
+            "steps:\n  - skill: dev10x:ticket-create\n  - skill: dev10x:ticket-branch\n"
+        )
+        (home / "dod-acceptance-criteria.yaml").write_text("- skill: dev10x:spec-sync\n")
+        result = migrate_user_configs(config_home=home, dry_run=False)
+        assert isinstance(result, SuccessResult)
+        return home
+
+    def test_shipped_table_migrates_a_temp_config_home(self, migrated_home: Path) -> None:
+        assert _texts(home=migrated_home) == {
+            "friction.yaml": "defaults:\n  scope: dev10x-scoping:ticket-scope\n",
+            "dod-acceptance-criteria.yaml": "- skill: dev10x-scoping:spec-sync\n",
+            "playbooks/work-on.yaml": (
+                "steps:\n  - skill: dev10x-scoping:ticket-create\n"
+                "  - skill: dev10x:ticket-branch\n"
             ),
         }
 

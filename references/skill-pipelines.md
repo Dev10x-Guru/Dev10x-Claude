@@ -16,9 +16,9 @@ scope → branch → jtbd → implement → verify → review → commit → PR 
 
 | Step | Skill | Input | Output |
 |------|-------|-------|--------|
-| Scope ticket | `dev10x:ticket-scope` | ticket ID | Architecture notes, ticket updated |
+| Scope ticket | `dev10x-scoping:ticket-scope` | ticket ID | Architecture notes, ticket updated |
 | Create branch | `dev10x:ticket-branch` | ticket ID + title | Named branch checked out |
-| Draft Job Story | `dev10x:jtbd` | ticket ID | JTBD Job Story |
+| Draft Job Story | `dev10x-scoping:jtbd` | ticket ID | JTBD Job Story |
 | Implement | _(code)_ | task description | Changed files |
 | Verify | _(test runner)_ | changed files | Pass/fail |
 | Review changes | `dev10x:review` | branch diff | Review findings |
@@ -92,9 +92,9 @@ scope → draft ADR → evaluate → record
 
 | Step | Skill | Input | Output |
 |------|-------|-------|--------|
-| Scope decision | `dev10x:scope` | topic | Options identified |
-| Draft ADR | `dev10x:adr` | options | ADR document |
-| Evaluate options | `dev10x:adr-evaluate` | ADR + codebase | Ranked options with trade-offs |
+| Scope decision | `dev10x-scoping:scope` | topic | Options identified |
+| Draft ADR | `dev10x-scoping:adr` | options | ADR document |
+| Evaluate options | `dev10x-scoping:adr-evaluate` | ADR + codebase | Ranked options with trade-offs |
 | Record | _(commit ADR)_ | final choice | Committed ADR |
 
 ---
@@ -135,13 +135,13 @@ scope-with-reasons → adr (if architectural)
 
 | Step | Skill | Input | Output |
 |------|-------|-------|--------|
-| Scope with REASONS | [`dev10x:ticket-scope`](../skills/ticket-scope/SKILL.md) | ticket ID | `docs/specs/<TICKET-ID>.md` with Entities / Norms / Safeguards rendered inline |
-| Record ADR (conditional) | [`dev10x:adr`](../skills/adr/SKILL.md) | architectural decision | ADR document |
-| Spec-update gate (Golden Rule) | [`dev10x:spec-update`](../skills/spec-update/SKILL.md) | behaviour change | Updated spec + regenerated code |
+| Scope with REASONS | [`dev10x-scoping:ticket-scope`](../plugins/scoping/skills/ticket-scope/SKILL.md) | ticket ID | `docs/specs/<TICKET-ID>.md` with Entities / Norms / Safeguards rendered inline |
+| Record ADR (conditional) | [`dev10x-scoping:adr`](../plugins/scoping/skills/adr/SKILL.md) | architectural decision | ADR document |
+| Spec-update gate (Golden Rule) | [`dev10x-scoping:spec-update`](../plugins/scoping/skills/spec-update/SKILL.md) | behaviour change | Updated spec + regenerated code |
 | Implement | (no skill — agent generates from spec) | spec | Code |
 | Run API tests | [`dev10x:py-test`](../skills/py-test/SKILL.md) | code | Pass / fail |
 | Run unit tests | [`dev10x:py-test`](../skills/py-test/SKILL.md) | code | Pass / fail |
-| Spec-sync gate before merge | [`dev10x:spec-sync`](../skills/spec-sync/SKILL.md) | spec + code | Resynced spec OR bail-to-spec-update |
+| Spec-sync gate before merge | [`dev10x-scoping:spec-sync`](../plugins/scoping/skills/spec-sync/SKILL.md) | spec + code | Resynced spec OR bail-to-spec-update |
 | Drift check (during review) | [`dev10x:gh-pr-respond`](../skills/gh-pr-respond/SKILL.md) | PR | Drift report — blocks on behavioural drift |
 | Drift check (pre-merge) | [`dev10x:git-groom`](../skills/git-groom/SKILL.md) | branch | Fail-close on behavioural drift |
 | Shipping tail | shipping-pipeline fragment | branch | Merged PR |
@@ -149,15 +149,15 @@ scope-with-reasons → adr (if architectural)
 **Enter at any step.** Each step is invocable on its own:
 
 - **Already scoped, need to update behaviour mid-flight?**
-  Enter at `dev10x:spec-update`. The skill reads the existing
+  Enter at `dev10x-scoping:spec-update`. The skill reads the existing
   spec, walks you through the behaviour-change edits, then
   re-invokes `dev10x:work-on` to regenerate code from the
   updated spec.
 - **Refactor without behaviour change?** Enter at
-  `dev10x:spec-sync`. The skill detects structural drift and
+  `dev10x-scoping:spec-sync`. The skill detects structural drift and
   regenerates only the spec's Architecture / Implementation
   Steps / Code References sections.
-- **Drift check only (no edits)?** `dev10x:spec-sync
+- **Drift check only (no edits)?** `dev10x-scoping:spec-sync
   --check-only <ticket-id>` returns the `DriftReport` from the
   shared `dev10x.spec.drift_detector` module without touching
   the spec.
@@ -165,7 +165,7 @@ scope-with-reasons → adr (if architectural)
 **Pipeline guarantees.**
 
 - One canonical drift detector (`dev10x.spec.drift_detector`)
-  is shared between `dev10x:spec-update`, `dev10x:spec-sync`,
+  is shared between `dev10x-scoping:spec-update`, `dev10x-scoping:spec-sync`,
   `dev10x:gh-pr-respond`, and `dev10x:git-groom` — all four
   agree byte-for-byte on what counts as drift.
 - Behavioural drift is fail-close at merge time

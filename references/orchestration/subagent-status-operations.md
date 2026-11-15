@@ -149,7 +149,7 @@ Priority order (highest leverage first):
    shape
 4. `skills/work-on/` — Phase 2 Gather and Phase 3 execution
    subagents
-5. `skills/adr-evaluate/` — architect dispatches
+5. `plugins/scoping/skills/adr-evaluate/` — architect dispatches
 
 Each migration is an independent PR. Update the SKILL.md
 prompt-construction sections and any `references/phases.md` /

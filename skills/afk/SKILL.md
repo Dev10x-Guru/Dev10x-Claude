@@ -12,7 +12,7 @@ description: >
   bundle work, fanout swarm, overnight implementation), or user says
   "walk away" / "afk" / "headless" / "no more questions".
   DO NOT TRIGGER when: actively pair-programming, scoping a new
-  ticket (use dev10x:ticket-scope), or session is already complete.
+  ticket (use dev10x-scoping:ticket-scope), or session is already complete.
 user-invocable: true
 invocation-name: dev10x:afk
 allowed-tools:

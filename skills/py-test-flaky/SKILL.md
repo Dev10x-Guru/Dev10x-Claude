@@ -5,7 +5,7 @@ description: >
   dev10x:work-on as a fully scoped ticket. Reproduces the
   failure, identifies the root cause, drafts the proposed
   patch in the ticket description (not in the working tree),
-  files the ticket via dev10x:ticket-create, then invokes
+  files the ticket via dev10x-scoping:ticket-create, then invokes
   dev10x:work-on so branching, implementation, py-test gate,
   self-review, PR creation, monitor, and review-comment
   triage all run through the standard delivery pipeline.
@@ -18,11 +18,11 @@ user-invocable: true
 invocation-name: dev10x:py-test-flaky
 allowed-tools:
   - AskUserQuestion
-  - Skill(dev10x:ticket-create)
+  - Skill(dev10x-scoping:ticket-create)
   - Skill(dev10x:work-on)
   - Bash(pytest:*)
   - Bash(uv:*)
-  - Skill(skill="dev10x:ticket-create")
+  - Skill(skill="dev10x-scoping:ticket-create")
   - Skill(skill="dev10x:work-on")
 ---
 

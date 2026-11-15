@@ -20,9 +20,9 @@ fragments:
       type: epic
       prompt: >
         For each feature PR listed as "MISSING JTBDs" in the
-        collect-prs output, invoke dev10x:jtbd in unattended mode
+        collect-prs output, invoke dev10x-scoping:jtbd in unattended mode
         with the ticket ID and PR number. Collect all drafts.
-      skills: [dev10x:jtbd]
+      skills: [dev10x-scoping:jtbd]
     - subject: Batch approve generated JTBDs
       type: detailed
       prompt: >

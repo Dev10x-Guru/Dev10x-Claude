@@ -1,6 +1,6 @@
 """Every skill renders PlantUML through the sandboxed render script (GH-1797).
 
-`skills/diagram-sequence/scripts/render.sh` runs the jar under the SANDBOX
+`plugins/scoping/skills/diagram-sequence/scripts/render.sh` runs the jar under the SANDBOX
 security profile; a skill doc that tells the agent to call `java -jar` on
 a PlantUML jar directly bypasses it, and `Bash(java -jar:*)` in
 `allowed-tools` pre-approves exactly that bypass.
@@ -15,7 +15,8 @@ import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-RENDER_SCRIPT = REPO_ROOT / "skills" / "diagram-sequence" / "scripts" / "render.sh"
+SCOPING_SKILLS = REPO_ROOT / "plugins" / "scoping" / "skills"
+RENDER_SCRIPT = SCOPING_SKILLS / "diagram-sequence" / "scripts" / "render.sh"
 RENDER_GRANT = "Bash(${CLAUDE_PLUGIN_ROOT}/skills/diagram-sequence/scripts/render.sh:*)"
 SKILL_DOCS = sorted(
     [*REPO_ROOT.glob("skills/**/*.md"), *REPO_ROOT.glob("plugins/*/skills/**/*.md")]
@@ -35,7 +36,7 @@ def _offending_lines(*, files: list[Path], pattern: re.Pattern[str]) -> list[str
 
 
 def _allowed_tools(*, skill: str) -> list[str]:
-    text = (REPO_ROOT / "skills" / skill / "SKILL.md").read_text(encoding="utf-8")
+    text = (SCOPING_SKILLS / skill / "SKILL.md").read_text(encoding="utf-8")
     front_matter = yaml.safe_load(text.split("---", maxsplit=2)[1])
     return front_matter["allowed-tools"]
 

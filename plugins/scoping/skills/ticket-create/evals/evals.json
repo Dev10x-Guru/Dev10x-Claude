@@ -1,5 +1,5 @@
 {
-  "skill_name": "dev10x:ticket-create",
+  "skill_name": "dev10x-scoping:ticket-create",
   "description": "Issue tracker ticket creation with milestone/label triage and an attended-mode confirmation gate",
   "eval_dimensions": [
     {
@@ -22,8 +22,8 @@
     {
       "id": "attended_confirmation_gate",
       "name": "Attended filing confirms the triage",
-      "description": "A user typing /dev10x:ticket-create sees the proposed title, milestone and labels and must confirm before filing",
-      "input": "/dev10x:ticket-create Fix the retry loop that drops the last poll result",
+      "description": "A user typing /dev10x-scoping:ticket-create sees the proposed title, milestone and labels and must confirm before filing",
+      "input": "/dev10x-scoping:ticket-create Fix the retry loop that drops the last poll result",
       "assertions": [
         {
           "dimension": "never_file_bare",
@@ -55,7 +55,7 @@
       "id": "unattended_skips_gate",
       "name": "Unattended filing skips the gate",
       "description": "Invoked via Skill() from an orchestrator with an active task list, the skill files with the triaged milestone and labels without asking",
-      "input": "Skill(dev10x:ticket-create) from dev10x:work-on while a plan task is in_progress",
+      "input": "Skill(dev10x-scoping:ticket-create) from dev10x:work-on while a plan task is in_progress",
       "assertions": [
         {
           "dimension": "mode_detection",
@@ -74,12 +74,12 @@
   ],
   "trigger_evals": {
     "should_trigger": [
-      "/dev10x:ticket-create Fix the login bug",
+      "/dev10x-scoping:ticket-create Fix the login bug",
       "Create a ticket for the flaky payment test"
     ],
     "should_not_trigger": [
-      "/dev10x:ticket-scope PAY-662",
-      "/dev10x:project-scope Build a multi-phase payment system"
+      "/dev10x-scoping:ticket-scope PAY-662",
+      "/dev10x-scoping:project-scope Build a multi-phase payment system"
     ]
   }
 }

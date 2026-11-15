@@ -165,7 +165,7 @@ prompting until it is restarted.
 
 - It does not edit the plugin catalog. A rule that every Dev10x user
   should have belongs in `skills/upgrade-cleanup/projects.yaml` through
-  a PR. File one with `dev10x:ticket-create`.
+  a PR. File one with `dev10x-scoping:ticket-create`.
 - It does not reach checkouts created after the grant unless the
   supervisor picks "remember". A new worktree is seeded from the catalog,
   not from sibling settings files (GH-1677). Remembered rules show as

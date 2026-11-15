@@ -14,7 +14,7 @@
     {
       "id": "no-raw-gh-issue-create",
       "name": "Filing Delegates to ticket-create",
-      "description": "The issue is always filed via Skill(dev10x:ticket-create) in Step 9 — never a raw `gh issue create` call, even though `gh issue create` appears in allowed-tools (reserved for label sync failures, not filing)."
+      "description": "The issue is always filed via Skill(dev10x-scoping:ticket-create) in Step 9 — never a raw `gh issue create` call, even though `gh issue create` appears in allowed-tools (reserved for label sync failures, not filing)."
     }
   ],
   "evals": [
@@ -76,15 +76,15 @@
     },
     {
       "id": "filing-uses-ticket-create-skill",
-      "name": "Step 9 files via Skill(dev10x:ticket-create), never raw gh issue create",
-      "description": "The final filing step always delegates to dev10x:ticket-create, even though `gh issue create` is present in allowed-tools for other purposes.",
+      "name": "Step 9 files via Skill(dev10x-scoping:ticket-create), never raw gh issue create",
+      "description": "The final filing step always delegates to dev10x-scoping:ticket-create, even though `gh issue create` is present in allowed-tools for other purposes.",
       "input": "/dev10x-teach:audit-file --repo owner/repo <findings-file>",
       "assertions": [
         {
           "dimension": "no-raw-gh-issue-create",
           "check": "tool_called",
           "tool": "Skill",
-          "signal": "Skill(dev10x:ticket-create) is invoked to file the issue"
+          "signal": "Skill(dev10x-scoping:ticket-create) is invoked to file the issue"
         },
         {
           "dimension": "no-raw-gh-issue-create",
@@ -113,7 +113,7 @@
       },
       {
         "query": "file a bug report about a crash I just hit",
-        "rationale": "Not an audit finding — use dev10x:ticket-create directly"
+        "rationale": "Not an audit finding — use dev10x-scoping:ticket-create directly"
       }
     ]
   }

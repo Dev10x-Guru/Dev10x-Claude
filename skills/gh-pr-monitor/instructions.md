@@ -51,7 +51,7 @@ User invokes /dev10x:gh-pr-monitor
     └── Supervisor session IS the orchestrator (GH-68)
             │
             ├── Phase 0: JTBD Job Story check (supervisor)
-            │       └── Skill(dev10x:ticket-jtbd) if missing
+            │       └── Skill(dev10x-scoping:ticket-jtbd) if missing
             │
             ├── Phase 0.5: Review-readiness precondition (supervisor)
             │       └── pr_get → isDraft; pr_ready if still draft
@@ -352,7 +352,7 @@ directly.
 ## Integration with Other Skills
 
 1. **dev10x:gh-pr-create** — Use before this skill to create the draft PR
-2. **dev10x:ticket-jtbd** — Delegated by the supervisor in Phase 0
+2. **dev10x-scoping:ticket-jtbd** — Delegated by the supervisor in Phase 0
 3. **dev10x:gh-pr-respond** — Delegated by the supervisor for review comments (Phase 2)
 4. **dev10x:qa-scope** — Delegated by the supervisor in Phase 2.5
 5. **dev10x:request-review** — Delegated by the supervisor in Phase 3
@@ -368,7 +368,7 @@ directly.
     ├── Step 0: Load BLOCKED OPERATIONS + memory guardrails
     │
     ├── Phase 0: JTBD Job Story check
-    │       └── Skill(dev10x:ticket-jtbd) if missing
+    │       └── Skill(dev10x-scoping:ticket-jtbd) if missing
     │
     ├── Phase 0.5: Review-readiness precondition
     │       └── pr_get → isDraft; pr_ready if still draft

@@ -26,4 +26,4 @@ IMPLEMENTATION_*.md
 lessons_learned_*.md
 action.yml
 uv.lock
-skills/scope/bin/
+plugins/scoping/skills/scope/bin/

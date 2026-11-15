@@ -1,6 +1,6 @@
 # Milestone Descriptions
 
-Every milestone `dev10x:project-scope` creates carries a description
+Every milestone `dev10x-scoping:project-scope` creates carries a description
 that states where it sits in the project. Milestones that wait on a
 spike or investigation have no tickets yet, so for them the
 description is the whole hand-off to a later refinement session.
@@ -64,7 +64,7 @@ this milestone is kept, reshaped, or dropped.
    milestone first.
 2. <the concrete starting point: which code path to trace, which
    decision record to read>
-3. Break the work into tickets with `dev10x:ticket-scope`, set
+3. Break the work into tickets with `dev10x-scoping:ticket-scope`, set
    their blocking chain, and replace the Status section with the
    ticket list.
 

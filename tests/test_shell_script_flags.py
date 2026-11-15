@@ -37,7 +37,9 @@ def test_shell_script_syntax_is_valid(script: Path) -> None:
 
 
 def test_jira_env_accepts_tenant_flag() -> None:
-    source = (REPO_ROOT / "skills" / "jira" / "scripts" / "_jira-env.sh").read_text()
+    source = (
+        REPO_ROOT / "plugins" / "scoping" / "skills" / "jira" / "scripts" / "_jira-env.sh"
+    ).read_text()
     assert '"${1:-}" = "--tenant"' in source
     # Env var remains the fallback for one release.
     assert "JIRA_TENANT" in source

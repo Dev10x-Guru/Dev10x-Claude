@@ -1,5 +1,5 @@
 ---
-name: dev10x:adr
+name: dev10x-scoping:adr
 description: >
   Create Architecture Decision Records (ADRs) following project conventions.
   Extends the base scope skill with ADR-specific format, numbering, diagram
@@ -9,7 +9,7 @@ description: >
   DO NOT TRIGGER when: making code changes without architecture impact,
   or writing commit messages (use dev10x:git-commit).
 user-invocable: true
-invocation-name: dev10x:adr
+invocation-name: dev10x-scoping:adr
 persona: >
   Staff architect who writes for the engineer implementing the
   decision long after the discussion; names the alternatives it
@@ -48,7 +48,7 @@ Mark completed when done: `TaskUpdate(taskId, status="completed")`
 ## Overview
 
 This skill creates Architecture Decision Records (ADRs) following
-the project's established format. It extends the base `dev10x:scope`
+the project's established format. It extends the base `dev10x-scoping:scope`
 skill with ADR-specific workflows.
 
 **Use when:**
@@ -73,7 +73,7 @@ Before invoking this skill, gather:
 
 ### Phase 1: Discovery (Uses base scope skill)
 
-Follow the base `dev10x:scope` skill for context gathering:
+Follow the base `dev10x-scoping:scope` skill for context gathering:
 
 1. **Understand the problem space**
    - What are we trying to solve?
@@ -235,8 +235,8 @@ Before finalizing, verify:
 ## Integration with Other Skills
 
 ```
-dev10x:adr
-├── Extends: dev10x:scope (base scoping workflow)
+dev10x-scoping:adr
+├── Extends: dev10x-scoping:scope (base scoping workflow)
 ├── May use: dev10x:work-on (if ticket exists)
 ├── Uses: dev10x:gh-pr-create (for PR creation)
 └── Uses: dev10x:git-commit (for commit formatting)

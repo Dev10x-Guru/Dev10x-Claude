@@ -1,23 +1,22 @@
 ---
-name: dev10x:ticket-jtbd
+name: dev10x-scoping:ticket-jtbd
 description: >
   Write a JTBD Job Story and apply it to a target (PR description,
   GitHub issue, Linear ticket, or JIRA ticket). Delegates drafting to
-  the dev10x:jtbd base skill, then handles the side-effecting write.
+  the dev10x-scoping:jtbd base skill, then handles the side-effecting write.
   TRIGGER when: a ticket or PR needs a Job Story written or updated.
   DO NOT TRIGGER when: JTBD is already present in the target, or user
   is writing commit messages (use dev10x:git-commit for that).
 user-invocable: true
-invocation-name: dev10x:ticket-jtbd
+invocation-name: dev10x-scoping:ticket-jtbd
 allowed-tools:
-  - Skill(dev10x:jira)
+  - Skill(dev10x-scoping:jira)
   - Bash(gh pr view:*)
   - Bash(gh pr diff:*)
   - Bash(gh pr edit:*)
   - Bash(gh pr list:*)
   - Bash(git log:*)
   - Bash(git diff:*)
-  - Bash(${CLAUDE_PLUGIN_ROOT}/skills/gh-context/scripts/:*)
   - mcp__claude_ai_Linear__get_issue
   - mcp__claude_ai_Linear__list_issues
   - mcp__claude_ai_Linear__list_comments
@@ -44,7 +43,7 @@ Mark completed when done: `TaskUpdate(taskId, status="completed")`
 
 ## Overview
 
-This skill drafts a JTBD Job Story using the `dev10x:jtbd` base skill and
+This skill drafts a JTBD Job Story using the `dev10x-scoping:jtbd` base skill and
 then writes the approved story to a target: PR description, GitHub
 issue, Linear ticket description, or JIRA ticket.
 
@@ -101,15 +100,15 @@ covers PR search, so this is the one raw call in this skill:
 gh pr list --search "{TICKET_ID}" --state open --json number --limit 1  # cli-friction: allow raw-gh-pr — no MCP wrapper covers PR search
 ```
 
-### Step 3: Delegate to dev10x:jtbd Base Skill
+### Step 3: Delegate to dev10x-scoping:jtbd Base Skill
 
-Invoke the `dev10x:jtbd` skill in **attended mode** with all available context:
+Invoke the `dev10x-scoping:jtbd` skill in **attended mode** with all available context:
 
 - `ticket_id`: extracted ticket ID
 - `pr_number`: extracted PR number
 - `mode`: attended
 
-The `dev10x:jtbd` skill handles all context gathering, situation
+The `dev10x-scoping:jtbd` skill handles all context gathering, situation
 identification, and draft presentation. It returns the approved
 story string (or empty if user rejects).
 
@@ -147,11 +146,11 @@ mcp__claude_ai_Linear__update_issue(
 ```
 
 **JIRA ticket target:**
-Delegate to the `dev10x:jira` skill for JIRA updates.
+Delegate to the `dev10x-scoping:jira` skill for JIRA updates.
 
 1. Use the Write tool to create `/tmp/Dev10x/jira-payload-{TICKET_ID}.json`
    with the JIRA REST API v3 ADF document format
-2. Invoke `Skill(skill="dev10x:jira")` to apply the payload to the ticket
+2. Invoke `Skill(skill="dev10x-scoping:jira")` to apply the payload to the ticket
 
 ### Step 5: Confirm
 
@@ -162,59 +161,59 @@ Updated {target_type} with Job Story.
 
 ## Usage Modes
 
-| Caller | dev10x:jtbd Mode | Write Target |
+| Caller | dev10x-scoping:jtbd Mode | Write Target |
 |--------|-----------|-------------|
-| Standalone `/dev10x:ticket-jtbd 1167` | attended | PR description |
-| Standalone `/dev10x:ticket-jtbd PAY-519` | attended | Linear ticket |
-| Standalone `/dev10x:ticket-jtbd GH-15` | attended | GitHub issue (comment) |
+| Standalone `/dev10x-scoping:ticket-jtbd 1167` | attended | PR description |
+| Standalone `/dev10x-scoping:ticket-jtbd PAY-519` | attended | Linear ticket |
+| Standalone `/dev10x-scoping:ticket-jtbd GH-15` | attended | GitHub issue (comment) |
 | `pr:monitor` Phase 0 | attended | PR description |
 
 ## Examples
 
 ### Example 1: Write to PR
 
-**Input:** `/dev10x:ticket-jtbd 1167`
+**Input:** `/dev10x-scoping:ticket-jtbd 1167`
 
 1. Auto-detect: PR number → target is PR description
 2. Extract ticket ID from branch: `PAY-519`
-3. Delegate to `dev10x:jtbd` (attended) → user approves draft
+3. Delegate to `dev10x-scoping:jtbd` (attended) → user approves draft
 4. Prepend story to PR #1167 description
 5. Confirm: `Updated PR #1167 with Job Story.`
 
 ### Example 2: Write to Linear ticket
 
-**Input:** `/dev10x:ticket-jtbd PAY-519`
+**Input:** `/dev10x-scoping:ticket-jtbd PAY-519`
 
 1. Auto-detect: Linear ticket ID → target is Linear ticket
 2. Find linked PR (if any) for additional context
-3. Delegate to `dev10x:jtbd` (attended) → user approves draft
+3. Delegate to `dev10x-scoping:jtbd` (attended) → user approves draft
 4. Prepend story to PAY-519 description
 5. Confirm: `Updated PAY-519 with Job Story.`
 
 ### Example 3: Both PR and ticket
 
-**Input:** `/dev10x:ticket-jtbd 1167 PAY-519`
+**Input:** `/dev10x-scoping:ticket-jtbd 1167 PAY-519`
 
 1. Auto-detect: PR + ticket → primary target is PR description
-2. Delegate to `dev10x:jtbd` (attended) with both identifiers
+2. Delegate to `dev10x-scoping:jtbd` (attended) with both identifiers
 3. Prepend story to PR #1167 description
 4. Confirm: `Updated PR #1167 with Job Story.`
 
 ### Example 4: Write to GitHub issue
 
-**Input:** `/dev10x:ticket-jtbd GH-15`
+**Input:** `/dev10x-scoping:ticket-jtbd GH-15`
 
 1. Auto-detect: `GH-` prefix → target is GitHub issue
 2. Fetch issue body and comments for context
-3. Delegate to `dev10x:jtbd` (attended) → user approves draft
+3. Delegate to `dev10x-scoping:jtbd` (attended) → user approves draft
 4. Post story as comment on GH-15
 5. Confirm: `Updated GH-15 with Job Story.`
 
 ## Integration with Other Skills
 
 ```
-dev10x:ticket-jtbd
-├── Delegates to: dev10x:jtbd (pure base — context gathering + drafting)
+dev10x-scoping:ticket-jtbd
+├── Delegates to: dev10x-scoping:jtbd (pure base — context gathering + drafting)
 ├── Called by: pr:monitor Phase 0 (when JTBD missing from PR)
 └── Replaces: job-story (former monolithic skill)
 ```

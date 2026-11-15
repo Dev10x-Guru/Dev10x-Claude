@@ -7,7 +7,7 @@
 
 base_permissions:
   # --- Dev10x MCP tools: cli server (GH-878) ---
-  # GH-1153: read-only milestone/label roster behind dev10x:ticket-create
+  # GH-1153: read-only milestone/label roster behind dev10x-scoping:ticket-create
   # Step 4. It was registered, declared in SKILL.md `allowed-tools`, and
   # listed in .claude/rules/mcp-tools.md — none of which grants anything.
   # Absent from every catalog, ensure-base could never seed it, so every
@@ -23,6 +23,8 @@ base_permissions:
   - "mcp__plugin_dev10x_cli__milestones_bulk_create"
   - "mcp__plugin_dev10x_cli__issues_bulk_create"
   - "mcp__plugin_dev10x_cli__issues_bulk_edit"
+  # --- dev10x-scoping skills (GH-1570) ---
+  - "Skill(dev10x-scoping:*)"
 
 # --- Tracker-keyed permissions (GH-768) ---
 # `ensure-base` / `seed_worktree` fold in exactly ONE of these blocks —

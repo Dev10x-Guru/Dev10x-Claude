@@ -38,7 +38,7 @@ allowed-tools:
   - Bash(ls ~/.config/fish/functions/:*)
   - Bash(ls ~/.claude/tools/:*)
   - Bash(find ~/.claude/skills:*)
-  - Skill(dev10x:ticket-create)
+  - Skill(dev10x-scoping:ticket-create)
   - Skill(dev10x-teach:audit-file)
 ---
 

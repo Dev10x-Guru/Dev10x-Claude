@@ -184,9 +184,11 @@ class TestFloorsSelection:
     @pytest.mark.parametrize(
         ("changed", "expected"),
         [
-            ("skills/diagram-bpmn/scripts/layout.mjs", "true"),
-            ("skills/diagram-sequence/scripts/render.sh", "true"),
-            ("skills/diagram-bpmn/SKILL.md", "false"),
+            ("plugins/scoping/skills/diagram-bpmn/scripts/layout.mjs", "true"),
+            ("plugins/scoping/skills/diagram-sequence/scripts/render.sh", "true"),
+            ("plugins/scoping/skills/diagram-bpmn/SKILL.md", "false"),
+            ("skills/git/scripts/git-push-safe.sh", "true"),
+            ("plugins/scoping/agents/adr-reviewer.md", "false"),
         ],
     )
     def test_skill_scripts_select_the_full_suite(

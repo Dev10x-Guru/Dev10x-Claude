@@ -2,7 +2,7 @@
 # Check a C4-PlantUML source for C4-specific mistakes, then render it.
 # Usage: render.sh <source.puml> [--format png|svg]
 #
-# Rendering itself is delegated to dev10x:diagram-sequence's render.sh,
+# Rendering itself is delegated to dev10x-scoping:diagram-sequence's render.sh,
 # so both skills share one PlantUML path (jar lookup, syntax check,
 # -pipe output naming, partial-image cleanup).
 

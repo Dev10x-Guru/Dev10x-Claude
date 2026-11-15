@@ -164,12 +164,12 @@ Include `# language: <code>` when writing feature-file-style blocks.
 ### Norms
 
 [Project rules and conventions this change MUST follow. The Norms /
-Safeguards autopopulator (`dev10x:ticket-scope` Phase 5) renders the
+Safeguards autopopulator (`dev10x-scoping:ticket-scope` Phase 5) renders the
 matched rules from `.claude/rules/INDEX.md` inline at scope-render
 time. Do NOT hand-copy rules here — list manual additions only.]
 
 **Auto-populated rules** (rendered at scope-generation time):
-- [Placeholder — `dev10x:ticket-scope` Phase 5 renderer fills this
+- [Placeholder — `dev10x-scoping:ticket-scope` Phase 5 renderer fills this
   by walking `.claude/rules/INDEX.md` and path-matching against the
   files in Architecture / Implementation Steps.]
 
@@ -257,7 +257,7 @@ Safeguards answer: *what must always be true after this change?*
 
 ### Estimate
 **8 points** — new models, GraphQL mutations and a migration
-(produced by `dev10x:estimate`, default ranges)
+(produced by `dev10x-scoping:estimate`, default ranges)
 
 | Line item            | Effort | Elapsed  |
 |----------------------|--------|----------|

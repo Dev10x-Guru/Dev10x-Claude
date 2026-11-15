@@ -103,6 +103,7 @@ class TestRepositoryManifests:
             ("comm", ["dev10x"]),
             ("teach", ["dev10x"]),
             ("tasks", ["dev10x"]),
+            ("scoping", ["dev10x"]),
             ("coding", ["dev10x", "dev10x-tasks"]),
             ("core", []),
         ],

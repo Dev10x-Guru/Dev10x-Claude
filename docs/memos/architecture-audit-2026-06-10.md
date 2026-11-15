@@ -1,6 +1,6 @@
 # Architecture & Per-Package Audit — 2026-06-10
 
-Full-project audit via `Dev10x:project-audit` (all phases A–I) extended
+Full-project audit via `Dev10x-scoping:project-audit` (all phases A–I) extended
 with per-package specialized review agents: dead-code detection (vulture
 + manual verification), code-review rule violations, and direct issue
 filing by the agents themselves.
