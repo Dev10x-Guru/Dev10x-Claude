@@ -15,7 +15,7 @@
       <p class="question">{item.question}</p>
       {#if item.owner}<p class="owner">Owner: {item.owner}</p>{/if}
       {#if control}
-        <div class="answer"><Control block={control} /></div>
+        <div class="answer"><Control block={control} nested /></div>
       {/if}
     </li>
   {/each}
