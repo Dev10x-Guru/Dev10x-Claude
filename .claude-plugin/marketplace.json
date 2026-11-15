@@ -11,7 +11,7 @@
     {
       "name": "dev10x",
       "source": "./",
-      "description": "v0.116.0.dev0 — 84 skills for structured commits, PR lifecycle, branch hygiene, ticket management, task tracking, code review, and scoping in Claude Code.",
+      "description": "v0.116.0.dev0 — 76 skills for structured commits, PR lifecycle, branch hygiene, ticket management, task tracking, code review, and scoping in Claude Code.",
       "version": "0.116.0.dev0",
       "keywords": [
         "git", "commits", "pull-requests", "code-review",
@@ -55,6 +55,13 @@
       "description": "v0.116.0.dev0 — 7 skills for skill management: create, audit and index skills, file audit findings upstream, and keep context and memory lean.",
       "version": "0.116.0.dev0",
       "keywords": ["skills", "skill-audit", "skill-index", "context", "memory"]
+    },
+    {
+      "name": "dev10x-tasks",
+      "source": "./plugins/tasks",
+      "description": "v0.116.0.dev0 — 8 skills for task management: track session tasks, sync the plan mirror, park and rediscover deferred work, wrap up a session and reflect its lessons into a vault.",
+      "version": "0.116.0.dev0",
+      "keywords": ["tasks", "plan-sync", "park", "session", "reflect"]
     }
   ]
 }

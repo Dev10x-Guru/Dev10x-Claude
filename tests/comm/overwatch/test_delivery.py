@@ -213,7 +213,7 @@ class TestRenameSession:
 class TestRunSessionCommand:
     @pytest.mark.parametrize(
         ("command", "text"),
-        [("reflect", "/dev10x:reflect"), ("wrap-up", "/dev10x:session-wrap-up")],
+        [("reflect", "/dev10x-tasks:reflect"), ("wrap-up", "/dev10x-tasks:session-wrap-up")],
     )
     def test_submits_the_slash_command_and_logs(
         self, log_path: Path, command: str, text: str

@@ -3,7 +3,7 @@
 Every mechanism that enforced "do not end a turn on a decision question"
 was model-side instruction, and therefore skippable. `dev10x:ask` owns
 the reformulation but is invoked by hand; the GH-149 task-list invariant
-is prose in `essentials.md`; `dev10x:session-wrap-up` runs after the
+is prose in `essentials.md`; `dev10x-tasks:session-wrap-up` runs after the
 fact. A Stop hook was already wired and could enforce none of it,
 because the orchestrator discarded every feature's return value.
 

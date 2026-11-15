@@ -7,15 +7,15 @@
 hidden:
   - dev10x:jtbd
   - dev10x:linear
-  - dev10x:session-tasks
+  - dev10x-tasks:session-tasks
   - dev10x:scope
   - dev10x:gh-context
   - dev10x:gh-pr-bookmark
   - dev10x:git
   - dev10x:git-alias-setup
   - dev10x:git-worktree
-  - dev10x:park-todo
-  - dev10x:park-remind
+  - dev10x-tasks:park-todo
+  - dev10x-tasks:park-remind
   - dev10x:py-uv
   - dev10x-qa:playwright
   - dev10x-comm:slack

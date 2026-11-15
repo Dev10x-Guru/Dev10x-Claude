@@ -1,5 +1,5 @@
 ---
-name: dev10x:park-discover
+name: dev10x-tasks:park-discover
 description: >
   Gather deferred items across all sources — so nothing is missed
   when starting a session or picking up where you left off.
@@ -8,7 +8,7 @@ description: >
   DO NOT TRIGGER when: mid-session active work with no need to check
   deferred items.
 user-invocable: true
-invocation-name: dev10x:park-discover
+invocation-name: dev10x-tasks:park-discover
 allowed-tools:
   - Read
   - Grep
@@ -20,9 +20,9 @@ allowed-tools:
   - mcp__claude_ai_Slack__slack_search_public_and_private
 ---
 
-# dev10x:park-discover — Gather Deferred Items
+# dev10x-tasks:park-discover — Gather Deferred Items
 
-**Announce:** "Using dev10x:park-discover to check all deferral sources."
+**Announce:** "Using dev10x-tasks:park-discover to check all deferral sources."
 
 ## Orchestration
 
@@ -43,8 +43,8 @@ Invoke this skill when the user asks about existing deferred items:
 - "what do we have to pick up"
 - "check for deferrals"
 
-Do NOT use for writing new deferrals — use `dev10x:park-todo` or
-`dev10x:park` instead.
+Do NOT use for writing new deferrals — use `dev10x-tasks:park-todo` or
+`dev10x-tasks:park` instead.
 
 ## Substrate
 
@@ -56,13 +56,13 @@ worktree of a repo. Every writer in the park/session family appends a
 structured entry into its `tasks:` list with a `source:` field that
 names the writer:
 
-| `source:` value     | Written by                          |
-|---------------------|-------------------------------------|
-| `manual`            | `dev10x:park` (target: TODO)        |
-| `code-todo`         | `dev10x:park-todo` (inline mode)    |
-| `slack-reminder`    | `dev10x:park-remind`                |
-| `pr-bookmark`       | `dev10x:park` (target: PR bookmark) |
-| `session-wrap-up`   | `dev10x:session-wrap-up` Phase 3b   |
+| `source:` value     | Written by                                |
+|---------------------|-------------------------------------------|
+| `manual`            | `dev10x-tasks:park` (target: TODO)        |
+| `code-todo`         | `dev10x-tasks:park-todo` (inline mode)    |
+| `slack-reminder`    | `dev10x-tasks:park-remind`                |
+| `pr-bookmark`       | `dev10x-tasks:park` (target: PR bookmark) |
+| `session-wrap-up`   | `dev10x-tasks:session-wrap-up` Phase 3b   |
 
 External sources (Slack DMs, PR comments) remain as the
 authoritative content; the index carries a pointer
@@ -98,7 +98,7 @@ Extract three sections from the response:
 - `insights:` — a list of lessons / decisions the prior
   session carried forward. Surface each item verbatim.
 
-**Staleness classification (GH-782).** `dev10x:session-wrap-up`
+**Staleness classification (GH-782).** `dev10x-tasks:session-wrap-up`
 stamps the index with `branch`, `tickets`, and `wrapped_at` via
 `mcp__plugin_dev10x_cli__task_index_set`; all three come back in the
 `task_index_get` response.
@@ -115,7 +115,7 @@ Present live entries as actionable. Present stale entries under a
 separate **Stale carryover (verify before resuming)** heading so
 months-old, already-shipped items are surfaced for pruning rather
 than re-offered as current work. Do not delete them — flagging is
-enough; the user (or a later `dev10x:park` write) decides.
+enough; the user (or a later `dev10x-tasks:park` write) decides.
 
 ### 2. Read legacy `.claude/TODO.md` (back-compat)
 
@@ -162,7 +162,7 @@ mcp__plugin_dev10x_cli__pr_comments(action="list", pr_number=<number>)
 
 Filter for comments whose body starts with
 `🔖 **Session bookmark**` (the standard marker set by
-`dev10x:session-wrap-up`). Include the matched comments under
+`dev10x-tasks:session-wrap-up`). Include the matched comments under
 **PR Session Bookmarks**.
 
 Skip silently when `pr_detect` returns `{"error": ...}` — that
@@ -171,7 +171,7 @@ means no PR for the current branch, not a failure.
 ### 5. Slack DM reminders
 
 Search Slack for self-reminders from the park-remind bot. The
-`🔖` emoji is the standard prefix from `dev10x:park-remind`:
+`🔖` emoji is the standard prefix from `dev10x-tasks:park-remind`:
 
 ```
 mcp__claude_ai_Slack__slack_search_public_and_private(
@@ -291,5 +291,5 @@ Every Bash invocation in this skill is a single command — no
 
 ## Used By
 
-- `dev10x:park-todo` — redirects here when user asks to review/check
+- `dev10x-tasks:park-todo` — redirects here when user asks to review/check
   deferrals instead of write them

@@ -325,7 +325,7 @@ class Dev10xConfigDir:
 
     @classmethod
     def knowledge_vault_yaml(cls) -> Path:
-        """Where `dev10x:reflect` files session lessons (GH-1822).
+        """Where `dev10x-tasks:reflect` files session lessons (GH-1822).
 
         Repo-addressed: top-level defaults plus `projects[].match_repo`
         overrides. Introduced after the ``~/.config/Dev10x`` move, so

@@ -1,6 +1,6 @@
 ---
-name: dev10x:reflect
-invocation-name: dev10x:reflect
+name: dev10x-tasks:reflect
+invocation-name: dev10x-tasks:reflect
 user-invocable: true
 description: >
   Collect what a finished stretch of work taught — about the solution,
@@ -11,7 +11,7 @@ description: >
   acceptance criteria, or the user says "reflect", "lessons learned",
   "retro this session" or "store this in the vault".
   DO NOT TRIGGER when: work is still mid-flight (finish it first), or
-  the user only wants open loops parked (use dev10x:session-wrap-up).
+  the user only wants open loops parked (use dev10x-tasks:session-wrap-up).
 allowed-tools:
   - AskUserQuestion
   - Bash(uvx dev10x skill reflect:*)
@@ -21,9 +21,9 @@ allowed-tools:
   - Edit(~/.claude/projects/**/memory/**)
 ---
 
-# dev10x:reflect — Lessons Into the Knowledge Vault
+# dev10x-tasks:reflect — Lessons Into the Knowledge Vault
 
-**Announce:** "Using dev10x:reflect to collect this session's lessons
+**Announce:** "Using dev10x-tasks:reflect to collect this session's lessons
 into the knowledge vault."
 
 Reflection prompt, keep/drop filter, placement map and retro template:
@@ -105,8 +105,8 @@ lesson contradicts an existing note. Options:
 It applies only when **both** hold, the same test `dev10x:git-commit`
 uses:
 
-1. The skill was invoked via `Skill(dev10x:reflect)` by an
-   orchestrator, not typed by the user as `/dev10x:reflect`.
+1. The skill was invoked via `Skill(dev10x-tasks:reflect)` by an
+   orchestrator, not typed by the user as `/dev10x-tasks:reflect`.
 2. The caller is executing a plan step with an active task list (the
    `Reflect lessons into the knowledge vault` task from a play).
 

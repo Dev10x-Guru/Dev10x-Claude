@@ -88,7 +88,7 @@ fallback.
 D2 deleted `session.yaml` in its *durable prefs / gate identity* roles, but
 the same path carried a second, unrelated payload: the park family's index of
 deferred work (`tasks`, `continuation_prompt`, `insights`, and the GH-782
-freshness stamp), written by `dev10x:session-wrap-up`, `dev10x:park`,
+freshness stamp), written by `dev10x-tasks:session-wrap-up`, `dev10x-tasks:park`,
 `park-todo`, `park-remind`, and `gh-pr-bookmark`, and read by
 `park-discover`. GH-1001 repointed only the durable readers and left the
 index in place as a documented exception.

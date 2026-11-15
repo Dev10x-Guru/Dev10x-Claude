@@ -102,6 +102,7 @@ class TestRepositoryManifests:
             ("db", ["dev10x"]),
             ("comm", ["dev10x"]),
             ("teach", ["dev10x"]),
+            ("tasks", ["dev10x"]),
             ("coding", ["dev10x", "dev10x-tasks"]),
             ("core", []),
         ],

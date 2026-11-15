@@ -531,6 +531,17 @@ The supervisor decided the Stage B open decisions on 2026-10-19
      and pick the installed core by its plugin map rather than by the
      presence of `skill-index`, so `~/.claude/SKILLS.md` keeps listing
      core and every satellite.
+   - B6 (GH-1569) moves all eight skills `plugins.yaml` assigns to
+     `tasks`: the seven in the target table plus `reflect`, mapped to
+     tasks later. None of them ships a script. Its fragments
+     (`hooks/hooks.d/tasks.json`, `projects.d/tasks.yaml`) stay in core,
+     so `task-guard` and `task-plan-sync` keep running from core's
+     `hooks/scripts/` and the Stop hook keeps reading `plan.yaml` through
+     `dev10x.core.plan_mirror` whether or not `dev10x-tasks` is
+     installed. The satellite manifest declares no hooks of its own, so
+     the entries are never registered twice. The `task_index_*` and
+     `plan_sync_*` MCP tools and the `dev10x skill reflect` command stay
+     in core under their old names.
 5. **Old names stay readable for two releases (GH-1564).** Each moved
    skill gets one `SKILL_NAME_ALIASES` row, and
    `dev10x config migrate-skill-names` rewrites user configs. QA ships
@@ -550,6 +561,8 @@ The supervisor decided the Stage B open decisions on 2026-10-19
      version.
    - B5 (GH-1568) also lands before `0.116.0` is released, so its
      seven rows end at `0.118.0` and the register entry stays put.
+   - B6 (GH-1569) lands before `0.116.0` too, so its eight rows end at
+     `0.118.0` and the register entry stays put.
 
 ### Open decisions (record before the dependent step)
 

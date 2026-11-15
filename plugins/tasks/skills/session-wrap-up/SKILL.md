@@ -1,5 +1,5 @@
 ---
-name: dev10x:session-wrap-up
+name: dev10x-tasks:session-wrap-up
 description: >
   Capture and route unfinished work at session end — so nothing is
   lost when the session closes.
@@ -8,7 +8,7 @@ description: >
   DO NOT TRIGGER when: mid-session active work with manageable task
   list, or starting new work (use dev10x:work-on).
 user-invocable: true
-invocation-name: dev10x:session-wrap-up
+invocation-name: dev10x-tasks:session-wrap-up
 allowed-tools:
   - mcp__plugin_dev10x_cli__pr_detect
   - mcp__plugin_dev10x_cli__task_index_append
@@ -16,9 +16,9 @@ allowed-tools:
   - mcp__plugin_dev10x_cli__task_index_set
 ---
 
-# dev10x:session-wrap-up — Session End Orchestrator
+# dev10x-tasks:session-wrap-up — Session End Orchestrator
 
-**Announce:** "Using dev10x:session-wrap-up to capture open loops
+**Announce:** "Using dev10x-tasks:session-wrap-up to capture open loops
 before closing this session."
 
 ## Mandatory Invocation Triggers (GH-163)
@@ -26,7 +26,7 @@ before closing this session."
 Audit GH-163 caught a session that wound down with CI still
 unconfirmed, 5 newly-created follow-up issues unlinked to the
 parent ticket, no plan-sync archive, and no parking note —
-`dev10x:session-wrap-up` matched every trigger but was never
+`dev10x-tasks:session-wrap-up` matched every trigger but was never
 invoked, and the parent orchestrator marked its wrap-up task
 `completed` without a `Skill()` call.
 
@@ -43,7 +43,7 @@ invoked, and the parent orchestrator marked its wrap-up task
 
 **Anti-pattern (PROHIBITED):** Marking a "Session wrap-up" or
 "Park items" task `completed` in an orchestrator's task list
-without calling `Skill(dev10x:session-wrap-up)` first. The task
+without calling `Skill(dev10x-tasks:session-wrap-up)` first. The task
 completion is the side effect of the skill running — not a
 substitute for running it.
 
@@ -159,13 +159,13 @@ For each open loop, **REQUIRED: Call `AskUserQuestion`**
 
 **Options:**
 - **Finish now** — keep as session task, continue working
-- **Defer** — invoke `dev10x:park` for target selection
+- **Defer** — invoke `dev10x-tasks:park` for target selection
 - **Drop** — remove, no longer needed
 
 If the user picks "Finish now" for any item, pause the wrap-up and
 let them work. When they return, resume from where they left off.
 
-If the user picks "Defer", invoke `dev10x:park` with the item.
+If the user picks "Defer", invoke `dev10x-tasks:park` with the item.
 
 If the user picks "Drop", mark the task as completed via `TaskUpdate`
 and move on.
@@ -173,12 +173,12 @@ and move on.
 ## PR Reminder Format
 
 When deferring an item by posting a reminder comment on an open PR,
-use this standard prefix so `dev10x:park-discover` §2f can discover it:
+use this standard prefix so `dev10x-tasks:park-discover` §2f can discover it:
 
 ```markdown
 🔖 **Session bookmark**
 
-This is an automated self-reminder left by `dev10x:session-wrap-up` for the
+This is an automated self-reminder left by `dev10x-tasks:session-wrap-up` for the
 PR author to pick up in a future session.
 
 **Current state:** <brief summary of where the PR stands>
@@ -189,7 +189,7 @@ PR author to pick up in a future session.
 ```
 
 The `🔖 **Session bookmark**` prefix on the first line is required —
-`dev10x:park-discover` scans for this exact pattern when checking open
+`dev10x-tasks:park-discover` scans for this exact pattern when checking open
 PRs for deferred work.
 
 ## Phase 3b: Session State Persistence (GH-917, GH-782)
@@ -237,7 +237,7 @@ left off. Write it through the MCP tools — never with Write/Edit
    )
    ```
    Only the fields you pass are written, so this cannot blank the
-   `tasks:` appended in step 1. `dev10x:park-discover` reads these
+   `tasks:` appended in step 1. `dev10x-tasks:park-discover` reads these
    keys to classify each carried entry as **live** (branch matches,
    or a ticket overlaps the resuming session) or **stale** (identity
    mismatch, or an old `wrapped_at`) — see that skill's *Staleness
@@ -260,7 +260,7 @@ stale-mode bug.
 of them still lives here:
 
 - The `branch:` / `tickets:` written in step 4 above stay. Their
-  consumer is `dev10x:park-discover`, which classifies each carried
+  consumer is `dev10x-tasks:park-discover`, which classifies each carried
   entry live-or-stale against them. Dropping the stamp reintroduces
   the GH-782 bug where a months-old `tasks:` list resurfaces as
   current.
@@ -311,6 +311,6 @@ If the user has many items (>5), offer batch operations:
 
 ## Used By
 
-- Invoked directly by user: `/dev10x:session-wrap-up`
+- Invoked directly by user: `/dev10x-tasks:session-wrap-up`
 - Can be suggested by Claude when detecting session-end signals
   (e.g., user says "that's it for today", "let's wrap up")

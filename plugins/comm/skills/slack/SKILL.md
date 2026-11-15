@@ -277,7 +277,7 @@ To discover user IDs, use MCP `slack_search_users` tool.
 ## Integration with Other Skills
 
 This script is used by:
-- **dev10x:park-remind** — sends deferred-item DMs to yourself
+- **dev10x-tasks:park-remind** — sends deferred-item DMs to yourself
 - **dev10x:gh-pr-monitor** — posts PR review notifications
 
 For multi-line messages, use the Write tool to create a temp file,

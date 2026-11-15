@@ -188,11 +188,11 @@ fragments:
         Non-blocking final step. Run it once dev10x:verify-acc-dod has
         reported, while "Verify acceptance criteria" stays open for the
         supervisor — never mark Verify AC completed or deleted here.
-        dev10x:reflect skips with one line when no vault is
+        dev10x-tasks:reflect skips with one line when no vault is
         configured. Complete (or skip) this step before the turn ends;
         when it would be the last open task, the skill seeds Verify AC
         first.
-      skills: [dev10x:reflect]
+      skills: [dev10x-tasks:reflect]
 
   # Proof that someone used the change (GH-1827). Runs after the Verify
   # (tests and lint) step and right before the review request, so the
@@ -827,7 +827,7 @@ defaults:
           plan. If more investigation is needed, suggest
           creating a follow-up ticket.
       # No Verify-AC here, so reflect would be the last open task:
-      # dev10x:reflect seeds Verify acceptance criteria before it
+      # dev10x-tasks:reflect seeds Verify acceptance criteria before it
       # completes (GH-149 task guard, GH-1822).
       - fragment: session-reflection
 

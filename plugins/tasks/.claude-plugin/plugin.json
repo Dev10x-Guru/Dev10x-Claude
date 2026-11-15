@@ -1,0 +1,14 @@
+{
+  "name": "dev10x-tasks",
+  "description": "v0.116.0.dev0 — 8 skills for task management: track session tasks, sync the plan mirror, park and rediscover deferred work, wrap up a session and reflect its lessons into a vault.",
+  "version": "0.116.0.dev0",
+  "author": {
+    "name": "Janusz Skonieczny",
+    "email": "Dev10xAI@WooYek.com"
+  },
+  "homepage": "https://www.skool.com/Dev10x-1892",
+  "repository": "https://github.com/Dev10x-Guru/dev10x-claude",
+  "license": "MIT",
+  "keywords": ["tasks", "plan-sync", "park", "session", "reflect"],
+  "dependencies": ["dev10x"]
+}

@@ -275,7 +275,7 @@ turn are the most precious resources on site:
    command from the night; run `Skill(dev10x:diag-friction)` on each;
    file upstream issues for the structural ones. Queue
    `Skill(dev10x-teach:skill-audit-queue)` for the session.
-4. `Skill(dev10x:session-wrap-up)` to route anything unfinished.
+4. `Skill(dev10x-tasks:session-wrap-up)` to route anything unfinished.
 
 ## Crew contract (what every worker prompt must contain)
 

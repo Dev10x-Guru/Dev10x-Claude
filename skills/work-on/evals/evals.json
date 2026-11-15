@@ -139,9 +139,9 @@
         },
         {
           "id": "plan-ends-with-reflection",
-          "text": "The last subtask is 'Reflect lessons into the knowledge vault' (dev10x:reflect), created after Verify acceptance criteria; completing it never marks Verify AC completed (GH-1822)",
+          "text": "The last subtask is 'Reflect lessons into the knowledge vault' (dev10x-tasks:reflect), created after Verify acceptance criteria; completing it never marks Verify AC completed (GH-1822)",
           "check": "task_exists",
-          "signals": ["Reflect lessons into the knowledge vault", "dev10x:reflect"]
+          "signals": ["Reflect lessons into the knowledge vault", "dev10x-tasks:reflect"]
         },
         {
           "id": "plan-approval-gate",
@@ -792,7 +792,7 @@
       },
       {
         "query": "let's wrap up for today and save my progress",
-        "rationale": "Wants session wrap-up (dev10x:session-wrap-up), opposite of starting work"
+        "rationale": "Wants session wrap-up (dev10x-tasks:session-wrap-up), opposite of starting work"
       }
     ]
   }

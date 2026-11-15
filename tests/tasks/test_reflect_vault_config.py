@@ -1,4 +1,4 @@
-"""Knowledge-vault resolution for dev10x:reflect (GH-1822)."""
+"""Knowledge-vault resolution for dev10x-tasks:reflect (GH-1822)."""
 
 from __future__ import annotations
 

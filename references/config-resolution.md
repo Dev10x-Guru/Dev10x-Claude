@@ -162,4 +162,4 @@ that is renamed or comes from elsewhere is listed by hand in
 | `dev10x:request-review` | reviewers, slack-config | 2 |
 | `dev10x:fanout` | session | 1 |
 | `dev10x:plugin-maintenance` | preferences | 2 |
-| `dev10x:reflect` | knowledge-vault | 2 |
+| `dev10x-tasks:reflect` | knowledge-vault | 2 |

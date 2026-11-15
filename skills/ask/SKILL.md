@@ -233,7 +233,7 @@ reinforcement mechanism:
   an agent within the work-on pipeline uses plain text for a
   decision point, or `dev10x:ask --loops` before the Verify-AC
   gate to catch loops that never reached the task list
-- **`dev10x:session-wrap-up`** — run `--loops` first so nothing
+- **`dev10x-tasks:session-wrap-up`** — run `--loops` first so nothing
   open is lost at session close
 - **Skill authors** — reference this skill in SKILL.md when
   documenting decision gates as a fallback enforcement mechanism

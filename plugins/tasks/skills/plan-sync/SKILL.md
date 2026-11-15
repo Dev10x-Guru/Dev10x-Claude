@@ -1,5 +1,5 @@
 ---
-name: dev10x:plan-sync
+name: dev10x-tasks:plan-sync
 description: >
   Reconcile persisted plan file with in-session task list.
   Detects divergences, recreates missing tasks, and updates
@@ -9,7 +9,7 @@ description: >
   DO NOT TRIGGER when: no plan file exists or task list is
   already in sync with the current session work.
 user-invocable: true
-invocation-name: dev10x:plan-sync
+invocation-name: dev10x-tasks:plan-sync
 allowed-tools:
   - TaskCreate
   - TaskList
