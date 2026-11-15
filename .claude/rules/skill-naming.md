@@ -1,6 +1,7 @@
 ---
 paths:
   - "skills/**"
+  - "plugins/*/skills/**"
 ---
 
 # Skill Naming Convention

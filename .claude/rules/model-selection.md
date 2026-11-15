@@ -2,6 +2,8 @@
 paths:
   - "agents/**"
   - "skills/**"
+  - "plugins/*/agents/**"
+  - "plugins/*/skills/**"
 ---
 
 # Model & Effort Selection for Agent Dispatch

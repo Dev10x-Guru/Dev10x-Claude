@@ -4,7 +4,7 @@ paths:
   - "bin/**"
   - "hooks/**/*.py"
   - "servers/**"
-  - "skills/**/*.py"
+  - "plugins/*/skills/**/*.py"
 ---
 
 # uv-Script Dependency Pins (GH-916)

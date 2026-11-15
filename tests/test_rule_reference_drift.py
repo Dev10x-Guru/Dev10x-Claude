@@ -69,9 +69,6 @@ _SPECULATIVE_GLOBS: frozenset[tuple[str, str]] = frozenset(
     {
         # The alternate workflow extension; no workflow uses it yet.
         ("github-workflows.md", ".github/workflows/**/*.yaml"),
-        # GH-1973: every uv-script moved under plugins/ in B9; the rule's
-        # paths: needs a supervisor .claude/ edit to follow them.
-        ("uv-script-dependency-pins.md", "skills/**/*.py"),
     }
 )
 

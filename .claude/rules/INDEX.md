@@ -30,7 +30,7 @@ The code review system uses a **multi-agent architecture**:
 | `Makefile`, `bin/**`, `hooks/**`, `*.sh`, `.github/**` | `reviewer-infra` | `references/review-checks-common.md` |
 | `docs/**`, `.claude/**/*.md`, `CLAUDE.md`, `README.md` | `reviewer-docs` | `references/review-checks-common.md` |
 | `.claude/rules/**`, `.claude/agents/**`, `agents/**`, `references/**` | `reviewer-rules-maintenance` | (self-contained) |
-| `skills/**` | `reviewer-skill`, `reviewer-skill-behavior` | `.claude/rules/skill-naming.md`, `references/skill-invocation.md`, `references/eval-schema.md` |
+| `skills/**`, `plugins/*/skills/**` | `reviewer-skill`, `reviewer-skill-behavior` | `.claude/rules/skill-naming.md`, `references/skill-invocation.md`, `references/eval-schema.md` |
 | `**/tasks.py`, `**/celery.py` | `reviewer-celery` | (self-contained) |
 | `**/features/**/*.feature`, `**/features/steps/*.py`, `**/environment.py`, `**/e2e/**/*.py` | `reviewer-e2e` | (self-contained) |
 | `**/*.svelte`, `**/*.astro`, `**/*.tsx` | `reviewer-frontend` | (self-contained) |
@@ -44,10 +44,10 @@ The code review system uses a **multi-agent architecture**:
 | Location | When loaded | Content |
 |----------|------------|---------|
 | `.claude/rules/essentials.md` | Every session | Universal conventions (line count drifts — see the file, not this table; GH-1438) |
-| `.claude/rules/skill-naming.md` | When editing `skills/**` | Skill naming conventions |
+| `.claude/rules/skill-naming.md` | When editing `skills/**` or `plugins/*/skills/**` | Skill naming conventions |
 | `.claude/rules/agents.md` | When editing `agents/**` | Plugin-distributed agent specs |
-| `.claude/rules/model-selection.md` | When editing `agents/**` or `skills/**` | Model & effort selection for agent dispatch |
-| `.claude/rules/playbook-pattern.md` | When editing `skills/**` with playbooks | Playbook patterns, user customization, reviewer expectations |
+| `.claude/rules/model-selection.md` | When editing `agents/**` or `skills/**`, in core or `plugins/*/` | Model & effort selection for agent dispatch |
+| `.claude/rules/playbook-pattern.md` | When editing `skills/**` or `plugins/*/skills/**` with playbooks | Playbook patterns, user customization, reviewer expectations |
 | `.claude/rules/github-workflows.md` | When editing `.github/workflows/**` | GitHub Actions patterns |
 | `.claude/rules/claude-ci-cost.md` | When editing `.github/workflows/claude*.yml`, `.github/claude/**`, `.github/claude-ci-settings.json`, `.github/scripts/claude-pr-context/**` | Prompt-caching prefix, prefetch, usage reporting (GH-1585), CLI pin (GH-1615), federation (GH-1622) |
 | `.claude/rules/hook-state-schema.md` | When editing `hooks/**` state writers | Hook JSON state documentation |
@@ -55,10 +55,10 @@ The code review system uses a **multi-agent architecture**:
 | `.claude/rules/hook-validator-profiles.md` | When editing `hooks/scripts/validate-*.py`, `src/dev10x/core/hooks/hook_transport.py`, `src/dev10x/core/validators/**`, `src/dev10x/validators/**`, `tests/hooks/test_hook_transport.py`, `tests/validators/**` | Profile tiers, DX rule IDs, per-rule design notes, hook output streams (GH-1867) |
 | `.claude/rules/hook-input-patterns.md` | When editing `hooks/**`, `src/dev10x/hooks/**`, `src/dev10x/*/hooks/**`, `src/dev10x/core/validators/**` | Safe parsing of hook tool input (JSON, commands) |
 | `.claude/rules/cwd-discipline.md` | When editing `src/dev10x/**` Python that runs subprocesses or reads CWD | GH-979 effective-CWD routing, no module-scope GitContext |
-| `.claude/rules/uv-script-dependency-pins.md` | When adding/editing a PEP 723 uv-script's `# dependencies = [...]` or `pyproject.toml` dependency arrays | GH-916 upper-bound requirement, `requires-python` exception, detector + pre-commit wiring |
-| `.claude/rules/script-domain-boundaries.md` | When editing `skills/**/scripts/**` or `src/dev10x/**/{skills,domain,mcp}/**` — the domain functions and MCP handlers it binds (GH-1763) | print-vs-logging + sys.exit-vs-Result conventions (GH-246 H3/H7) |
+| `.claude/rules/uv-script-dependency-pins.md` | When adding/editing a PEP 723 uv-script's (under `plugins/*/skills/**/*.py` since B9, GH-1973) `# dependencies = [...]` or `pyproject.toml` dependency arrays | GH-916 upper-bound requirement, `requires-python` exception, detector + pre-commit wiring |
+| `.claude/rules/script-domain-boundaries.md` | When editing `skills/**/scripts/**`, `plugins/*/skills/**/scripts/**` or `src/dev10x/**/{skills,domain,mcp}/**` — the domain functions and MCP handlers it binds (GH-1763) | print-vs-logging + sys.exit-vs-Result conventions (GH-246 H3/H7) |
 | `.claude/rules/performance.md` | Reference: post-dependency change monitoring | CLI startup baseline, profiling instructions |
-| `.claude/rules/skill-body-extraction.md` | When editing `skills/**` | SKILL.md body extraction pattern, token reduction |
+| `.claude/rules/skill-body-extraction.md` | When editing `skills/**` or `plugins/*/skills/**` | SKILL.md body extraction pattern, token reduction |
 | `.claude/rules/agent-body-extraction.md` | When editing `agents/**` | Agent spec body extraction pattern, token reduction |
 | `references/*.md` | On-demand by skills/CI | Detailed git, review, JTBD guides |
 
