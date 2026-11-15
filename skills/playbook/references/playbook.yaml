@@ -64,10 +64,10 @@ version: "0.116.0.dev0"
 # they join as `<outer> and <inner>`, so neither side wins (GH-1826).
 #
 # Terminal convention (GH-149, GH-1822): every default play ends with
-# the `session-reflection` fragment (dev10x:reflect), placed right after
+# the `session-reflection` fragment (dev10x-tasks:reflect), placed right after
 # "Verify acceptance criteria". Reflection is non-blocking and never
 # closes Verify AC — that task stays open for the supervisor. Exception:
-# `investigation` has no Verify AC step, so dev10x:reflect creates one
+# `investigation` has no Verify AC step, so dev10x-tasks:reflect creates one
 # before completing. Validated by
 # tests/skills/playbook/test_session_reflection_step.py.
 #

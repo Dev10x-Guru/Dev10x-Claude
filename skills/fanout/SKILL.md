@@ -44,7 +44,7 @@ allowed-tools:
   - Skill(skill="dev10x:gh-pr-create")
   - Skill(skill="dev10x:ticket-branch")
   - Skill(skill="dev10x:gh-pr-merge")
-  - Skill(skill="dev10x:session-wrap-up")
+  - Skill(skill="dev10x-tasks:session-wrap-up")
   - Skill(skill="dev10x-teach:skill-audit")
   - Skill(skill="dev10x:git-branch-prune")
   - Skill(skill="dev10x:friction-setup")

@@ -185,7 +185,7 @@ class TestCommExtractionAliases:
 
         assert {(alias.old, alias.new) for alias in SKILL_NAME_ALIASES} == {
             (f"dev10x:{skill}", f"{plugin_map.plugin_names[key]}:{skill}")
-            for key in ("comm", "teach")
+            for key in ("comm", "teach", "tasks")
             for skill in plugin_map.plugins[key]
         }
 
@@ -270,6 +270,58 @@ class TestTeachExtractionAliases:
             "playbooks/fanout.yaml": (
                 "steps:\n  - skill: dev10x-teach:skill-audit-queue\n"
                 "  - skill: dev10x:skill-prune\n"
+            ),
+        }
+
+
+MOVED_TO_TASKS_IN_GH_1569 = (
+    "park",
+    "park-discover",
+    "park-remind",
+    "park-todo",
+    "plan-sync",
+    "reflect",
+    "session-tasks",
+    "session-wrap-up",
+)
+
+
+class TestTasksExtractionAliases:
+    @pytest.mark.parametrize("skill", MOVED_TO_TASKS_IN_GH_1569)
+    def test_old_name_resolves_to_the_tasks_plugin(self, skill: str) -> None:
+        assert resolve_skill_alias(name=f"dev10x:{skill}") == f"dev10x-tasks:{skill}"
+
+    def test_rewrites_park_and_its_longer_siblings_separately(self) -> None:
+        text = "skills:\n  - dev10x:park\n  - dev10x:park-todo\n  - dev10x:park-discover\n"
+
+        assert migrate_text(text=text, aliases=SKILL_NAME_ALIASES) == (
+            "skills:\n  - dev10x-tasks:park\n  - dev10x-tasks:park-todo\n"
+            "  - dev10x-tasks:park-discover\n",
+            3,
+        )
+
+    def test_leaves_a_core_name_that_shares_a_prefix(self) -> None:
+        text = "skill: dev10x:session-config-seed\n"
+
+        assert migrate_text(text=text, aliases=SKILL_NAME_ALIASES) == (text, 0)
+
+    @pytest.fixture
+    def migrated_home(self, tmp_path: Path) -> Path:
+        home = tmp_path / "config-home"
+        (home / "playbooks").mkdir(parents=True)
+        (home / "friction.yaml").write_text("defaults:\n  wrap_up: dev10x:session-wrap-up\n")
+        (home / "playbooks" / "work-on.yaml").write_text(
+            "steps:\n  - skill: dev10x:reflect\n  - skill: dev10x:session-config-seed\n"
+        )
+        result = migrate_user_configs(config_home=home, dry_run=False)
+        assert isinstance(result, SuccessResult)
+        return home
+
+    def test_shipped_table_migrates_a_temp_config_home(self, migrated_home: Path) -> None:
+        assert _texts(home=migrated_home) == {
+            "friction.yaml": "defaults:\n  wrap_up: dev10x-tasks:session-wrap-up\n",
+            "playbooks/work-on.yaml": (
+                "steps:\n  - skill: dev10x-tasks:reflect\n  - skill: dev10x:session-config-seed\n"
             ),
         }
 

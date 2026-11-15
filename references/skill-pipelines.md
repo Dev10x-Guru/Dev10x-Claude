@@ -109,9 +109,9 @@ park → discover → resume
 
 | Step | Skill | Input | Output |
 |------|-------|-------|--------|
-| Park item | `dev10x:park` | description | Parked entry |
-| Park with reminder | `dev10x:park-remind` | description + trigger | Parked with reminder |
-| Discover parked | `dev10x:park-discover` | _(none)_ | List of parked items |
+| Park item | `dev10x-tasks:park` | description | Parked entry |
+| Park with reminder | `dev10x-tasks:park-remind` | description + trigger | Parked with reminder |
+| Discover parked | `dev10x-tasks:park-discover` | _(none)_ | List of parked items |
 | Resume item | `dev10x:work-on` | parked item description | Active work stream |
 
 ---

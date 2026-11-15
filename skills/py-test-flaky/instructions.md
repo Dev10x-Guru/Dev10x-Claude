@@ -158,7 +158,7 @@ Issues, Linear, or JIRA) and returns the ticket ID.
   one-line patches that touch wide fixture surface area.
 - If the root cause is infrastructure (CI runner, external
   service), still commit the mitigation here, then escalate
-  separately via `dev10x:park-todo` or a follow-up ticket.
+  separately via `dev10x-tasks:park-todo` or a follow-up ticket.
 
 ## Verification plan
 

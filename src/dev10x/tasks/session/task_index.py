@@ -2,7 +2,7 @@
 
 The park/session skills keep a local index of deferred work — park items,
 Slack-reminder pointers, PR bookmarks, and the wrap-up continuation prompt —
-so ``dev10x:park-discover`` can surface them without scanning every write
+so ``dev10x-tasks:park-discover`` can surface them without scanning every write
 path. That index used to live at ``.claude/Dev10x/session.yaml``.
 
 ADR-0018 D2 retired that path, but only the *durable preferences* and *gate

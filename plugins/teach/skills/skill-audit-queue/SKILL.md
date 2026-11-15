@@ -185,5 +185,5 @@ Mark this skill's own startup task `completed`.
 
 - `dev10x-teach:skill-audit` — runs the actual audit; invoke this from
   the queued task when ready
-- `dev10x:park` — generic deferral router; this skill is the
+- `dev10x-tasks:park` — generic deferral router; this skill is the
   specific audit-deferral path

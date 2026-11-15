@@ -1436,7 +1436,7 @@ invoke it now before marking this task completed.
 
 ## Pause/Resume
 
-At any pause signal, invoke `dev10x:session-wrap-up`.
+At any pause signal, invoke `dev10x-tasks:session-wrap-up`.
 Active worktrees and in-progress PRs are bookmarked
 automatically.
 

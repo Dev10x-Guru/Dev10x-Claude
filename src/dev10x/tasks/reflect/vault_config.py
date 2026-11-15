@@ -1,4 +1,4 @@
-"""Resolve which knowledge vault `dev10x:reflect` writes into (GH-1822).
+"""Resolve which knowledge vault `dev10x-tasks:reflect` writes into (GH-1822).
 
 The vault is user configuration, never a path baked into the plugin: one
 person files lessons into an Obsidian vault on a synced drive, another

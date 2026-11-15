@@ -23,7 +23,7 @@ from tests.skills.playbook.play_expansion import (
 )
 
 REFLECT = "Reflect lessons into the knowledge vault"
-# No Verify AC step: dev10x:reflect seeds one before it completes, so the
+# No Verify AC step: dev10x-tasks:reflect seeds one before it completes, so the
 # task guard (GH-149) never sees reflect as the last open task.
 PLAYS_WITHOUT_VERIFY_AC = ["investigation"]
 
@@ -64,7 +64,7 @@ def test_plays_without_verify_ac_are_the_documented_ones(
 def test_reflection_delegates_and_never_closes_verify_ac(playbook: dict[str, Any]) -> None:
     (step,) = playbook["fragments"]["session-reflection"]
 
-    assert step["skills"] == ["dev10x:reflect"]
+    assert step["skills"] == ["dev10x-tasks:reflect"]
     assert "never mark Verify AC completed" in " ".join(step["prompt"].split())
 
 

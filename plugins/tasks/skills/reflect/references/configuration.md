@@ -1,7 +1,7 @@
-# dev10x:reflect — Configuration
+# dev10x-tasks:reflect — Configuration
 
 `<Dev10x config>/knowledge-vault.yaml` (`~/.config/Dev10x/` on Linux and
-macOS; see `references/config-resolution.md` at the plugin root). The
+macOS; see `references/config-resolution.md` at the `dev10x` plugin root). The
 plugin ships no default vault: until this file names one, every reflect
 step prints one line and skips.
 

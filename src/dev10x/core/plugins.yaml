@@ -27,6 +27,7 @@ extracted:
   - db
   - comm
   - teach
+  - tasks
 dependencies:
   coding:
     - tasks

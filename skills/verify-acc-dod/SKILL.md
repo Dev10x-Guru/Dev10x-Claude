@@ -400,7 +400,7 @@ the legacy file forward, and the next skill run recreates it.
 A green run of this skill is a **precondition** for closing the
 session — it is **not** the supervisor sign-off itself. The terminal
 "Verify acceptance criteria" task is closed only when the supervisor
-explicitly chooses "Work complete" (or runs `dev10x:session-wrap-up`).
+explicitly chooses "Work complete" (or runs `dev10x-tasks:session-wrap-up`).
 "Checks pass" ≠ "supervisor confirmed session done": a draft/open PR
 with a pending human review can satisfy every automated check while the
 session is still live. The Decision Gate makes this concrete (GH-729):

@@ -50,7 +50,7 @@ PR — Full PR lifecycle with CI monitoring
   /dev10x:gh-pr-create -> /dev10x:gh-pr-monitor
 
 Session — Track work, defer items, resume later
-  /dev10x:session-wrap-up -> /dev10x:park-discover
+  /dev10x-tasks:session-wrap-up -> /dev10x-tasks:park-discover
 
 To see all skills: check ~/.claude/SKILLS.md
 To regenerate: /dev10x-teach:skill-index
@@ -268,9 +268,9 @@ Or use /dev10x:work-on <ticket> for the full pipeline.
 ```
 Dev10x tracks your work across sessions:
 
-- /dev10x:session-wrap-up — Save open work before closing
-- /dev10x:park            — Defer a task to the right place
-- /dev10x:park-discover   — Find deferred items at start
+- /dev10x-tasks:session-wrap-up — Save open work before closing
+- /dev10x-tasks:park — Defer a task to the right place
+- /dev10x-tasks:park-discover — Find deferred items at start
 ```
 
 ### 2.5 Customization

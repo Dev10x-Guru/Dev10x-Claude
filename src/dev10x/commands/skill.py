@@ -613,7 +613,7 @@ def gchat_review_prepare(*, pr: int, repo: str) -> None:
 
 @skill.group()
 def reflect() -> None:
-    """Knowledge-vault access for dev10x:reflect (GH-1822).
+    """Knowledge-vault access for dev10x-tasks:reflect (GH-1822).
 
     Every command prints one JSON object. `config` resolves the vault for
     this checkout; `index-add` and `log-add` write the shared folder notes

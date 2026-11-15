@@ -1,15 +1,15 @@
 ---
-name: dev10x:park-remind
+name: dev10x-tasks:park-remind
 description: >
   Schedule a Slack reminder — so deferred items appear when you are
   clearing messages, not buried in a file you might not open.
   TRIGGER when: deferring work that should resurface via Slack
   notification later.
   DO NOT TRIGGER when: deferring to code or project storage (use
-  dev10x:park-todo), or routing to the best destination automatically
-  (use dev10x:park).
+  dev10x-tasks:park-todo), or routing to the best destination automatically
+  (use dev10x-tasks:park).
 user-invocable: true
-invocation-name: dev10x:park-remind
+invocation-name: dev10x-tasks:park-remind
 allowed-tools:
   - Read
   - Write
@@ -23,9 +23,9 @@ allowed-tools:
   - Edit(/tmp/Dev10x/slack/**)
 ---
 
-# dev10x:park-remind — Slack DM Reminder
+# dev10x-tasks:park-remind — Slack DM Reminder
 
-**Announce:** "Using dev10x:park-remind to send a Slack reminder to yourself."
+**Announce:** "Using dev10x-tasks:park-remind to send a Slack reminder to yourself."
 
 ## Orchestration
 
@@ -43,7 +43,7 @@ Mark completed when done: `TaskUpdate(taskId, status="completed")`
 Send a self-DM via Slack with a deferred item, formatted with session
 context so you know where to pick it up. After the DM is sent, append
 a pointer entry to the project task index so
-`dev10x:park-discover` can surface it locally without a Slack search
+`dev10x-tasks:park-discover` can surface it locally without a Slack search
 (GH-85).
 
 ## Prerequisites
@@ -106,7 +106,7 @@ Write tool → temp file → `--message-file`.
 ### 4. Append to the task index
 
 After Slack confirms delivery, append a pointer entry using the
-schema documented in `dev10x:park-todo` § Task Index Append:
+schema documented in `dev10x-tasks:park-todo` § Task Index Append:
 
 ```
 mcp__plugin_dev10x_cli__task_index_append(entry={
@@ -123,7 +123,7 @@ mcp__plugin_dev10x_cli__task_index_append(entry={
 ```
 
 The Slack DM remains the authoritative content; the index entry is
-the local pointer that `dev10x:park-discover` reads without a network
+the local pointer that `dev10x-tasks:park-discover` reads without a network
 round-trip.
 
 The tool creates the store on first use and appends under a lock, so
@@ -138,10 +138,10 @@ project task index."
 
 ## Standalone Usage
 
-When invoked directly: `/dev10x:park-remind "message text"`
+When invoked directly: `/dev10x-tasks:park-remind "message text"`
 
 Parse the argument as the item text. Gather context and send.
 
 ## Used By
 
-- `dev10x:park` — when user picks "Slack DM to self"
+- `dev10x-tasks:park` — when user picks "Slack DM to self"

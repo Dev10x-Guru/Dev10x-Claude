@@ -106,8 +106,8 @@ def deliver_prompt(
 
 
 SESSION_COMMANDS = {
-    "reflect": "/dev10x:reflect",
-    "wrap-up": "/dev10x:session-wrap-up",
+    "reflect": "/dev10x-tasks:reflect",
+    "wrap-up": "/dev10x-tasks:session-wrap-up",
 }
 
 

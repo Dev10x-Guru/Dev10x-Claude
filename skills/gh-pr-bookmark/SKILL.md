@@ -12,7 +12,7 @@ user-invocable: true
 invocation-name: dev10x:gh-pr-bookmark
 allowed-tools:
   - mcp__plugin_dev10x_cli__pr_detect
-  - Skill(dev10x:park)
+  - Skill(dev10x-tasks:park)
 ---
 
 # dev10x:gh-pr-bookmark — PR Session Bookmark
@@ -32,11 +32,11 @@ Mark completed when done: `TaskUpdate(taskId, status="completed")`
 
 ## Overview
 
-Thin wrapper around `dev10x:park` that pre-selects the **PR session
+Thin wrapper around `dev10x-tasks:park` that pre-selects the **PR session
 bookmark** target. Use at end-of-session or when pausing work on a PR.
-`dev10x:park` posts the comment AND appends a `source: pr-bookmark`
+`dev10x-tasks:park` posts the comment AND appends a `source: pr-bookmark`
 entry to the project task index so the bookmark is discoverable
-locally by `dev10x:park-discover` (GH-85). The index write goes
+locally by `dev10x-tasks:park-discover` (GH-85). The index write goes
 through `mcp__plugin_dev10x_cli__task_index_append`; it used to be a
 Write/Edit of `.claude/Dev10x/session.yaml`, which tripped the
 self-settings consent gate on every bookmark (ADR-0018 D5, GH-1009).
@@ -52,18 +52,18 @@ mcp__plugin_dev10x_cli__pr_detect(arg="")
 The MCP wrapper resolves the current branch's PR. Treat an
 `{"error": ...}` response as "no open PR" — tell the user and stop.
 
-### 2. Delegate to dev10x:park
+### 2. Delegate to dev10x-tasks:park
 
-Invoke `dev10x:park` with:
+Invoke `dev10x-tasks:park` with:
 - **Item**: the user's description (or "Continuing PR review" if none)
 - **Pre-selected target**: `PR session bookmark`
 
 Skip the target selection prompt — this skill always routes to the
-PR session bookmark target in `dev10x:park`.
+PR session bookmark target in `dev10x-tasks:park`.
 
 ### 3. Done
 
-`dev10x:park` handles data gathering, composition, posting, and
+`dev10x-tasks:park` handles data gathering, composition, posting, and
 confirmation.
 
 ## Usage
@@ -75,5 +75,5 @@ confirmation.
 
 ## See Also
 
-- `dev10x:park` — full deferral router with all targets
-- `dev10x:session-wrap-up` — end-of-session orchestrator that may call this
+- `dev10x-tasks:park` — full deferral router with all targets
+- `dev10x-tasks:session-wrap-up` — end-of-session orchestrator that may call this

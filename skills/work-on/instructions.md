@@ -11,7 +11,7 @@ supervisor-approved work plan. It runs in four phases:
 4. **Execute** — work through tasks, expanding epics on demand
 
 The supervisor sees progress via `TaskList`, can approve/edit
-the plan, and can pause at any point with `dev10x:session-wrap-up`.
+the plan, and can pause at any point with `dev10x-tasks:session-wrap-up`.
 
 **Rule: ALWAYS use `TaskCreate`** — even for single-task work.
 The visible task list is the supervisor's interface for adding
@@ -19,7 +19,7 @@ new tasks mid-session. Skipping it removes that capability.
 
 **Invariant: never leave the session with an empty task list
 (GH-149).** Until the supervisor explicitly closes the session
-(`dev10x:session-wrap-up` or session restart), the task list MUST
+(`dev10x-tasks:session-wrap-up` or session restart), the task list MUST
 contain at least one open task. The terminal task is always
 `Verify acceptance criteria` — the last *gate* in every play —
 and it MUST NOT be marked `completed` or `deleted` until the
@@ -32,7 +32,7 @@ and is a Phase 4 violation.
 
 **Reflection after Verify AC (GH-1822).** Every default play
 ends with `Reflect lessons into the knowledge vault` (the
-`session-reflection` fragment → `dev10x:reflect`), listed right
+`session-reflection` fragment → `dev10x-tasks:reflect`), listed right
 after Verify AC. It is **non-blocking**: run it once
 `dev10x:verify-acc-dod` has reported, complete or skip it within
 the same turn, and leave Verify AC open. It never replaces or
@@ -42,7 +42,7 @@ learned. With no vault configured it prints one line and is done.
 **Exception — `investigation`.** That play has no Verify AC step;
 its reflection follows "Decide" and is the last task. Because a
 lone open task cannot be closed (task guard, GH-149),
-`dev10x:reflect` creates `Verify acceptance criteria` before it
+`dev10x-tasks:reflect` creates `Verify acceptance criteria` before it
 completes, so the session still ends on the terminal gate.
 
 **REQUIRED: Create phase tasks before ANY work.** At session
@@ -950,7 +950,7 @@ skill. Users can customize these via
 `/dev10x:playbook edit work-on <play>`.
 
 Every play below also ends with `[detailed] Reflect lessons into
-the knowledge vault → dev10x:reflect`, listed after Verify
+the knowledge vault → dev10x-tasks:reflect`, listed after Verify
 acceptance criteria (after "Decide" in `investigation`). The trees
 omit it for brevity; Phase 3 still creates it as a task (GH-1822).
 
@@ -1387,7 +1387,7 @@ column below justify stopping.
 |-------------|----------------|--------|
 | Explicit stop word ("stop", "pause", "wait", "hold on") | Pause | Stop the in-progress task, mark `pending`, ask what changed |
 | In-flight correction of the current action ("not that file", "wrong approach") | Pause | Stop, address the correction, resume |
-| `dev10x:session-wrap-up` invocation | Pause | Hand off to wrap-up |
+| `dev10x-tasks:session-wrap-up` invocation | Pause | Hand off to wrap-up |
 | `ALWAYS_ASK` gate firing | Pause | Honor the gate per its REQUIRED marker |
 | `<local-command-stdout>` block from a slash command | **Ambient chatter** | Continue — the user ran a side command, not a directive |
 | One-word ack ("ok", "k", "thanks", "👍") | **Ambient chatter** | Continue — acknowledgment, not a stop signal |
@@ -1438,7 +1438,7 @@ message count and tool result sizes.
      haiku for data collection, sonnet for analysis)
    - Compact completed task metadata (Pattern 8)
    - For large remaining work: spawn a fresh session with
-     `dev10x:session-wrap-up` + resume instructions
+     `dev10x-tasks:session-wrap-up` + resume instructions
 3. Do NOT block execution — this is advisory. Some tasks
    legitimately need deep context (e.g., cross-cutting
    refactors spanning many files).
@@ -2532,17 +2532,17 @@ completes. Do NOT defer this to the end of the session.
 At any pause signal ("wrap up", "pause", "that's enough for
 today", end-of-session):
 
-1. Invoke `dev10x:session-wrap-up` — it reads `TaskList` and
+1. Invoke `dev10x-tasks:session-wrap-up` — it reads `TaskList` and
    discovers all open tasks automatically
-2. `dev10x:session-wrap-up` handles routing each open item (PR
+2. `dev10x-tasks:session-wrap-up` handles routing each open item (PR
    bookmark, TODO.md, Slack DM, etc.)
 3. The task list itself serves as resume context — when the user
-   resumes work, they can invoke `dev10x:park-discover` to find
-   deferred items and `dev10x:session-tasks` to see the saved
+   resumes work, they can invoke `dev10x-tasks:park-discover` to find
+   deferred items and `dev10x-tasks:session-tasks` to see the saved
    task list
 
 No custom bookmarking needed — leverage existing
-`dev10x:session-wrap-up` and `dev10x:park` infrastructure.
+`dev10x-tasks:session-wrap-up` and `dev10x-tasks:park` infrastructure.
 
 ---
 
@@ -2691,9 +2691,9 @@ PR has 3 review comments → note them.
 User is at task 4 of 7 and says "let's wrap up for today".
 
 1. Skill detects pause signal
-2. Invokes `dev10x:session-wrap-up`
-3. `dev10x:session-wrap-up` reads `TaskList` — sees 3 pending tasks
-4. Routes each via `dev10x:park` (e.g., PR bookmark, TODO.md)
+2. Invokes `dev10x-tasks:session-wrap-up`
+3. `dev10x-tasks:session-wrap-up` reads `TaskList` — sees 3 pending tasks
+4. Routes each via `dev10x-tasks:park` (e.g., PR bookmark, TODO.md)
 5. Session ends with bookmark saved
 
 Next session: user runs `dev10x:discover` to find bookmarks and

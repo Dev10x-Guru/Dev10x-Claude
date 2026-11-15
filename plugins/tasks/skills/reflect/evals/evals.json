@@ -1,5 +1,5 @@
 {
-  "skill_name": "dev10x:reflect",
+  "skill_name": "dev10x-tasks:reflect",
   "eval_dimensions": [
     {
       "id": "task-tracking",
@@ -37,7 +37,7 @@
       "id": "unconfigured-vault-skips",
       "name": "Unconfigured vault is a one-line skip",
       "description": "No knowledge-vault.yaml exists; the skill must resolve config, print one line and stop.",
-      "input": "/dev10x:reflect",
+      "input": "/dev10x-tasks:reflect",
       "setup": {"knowledge_vault_yaml": null},
       "assertions": [
         {"dimension": "task-tracking", "check": "tool_called", "tool": "TaskCreate", "signal": "Standalone run: TaskCreate called with subject 'Reflect lessons into the knowledge vault' after TaskList finds none"},
@@ -75,7 +75,7 @@
       "id": "final-play-step-keeps-verify-ac-open",
       "name": "Final play step leaves Verify AC open",
       "description": "Invoked as a play's last step after dev10x:verify-acc-dod reported; Verify acceptance criteria is still pending. The order relative to Verify AC is set by the play (tests/skills/playbook/test_session_reflection_step.py), not observable in one skill run, so this eval checks only that Verify AC is left open.",
-      "input": "Skill(dev10x:reflect)",
+      "input": "Skill(dev10x-tasks:reflect)",
       "setup": {"open_tasks": ["Verify acceptance criteria", "Reflect lessons into the knowledge vault"]},
       "assertions": [
         {"dimension": "task-list-invariant", "check": "behavioral", "value": "verify-ac-untouched", "signal": "No TaskUpdate marks the Verify acceptance criteria task completed or deleted"},
@@ -88,7 +88,7 @@
       "id": "investigation-play-seeds-verify-ac",
       "name": "Reflect as last open task seeds Verify AC first",
       "description": "Investigation play has no Verify AC; reflect is the only open task.",
-      "input": "Skill(dev10x:reflect)",
+      "input": "Skill(dev10x-tasks:reflect)",
       "setup": {"open_tasks": ["Reflect lessons into the knowledge vault"]},
       "assertions": [
         {"dimension": "task-list-invariant", "check": "tool_called_before", "signals": ["TaskCreate(subject=\"Verify acceptance criteria\"", "status=\"completed\""], "signal": "TaskCreate for 'Verify acceptance criteria' happens before the TaskUpdate that completes the reflect task; tokens name the two events because the startup TaskUpdate(status=\"in_progress\") precedes both"},
@@ -97,15 +97,15 @@
     }
   ],
   "trigger_evals": {
-    "description": "Queries that should/should-not trigger dev10x:reflect",
+    "description": "Queries that should/should-not trigger dev10x-tasks:reflect",
     "should_trigger": [
       {"query": "reflect on this session and store the lessons", "rationale": "Explicit reflection request"},
       {"query": "retro this session into the vault", "rationale": "Retro + vault is the primary use case"},
       {"query": "lessons learned from this incident, please", "rationale": "Lessons-learned phrasing"}
     ],
     "should_not_trigger": [
-      {"query": "let's wrap up for today", "rationale": "Session end with open loops — use dev10x:session-wrap-up"},
-      {"query": "park this idea for later", "rationale": "Single deferral — use dev10x:park"},
+      {"query": "let's wrap up for today", "rationale": "Session end with open loops — use dev10x-tasks:session-wrap-up"},
+      {"query": "park this idea for later", "rationale": "Single deferral — use dev10x-tasks:park"},
       {"query": "start on GH-42", "rationale": "Starting work — use dev10x:work-on"}
     ]
   }
