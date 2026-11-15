@@ -80,7 +80,7 @@ Always apply `references/review-checks-common.md`.
 |------|-------|-----------|-------|
 | `git-commits.md` | Commit format, gitmoji, atomic commits | `dev10x:git-commit` skill, PR hygiene CI | Mandatory for all commits |
 | `git-pr.md` | PR format, grooming, review feedback | `dev10x:gh-pr-create` skill, PR hygiene CI | Mandatory for all PRs |
-| `git-jtbd.md` | Job Story format, principles, examples | `dev10x:jtbd` skill, PR hygiene CI | Mandatory for JTBD decisions |
+| `git-jtbd.md` | Job Story format, principles, examples | `dev10x-scoping:jtbd` skill, PR hygiene CI | Mandatory for JTBD decisions |
 | `review-guidelines.md` | Review workflow, threads, summaries | `dev10x:gh-pr-review` skill, code review CI | Mandatory for PR reviews |
 | `review-checks-common.md` | False positives, verification | Review agent specs, code review CI | Mandatory for code review agents |
 | `review-routing.md` | One subagent per reviewer spec: routing, dispatch, merge (GH-1741) | Code review CI Step 3, `dev10x:review` Step 4 | Mandatory for both review orchestrators |
@@ -99,13 +99,13 @@ Always apply `references/review-checks-common.md`.
 | `testing-patterns.md` | Pytest fixture composition, async handlers, parametrized tests | Code reviews, test authoring | Referenced, not auto-loaded |
 | `review-readiness.md` | Readiness check before a review request; SENT-NOT-READY / WENT-RED-AFTER audit (GH-1834) | `dev10x:request-review`, `dev10x:gh-pr-request-review`, `dev10x:foreman` | Referenced, not auto-loaded |
 | `pr-backlog-deferral.md` | Deferring non-blocking review findings to a backlog | `dev10x:gh-pr-review` skill, code review CI | Referenced, not auto-loaded |
-| `milestone-naming.md` | Milestone naming convention, initiative prefixes, `Depends on:` ordering (no sequence numbers) | `dev10x:project-scope`, `dev10x:work-on` milestone steps | Referenced, not auto-loaded |
+| `milestone-naming.md` | Milestone naming convention, initiative prefixes, `Depends on:` ordering (no sequence numbers) | `dev10x-scoping:project-scope`, `dev10x:work-on` milestone steps | Referenced, not auto-loaded |
 | `backpressure.md` | Two-direction backpressure architecture (action gating + friction tuning + output gates) | Review & architecture docs, code review CI | Referenced, not auto-loaded |
 | `mcp-tools/*.md` | Per-tool behavioural caveats and the version table, moved out of the always-loaded `mcp-tools.md` rule (GH-1606) | Callers of the tool each file names | Referenced, not auto-loaded |
-| `html-artifact-reporting.md` | Optional HTML artifacts for long comparison-shaped reports; markdown stays default | `dev10x:ddd` deliverables, foreman morning report | Referenced, not auto-loaded |
-| `diagrams/rendering.md` | Shared diagram render toolchain contract and failure table | `dev10x:diagram-sequence`, `dev10x:diagram-c4`, `dev10x:diagram-bpmn`, `dev10x:scope`, `dev10x:adr` | Referenced, not auto-loaded |
+| `html-artifact-reporting.md` | Optional HTML artifacts for long comparison-shaped reports; markdown stays default | `dev10x-scoping:ddd` deliverables, foreman morning report | Referenced, not auto-loaded |
+| `diagrams/rendering.md` (now `plugins/scoping/references/diagrams/rendering.md`, GH-1570) | Shared diagram render toolchain contract and failure table | `dev10x-scoping:diagram-sequence`, `dev10x-scoping:diagram-c4`, `dev10x-scoping:diagram-bpmn`, `dev10x-scoping:scope`, `dev10x-scoping:adr` | Referenced, not auto-loaded |
 | `agent-catalog.md` | Every agent spec — internal reviewers in `.claude/agents/`, plugin-distributed agents in `agents/` — with its trigger (GH-1750) | Adding or auditing an agent spec | Referenced, not auto-loaded |
-| `skill-personas.md` | Optional per-skill `persona:` field, its mirrored `**Persona:**` body line, and the pilot set (GH-1638) | `dev10x:skill-create`; the pilot skills `dev10x:review`, `dev10x:adr`, `dev10x:ticket-scope` | Referenced, not auto-loaded |
+| `skill-personas.md` | Optional per-skill `persona:` field, its mirrored `**Persona:**` body line, and the pilot set (GH-1638) | `dev10x-teach:skill-create`; the pilot skills `dev10x:review`, `dev10x-scoping:adr`, `dev10x-scoping:ticket-scope` | Referenced, not auto-loaded |
 | `skill-size-overrides.md` | SKILL.md / `instructions.md` files allowed past the 200-line budget, with each justification (GH-1750) | Reviewing a skill over budget | Referenced, not auto-loaded |
 
 ## Agent Specs
