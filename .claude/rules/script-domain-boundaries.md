@@ -1,6 +1,7 @@
 ---
 paths:
   - "skills/**/scripts/**"
+  - "plugins/*/skills/**/scripts/**"
   - "src/dev10x/**/skills/**"
   - "src/dev10x/**/domain/**"
   - "src/dev10x/**/mcp/**"
