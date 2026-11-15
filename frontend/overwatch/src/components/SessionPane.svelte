@@ -45,8 +45,8 @@
 
   const NAME_PATTERN = "[A-Za-z0-9][A-Za-z0-9._\\-]{0,63}";
   const COMMANDS = [
-    ["reflect", "Reflect", "/dev10x:reflect"],
-    ["wrap-up", "Wrap up", "/dev10x:session-wrap-up"],
+    ["reflect", "Reflect", "/dev10x-tasks:reflect"],
+    ["wrap-up", "Wrap up", "/dev10x-tasks:session-wrap-up"],
   ] as const;
 
   let dropping = $state(false);
