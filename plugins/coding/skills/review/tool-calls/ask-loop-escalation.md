@@ -1,6 +1,6 @@
 # Decision Gate: Loop Round Cap (GH-1831)
 
-Fires when round 4 of `dev10x:review --loop` — or any later round
+Fires when round 4 of `dev10x-coding:review --loop` — or any later round
 reached through "Continue one more round" — is not clean. It fires
 before that round's fixes, so the open defects are still unfixed.
 Order the options so the one computed from the round ledger comes

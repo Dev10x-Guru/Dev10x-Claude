@@ -311,7 +311,7 @@ async def pr_labels(
     """List, add, or remove labels on a PR (GH-1008).
 
     The durable per-PR signal surface. Its first consumer is
-    `dev10x:gh-pr-request-review`'s stand-by clearance gate, which
+    `dev10x-coding:gh-pr-request-review`'s stand-by clearance gate, which
     writes `review:cleared` so the clearance outlives the session that
     granted it — previously the gate re-asked on every new session.
     Reach for this instead of `gh pr edit --add-label`, which is the
@@ -820,9 +820,9 @@ async def merge_pr(
     """Merge a pull request via ``gh pr merge`` (GH-232).
 
     Symmetric to ``create_pr``/``update_pr``. Provides a structured
-    MCP entry point for the merge so ``dev10x:gh-pr-merge`` Step 5
-    can ship the merge without hitting the PreToolUse hook that
-    blocks raw ``gh pr merge`` Bash invocations.
+    MCP entry point for the merge so ``dev10x-coding:gh-pr-merge``
+    Step 5 can ship the merge without hitting the PreToolUse hook
+    that blocks raw ``gh pr merge`` Bash invocations.
 
     The skill must still run all 9 pre-merge checks before calling
     this tool — the hook block was the only reason the documented
@@ -841,7 +841,7 @@ async def merge_pr(
             privileges to merge a PR left ``BLOCKED`` by a
             required-review rule the account cannot satisfy (e.g. a
             solo maintainer who cannot self-approve). Only the
-            ``dev10x:gh-pr-merge`` Step 5 admin-override gate should
+            ``dev10x-coding:gh-pr-merge`` Step 5 admin-override gate should
             set this, and only after the 7 non-approval checks pass
             (GH-733).
         auto: Pass ``--auto`` when True — enable GitHub auto-merge so

@@ -122,7 +122,7 @@ most of it — to `skills/foreman/references/` and leave a pointer.
   and § References to `references/` first
 - `review` (~590 lines, GH-1749, GH-1831, GH-1863) — the Phase 0 spec gate with its
   attended and unattended dispositions, the routing/dispatch/merge
-  steps and the findings contract that `dev10x:review-fix` reads are
+  steps and the findings contract that `dev10x-coding:review-fix` reads are
   execution-gating and stay inline; dispatch templates already live in
   `references/spec-gate.md` and `references/domain-dispatch.md`.
   Split plan: move § Step 5's confidence-threshold destination note and

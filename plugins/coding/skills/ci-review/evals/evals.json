@@ -1,5 +1,5 @@
 {
-  "skill_name": "dev10x:ci-review",
+  "skill_name": "dev10x-coding:ci-review",
   "description": "Replay the Claude CI code review and hygiene check locally on a PR, recording writes instead of posting",
   "eval_dimensions": [
     {
@@ -28,7 +28,7 @@
       "id": "gate-before-paid-run",
       "name": "Render first, then ask before the model run",
       "description": "On a ready PR the skill renders with --render-only, then calls AskUserQuestion before running any workflow.",
-      "input": "/dev10x:ci-review 1650",
+      "input": "/dev10x-coding:ci-review 1650",
       "assertions": [
         {
           "dimension": "paid-run-gate",
@@ -47,7 +47,7 @@
       "id": "failed-guard-stops",
       "name": "A failed CI guard stops the replay",
       "description": "On a draft PR the render reports the draft guard and the skill stops without asking to run.",
-      "input": "/dev10x:ci-review on a draft PR",
+      "input": "/dev10x-coding:ci-review on a draft PR",
       "assertions": [
         {
           "dimension": "paid-run-gate",
@@ -60,7 +60,7 @@
       "id": "gate-before-post",
       "name": "Ask about posting after the report is read",
       "description": "The share gate fires after the run's report is relayed, not before the run; on 'Post' the skill posts the finished run directory without a second model run (GH-1762).",
-      "input": "/dev10x:ci-review 1650 and share it on the PR, user picks Run the code review only",
+      "input": "/dev10x-coding:ci-review 1650 and share it on the PR, user picks Run the code review only",
       "assertions": [
         {
           "dimension": "post-gate",
@@ -90,7 +90,7 @@
       "id": "report-says-nothing-posted",
       "name": "The report says nothing was posted",
       "description": "After a run the skill relays the outbox and usage table and states that no GitHub write happened.",
-      "input": "/dev10x:ci-review 1650, user picks Run both reviews",
+      "input": "/dev10x-coding:ci-review 1650, user picks Run both reviews",
       "assertions": [
         {
           "dimension": "no-github-writes",

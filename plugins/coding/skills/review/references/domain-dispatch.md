@@ -1,6 +1,6 @@
-# Domain Dispatch — Step 4 of `dev10x:review` (GH-1741)
+# Domain Dispatch — Step 4 of `dev10x-coding:review` (GH-1741)
 
-How `dev10x:review` turns a branch diff into one parallel subagent per
+How `dev10x-coding:review` turns a branch diff into one parallel subagent per
 reviewer spec, then folds the reports back into its findings JSON.
 Routing, dispatch and merge rules are shared with the CI review and
 live in [`references/review-routing.md`](../../../references/review-routing.md);
@@ -107,7 +107,7 @@ in SKILL.md § Findings Format:
 | the checklist item's domain | `category` (`bug`/`security`/`architecture`/`style`/`test`) |
 
 Every domain finding gets `"source": "manual"`. Do not add fields:
-`dev10x:review-fix` reads this file as-is. Name the reviewer at the
+`dev10x-coding:review-fix` reads this file as-is. Name the reviewer at the
 start of `description` (`[reviewer-security] …`) so the summary can
 say who raised what.
 

@@ -1,5 +1,5 @@
 {
-  "skill_name": "dev10x:work-on",
+  "skill_name": "dev10x-coding:work-on",
   "eval_dimensions": [
     {
       "id": "classify",
@@ -41,7 +41,7 @@
     {
       "id": 1,
       "name": "single-github-issue",
-      "prompt": "/dev10x:work-on https://github.com/example-org/app-pos/issues/247",
+      "prompt": "/dev10x-coding:work-on https://github.com/example-org/app-pos/issues/247",
       "description": "Single GitHub issue URL — the most common input. Tests full 4-phase flow with feature work type.",
       "expected_output": "Creates 4 phase tasks upfront, classifies as github-issue, fetches issue context with subtask per source, builds feature plan as Phase 4 subtasks ending with acceptance criteria verification",
       "dimensions": ["classify", "gather", "plan", "task-structure", "workspace"],
@@ -127,9 +127,9 @@
         },
         {
           "id": "plan-includes-self-qa",
-          "text": "Plan includes 'Record self-QA video and review pack' (dev10x:qa-scope → dev10x-qa:qa-self --exploratory → dev10x-qa:review-pack) directly before the review request (before review responses in the business play); it skips with one printed line when there is no user-facing change or no runnable environment, and keeps the external-publish gates (GH-1827)",
+          "text": "Plan includes 'Record self-QA video and review pack' (dev10x-coding:qa-scope → dev10x-qa:qa-self --exploratory → dev10x-qa:review-pack) directly before the review request (before review responses in the business play); it skips with one printed line when there is no user-facing change or no runnable environment, and keeps the external-publish gates (GH-1827)",
           "check": "task_exists",
-          "signals": ["Record self-QA video and review pack", "dev10x:qa-scope"]
+          "signals": ["Record self-QA video and review pack", "dev10x-coding:qa-scope"]
         },
         {
           "id": "plan-ends-with-acceptance",
@@ -172,7 +172,7 @@
     {
       "id": 2,
       "name": "linear-ticket-with-sentry",
-      "prompt": "/dev10x:work-on DEV-42 https://example-org.sentry.io/issues/5201839452",
+      "prompt": "/dev10x-coding:work-on DEV-42 https://example-org.sentry.io/issues/5201839452",
       "description": "Linear ticket + Sentry issue — tests multi-input classification, parallel gathering with source subtasks, and bugfix plan adaptation.",
       "expected_output": "Creates 4 phase tasks, classifies both inputs, creates subtask per source in Phase 2, builds bugfix plan with reproduce step added",
       "dimensions": ["classify", "gather", "plan", "task-structure"],
@@ -231,7 +231,7 @@
     {
       "id": 3,
       "name": "pr-continuation",
-      "prompt": "/dev10x:work-on https://github.com/example-org/app-pos/pull/312",
+      "prompt": "/dev10x-coding:work-on https://github.com/example-org/app-pos/pull/312",
       "description": "PR URL — tests PR continuation plan template with fixups, groom, and re-review steps.",
       "expected_output": "Creates 4 phase tasks, classifies as github-pr, builds PR-continuation plan (fetch comments, address, fixups, CI, groom, re-review, acceptance)",
       "dimensions": ["classify", "plan", "task-structure"],
@@ -289,7 +289,7 @@
     {
       "id": 4,
       "name": "mixed-inputs-with-free-text",
-      "prompt": "/dev10x:work-on TEAM-133 https://app.slack.com/archives/C06ABCDEF/p1709827200123456 \"check the retry logic in payment processing\"",
+      "prompt": "/dev10x-coding:work-on TEAM-133 https://app.slack.com/archives/C06ABCDEF/p1709827200123456 \"check the retry logic in payment processing\"",
       "description": "Three inputs: Linear ticket + Slack thread + free-text note. Tests multi-source subtask creation in Phase 2.",
       "expected_output": "Creates 4 phase tasks, classifies all three, creates subtasks per source in Phase 2 (2 for fetching, note passes through)",
       "dimensions": ["classify", "gather", "task-structure"],
@@ -329,7 +329,7 @@
     {
       "id": 5,
       "name": "bare-number-input",
-      "prompt": "/dev10x:work-on #42",
+      "prompt": "/dev10x-coding:work-on #42",
       "description": "Bare number with hash — should resolve as PR against current repo. Tests the #N shorthand classification.",
       "expected_output": "Creates 4 phase tasks, classifies as github-pr, resolves against current repo",
       "dimensions": ["classify", "task-structure"],
@@ -357,7 +357,7 @@
     {
       "id": 6,
       "name": "free-text-only",
-      "prompt": "/dev10x:work-on add a retry mechanism to the Square payment webhook handler with exponential backoff",
+      "prompt": "/dev10x-coding:work-on add a retry mechanism to the Square payment webhook handler with exponential backoff",
       "description": "Pure free-text input with no ticket or URL. Tests local-only plan template with conditional PR steps.",
       "expected_output": "Creates 4 phase tasks, classifies as note, builds local-only plan with decide step, conditional PR/fixup/groom/review steps, and acceptance criteria last",
       "dimensions": ["classify", "plan", "task-structure"],
@@ -403,7 +403,7 @@
     {
       "id": 7,
       "name": "cross-reference-expansion",
-      "prompt": "/dev10x:work-on https://github.com/example-org/app-pos/issues/200",
+      "prompt": "/dev10x-coding:work-on https://github.com/example-org/app-pos/issues/200",
       "description": "GitHub issue whose body contains a Sentry URL and mentions PR #198. Tests one-level cross-reference expansion with additional subtasks.",
       "expected_output": "Creates subtask for initial source, discovers cross-refs, creates additional subtasks for Sentry + PR, fetches them",
       "dimensions": ["gather", "task-structure"],
@@ -437,7 +437,7 @@
     {
       "id": 8,
       "name": "jira-ticket-input",
-      "prompt": "/dev10x:work-on JIRA-456",
+      "prompt": "/dev10x-coding:work-on JIRA-456",
       "description": "JIRA ticket ID shorthand — tests detect-tracker.sh routing and JIRA-specific gathering with source subtask.",
       "expected_output": "Creates 4 phase tasks, classifies as jira-ticket, creates fetch subtask, routes through detect-tracker.sh",
       "dimensions": ["classify", "gather", "task-structure"],
@@ -471,28 +471,28 @@
     {
       "id": 9,
       "name": "execution-delegates-endgame-skills",
-      "prompt": "/dev10x:work-on https://github.com/example-org/app-pos/issues/247",
+      "prompt": "/dev10x-coding:work-on https://github.com/example-org/app-pos/issues/247",
       "description": "Tests that Phase 4 execution delegates the endgame subtasks to the correct skills (gh-pr-respond, git-groom, gh-pr-request-review).",
-      "expected_output": "During Phase 4, invokes dev10x:gh-pr-respond for fixups, dev10x:git-groom for history cleanup, and dev10x:gh-pr-request-review for publishing review request",
+      "expected_output": "During Phase 4, invokes dev10x-coding:gh-pr-respond for fixups, dev10x-coding:git-groom for history cleanup, and dev10x-coding:gh-pr-request-review for publishing review request",
       "dimensions": ["execute"],
       "assertions": [
         {
           "id": "delegates-fixups-to-pr-respond",
-          "text": "Delegates 'Apply fixups to review comments' to dev10x:gh-pr-respond skill",
+          "text": "Delegates 'Apply fixups to review comments' to dev10x-coding:gh-pr-respond skill",
           "check": "tool_called",
-          "signals": ["Skill", "dev10x:gh-pr-respond"]
+          "signals": ["Skill", "dev10x-coding:gh-pr-respond"]
         },
         {
           "id": "delegates-groom-to-git-groom",
-          "text": "Delegates 'Groom commit history' to dev10x:git-groom skill",
+          "text": "Delegates 'Groom commit history' to dev10x-coding:git-groom skill",
           "check": "tool_called",
-          "signals": ["Skill", "dev10x:git-groom"]
+          "signals": ["Skill", "dev10x-coding:git-groom"]
         },
         {
           "id": "delegates-review-to-request-review",
-          "text": "Delegates 'Request review' to dev10x:gh-pr-request-review skill",
+          "text": "Delegates 'Request review' to dev10x-coding:gh-pr-request-review skill",
           "check": "tool_called",
-          "signals": ["Skill", "dev10x:gh-pr-request-review"]
+          "signals": ["Skill", "dev10x-coding:gh-pr-request-review"]
         },
         {
           "id": "post-step-skill-verification",
@@ -529,7 +529,7 @@
     {
       "id": 10,
       "name": "worktree-generic-branch",
-      "prompt": "/dev10x:work-on DEV-99",
+      "prompt": "/dev10x-coding:work-on DEV-99",
       "description": "CWD is a worktree with a generic WT branch (e.g., wt/my-worktree). Tests that Phase 1 detects this and Phase 4 creates a work-specific branch before any commits.",
       "setup": {
         "cwd_is_worktree": true,
@@ -558,22 +558,22 @@
         },
         {
           "id": "delegates-to-ticket-branch",
-          "text": "Workspace setup delegates to dev10x:ticket-branch (not dev10x:git-worktree — already in worktree)",
+          "text": "Workspace setup delegates to dev10x-coding:ticket-branch (not dev10x-coding:git-worktree — already in worktree)",
           "check": "tool_called",
-          "signals": ["Skill", "dev10x:ticket-branch"]
+          "signals": ["Skill", "dev10x-coding:ticket-branch"]
         },
         {
           "id": "branch-before-commits",
           "text": "Branch creation happens before any git commit operations",
           "check": "tool_sequence",
-          "signals": ["dev10x:ticket-branch", "git commit"]
+          "signals": ["dev10x-coding:ticket-branch", "git commit"]
         }
       ]
     },
     {
       "id": 11,
       "name": "worktree-matching-branch",
-      "prompt": "/dev10x:work-on DEV-99",
+      "prompt": "/dev10x-coding:work-on DEV-99",
       "description": "CWD is a worktree already on the correct feature branch (janusz/DEV-99/fix-something). Tests that workspace setup is skipped.",
       "setup": {
         "cwd_is_worktree": true,
@@ -598,7 +598,7 @@
     {
       "id": 12,
       "name": "pr-continuation-skips-branch",
-      "prompt": "/dev10x:work-on https://github.com/example-org/app-pos/pull/312",
+      "prompt": "/dev10x-coding:work-on https://github.com/example-org/app-pos/pull/312",
       "description": "PR continuation — branch already exists from the PR. Tests that workspace decision is 'no branch needed'.",
       "setup": {
         "existing_pr": 312,
@@ -623,7 +623,7 @@
     {
       "id": 13,
       "name": "orchestration-guardrails",
-      "prompt": "/dev10x:work-on add retry logic to the webhook handler",
+      "prompt": "/dev10x-coding:work-on add retry logic to the webhook handler",
       "description": "Free-text input that tests orchestration guardrails: no ExitPlanMode, Phase 3 uses TaskCreate mechanically, AskUserQuestion at approval gate, 1:1 task-to-step mapping, and completion gate at end.",
       "expected_output": "Creates 4 phase tasks, never calls ExitPlanMode, creates one TaskCreate per local-only play step (not fewer), presents plan via AskUserQuestion, and shows completion gate after last task",
       "dimensions": ["orchestration-guardrails", "plan", "task-structure"],
@@ -677,7 +677,7 @@
     {
       "id": 14,
       "name": "phase0-posture-delegation",
-      "prompt": "/dev10x:work-on https://github.com/example-org/app-pos/issues/300",
+      "prompt": "/dev10x-coding:work-on https://github.com/example-org/app-pos/issues/300",
       "description": "Tests that Phase 0 settles review posture through supervisor_review_status and delegates the ask to dev10x:friction-setup (ADR-0022), rather than offering a strict/guided/adaptive picker or writing friction.yaml itself.",
       "setup": {
         "cwd_is_worktree": true,
@@ -718,7 +718,7 @@
         },
         {
           "id": "phase0-skips-when-nested",
-          "text": "Phase 0 is skipped when running as nested invocation from dev10x:fanout",
+          "text": "Phase 0 is skipped when running as nested invocation from dev10x-coding:fanout",
           "check": "behavioral",
           "signals": ["skip", "nested", "fanout"]
         }
@@ -733,7 +733,7 @@
         "rationale": "Mentions a ticket ID and wants to start work — core use case"
       },
       {
-        "query": "/dev10x:work-on https://linear.app/example/issue/DEV-55/fix-square-webhook-retry",
+        "query": "/dev10x-coding:work-on https://linear.app/example/issue/DEV-55/fix-square-webhook-retry",
         "rationale": "Explicit invocation with Linear URL"
       },
       {
@@ -764,7 +764,7 @@
     "should_not_trigger": [
       {
         "query": "can you review PR #312 and leave comments on the code quality?",
-        "rationale": "Wants PR review (dev10x:gh-pr-review), not to work on the PR"
+        "rationale": "Wants PR review (dev10x-coding:gh-pr-review), not to work on the PR"
       },
       {
         "query": "create a ticket for the webhook retry bug we found yesterday",
@@ -776,7 +776,7 @@
       },
       {
         "query": "commit these changes with a message about fixing the payment timeout",
-        "rationale": "Wants a git commit (dev10x:git-commit), not orchestrated work"
+        "rationale": "Wants a git commit (dev10x-coding:git-commit), not orchestrated work"
       },
       {
         "query": "can you scope out JIRA-789 and estimate story points for the planning meeting?",
@@ -784,11 +784,11 @@
       },
       {
         "query": "push this branch and create a PR for the changes we just made",
-        "rationale": "Wants PR creation (dev10x:gh-pr-create), already has the work done"
+        "rationale": "Wants PR creation (dev10x-coding:gh-pr-create), already has the work done"
       },
       {
         "query": "read the sentry issue at https://example-org.sentry.io/issues/5201839452 and tell me what's causing it",
-        "rationale": "Wants investigation only (dev10x:investigate), not full work orchestration"
+        "rationale": "Wants investigation only (dev10x-coding:investigate), not full work orchestration"
       },
       {
         "query": "let's wrap up for today and save my progress",

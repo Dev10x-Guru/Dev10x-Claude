@@ -6,8 +6,8 @@ the head, or a draft flag each waste the reviewer's time and teach the
 team to ignore review requests. One field-tested workflow sent PRs out
 in that state twice in one day.
 
-This file defines the readiness check that `dev10x:request-review` and
-`dev10x:gh-pr-request-review` run before any reviewer is pinged, and the
+This file defines the readiness check that `dev10x-coding:request-review` and
+`dev10x-coding:gh-pr-request-review` run before any reviewer is pinged, and the
 audit that looks back at PRs already sent.
 
 ## The four conditions
@@ -40,12 +40,12 @@ PR is fine.
 The check never marks a draft ready itself: that would publish the PR
 and notify code owners even when the check then refuses, and it would
 jump ahead of a `supervisor_review: required` park. In
-`dev10x:request-review` a draft fails like any other condition, and the
+`dev10x-coding:request-review` a draft fails like any other condition, and the
 fix is the caller's: mark it ready with
 `mcp__plugin_dev10x_cli__pr_ready`, let CI and the bots run, then
 request review again.
 
-`dev10x:gh-pr-request-review` keeps its own Draft State Check, which
+`dev10x-coding:gh-pr-request-review` keeps its own Draft State Check, which
 flips a draft with `pr_ready` before reviewer resolution because GitHub
 drops review requests on drafts. When a run flipped the draft, its
 readiness step first waits once for CI with
@@ -72,7 +72,7 @@ branch on the run mode. Resolve it in this order (GH-1921):
    `mcp__plugin_dev10x_cli__resolve_gate` payload — every payload
    carries it, whatever gate was asked, so reuse one the skill already
    resolved. It is derived from structured state, never from prose:
-   the `afk` overlay, or a `dev10x:work-on` plan step `in_progress` in
+   the `afk` overlay, or a `dev10x-coding:work-on` plan step `in_progress` in
    the plan-sync mirror, is `unattended`; mirrored tasks with no plan
    step running is `attended`.
 3. `run_mode.mode` is `undetermined` (no mirror, no mirrored tasks, a
@@ -82,7 +82,7 @@ branch on the run mode. Resolve it in this order (GH-1921):
    caller sees that nothing settled it.
 
 `references/mcp-tools/caveats-config-pins.md` lists every `basis`.
-`dev10x:request-review` is a single skill, not a plan step: it passes
+`dev10x-coding:request-review` is a single skill, not a plan step: it passes
 `--unattended` to `gh-pr-request-review` only when it resolved
 unattended itself. `--readiness-checked` is not a mode: it tells
 `gh-pr-request-review` that `request-review` already ran this check,
@@ -108,7 +108,7 @@ stop.
 
 ## Result for callers
 
-`dev10x:request-review` and `dev10x:gh-pr-request-review` end every
+`dev10x-coding:request-review` and `dev10x-coding:gh-pr-request-review` end every
 run with one machine-readable line, after any prose (GH-1921):
 
 ```
@@ -183,7 +183,7 @@ arrival only, which dates bot problems:
 
 Treat the verdict as a lead to check against the PR, not a judgement.
 
-Run the audit with `/dev10x:request-review --audit [--repo R]`. It
+Run the audit with `/dev10x-coding:request-review --audit [--repo R]`. It
 writes nothing.
 
 ## Periodic sweep under foreman

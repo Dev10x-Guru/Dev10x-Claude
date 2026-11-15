@@ -6,7 +6,7 @@ description: >
   the dev10x-scoping:jtbd base skill, then handles the side-effecting write.
   TRIGGER when: a ticket or PR needs a Job Story written or updated.
   DO NOT TRIGGER when: JTBD is already present in the target, or user
-  is writing commit messages (use dev10x:git-commit for that).
+  is writing commit messages (use dev10x-coding:git-commit for that).
 user-invocable: true
 invocation-name: dev10x-scoping:ticket-jtbd
 allowed-tools:

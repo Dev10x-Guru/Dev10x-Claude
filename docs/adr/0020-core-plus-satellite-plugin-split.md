@@ -77,7 +77,7 @@ that at the *distribution* layer without reversing it at the
 3. 37/87 skills reference `${CLAUDE_PLUGIN_ROOT}`; those reaching
    into the *shared* top-level `references/` break when moved to a
    different plugin root.
-4. Skill invocation names (`dev10x:slack`, `dev10x:git-commit`, …)
+4. Skill invocation names (`dev10x:slack`, `dev10x-coding:git-commit`, …)
    are hardcoded in other skills, playbooks, and user configs; the
    plugin prefix changes when a skill moves.
 

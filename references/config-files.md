@@ -30,7 +30,7 @@ fragments:
   shipping-pipeline-solo:
     - subject: Code review
       type: detailed
-      skills: [dev10x:review, dev10x:review-fix]
+      skills: [dev10x-coding:review, dev10x-coding:review-fix]
     # ...
 
 projects:
@@ -41,7 +41,7 @@ projects:
         steps:
           - subject: Set up workspace
             type: detailed
-            skills: [dev10x:ticket-branch]
+            skills: [dev10x-coding:ticket-branch]
           # ...
 
   - match_repo: "example-org/*"
@@ -105,7 +105,7 @@ projects:
 | 2 | `~/.config/Dev10x/dod-acceptance-criteria.yaml` |
 | 3 | Plugin defaults (hardcoded in skill) |
 
-Tier 2 is the only location `dev10x:verify-acc-dod` reads or writes.
+Tier 2 is the only location `dev10x-coding:verify-acc-dod` reads or writes.
 The retired `~/.claude/memory/Dev10x/dod-acceptance-criteria.yaml` is
 not read; `dev10x config migrate` copies it to tier 2.
 

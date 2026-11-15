@@ -8,7 +8,7 @@ description: >
   TRIGGER when: a QA run has produced screenshots and a screen recording and
   the results need to reach a ticket and a PR.
   DO NOT TRIGGER when: executing the QA test cases (use dev10x-qa:qa-self),
-  analyzing a PR for QA needs (use dev10x:qa-scope), or publishing a single
+  analyzing a PR for QA needs (use dev10x-coding:qa-scope), or publishing a single
   video with no ticket write-up (use dev10x-qa:yt-upload directly).
 user-invocable: true
 invocation-name: dev10x-qa:qa-publish

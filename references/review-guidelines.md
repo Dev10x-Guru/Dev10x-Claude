@@ -7,7 +7,7 @@ in code, see the domain-specific agent specs in `.claude/agents/`.
 ## Approval State Guard (GH-993)
 
 Before requesting review (or re-review) on a PR, the
-`dev10x:request-review` skill family **must** check the PR's
+`dev10x-coding:request-review` skill family **must** check the PR's
 current review state to avoid pinging reviewers on already-approved
 PRs.
 
@@ -18,7 +18,7 @@ PRs.
 2. If `reviewDecision == "APPROVED"` AND the latest review's
    `commit.oid` matches `headRefOid` → PR is approved on the
    current HEAD. **Short-circuit** the request and offer
-   `dev10x:gh-pr-merge` instead via `AskUserQuestion`.
+   `dev10x-coding:gh-pr-merge` instead via `AskUserQuestion`.
 3. If `reviewDecision == "APPROVED"` but newer commits have
    invalidated the approval (review SHA != HEAD SHA) →
    proceed with re-request, but **filter out** any reviewer whose
@@ -28,7 +28,7 @@ PRs.
 
 **Bypass:** Callers may pass `bypass_approval_check: true` (or a
 `--force` flag) to skip the guard. This is intended for explicit
-internal flows — e.g., `dev10x:gh-pr-monitor` Phase 3 re-request
+internal flows — e.g., `dev10x-coding:gh-pr-monitor` Phase 3 re-request
 after fixups, where the caller has already validated state. Do
 not bypass for direct user invocations.
 
@@ -38,9 +38,9 @@ cycle. The guard turns a mid-flow noise event into an explicit
 choice between merge and force-request.
 
 The guard applies to:
-- `dev10x:request-review` (orchestrator) — Step 1.5 precheck
-- `dev10x:gh-pr-request-review` — Pre-flight Approval State Check
-- `dev10x:slack-review-request` — Step 0 precheck
+- `dev10x-coding:request-review` (orchestrator) — Step 1.5 precheck
+- `dev10x-coding:gh-pr-request-review` — Pre-flight Approval State Check
+- `dev10x-coding:slack-review-request` — Step 0 precheck
 
 ## Review Workflow
 
@@ -285,7 +285,7 @@ When a PR demonstrates excellent practices:
 
 ## Courtesy-Fixup Disposition (GH-323)
 
-`dev10x:gh-pr-review` classifies each finding with a
+`dev10x-coding:gh-pr-review` classifies each finding with a
 **courtesy-fixup disposition**: mechanical, unambiguous findings
 may be pushed as `fixup!` commits by the reviewer, with consent,
 instead of posting an inline comment. The scope gate (Step 6b)

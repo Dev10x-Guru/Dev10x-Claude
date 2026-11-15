@@ -1,28 +1,27 @@
 ---
-name: dev10x:gh-pr-monitor
+name: dev10x-coding:gh-pr-monitor
 description: >
   Launch a background agent to monitor PR CI checks and review comments,
   automatically address issues with fixup commits, and notify team when
   ready. Use after creating a PR to automate the entire review cycle.
   TRIGGER when: PR has been created and needs CI/review monitoring.
-  DO NOT TRIGGER when: PR does not exist yet (use dev10x:gh-pr-create
+  DO NOT TRIGGER when: PR does not exist yet (use dev10x-coding:gh-pr-create
   first), or user wants to manually handle review comments.
 user-invocable: true
-invocation-name: dev10x:gh-pr-monitor
+invocation-name: dev10x-coding:gh-pr-monitor
 allowed-tools:
   - Agent
-  - Skill(dev10x:gh-pr-respond)
-  - Skill(dev10x:git-commit)
-  - Skill(dev10x:git-groom)
-  - Skill(dev10x:qa-scope)
-  - Skill(dev10x:slack-review-request)
+  - Skill(dev10x-coding:gh-pr-respond)
+  - Skill(dev10x-coding:git-commit)
+  - Skill(dev10x-coding:git-groom)
+  - Skill(dev10x-coding:qa-scope)
+  - Skill(dev10x-coding:slack-review-request)
   - Skill(dev10x-scoping:ticket-jtbd)
-  - Skill(dev10x:verify-acc-dod)
+  - Skill(dev10x-coding:verify-acc-dod)
   - AskUserQuestion
   - mcp__plugin_dev10x_cli__pr_notify
   - mcp__plugin_dev10x_cli__detect_tracker
   - mcp__plugin_dev10x_cli__pr_detect
-  - Bash(${CLAUDE_PLUGIN_ROOT}/skills/gh-context/scripts/:*)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/gh-pr-monitor/scripts/:*)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/gh-pr-merge/scripts/:*)
   - mcp__plugin_dev10x_cli__ci_check_status
@@ -33,9 +32,9 @@ allowed-tools:
   - mcp__plugin_dev10x_cli__background_preamble
   - mcp__plugin_dev10x_cli__resolve_gate
   - Bash(gh:*)
-  - Skill(dev10x:qa-scope)
-  - Skill(dev10x:request-review)
-  - Skill(dev10x:verify-acc-dod)
+  - Skill(dev10x-coding:qa-scope)
+  - Skill(dev10x-coding:request-review)
+  - Skill(dev10x-coding:verify-acc-dod)
 ---
 
 # PR Review Monitor (Background Agent)
@@ -51,7 +50,7 @@ the user can keep working.
 - `--unattended` (GH-1911) — nobody is watching this run. No phase
   fires a notification widget: an `external_notify` gate that
   resolves to `ask` is treated as `skip`, and Phase 3 passes
-  `--unattended` on to `dev10x:request-review`. Without the flag
+  `--unattended` on to `dev10x-coding:request-review`. Without the flag
   the run is still unattended when `resolve_gate`'s `run_mode.mode`
   says so — an `afk` overlay or a work-on plan step in progress
   (GH-1921, `references/review-readiness.md`). Strip the flag
@@ -77,13 +76,13 @@ Read a phase's file when the supervisor reaches the phase — Phase
 ## Mandatory Invocation After PR Creation (GH-162)
 
 Audit GH-162 caught a session where work-on task 4.9
-"Monitor CI → delegate to `dev10x:gh-pr-monitor`" was in the
+"Monitor CI → delegate to `dev10x-coding:gh-pr-monitor`" was in the
 plan but never executed; the session ended immediately after
 a single inline `gh pr view` status check (turn 279) and CI
 completion was never confirmed.
 
-**Hard rule:** After `dev10x:gh-pr-create` succeeds, the very
-next action MUST be `Skill(dev10x:gh-pr-monitor)` — no
+**Hard rule:** After `dev10x-coding:gh-pr-create` succeeds, the very
+next action MUST be `Skill(dev10x-coding:gh-pr-monitor)` — no
 exceptions. Orchestrators that mark the monitor task
 `completed` without invoking the skill (e.g., via a one-off
 `gh pr view` or inline polling) commit a compliance

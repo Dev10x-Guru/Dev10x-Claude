@@ -1,5 +1,5 @@
 {
-  "skill_name": "dev10x:request-review",
+  "skill_name": "dev10x-coding:request-review",
   "eval_dimensions": [
     {
       "id": "transport-resolution",
@@ -41,7 +41,7 @@
     {
       "id": 1,
       "name": "chat-only-repo-reaches-its-transport",
-      "prompt": "/dev10x:request-review --pr 42 --repo org/wonka-docs",
+      "prompt": "/dev10x-coding:request-review --pr 42 --repo org/wonka-docs",
       "description": "GH-1308: the repo is named only in the Google Chat config. Before the fix, Step 3 was hardcoded to Slack and a Chat-only team had no supported path through this skill — the observed session passed the transport as a free-text argument and the agent substituted the sibling skill on its own.",
       "setup": {
         "gchat_config_names_repo": true,
@@ -54,10 +54,10 @@
       "assertions": [
         {
           "id": "delegates-to-gchat",
-          "text": "Delegates to dev10x:gchat-review-request, the transport whose config names the repo",
+          "text": "Delegates to dev10x-coding:gchat-review-request, the transport whose config names the repo",
           "check": "tool_called",
           "signals": [
-            "dev10x:gchat-review-request"
+            "dev10x-coding:gchat-review-request"
           ]
         },
         {
@@ -65,7 +65,7 @@
           "text": "Does NOT invoke the Slack sibling — its config does not name this repo",
           "check": "command_absent",
           "signals": [
-            "dev10x:slack-review-request"
+            "dev10x-coding:slack-review-request"
           ]
         },
         {
@@ -81,7 +81,7 @@
     {
       "id": 2,
       "name": "both-configs-name-the-repo",
-      "prompt": "/dev10x:request-review --pr 42 --repo org/dual-transport",
+      "prompt": "/dev10x-coding:request-review --pr 42 --repo org/dual-transport",
       "description": "Mirroring review requests into Slack and Chat is a legitimate configuration, so Step 3 must not assume exactly one transport.",
       "setup": {
         "gchat_config_names_repo": true,
@@ -96,8 +96,8 @@
           "text": "Invokes both sibling skills rather than picking one",
           "check": "tool_called",
           "signals": [
-            "dev10x:slack-review-request",
-            "dev10x:gchat-review-request"
+            "dev10x-coding:slack-review-request",
+            "dev10x-coding:gchat-review-request"
           ]
         }
       ]
@@ -105,7 +105,7 @@
     {
       "id": 3,
       "name": "no-config-fires-the-transport-gate",
-      "prompt": "/dev10x:request-review --pr 42 --repo org/unconfigured",
+      "prompt": "/dev10x-coding:request-review --pr 42 --repo org/unconfigured",
       "description": "Neither config names the repo. The skill must ask where the request should go rather than failing into silence or guessing a transport.",
       "setup": {
         "gchat_config_names_repo": false,
@@ -148,7 +148,7 @@
     {
       "id": 4,
       "name": "bot-approval-does-not-short-circuit",
-      "prompt": "/dev10x:request-review --pr 42 --repo org/repo",
+      "prompt": "/dev10x-coding:request-review --pr 42 --repo org/repo",
       "description": "GH-128: only a bot has approved the current HEAD. A bot approval must not satisfy the human-review requirement, so the skill proceeds to request review rather than offering to merge.",
       "setup": {
         "reviews": [
@@ -177,7 +177,7 @@
     {
       "id": 5,
       "name": "human-approval-on-head-fires-the-merge-gate",
-      "prompt": "/dev10x:request-review --pr 42 --repo org/repo",
+      "prompt": "/dev10x-coding:request-review --pr 42 --repo org/repo",
       "description": "A human has approved the current HEAD, so pinging reviewers again is noise. The skill must ask rather than silently short-circuiting.",
       "setup": {
         "reviews": [
@@ -205,7 +205,7 @@
     {
       "id": 6,
       "name": "red-ci-attended-fires-the-readiness-gate",
-      "prompt": "/dev10x:request-review --pr 42 --repo org/repo",
+      "prompt": "/dev10x-coding:request-review --pr 42 --repo org/repo",
       "description": "GH-1834: CI is failing on the head. A reviewer must not be pinged on a PR that was never ready, so the attended run asks before Step 2, with stopping recommended.",
       "setup": {
         "ci_verdict": "failing",
@@ -244,11 +244,11 @@
         },
         {
           "id": "no-assignment-before-the-answer",
-          "text": "dev10x:gh-pr-request-review is not invoked before the user answers",
+          "text": "dev10x-coding:gh-pr-request-review is not invoked before the user answers",
           "check": "tool_called_before",
           "signals": [
             "AskUserQuestion",
-            "dev10x:gh-pr-request-review"
+            "dev10x-coding:gh-pr-request-review"
           ]
         }
       ]
@@ -256,7 +256,7 @@
     {
       "id": 7,
       "name": "unattended-refuses-unresolved-threads",
-      "prompt": "/dev10x:request-review --pr 42 --repo org/repo --unattended",
+      "prompt": "/dev10x-coding:request-review --pr 42 --repo org/repo --unattended",
       "description": "GH-1834: two review threads are still open. Unattended callers have nobody to ask, so the skill refuses: no reviewer, no chat post, no PR comment.",
       "setup": {
         "ci_verdict": "green",
@@ -271,10 +271,10 @@
       "assertions": [
         {
           "id": "does-not-assign-reviewers",
-          "text": "Does NOT invoke dev10x:gh-pr-request-review",
+          "text": "Does NOT invoke dev10x-coding:gh-pr-request-review",
           "check": "command_absent",
           "signals": [
-            "dev10x:gh-pr-request-review"
+            "dev10x-coding:gh-pr-request-review"
           ]
         },
         {
@@ -282,8 +282,8 @@
           "text": "Does NOT invoke either chat transport",
           "check": "command_absent",
           "signals": [
-            "dev10x:slack-review-request",
-            "dev10x:gchat-review-request"
+            "dev10x-coding:slack-review-request",
+            "dev10x-coding:gchat-review-request"
           ]
         },
         {
@@ -300,7 +300,7 @@
     {
       "id": 8,
       "name": "unattended-refuses-a-draft-without-publishing-it",
-      "prompt": "/dev10x:request-review --pr 42 --repo org/repo --unattended",
+      "prompt": "/dev10x-coding:request-review --pr 42 --repo org/repo --unattended",
       "description": "GH-1834: the PR is still a draft. A draft is a failing condition like red CI. Marking it ready inside the check would publish the PR and notify code owners even on a refusal, so the unattended run refuses and leaves the draft alone.",
       "setup": {
         "is_draft": true,
@@ -322,10 +322,10 @@
         },
         {
           "id": "refuses-without-assigning",
-          "text": "Does NOT invoke dev10x:gh-pr-request-review",
+          "text": "Does NOT invoke dev10x-coding:gh-pr-request-review",
           "check": "command_absent",
           "signals": [
-            "dev10x:gh-pr-request-review"
+            "dev10x-coding:gh-pr-request-review"
           ]
         },
         {
@@ -341,7 +341,7 @@
     {
       "id": 9,
       "name": "audit-mode-classifies-and-writes-nothing",
-      "prompt": "/dev10x:request-review --audit --repo org/repo",
+      "prompt": "/dev10x-coding:request-review --audit --repo org/repo",
       "description": "GH-1834: the audit looks back at PRs already sent and tells the requester's misses (SENT-NOT-READY) from later breakage (WENT-RED-AFTER). It is read-only.",
       "dimensions": [
         "readiness-audit"
@@ -360,9 +360,9 @@
           "text": "Does NOT request review or post a notification",
           "check": "command_absent",
           "signals": [
-            "dev10x:gh-pr-request-review",
-            "dev10x:slack-review-request",
-            "dev10x:gchat-review-request",
+            "dev10x-coding:gh-pr-request-review",
+            "dev10x-coding:slack-review-request",
+            "dev10x-coding:gchat-review-request",
             "mcp__plugin_dev10x_cli__pr_issue_comment"
           ]
         },
@@ -380,7 +380,7 @@
     {
       "id": 10,
       "name": "child-stop-ends-the-run",
-      "prompt": "/dev10x:request-review --pr 42 --repo org/repo",
+      "prompt": "/dev10x-coding:request-review --pr 42 --repo org/repo",
       "description": "GH-1834: the PR was a draft; the user answered 'Request review anyway' in Step 1.6. gh-pr-request-review flipped it, CI went red, the user chose 'Stop — fix it first', and the child returned it to draft, ending its output with 'Readiness: stopped — …'. Nobody was asked to review, so no chat notification or PR comment may go out.",
       "setup": {
         "is_draft": true,
@@ -394,10 +394,10 @@
       "assertions": [
         {
           "id": "delegates-to-the-sibling",
-          "text": "Step 2 invokes dev10x:gh-pr-request-review, so the stop path is reached",
+          "text": "Step 2 invokes dev10x-coding:gh-pr-request-review, so the stop path is reached",
           "check": "tool_called",
           "signals": [
-            "dev10x:gh-pr-request-review"
+            "dev10x-coding:gh-pr-request-review"
           ]
         },
         {
@@ -405,8 +405,8 @@
           "text": "Does NOT post a chat notification or a PR comment",
           "check": "command_absent",
           "signals": [
-            "dev10x:slack-review-request",
-            "dev10x:gchat-review-request",
+            "dev10x-coding:slack-review-request",
+            "dev10x-coding:gchat-review-request",
             "mcp__plugin_dev10x_cli__pr_issue_comment"
           ]
         },
@@ -424,14 +424,14 @@
     {
       "id": 11,
       "name": "plan-step-call-refuses-with-stop-marker",
-      "prompt": "Skill(skill=\"dev10x:request-review\", args=\"--pr 42 --repo org/repo\") — called by dev10x:work-on while executing its 'Request review' plan step",
+      "prompt": "Skill(skill=\"dev10x-coding:request-review\", args=\"--pr 42 --repo org/repo\") — called by dev10x-coding:work-on while executing its 'Request review' plan step",
       "description": "GH-1890, GH-1921: no --unattended flag, but resolve_gate reports run_mode unattended because a work-on plan step is in progress. CI is red, so Step 1.6 refuses without a widget and ends with a stopped result line.",
       "setup": {
         "ci_verdict": "failing",
         "unresolved_threads": 0,
         "bots_ready": true,
         "is_draft": false,
-        "caller": "dev10x:work-on plan step",
+        "caller": "dev10x-coding:work-on plan step",
         "task_list_open": true,
         "resolve_gate_run_mode": {
           "mode": "unattended",
@@ -462,10 +462,10 @@
         },
         {
           "id": "does-not-delegate",
-          "text": "Does NOT invoke dev10x:gh-pr-request-review",
+          "text": "Does NOT invoke dev10x-coding:gh-pr-request-review",
           "check": "command_absent",
           "signals": [
-            "dev10x:gh-pr-request-review"
+            "dev10x-coding:gh-pr-request-review"
           ]
         },
         {
@@ -482,7 +482,7 @@
     {
       "id": 12,
       "name": "task-list-without-plan-step-is-attended",
-      "prompt": "/dev10x:request-review --pr 42 --repo org/repo",
+      "prompt": "/dev10x-coding:request-review --pr 42 --repo org/repo",
       "description": "GH-1890, GH-1921: the supervisor types the command in a session whose task list happens to be open, but no plan step is in progress, so resolve_gate reports run_mode attended. An active task list alone does not make a run unattended, so the readiness widget fires.",
       "setup": {
         "ci_verdict": "failing",
@@ -514,7 +514,7 @@
     {
       "id": 13,
       "name": "attended-stop-prints-stop-marker",
-      "prompt": "/dev10x:request-review --pr 42 --repo org/repo",
+      "prompt": "/dev10x-coding:request-review --pr 42 --repo org/repo",
       "description": "GH-1890, GH-1921: CI is red and the supervisor answers 'Stop — fix it first'. The run ends at Step 1.6 and ends with the same stopped result line the sibling emits, so a caller can branch on status either way.",
       "setup": {
         "ci_verdict": "failing",
@@ -538,10 +538,10 @@
         },
         {
           "id": "does-not-delegate",
-          "text": "Does NOT invoke dev10x:gh-pr-request-review after the stop answer",
+          "text": "Does NOT invoke dev10x-coding:gh-pr-request-review after the stop answer",
           "check": "command_absent",
           "signals": [
-            "dev10x:gh-pr-request-review"
+            "dev10x-coding:gh-pr-request-review"
           ]
         },
         {
@@ -558,7 +558,7 @@
     {
       "id": 14,
       "name": "unattended-delegation-passes-the-flag-verbatim",
-      "prompt": "/dev10x:request-review --pr 42 --repo org/repo --unattended",
+      "prompt": "/dev10x-coding:request-review --pr 42 --repo org/repo --unattended",
       "description": "GH-1890: the PR is ready and the run is unattended. Step 2 uses the unattended form: the args carry a bare --unattended, never the bracketed notation.",
       "setup": {
         "ci_verdict": "green",
@@ -572,10 +572,10 @@
       "assertions": [
         {
           "id": "passes-unattended",
-          "text": "Invokes dev10x:gh-pr-request-review with --readiness-checked --unattended",
+          "text": "Invokes dev10x-coding:gh-pr-request-review with --readiness-checked --unattended",
           "check": "tool_called",
           "signals": [
-            "dev10x:gh-pr-request-review",
+            "dev10x-coding:gh-pr-request-review",
             "--readiness-checked --unattended"
           ]
         },
@@ -592,7 +592,7 @@
     {
       "id": 15,
       "name": "attended-delegation-omits-the-flag",
-      "prompt": "/dev10x:request-review --pr 42 --repo org/repo",
+      "prompt": "/dev10x-coding:request-review --pr 42 --repo org/repo",
       "description": "GH-1890: the PR is ready and the supervisor invoked the skill directly. Step 2 uses the attended form, so the sibling may still ask its own questions.",
       "setup": {
         "ci_verdict": "green",
@@ -606,10 +606,10 @@
       "assertions": [
         {
           "id": "delegates",
-          "text": "Invokes dev10x:gh-pr-request-review with --readiness-checked",
+          "text": "Invokes dev10x-coding:gh-pr-request-review with --readiness-checked",
           "check": "tool_called",
           "signals": [
-            "dev10x:gh-pr-request-review",
+            "dev10x-coding:gh-pr-request-review",
             "--readiness-checked"
           ]
         },
@@ -626,7 +626,7 @@
     {
       "id": 16,
       "name": "undetermined-run-mode-is-reported-and-attended",
-      "prompt": "/dev10x:request-review --pr 42 --repo org/repo",
+      "prompt": "/dev10x-coding:request-review --pr 42 --repo org/repo",
       "description": "GH-1921: CI is red and resolve_gate reports run_mode undetermined because the session mirrors no tasks. The run is treated as attended, so the readiness widget fires, and the output says the mode was not settled instead of presenting it as attended.",
       "setup": {
         "ci_verdict": "failing",
@@ -664,7 +664,7 @@
     {
       "id": 17,
       "name": "child-stop-read-from-status-not-prose",
-      "prompt": "/dev10x:request-review --pr 42 --repo org/repo --unattended",
+      "prompt": "/dev10x-coding:request-review --pr 42 --repo org/repo --unattended",
       "description": "GH-1921: the PR is ready at Step 1.6, but gh-pr-request-review's draft flip turned CI red and it refused. Its prose wording differs from the old marker; its review_request_result line says stopped. request-review reads the status, so nothing is posted and its own result is stopped.",
       "setup": {
         "ci_verdict": "green",
@@ -683,8 +683,8 @@
           "text": "Does NOT post a chat notification or a PR comment",
           "check": "command_absent",
           "signals": [
-            "dev10x:slack-review-request",
-            "dev10x:gchat-review-request",
+            "dev10x-coding:slack-review-request",
+            "dev10x-coding:gchat-review-request",
             "mcp__plugin_dev10x_cli__pr_issue_comment"
           ]
         },
@@ -702,7 +702,7 @@
     {
       "id": 18,
       "name": "successful-request-emits-requested-result",
-      "prompt": "/dev10x:request-review --pr 42 --repo org/repo --unattended",
+      "prompt": "/dev10x-coding:request-review --pr 42 --repo org/repo --unattended",
       "description": "GH-1921: the PR is ready and reviewers are assigned. The run still ends with a result line, status requested, so a caller never has to infer success from the summary prose.",
       "setup": {
         "ci_verdict": "green",
@@ -732,7 +732,7 @@
     "description": "Queries that should/should-not trigger the request-review skill",
     "should_trigger": [
       {
-        "query": "/dev10x:request-review",
+        "query": "/dev10x-coding:request-review",
         "rationale": "Direct invocation"
       },
       {
@@ -747,7 +747,7 @@
     "should_not_trigger": [
       {
         "query": "assign @alice as reviewer, no notification needed",
-        "rationale": "GitHub assignment only — use dev10x:gh-pr-request-review directly"
+        "rationale": "GitHub assignment only — use dev10x-coding:gh-pr-request-review directly"
       },
       {
         "query": "post a message to the team channel about the outage",

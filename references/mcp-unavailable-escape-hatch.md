@@ -17,7 +17,7 @@ lose-lose loop:
    "use the MCP tool instead" — because the wrapper itself is
    designed to redirect back to MCP.
 4. Raw CLI (`git push`) is blocked by the same hook with
-   "use Skill(dev10x:git)".
+   "use Skill(dev10x-coding:git)".
 5. Prefixing with `DEV10X_SKIP_CMD_VALIDATION=true` is rejected —
    the flag is reserved for skill-authorized exceptional cases,
    not transient MCP unavailability.
@@ -130,23 +130,23 @@ The MCP server is disconnected when:
 Skills that invoke `dev10x_cli` MCP tools and have wrapper
 fallbacks in their documentation:
 
-- `dev10x:git` — `git-push-safe.sh` (the unattended push path above
+- `dev10x-coding:git` — `git-push-safe.sh` (the unattended push path above
   is the one sanctioned exception: a non-force push to an explicit,
   non-protected branch needs neither the wrapper nor MCP)
-- `dev10x:git-fixup` — raw `gh api`
-- `dev10x:git-commit` — `mktmp.sh` (the second exception: its hook
+- `dev10x-coding:git-fixup` — raw `gh api`
+- `dev10x-coding:git-commit` — `mktmp.sh` (the second exception: its hook
   rule `mktmp-bash-fallback` is advisory, not blocking, and the
   script needs no MCP server, so it remains a working fallback for
   getting a commit-message path)
-- `dev10x:git-groom` — raw git commands
-- `dev10x:gh-pr-create` — `create-pr.sh`, `verify-state.sh`
-- `dev10x:gh-pr-merge` — raw `gh pr merge` (blocked); unattended,
+- `dev10x-coding:git-groom` — raw git commands
+- `dev10x-coding:gh-pr-create` — `create-pr.sh`, `verify-state.sh`
+- `dev10x-coding:gh-pr-merge` — raw `gh pr merge` (blocked); unattended,
   leave the PR as it is and record the blocker, then re-read
   `pr_get` state after the reconnect
-- `dev10x:gh-pr-monitor` — `pr-notify.py`, `ci-check-status.py`
-- `dev10x:gh-pr-respond` — raw `gh api`
-- `dev10x:gh-pr-fixup` — raw `gh api`
-- `dev10x:gh-pr-triage` — raw `gh api`
+- `dev10x-coding:gh-pr-monitor` — `pr-notify.py`, `ci-check-status.py`
+- `dev10x-coding:gh-pr-respond` — raw `gh api`
+- `dev10x-coding:gh-pr-fixup` — raw `gh api`
+- `dev10x-coding:gh-pr-triage` — raw `gh api`
 
 Apart from the two exceptions named above, all of these should
 treat MCP unavailability as a hard stop, not a signal to chain

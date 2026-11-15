@@ -1,5 +1,5 @@
 ---
-name: dev10x:gh-pr-create
+name: dev10x-coding:gh-pr-create
 description: >
   Create a GitHub pull request for the current branch with issue tracker
   integration (GitHub Issues, Linear, or JIRA). Sources or generates a JTBD
@@ -7,13 +7,13 @@ description: >
   pushes the branch, creates a draft PR with Job Story, commit list, and
   issue tracker link, posts summary comment, and opens in browser.
   TRIGGER when: branch is ready for PR creation, user says "create PR".
-  DO NOT TRIGGER when: PR already exists (use dev10x:gh-pr-respond or
-  dev10x:gh-pr-monitor instead), or user just wants to push changes.
+  DO NOT TRIGGER when: PR already exists (use dev10x-coding:gh-pr-respond or
+  dev10x-coding:gh-pr-monitor instead), or user just wants to push changes.
 user-invocable: true
-invocation-name: dev10x:gh-pr-create
+invocation-name: dev10x-coding:gh-pr-create
 allowed-tools:
   - AskUserQuestion
-  - Skill(dev10x:git)
+  - Skill(dev10x-coding:git)
   - Skill(test)
   - mcp__plugin_dev10x_cli__detect_base_branch
   - mcp__plugin_dev10x_cli__verify_pr_state
@@ -26,8 +26,9 @@ allowed-tools:
   - mcp__plugin_dev10x_cli__tracker_status
   - mcp__plugin_dev10x_cli__resolve_gate
   - mcp__plugin_dev10x_cli__supervisor_review_status
+  - mcp__plugin_dev10x_cli__issue_get
+  - mcp__plugin_dev10x_cli__issue_comments
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/gh-pr-create/scripts/:*)
-  - Bash(${CLAUDE_PLUGIN_ROOT}/skills/gh-context/scripts/:*)
 ---
 
 # Create Pull Request for Ticket

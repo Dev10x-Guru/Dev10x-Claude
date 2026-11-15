@@ -472,7 +472,7 @@ Provides:
 - JTBD Job Story drafting methodology
 - Context gathering from tickets and PR diffs
 - Attended and unattended drafting modes
-- Used by extending skills (dev10x-scoping:ticket-scope, dev10x:work-on, pr:create)
+- Used by extending skills (dev10x-scoping:ticket-scope, dev10x-coding:work-on, pr:create)
 
 ## Key Learnings from Practice
 

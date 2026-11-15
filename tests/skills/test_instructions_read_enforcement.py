@@ -138,6 +138,10 @@ class TestTheThresholdMatchesObservedTruncation:
         # call, so a threshold that flagged it would be a false positive.
         # This one DOES read the live file on purpose — it is the guard
         # against lowering the margin until real files trip it.
-        size = (_SKILLS / "git-commit" / "instructions.md").stat().st_size
+        size = (
+            (_SKILLS.parent / "plugins" / "coding" / "skills" / "git-commit" / "instructions.md")
+            .stat()
+            .st_size
+        )
 
         assert size < _SINGLE_READ_BYTES

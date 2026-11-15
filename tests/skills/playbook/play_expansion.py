@@ -11,7 +11,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from dev10x.skills.playbook import load_plugin_default
+from dev10x.skills.playbook import installed_plugin_roots, load_plugin_default
 
 ROOT = Path(__file__).resolve().parents[3]
 MAX_FRAGMENT_DEPTH = 3
@@ -19,7 +19,9 @@ VERIFY_AC = "Verify acceptance criteria"
 
 
 def load_work_on_playbook() -> dict[str, Any]:
-    document = load_plugin_default(skill_key="work-on", plugin_roots=[ROOT])
+    document = load_plugin_default(
+        skill_key="work-on", plugin_roots=installed_plugin_roots(core_root=ROOT)
+    )
     assert document is not None
     return document
 

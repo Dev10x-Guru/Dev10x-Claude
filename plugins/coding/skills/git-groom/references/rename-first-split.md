@@ -90,7 +90,7 @@ replaced by two `exec` lines; every other commit stays a `pick`.
 
 Use 🚚 and title it by the structure the move establishes, not by the
 move itself — "Move X to Y" names the mechanism and trips the JTBD
-self-check that `dev10x:git-commit` applies and the strict-tier
+self-check that `dev10x-coding:git-commit` applies and the strict-tier
 commit-jtbd validator (DX008) enforces:
 
 ```

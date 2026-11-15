@@ -161,7 +161,7 @@ class TestAliasResolution:
         assert resolve_skill_alias(name=name, aliases=ALIASES) == expected
 
     def test_shipped_table_leaves_a_core_name_alone(self) -> None:
-        assert resolve_skill_alias(name="dev10x:git") == "dev10x:git"
+        assert resolve_skill_alias(name="dev10x:afk") == "dev10x:afk"
 
 
 MOVED_TO_COMM_IN_GH_1567 = (
@@ -185,7 +185,7 @@ class TestCommExtractionAliases:
 
         assert {(alias.old, alias.new) for alias in SKILL_NAME_ALIASES} == {
             (f"dev10x:{skill}", f"{plugin_map.plugin_names[key]}:{skill}")
-            for key in ("comm", "teach", "tasks", "scoping")
+            for key in ("comm", "teach", "tasks", "scoping", "coding")
             for skill in plugin_map.plugins[key]
         }
 
@@ -197,10 +197,13 @@ class TestCommExtractionAliases:
             1,
         )
 
-    def test_leaves_a_core_name_that_shares_a_prefix(self) -> None:
+    def test_sends_a_name_that_shares_a_prefix_to_its_own_plugin(self) -> None:
         text = "skill: dev10x:slack-review-request\n"
 
-        assert migrate_text(text=text, aliases=SKILL_NAME_ALIASES) == (text, 0)
+        assert migrate_text(text=text, aliases=SKILL_NAME_ALIASES) == (
+            "skill: dev10x-coding:slack-review-request\n",
+            1,
+        )
 
     @pytest.fixture
     def migrated_home(self, tmp_path: Path) -> Path:
@@ -218,7 +221,8 @@ class TestCommExtractionAliases:
         assert _texts(home=migrated_home) == {
             "friction.yaml": "defaults:\n  notify: dev10x-comm:gchat\n",
             "playbooks/work-on.yaml": (
-                "steps:\n  - skill: dev10x-comm:slack\n  - skill: dev10x:slack-review-request\n"
+                "steps:\n  - skill: dev10x-comm:slack\n"
+                "  - skill: dev10x-coding:slack-review-request\n"
             ),
         }
 
@@ -368,10 +372,13 @@ class TestScopingExtractionAliases:
             7,
         )
 
-    def test_leaves_a_coding_name_that_shares_a_prefix(self) -> None:
+    def test_sends_a_coding_name_that_shares_a_prefix_to_coding(self) -> None:
         text = "skill: dev10x:ticket-branch\n"
 
-        assert migrate_text(text=text, aliases=SKILL_NAME_ALIASES) == (text, 0)
+        assert migrate_text(text=text, aliases=SKILL_NAME_ALIASES) == (
+            "skill: dev10x-coding:ticket-branch\n",
+            1,
+        )
 
     @pytest.fixture
     def migrated_home(self, tmp_path: Path) -> Path:
@@ -392,7 +399,97 @@ class TestScopingExtractionAliases:
             "dod-acceptance-criteria.yaml": "- skill: dev10x-scoping:spec-sync\n",
             "playbooks/work-on.yaml": (
                 "steps:\n  - skill: dev10x-scoping:ticket-create\n"
-                "  - skill: dev10x:ticket-branch\n"
+                "  - skill: dev10x-coding:ticket-branch\n"
+            ),
+        }
+
+
+MOVED_TO_CODING_IN_GH_1572 = (
+    "ci-review",
+    "fanout",
+    "foreman",
+    "gchat-review-request",
+    "gh-pr-bookmark",
+    "gh-pr-create",
+    "gh-pr-doctor",
+    "gh-pr-fixup",
+    "gh-pr-merge",
+    "gh-pr-monitor",
+    "gh-pr-request-review",
+    "gh-pr-respond",
+    "gh-pr-review",
+    "gh-pr-triage",
+    "gh-review-setup",
+    "git",
+    "git-alias-setup",
+    "git-branch-prune",
+    "git-commit",
+    "git-commit-split",
+    "git-fixup",
+    "git-groom",
+    "git-promote",
+    "git-worktree",
+    "git-worktree-prune",
+    "ide-normalize",
+    "investigate",
+    "py-mockito",
+    "py-test",
+    "py-test-flaky",
+    "py-uv",
+    "qa-scope",
+    "release-notes",
+    "request-review",
+    "review",
+    "review-fix",
+    "slack-review-request",
+    "ticket-branch",
+    "verify-acc-dod",
+    "work-on",
+)
+
+
+class TestCodingExtractionAliases:
+    @pytest.mark.parametrize("skill", MOVED_TO_CODING_IN_GH_1572)
+    def test_old_name_resolves_to_the_coding_plugin(self, skill: str) -> None:
+        assert resolve_skill_alias(name=f"dev10x:{skill}") == f"dev10x-coding:{skill}"
+
+    def test_rewrites_git_and_its_longer_siblings_separately(self) -> None:
+        text = (
+            "skills:\n  - dev10x:git\n  - dev10x:git-commit\n  - dev10x:git-worktree-prune\n"
+            "  - dev10x:review\n  - dev10x:review-fix\n"
+        )
+
+        assert migrate_text(text=text, aliases=SKILL_NAME_ALIASES) == (
+            "skills:\n  - dev10x-coding:git\n  - dev10x-coding:git-commit\n"
+            "  - dev10x-coding:git-worktree-prune\n  - dev10x-coding:review\n"
+            "  - dev10x-coding:review-fix\n",
+            5,
+        )
+
+    def test_leaves_a_core_name_that_shares_a_prefix(self) -> None:
+        text = "skill: dev10x:playbook-maintenance\n"
+
+        assert migrate_text(text=text, aliases=SKILL_NAME_ALIASES) == (text, 0)
+
+    @pytest.fixture
+    def migrated_home(self, tmp_path: Path) -> Path:
+        home = tmp_path / "config-home"
+        (home / "playbooks").mkdir(parents=True)
+        (home / "friction.yaml").write_text("defaults:\n  commit: dev10x:git-commit\n")
+        (home / "playbooks" / "work-on.yaml").write_text(
+            "steps:\n  - skill: dev10x:gh-pr-create\n  - skill: dev10x:playbook\n"
+        )
+        (home / "dod-acceptance-criteria.yaml").write_text("- skill: dev10x:verify-acc-dod\n")
+        result = migrate_user_configs(config_home=home, dry_run=False)
+        assert isinstance(result, SuccessResult)
+        return home
+
+    def test_shipped_table_migrates_a_temp_config_home(self, migrated_home: Path) -> None:
+        assert _texts(home=migrated_home) == {
+            "friction.yaml": "defaults:\n  commit: dev10x-coding:git-commit\n",
+            "dod-acceptance-criteria.yaml": "- skill: dev10x-coding:verify-acc-dod\n",
+            "playbooks/work-on.yaml": (
+                "steps:\n  - skill: dev10x-coding:gh-pr-create\n  - skill: dev10x:playbook\n"
             ),
         }
 

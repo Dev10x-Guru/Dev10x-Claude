@@ -23,7 +23,7 @@ git fetch origin <base>
 ```
 
 Then create the worktree in a new, unfocused Herdr workspace. The
-branch follows the same convention as `dev10x:ticket-branch`
+branch follows the same convention as `dev10x-coding:ticket-branch`
 (`<user>/<TICKET>/<worktree-name>/<slug>`):
 
 ```bash
@@ -78,7 +78,7 @@ Claude Code, not to Dev10x, so the supported route is a brief file:
    ext=".md")` for the path.
 2. `Write` the full brief there — the ticket, the worktree path, the
    branch, and the skill the agent should start with (normally
-   `/dev10x:work-on <ticket-url>`).
+   `/dev10x-coding:work-on <ticket-url>`).
 3. Prompt with a short, git-free line that points at it, in the
    waiting form, as a `run_in_background` Bash call so this session
    is not blocked:
@@ -98,7 +98,7 @@ races it — on an agent that has not yet left `idle` it returns at once
 handoff, not a record — anything that must survive belongs on the
 ticket.
 
-**When `dev10x:fanout` is the caller (GH-1702),** the brief also
+**When `dev10x-coding:fanout` is the caller (GH-1702),** the brief also
 names an absolute status-file path, the merge mode's finish line, and
 the status-line contract from
 [`fanout/references/herdr-dispatch.md`](../../fanout/references/herdr-dispatch.md)

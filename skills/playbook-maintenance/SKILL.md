@@ -130,7 +130,7 @@ reviewer steps). Flag but do not treat as drift when:
 For each play, collect all drift items into a structured list:
 
 ```
-Skill: dev10x:work-on
+Skill: dev10x-coding:work-on
 Play: feature
 Findings:
   1. [INFO] New default step: "Draft Job Story" at position 2
@@ -151,7 +151,7 @@ Display all findings grouped by skill and play.
 ```markdown
 ## Playbook Drift Report
 
-### dev10x:work-on
+### dev10x-coding:work-on
 
 #### feature (5 findings)
 | # | Severity | Category | Step | Detail |
@@ -163,7 +163,7 @@ Display all findings grouped by skill and play.
 #### bugfix (2 findings)
 ...
 
-### dev10x:release-notes
+### dev10x-coding:release-notes
 
 #### release (1 finding)
 ...
@@ -243,7 +243,7 @@ fragment gained a new "Apply fixups" step that the solo override
 
 Phase 3 presents:
 ```
-### dev10x:work-on
+### dev10x-coding:work-on
 #### feature (1 finding)
 | # | Severity | Category | Step | Detail |
 |---|----------|----------|------|--------|

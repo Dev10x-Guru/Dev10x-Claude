@@ -121,7 +121,7 @@ correctly. Each one is about what to report, not a new merge gate.
 
 ## Merge Configuration (Fanout / Work-On)
 
-When `dev10x:fanout` or `dev10x:work-on` orchestrate PR merges,
+When `dev10x-coding:fanout` or `dev10x-coding:work-on` orchestrate PR merges,
 two playbook-level fields control behavior.
 
 ### `merge_mode`

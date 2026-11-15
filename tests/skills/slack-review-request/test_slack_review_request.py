@@ -13,7 +13,13 @@ import pytest
 _repo_root = Path(__file__).resolve().parent.parent.parent.parent
 _spec = importlib.util.spec_from_file_location(
     "slack_review_request",
-    _repo_root / "skills" / "slack-review-request" / "scripts" / "slack-review-request.py",
+    _repo_root
+    / "plugins"
+    / "coding"
+    / "skills"
+    / "slack-review-request"
+    / "scripts"
+    / "slack-review-request.py",
 )
 assert _spec is not None and _spec.loader is not None
 _mod = importlib.util.module_from_spec(_spec)

@@ -1,5 +1,5 @@
 {
-  "skill_name": "dev10x:gh-pr-request-review",
+  "skill_name": "dev10x-coding:gh-pr-request-review",
   "eval_dimensions": [
     {
       "id": "request-gate",
@@ -37,7 +37,7 @@
       "id": "request-gate-resolved-first",
       "name": "request_review gate resolves before pre-flight",
       "description": "resolve_gate(request_review) is the first action; pre-flight checks and reviewer resolution do not run before it resolves.",
-      "input": "/dev10x:gh-pr-request-review",
+      "input": "/dev10x-coding:gh-pr-request-review",
       "assertions": [
         {
           "dimension": "request-gate",
@@ -51,7 +51,7 @@
       "id": "request-gate-skip-no-request",
       "name": "skip effect requests no review",
       "description": "When the gate resolves to skip (solo-maintainer / no-review), the skill prints the skip notice and stops — request_review is not called.",
-      "input": "/dev10x:gh-pr-request-review",
+      "input": "/dev10x-coding:gh-pr-request-review",
       "assertions": [
         {
           "dimension": "request-gate",
@@ -64,7 +64,7 @@
       "id": "request-gate-ask-fires-standby-widget",
       "name": "ask effect fires the Stand-by widget",
       "description": "When the gate resolves to ask, the skill fires the Stand-by AskUserQuestion widget (Request now / Stand-by self-review / Skip) before doing anything else.",
-      "input": "/dev10x:gh-pr-request-review",
+      "input": "/dev10x-coding:gh-pr-request-review",
       "assertions": [
         {
           "dimension": "request-gate",
@@ -83,7 +83,7 @@
       "id": "human-approved-head-shortcircuits",
       "name": "Human approval on current HEAD short-circuits",
       "description": "A human APPROVED review with commit.oid == headRefOid fires AskUserQuestion (Skip already-approved / Force / Cancel) instead of spamming a redundant request.",
-      "input": "/dev10x:gh-pr-request-review",
+      "input": "/dev10x-coding:gh-pr-request-review",
       "assertions": [
         {
           "dimension": "human-approval-shortcircuit",
@@ -97,7 +97,7 @@
       "id": "bot-approval-does-not-shortcircuit",
       "name": "Bot approvals never short-circuit human review",
       "description": "When the only approvals on the current HEAD are from bots ([bot] login / author.type==Bot), the PR is treated as unapproved by humans and the skill proceeds to request human review.",
-      "input": "/dev10x:gh-pr-request-review",
+      "input": "/dev10x-coding:gh-pr-request-review",
       "assertions": [
         {
           "dimension": "human-approval-shortcircuit",
@@ -110,7 +110,7 @@
       "id": "draft-pr-marked-ready-first",
       "name": "Draft PR is marked ready before requesting",
       "description": "When isDraft is true, the skill flips it with the pr_ready MCP wrapper before requesting review so the request is not silently lost. Because this run flipped it, the readiness step waits once for CI before checking, so the request never goes out in the same breath as the flip (GH-1834).",
-      "input": "/dev10x:gh-pr-request-review",
+      "input": "/dev10x-coding:gh-pr-request-review",
       "assertions": [
         {
           "dimension": "draft-guard",
@@ -146,7 +146,7 @@
       "id": "refusal-after-flip-returns-to-draft",
       "name": "A refusal after this run's flip returns the PR to draft",
       "description": "GH-1834: the PR was a draft, this run flipped it, waited for CI, and CI is red. The unattended run refuses; it must not leave the PR published with a known problem.",
-      "input": "/dev10x:gh-pr-request-review --unattended",
+      "input": "/dev10x-coding:gh-pr-request-review --unattended",
       "assertions": [
         {
           "dimension": "readiness-gate",
@@ -166,8 +166,8 @@
     {
       "id": "flip-reruns-readiness-despite-readiness-checked",
       "name": "A flip in this run re-runs readiness even with --readiness-checked",
-      "description": "GH-1834: dev10x:request-review passed --readiness-checked after 'Request review anyway' on a draft. This run flips the draft, so the caller's check predates readiness: the skill waits for CI and checks again instead of requesting in the same breath as the flip.",
-      "input": "/dev10x:gh-pr-request-review --readiness-checked",
+      "description": "GH-1834: dev10x-coding:request-review passed --readiness-checked after 'Request review anyway' on a draft. This run flips the draft, so the caller's check predates readiness: the skill waits for CI and checks again instead of requesting in the same breath as the flip.",
+      "input": "/dev10x-coding:gh-pr-request-review --readiness-checked",
       "assertions": [
         {
           "dimension": "readiness-gate",
@@ -180,7 +180,7 @@
       "id": "readiness-gate-asks-before-request",
       "name": "Red CI fires the readiness gate before request_review",
       "description": "GH-1834: reviewers are configured and CI is failing on the head. An attended run asks before pinging anyone, with stopping recommended and listed first.",
-      "input": "/dev10x:gh-pr-request-review",
+      "input": "/dev10x-coding:gh-pr-request-review",
       "assertions": [
         {
           "dimension": "readiness-gate",
@@ -207,7 +207,7 @@
       "id": "readiness-gate-unattended-refuses",
       "name": "Unattended run refuses a PR that is not ready",
       "description": "GH-1834: the work-on 'Request review' step calls this skill through Skill() with an active task list while two review threads are open. Nobody can answer a widget, so the skill refuses and reports the threads.",
-      "input": "/dev10x:gh-pr-request-review --unattended",
+      "input": "/dev10x-coding:gh-pr-request-review --unattended",
       "assertions": [
         {
           "dimension": "readiness-gate",
@@ -219,8 +219,8 @@
     {
       "id": "readiness-checked-skips-the-gate",
       "name": "--readiness-checked does not run the check twice",
-      "description": "dev10x:request-review already ran the readiness check on a PR that is not a draft and passes --readiness-checked; the sibling must not ask again.",
-      "input": "/dev10x:gh-pr-request-review --readiness-checked",
+      "description": "dev10x-coding:request-review already ran the readiness check on a PR that is not a draft and passes --readiness-checked; the sibling must not ask again.",
+      "input": "/dev10x-coding:gh-pr-request-review --readiness-checked",
       "assertions": [
         {
           "dimension": "readiness-gate",
@@ -233,7 +233,7 @@
       "id": "review-requested-via-mcp-tool",
       "name": "Review requested via the request_review MCP tool",
       "description": "When reviewers resolve, the request is issued through the request_review MCP tool, not a raw gh api call.",
-      "input": "/dev10x:gh-pr-request-review",
+      "input": "/dev10x-coding:gh-pr-request-review",
       "assertions": [
         {
           "dimension": "reviewer-resolution",
@@ -252,7 +252,7 @@
       "id": "defer-persists-nothing",
       "name": "Stand-by / defer persists nothing",
       "description": "Choosing Stand-by / defer returns cleanly without requesting review and without writing active_modes or .claude/Dev10x/session.yaml (ADR-0018, ADR-0019, GH-950).",
-      "input": "/dev10x:gh-pr-request-review",
+      "input": "/dev10x-coding:gh-pr-request-review",
       "assertions": [
         {
           "dimension": "defer-persists-nothing",
@@ -270,7 +270,7 @@
       "id": "standby-offers-clearance-exit",
       "name": "standby offers a supervisor-cleared exit",
       "description": "A repo configured standby:true still executes the skill: it fires the clearance AskUserQuestion rather than deferring silently, so a supervisor who has self-reviewed can clear the PR for merge or escalate to the team without re-arguing the override (GH-998).",
-      "input": "/dev10x:gh-pr-request-review",
+      "input": "/dev10x-coding:gh-pr-request-review",
       "assertions": [
         {
           "dimension": "defer-persists-nothing",
@@ -298,8 +298,8 @@
     {
       "id": "readiness-plan-step-call-is-unattended",
       "name": "A plan-step Skill() call without the flag is unattended",
-      "description": "GH-1890, GH-1921: dev10x:work-on calls this skill through Skill() while executing its 'Request review' plan step, and passes no --unattended. resolve_gate(request_review) returns run_mode {mode: unattended, basis: plan-step-in-progress}. Two review threads are open, so the skill refuses without a widget and ends with a stopped result line.",
-      "input": "Skill(skill=\"dev10x:gh-pr-request-review\") — called by dev10x:work-on while executing its 'Request review' plan step; resolve_gate returns run_mode {\"mode\": \"unattended\", \"basis\": \"plan-step-in-progress\"}",
+      "description": "GH-1890, GH-1921: dev10x-coding:work-on calls this skill through Skill() while executing its 'Request review' plan step, and passes no --unattended. resolve_gate(request_review) returns run_mode {mode: unattended, basis: plan-step-in-progress}. Two review threads are open, so the skill refuses without a widget and ends with a stopped result line.",
+      "input": "Skill(skill=\"dev10x-coding:gh-pr-request-review\") — called by dev10x-coding:work-on while executing its 'Request review' plan step; resolve_gate returns run_mode {\"mode\": \"unattended\", \"basis\": \"plan-step-in-progress\"}",
       "assertions": [
         {
           "dimension": "readiness-gate",
@@ -316,8 +316,8 @@
     {
       "id": "readiness-task-list-alone-is-attended",
       "name": "An open task list without a plan step stays attended",
-      "description": "GH-1890: the supervisor runs /dev10x:gh-pr-request-review directly in a session that has an open task list, with red CI. No orchestrator is executing a plan step, so the run is attended and the readiness widget fires.",
-      "input": "/dev10x:gh-pr-request-review",
+      "description": "GH-1890: the supervisor runs /dev10x-coding:gh-pr-request-review directly in a session that has an open task list, with red CI. No orchestrator is executing a plan step, so the run is attended and the readiness widget fires.",
+      "input": "/dev10x-coding:gh-pr-request-review",
       "assertions": [
         {
           "dimension": "readiness-gate",
@@ -332,7 +332,7 @@
     "description": "Queries that should/should-not trigger the gh-pr-request-review skill",
     "should_trigger": [
       {
-        "query": "/dev10x:gh-pr-request-review",
+        "query": "/dev10x-coding:gh-pr-request-review",
         "rationale": "Direct invocation — resolves the gate and requests review"
       },
       {
@@ -351,11 +351,11 @@
       },
       {
         "query": "merge PR #42",
-        "rationale": "Merge intent — use dev10x:gh-pr-merge"
+        "rationale": "Merge intent — use dev10x-coding:gh-pr-merge"
       },
       {
         "query": "monitor CI on my PR",
-        "rationale": "CI monitoring — use dev10x:gh-pr-monitor"
+        "rationale": "CI monitoring — use dev10x-coding:gh-pr-monitor"
       }
     ]
   }

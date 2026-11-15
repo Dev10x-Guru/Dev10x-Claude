@@ -9,13 +9,13 @@ The Skill tool REQUIRES named parameters: `skill=` and `args=`.
 **Correct:**
 ```python
 Skill(skill="dev10x-teach:audit-file", args="path/to/findings.json")
-Skill(skill="dev10x:gh-pr-create", args="--title 'My PR'")
+Skill(skill="dev10x-coding:gh-pr-create", args="--title 'My PR'")
 ```
 
 **Incorrect (positional arguments — runtime error):**
 ```python
 Skill(dev10x-teach:audit-file, args="path/to/findings.json")
-Skill("dev10x:gh-pr-create", "--title 'My PR'")
+Skill("dev10x-coding:gh-pr-create", "--title 'My PR'")
 ```
 
 ## Invocation Name Lookup

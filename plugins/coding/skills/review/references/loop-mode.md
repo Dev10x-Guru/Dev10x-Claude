@@ -1,6 +1,6 @@
-# Loop Mode — `dev10x:review --loop` (GH-1831)
+# Loop Mode — `dev10x-coding:review --loop` (GH-1831)
 
-A single review pass never looks at its own fixes. `dev10x:review-fix`
+A single review pass never looks at its own fixes. `dev10x-coding:review-fix`
 turns findings into fixup commits, and those commits ship unreviewed —
 yet fixes introduce defects too. Loop mode re-reviews every round of
 fixes with fresh eyes until a round comes back clean.
@@ -18,7 +18,7 @@ rules below exist to make the loop converge rather than churn.
    reviewer with `SendMessage`: an agent that saw the code before the
    fix anchors on its own earlier reading.
 2. **The author never re-approves its own fix.** The orchestrator that
-   ran `dev10x:review-fix` does not judge whether a fix is correct.
+   ran `dev10x-coding:review-fix` does not judge whether a fix is correct.
    Only a clean reviewer round ends the loop — "I fixed it, so it is
    fixed" is not a clean round.
 3. **Round 1 reviews the whole branch.** It runs SKILL.md Steps 1b–5
@@ -33,7 +33,7 @@ rules below exist to make the loop converge rather than churn.
    again in every later round, on the delta files only.
 5. **Findings are classified as defects or polish.** Classification
    lives in the round ledger below, never in the findings JSON — the
-   handoff format to `dev10x:review-fix` stays unchanged. Only findings
+   handoff format to `dev10x-coding:review-fix` stays unchanged. Only findings
    the fixer could receive are classified: severity `ERROR` or
    `WARNING` at confidence >= 70.
 
@@ -77,17 +77,17 @@ and append one entry per round:
     "round": 2,
     "round_start_sha": "<HEAD when this round's review began>",
     "scope": ["<delta + blast-radius files>"],
-    "findings_file": "<path handed to dev10x:review-fix>",
+    "findings_file": "<path handed to dev10x-coding:review-fix>",
     "defects": 1,
     "polish": 2,
     "declined": ["<file:line of a fix-set finding left unfixed>"],
-    "fixed_head_sha": "<HEAD after dev10x:review-fix, or null>"
+    "fixed_head_sha": "<HEAD after dev10x-coding:review-fix, or null>"
   }
 ]
 ```
 
 A fix-set finding lands in `declined` when the user leaves it unpicked,
-or when `dev10x:review-fix` reports it as deferred, which also happens
+or when `dev10x-coding:review-fix` reports it as deferred, which also happens
 in unattended mode. No later delta has to touch such a finding, so a
 clean round says nothing about it: the loop may still end clean, but
 unstamped. Attended, the clean-round gate says so before the user

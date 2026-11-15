@@ -83,13 +83,13 @@ Pass the monitor's own mode through, resolved as
 payload is `unattended` (an `afk` overlay, or a work-on plan step in
 progress). `attended`, `undetermined` and an `error` payload are
 attended; for `undetermined` print `Run mode: undetermined ({basis}) —
-treated as attended`. Without the flag, `dev10x:request-review` treats
+treated as attended`. Without the flag, `dev10x-coding:request-review` treats
 the call as attended and may fire its readiness widget inside a run
 nobody is watching. The same resolved mode is "unattended" in Step 2
 above and in Phase 2.
 
-1. Unattended run: `Skill(skill="dev10x:request-review", args="--pr {pr_number} --repo {repo} --unattended")`
-2. Otherwise (attended): `Skill(skill="dev10x:request-review", args="--pr {pr_number} --repo {repo}")`
+1. Unattended run: `Skill(skill="dev10x-coding:request-review", args="--pr {pr_number} --repo {repo} --unattended")`
+2. Otherwise (attended): `Skill(skill="dev10x-coding:request-review", args="--pr {pr_number} --repo {repo}")`
 
 Then parse the JSON on its `review_request_result:` line (that file
 § Result for callers) and branch on `status` — never on prose:
@@ -101,7 +101,7 @@ Then parse the JSON on its `review_request_result:` line (that file
   `Review request: result unknown` — the monitor cannot tell whether
   anyone was asked.
 
-The dev10x:request-review skill will:
+The dev10x-coding:request-review skill will:
 - Assign GitHub reviewers from project config
 - Post Slack review notification from project config
 - Each step may skip independently based on per-project config

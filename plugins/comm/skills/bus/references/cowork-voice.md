@@ -65,7 +65,7 @@ kept off the voice channel).
 
 A bus request starts work; it does not approve a merge. Merge only on
 green CI **and** the supervisor's explicit go-ahead (or a standing
-exception the supervisor named), through `dev10x:gh-pr-merge`.
+exception the supervisor named), through `dev10x-coding:gh-pr-merge`.
 
 ## Limits
 

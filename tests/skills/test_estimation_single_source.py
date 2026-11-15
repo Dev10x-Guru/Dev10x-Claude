@@ -20,7 +20,7 @@ _DELEGATION = "Skill(dev10x-scoping:estimate)"
 _DELEGATING_CONSUMERS = (
     "plugins/scoping/skills/ticket-scope/instructions.md",
     "plugins/scoping/skills/project-scope/SKILL.md",
-    "skills/work-on/instructions.md",
+    "plugins/coding/skills/work-on/instructions.md",
 )
 
 _TEMPLATES = (

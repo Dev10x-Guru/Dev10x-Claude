@@ -1,5 +1,5 @@
 ---
-name: dev10x:gh-pr-bookmark
+name: dev10x-coding:gh-pr-bookmark
 description: >
   Post a rich session bookmark comment on a PR — captures session ID,
   review thread status, current state, and next steps so the next
@@ -9,15 +9,15 @@ description: >
   DO NOT TRIGGER when: no PR exists, or session-wrap-up handles
   bookmarking automatically.
 user-invocable: true
-invocation-name: dev10x:gh-pr-bookmark
+invocation-name: dev10x-coding:gh-pr-bookmark
 allowed-tools:
   - mcp__plugin_dev10x_cli__pr_detect
   - Skill(dev10x-tasks:park)
 ---
 
-# dev10x:gh-pr-bookmark — PR Session Bookmark
+# dev10x-coding:gh-pr-bookmark — PR Session Bookmark
 
-**Announce:** "Using dev10x:gh-pr-bookmark to save session state to the PR."
+**Announce:** "Using dev10x-coding:gh-pr-bookmark to save session state to the PR."
 
 ## Orchestration
 
@@ -69,8 +69,8 @@ confirmation.
 ## Usage
 
 ```
-/dev10x:gh-pr-bookmark                          # bookmark current PR
-/dev10x:gh-pr-bookmark Wait for CI then merge   # bookmark with custom note
+/dev10x-coding:gh-pr-bookmark                          # bookmark current PR
+/dev10x-coding:gh-pr-bookmark Wait for CI then merge   # bookmark with custom note
 ```
 
 ## See Also

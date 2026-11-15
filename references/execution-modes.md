@@ -129,7 +129,7 @@ Steps declare how they adapt under each mode:
 
 - subject: Request review
   type: detailed
-  skills: [dev10x:gh-pr-request-review]
+  skills: [dev10x-coding:gh-pr-request-review]
   prompt: >
     Auto-assign reviewers from CODEOWNERS. No
     AskUserQuestion for reviewer selection.

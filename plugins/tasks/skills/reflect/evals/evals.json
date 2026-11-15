@@ -74,7 +74,7 @@
     {
       "id": "final-play-step-keeps-verify-ac-open",
       "name": "Final play step leaves Verify AC open",
-      "description": "Invoked as a play's last step after dev10x:verify-acc-dod reported; Verify acceptance criteria is still pending. The order relative to Verify AC is set by the play (tests/skills/playbook/test_session_reflection_step.py), not observable in one skill run, so this eval checks only that Verify AC is left open.",
+      "description": "Invoked as a play's last step after dev10x-coding:verify-acc-dod reported; Verify acceptance criteria is still pending. The order relative to Verify AC is set by the play (tests/skills/playbook/test_session_reflection_step.py), not observable in one skill run, so this eval checks only that Verify AC is left open.",
       "input": "Skill(dev10x-tasks:reflect)",
       "setup": {"open_tasks": ["Verify acceptance criteria", "Reflect lessons into the knowledge vault"]},
       "assertions": [
@@ -106,7 +106,7 @@
     "should_not_trigger": [
       {"query": "let's wrap up for today", "rationale": "Session end with open loops — use dev10x-tasks:session-wrap-up"},
       {"query": "park this idea for later", "rationale": "Single deferral — use dev10x-tasks:park"},
-      {"query": "start on GH-42", "rationale": "Starting work — use dev10x:work-on"}
+      {"query": "start on GH-42", "rationale": "Starting work — use dev10x-coding:work-on"}
     ]
   }
 }

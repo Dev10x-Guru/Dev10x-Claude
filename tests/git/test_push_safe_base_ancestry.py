@@ -24,8 +24,9 @@ from typing import Any
 
 import pytest
 
-_SCRIPT = Path(__file__).parents[2] / "skills" / "git" / "scripts" / "git-push-safe.sh"
-_GROOM = Path(__file__).parents[2] / "skills" / "git" / "scripts" / "git-rebase-groom.sh"
+_CODING_SKILLS = Path(__file__).parents[2] / "plugins" / "coding" / "skills"
+_SCRIPT = _CODING_SKILLS / "git" / "scripts" / "git-push-safe.sh"
+_GROOM = _CODING_SKILLS / "git" / "scripts" / "git-rebase-groom.sh"
 _TIMEOUT_SECONDS = 30
 
 # Ignore the developer's own git config. Without this the suite passes on
@@ -309,7 +310,7 @@ class TestDocumentedBlockedReasonsMatchTheScript:
         assert '"blocked_reason":"base_fetch_failed"' in source
 
     def test_the_skill_documents_the_new_reason(self) -> None:
-        skill = (Path(__file__).parents[2] / "skills" / "git" / "SKILL.md").read_text(
+        skill = (_CODING_SKILLS / "git" / "SKILL.md").read_text(
             encoding="utf-8"
         )
 

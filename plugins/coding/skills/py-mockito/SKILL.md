@@ -1,5 +1,5 @@
 ---
-name: dev10x:py-mockito
+name: dev10x-coding:py-mockito
 description: >
   Write pytest tests with python-mockito and pytest-mockito — stub
   collaborator classes with when(), assert calls with verify(), capture
@@ -10,9 +10,9 @@ description: >
   `mockito`, use the pytest-mockito `when` fixture, or need to stub a
   collaborator class resolved from a DI container.
   DO NOT TRIGGER when: the project uses `unittest.mock` / `pytest-mock`
-  only, or the task is running tests (use dev10x:py-test).
+  only, or the task is running tests (use dev10x-coding:py-test).
 user-invocable: true
-invocation-name: dev10x:py-mockito
+invocation-name: dev10x-coding:py-mockito
 allowed-tools:
   - TaskCreate
   - TaskUpdate
@@ -21,7 +21,7 @@ allowed-tools:
 
 # Python Mockito Testing Patterns
 
-**Announce:** "Using dev10x:py-mockito to write mockito-based tests."
+**Announce:** "Using dev10x-coding:py-mockito to write mockito-based tests."
 
 ## Orchestration
 

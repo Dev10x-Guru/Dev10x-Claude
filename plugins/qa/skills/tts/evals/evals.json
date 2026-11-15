@@ -179,7 +179,7 @@
     "should_not_trigger": [
       "Capturing the walkthrough recording itself (use dev10x-qa:qa-self)",
       "Converting or verifying evidence files (use qa-self's own scripts)",
-      "Analyzing a PR for QA needs (use dev10x:qa-scope)"
+      "Analyzing a PR for QA needs (use dev10x-coding:qa-scope)"
     ]
   }
 }

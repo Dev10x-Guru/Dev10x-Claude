@@ -97,7 +97,7 @@ parameter `T` of `BaseRepository` is the only new generic.`
    - Pattern: No new tests needed if behavior unchanged
 
 5. **Run Full Test Suite**
-   - Command: `Skill(dev10x:py-test src/payments/tests/)`
+   - Command: `Skill(dev10x-coding:py-test src/payments/tests/)`
    - Verify: 100% passing
    - Check: Coverage maintained
 

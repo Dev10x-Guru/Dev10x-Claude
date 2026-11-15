@@ -89,7 +89,7 @@ keep the two in step.
 
 Dimensions are orthogonal quality axes (not sequential steps). Examples:
 
-**dev10x:work-on** (6 dimensions):
+**dev10x-coding:work-on** (6 dimensions):
 - `classify` — input type identification (URL, ID, free text)
 - `gather` — parallel subagent context gathering
 - `plan` — task list generation with mandatory elements
@@ -97,7 +97,7 @@ Dimensions are orthogonal quality axes (not sequential steps). Examples:
 - `task-structure` — 4 phase-level tasks + dependencies
 - `workspace` — early workspace decision (main repo vs. worktree)
 
-**dev10x:git-commit** (5 dimensions):
+**dev10x-coding:git-commit** (5 dimensions):
 - `format` — gitmoji + ticket + description pattern
 - `jtbd` — outcome-focus verb enforcement
 - `extraction` — ticket ID from branch name
@@ -127,8 +127,8 @@ Aim for **5–6 examples each** (should_trigger, should_not_trigger).
 ## Scenario Best Practices
 
 1. **Concrete + Representative** — Use real-world prompts
-   - ✅ `/dev10x:work-on https://github.com/org/repo/issues/42`
-   - ❌ `/dev10x:work-on test`
+   - ✅ `/dev10x-coding:work-on https://github.com/org/repo/issues/42`
+   - ❌ `/dev10x-coding:work-on test`
 
 2. **One dimension per scenario** — Scenarios focus on specific quality axis
    - Don't test all dimensions in one scenario

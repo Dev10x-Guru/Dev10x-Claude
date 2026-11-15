@@ -100,7 +100,7 @@ config:
   friction_level: guided
 
 mappings:
-  - skill: dev10x:git-commit
+  - skill: dev10x-coding:git-commit
     description: Properly formatted git commit with gitmoji and ticket reference
     patterns:
       - "git commit"
@@ -114,12 +114,12 @@ mappings:
       extraction, and 72-char line limit enforcement.
     guardrails: gitmoji prefix, JTBD outcome title, 72-char limit
     fallback_instructions: >
-      If Skill(dev10x:git-commit) fails, apply these guardrails
+      If Skill(dev10x-coding:git-commit) fails, apply these guardrails
       manually: (1) use gitmoji prefix, (2) include ticket ID from
       branch name, (3) keep title under 72 chars, (4) use -F flag
       with temp file, not -m.
     related:
-      - dev10x:git-groom
+      - dev10x-coding:git-groom
 ```
 
 New fields vs current `command-skill-map.yaml`:
@@ -136,13 +136,13 @@ New fields vs current `command-skill-map.yaml`:
 2. PreToolUse hook fires, `skill_redirect.py` loads YAML
 3. Pattern matches `git commit`, `hook_block: true`
 4. Friction level = `strict` → hard deny (exit 2)
-5. systemMessage: "Use Skill(dev10x:git-commit) instead"
-6. Agent retries with `Skill(dev10x:git-commit)`
+5. systemMessage: "Use Skill(dev10x-coding:git-commit) instead"
+6. Agent retries with `Skill(dev10x-coding:git-commit)`
 
 #### Flow 2: Guided mode — skill fails
 
 1. Agent calls `Bash(git commit -m "Add feature")`
-2. Hook blocks → agent tries `Skill(dev10x:git-commit)`
+2. Hook blocks → agent tries `Skill(dev10x-coding:git-commit)`
 3. Skill fails (e.g., MCP server timeout)
 4. Agent retries raw command → hook blocks again
 5. This time systemMessage includes `fallback_instructions`

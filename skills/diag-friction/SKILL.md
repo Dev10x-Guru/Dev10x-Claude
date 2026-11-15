@@ -134,7 +134,7 @@ whether the skill says to **delegate** for this case:
   to a sub-skill for that operation
 - Example: `gh api --method POST .../replies` is documented in
   `gh-pr-respond` but the skill requires VALID comments to go
-  through `dev10x:gh-pr-fixup` — using the raw API is a violation
+  through `dev10x-coding:gh-pr-fixup` — using the raw API is a violation
 
 If the command is a delegation bypass, treat it as a match and
 output the reinforcement pointing to the correct sub-skill.
@@ -339,8 +339,8 @@ the structured decision flow used across Dev10x skills.
 1. `AskUserQuestion(questions=[{question: "Invoke <recommended-skill> now to complete the intended action?", header: "Retry", options: [{label: "Yes, invoke <skill> now (Recommended)", description: "Re-run the intended action via the correct skill"}, {label: "I'll invoke it manually later", description: "Skip for now — user will handle"}, {label: "Cancel — discard the attempted operation", description: "Do not retry"}], multiSelect: false}])`
 
 Substitute `<recommended-skill>` with the skill identified in
-Step 2 (e.g., `dev10x:gh-pr-monitor`, `dev10x-infra:k8s`,
-`dev10x:git`).
+Step 2 (e.g., `dev10x-coding:gh-pr-monitor`, `dev10x-infra:k8s`,
+`dev10x-coding:git`).
 
 **Skip this gate when:**
 
@@ -361,7 +361,7 @@ See [`references/examples.md`](references/examples.md) for five
 walkthroughs:
 
 1. **kubectl usage** — direct CLI match (`dev10x-infra:k8s`)
-2. **direct git push** — bypassed safety skill (`dev10x:git`)
+2. **direct git push** — bypassed safety skill (`dev10x-coding:git`)
 3. **friction from chaining** — Step 3b audit surfaces a
    pre-approved alternative
 4. **no match found** — fallback to SKILLS.md scan

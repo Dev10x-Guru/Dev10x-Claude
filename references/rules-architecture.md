@@ -31,10 +31,10 @@ The code review system uses a **multi-agent architecture**:
 
 | File | Topic | Loaded by |
 |------|-------|-----------|
-| `git-commits.md` | Commit format, gitmoji | `dev10x:git-commit` skill |
-| `git-pr.md` | PR format, grooming | `dev10x:gh-pr-create` skill |
+| `git-commits.md` | Commit format, gitmoji | `dev10x-coding:git-commit` skill |
+| `git-pr.md` | PR format, grooming | `dev10x-coding:gh-pr-create` skill |
 | `git-jtbd.md` | Job Story format | `dev10x-scoping:jtbd` skill |
-| `review-guidelines.md` | Review workflow, threads | `dev10x:gh-pr-review` skill |
+| `review-guidelines.md` | Review workflow, threads | `dev10x-coding:gh-pr-review` skill |
 | `review-checks-common.md` | False positives, verification | Review agent specs |
 | `eval-schema.md` | Evaluation assertions | `reviewer-skill.md` (item 19) |
 | `skill-invocation.md` | Skill() syntax, delegation | `reviewer-skill.md` (items 8g, 9a) |

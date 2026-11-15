@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from dev10x.coding.coding_script import coding_script
 from dev10x.core.github import _gateway
 from dev10x.core.paths import skill_script
 from dev10x.domain.common.result import Result, err, ok
@@ -42,7 +43,7 @@ async def detect_base_branch(
         args.append("--force")
 
     result = await _gateway.async_run_script(
-        skill_script(skill="gh-pr-create", rel="detect-base-branch.sh"),
+        coding_script(skill="gh-pr-create", rel="detect-base-branch.sh"),
         *args,
     )
 
@@ -64,7 +65,7 @@ async def verify_pr_state(*, force: bool = False) -> Result[dict[str, Any]]:
         args.append("--force")
 
     return await _gateway._run_and_parse(
-        skill_script(skill="gh-pr-create", rel="verify-state.sh"),
+        coding_script(skill="gh-pr-create", rel="verify-state.sh"),
         *args,
         fallback=parse_key_value_output,
     )
@@ -76,7 +77,7 @@ async def pre_pr_checks(*, base_branch: str | None = None) -> Result[dict[str, A
         args.append(base_branch)
 
     result = await _gateway.async_run_script(
-        skill_script(skill="gh-pr-create", rel="pre-pr-checks.sh"),
+        coding_script(skill="gh-pr-create", rel="pre-pr-checks.sh"),
         *args,
     )
 

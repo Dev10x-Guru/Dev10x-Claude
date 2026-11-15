@@ -21,7 +21,8 @@ from typing import Any
 
 import pytest
 
-_SCRIPT = Path(__file__).parents[2] / "skills" / "git" / "scripts" / "git-push-safe.sh"
+_CODING_SKILLS = Path(__file__).parents[2] / "plugins" / "coding" / "skills"
+_SCRIPT = _CODING_SKILLS / "git" / "scripts" / "git-push-safe.sh"
 _TIMEOUT_SECONDS = 30
 
 _ENV = {**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_SYSTEM": os.devnull}

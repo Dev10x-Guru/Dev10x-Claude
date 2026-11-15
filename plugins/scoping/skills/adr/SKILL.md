@@ -7,7 +7,7 @@ description: >
   TRIGGER when: documenting significant architectural decisions, design
   trade-offs, or technology choices that affect the codebase.
   DO NOT TRIGGER when: making code changes without architecture impact,
-  or writing commit messages (use dev10x:git-commit).
+  or writing commit messages (use dev10x-coding:git-commit).
 user-invocable: true
 invocation-name: dev10x-scoping:adr
 persona: >
@@ -18,9 +18,9 @@ allowed-tools:
   - Bash(mkdir -p:*)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/diagram-sequence/scripts/render.sh:*)
   - Bash(ls:*)
-  - Skill(dev10x:ticket-branch)
-  - Skill(dev10x:git-commit)
-  - Skill(dev10x:gh-pr-create)
+  - Skill(dev10x-coding:ticket-branch)
+  - Skill(dev10x-coding:git-commit)
+  - Skill(dev10x-coding:gh-pr-create)
   - Agent
   - WebFetch
   - Grep
@@ -184,12 +184,12 @@ Common corrections include:
 
 #### 6.1 Create Branch
 
-Use `dev10x:ticket-branch` skill if a ticket exists, or
-`dev10x:git-worktree` for isolated workspace.
+Use `dev10x-coding:ticket-branch` skill if a ticket exists, or
+`dev10x-coding:git-worktree` for isolated workspace.
 
 #### 6.2 Commit ADR
 
-Use the `dev10x:git-commit` skill to commit:
+Use the `dev10x-coding:git-commit` skill to commit:
 - Stage `docs/adr/` directory
 - Gitmoji: 📝
 - Title: outcome-focused (e.g., "Document payment routing
@@ -197,7 +197,7 @@ Use the `dev10x:git-commit` skill to commit:
 
 #### 6.3 Create PR
 
-Use `dev10x:gh-pr-create` skill for PR creation.
+Use `dev10x-coding:gh-pr-create` skill for PR creation.
 
 ## ADR Quality Checklist
 
@@ -237,9 +237,9 @@ Before finalizing, verify:
 ```
 dev10x-scoping:adr
 ├── Extends: dev10x-scoping:scope (base scoping workflow)
-├── May use: dev10x:work-on (if ticket exists)
-├── Uses: dev10x:gh-pr-create (for PR creation)
-└── Uses: dev10x:git-commit (for commit formatting)
+├── May use: dev10x-coding:work-on (if ticket exists)
+├── Uses: dev10x-coding:gh-pr-create (for PR creation)
+└── Uses: dev10x-coding:git-commit (for commit formatting)
 ```
 
 ## References

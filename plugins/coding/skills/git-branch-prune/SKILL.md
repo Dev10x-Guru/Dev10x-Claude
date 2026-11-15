@@ -1,5 +1,5 @@
 ---
-name: dev10x:git-branch-prune
+name: dev10x-coding:git-branch-prune
 description: >
   Classify and prune stale local branches with merge verification,
   designed for rebase-merge repos where `git branch --merged` misses
@@ -7,10 +7,10 @@ description: >
   TRIGGER when: local repo has accumulated stale branches after fanout
   sessions, worktree cleanup, or manual sweeps.
   DO NOT TRIGGER when: working on a clean repo with few branches or
-  when branch deletion is handled by another skill (e.g. dev10x:fanout
+  when branch deletion is handled by another skill (e.g. dev10x-coding:fanout
   teardown).
 user-invocable: true
-invocation-name: dev10x:git-branch-prune
+invocation-name: dev10x-coding:git-branch-prune
 allowed-tools:
   - AskUserQuestion
   - mcp__plugin_dev10x_cli__detect_base_branch
@@ -56,7 +56,7 @@ unpublished work.
 Mark completed when done:
 `TaskUpdate(taskId, status="completed")`
 
-**Announce:** "Using dev10x:git-branch-prune to classify and prune
+**Announce:** "Using dev10x-coding:git-branch-prune to classify and prune
 stale local branches."
 
 ## Workflow
@@ -151,7 +151,7 @@ the batch on a single failure.
 Run `git worktree prune` to remove stale worktree administrative
 files. It never removes a live checkout — branches still checked out
 in merged worktrees stay protected in Step 4. Run
-`dev10x:git-worktree-prune` first to remove those checkouts, then
+`dev10x-coding:git-worktree-prune` first to remove those checkouts, then
 re-run this skill to delete their branches.
 
 If `git` warned about unreachable loose objects during any of the
@@ -169,7 +169,7 @@ Mark the task completed.
 
 ## Integration Note (GH-463)
 
-The dev10x:fanout skill's worktree teardown step may delegate its
+The dev10x-coding:fanout skill's worktree teardown step may delegate its
 per-session branch-deletion to this skill in a future iteration.
 This skill is designed for standalone invocation and does not
 require or import any fanout-specific state.

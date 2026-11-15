@@ -77,7 +77,7 @@ def test_plays_without_a_new_change_skip_self_qa(plays: dict[str, list[str]], pl
 
 def test_step_chains_scope_capture_and_pack(step: dict[str, Any]) -> None:
     assert step["skills"] == [
-        "dev10x:qa-scope",
+        "dev10x-coding:qa-scope",
         "dev10x-qa:qa-self",
         "dev10x-qa:review-pack",
     ]
@@ -119,7 +119,7 @@ def test_qa_off_mode_drops_the_step(step: dict[str, Any]) -> None:
 def test_qa_record_only_mode_never_publishes(step: dict[str, Any]) -> None:
     record_only = step["modes"]["qa-record-only"]
 
-    assert record_only["skills"] == ["dev10x:qa-scope", "dev10x-qa:qa-self"]
+    assert record_only["skills"] == ["dev10x-coding:qa-scope", "dev10x-qa:qa-self"]
     assert "Publish nothing" in " ".join(record_only["prompt"].split())
 
 

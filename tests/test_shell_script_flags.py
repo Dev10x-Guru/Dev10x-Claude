@@ -79,7 +79,9 @@ def test_create_pr_body_ends_at_the_fixes_trailer() -> None:
     repo without `.github/checklist.md` got a bare `---` as the last
     line and the hygiene bot flagged every generated body.
     """
-    source = (REPO_ROOT / "skills" / "gh-pr-create" / "scripts" / "create-pr.sh").read_text()
+    source = (
+        REPO_ROOT / "plugins" / "coding" / "skills" / "gh-pr-create" / "scripts" / "create-pr.sh"
+    ).read_text()
     format_lines = [
         line for line in source.splitlines() if "CHECKLIST_BLOCK" in line and "FIXES_LINE" in line
     ]

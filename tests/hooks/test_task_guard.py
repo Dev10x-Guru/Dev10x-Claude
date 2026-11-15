@@ -203,10 +203,14 @@ def repo(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, claude_home: Path) -> 
     return root
 
 
-def _disable_coding(*, repo: Path) -> None:
+def _set_coding(*, repo: Path, enabled: bool) -> None:
     settings = repo / ".claude" / "settings.local.json"
     settings.parent.mkdir()
-    settings.write_text(json.dumps({"enabledPlugins": {"dev10x@Dev10x-Guru": False}}))
+    settings.write_text(json.dumps({"enabledPlugins": {"dev10x-coding@Dev10x-Guru": enabled}}))
+
+
+def _disable_coding(*, repo: Path) -> None:
+    _set_coding(repo=repo, enabled=False)
 
 
 class TestCmdHook:
@@ -275,6 +279,7 @@ class TestCmdHook:
         assert caplog.text == ""
 
     def test_block_exits_two(self, monkeypatch: pytest.MonkeyPatch, repo: Path) -> None:
+        _set_coding(repo=repo, enabled=True)
         monkeypatch.setattr(tg.Plan, "load", classmethod(lambda cls, *, path: _plan([OPEN_A])))
         assert self._run(monkeypatch=monkeypatch, payload=self._close(task_id="1")) == 2
 

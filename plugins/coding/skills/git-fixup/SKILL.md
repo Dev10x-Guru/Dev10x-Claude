@@ -1,15 +1,15 @@
 ---
-name: dev10x:git-fixup
+name: dev10x-coding:git-fixup
 description: >
   Create a fixup! commit for a PR review comment or standalone
   improvement. Enforces one fixup per comment thread when linked to
   a review.
   TRIGGER when: creating a fixup! commit for a review finding or
   standalone improvement.
-  DO NOT TRIGGER when: creating a regular commit (use dev10x:git-commit),
-  or implementing PR fixes with push and reply (use dev10x:gh-pr-fixup).
+  DO NOT TRIGGER when: creating a regular commit (use dev10x-coding:git-commit),
+  or implementing PR fixes with push and reply (use dev10x-coding:gh-pr-fixup).
 user-invocable: true
-invocation-name: dev10x:git-fixup
+invocation-name: dev10x-coding:git-fixup
 allowed-tools:
   - AskUserQuestion
   - Bash(/tmp/Dev10x/bin/mktmp.sh:*)
@@ -50,11 +50,11 @@ Why fixup commits?
 
 ## When to Use This Skill
 
-- Called by `dev10x:gh-pr-fixup` when addressing review comments
+- Called by `dev10x-coding:gh-pr-fixup` when addressing review comments
 - When you need to create a fixup commit for a specific review comment
 - When you need a standalone fixup for a self-initiated improvement
-- **When you fix a bug or anti-pattern that belongs to a prior commit in the branch** — use `dev10x:git-fixup` immediately rather than a standalone commit that would need converting later
-- NOT for general commits (use `dev10x:git-commit` skill instead)
+- **When you fix a bug or anti-pattern that belongs to a prior commit in the branch** — use `dev10x-coding:git-fixup` immediately rather than a standalone commit that would need converting later
+- NOT for general commits (use `dev10x-coding:git-commit` skill instead)
 
 ## Input Requirements
 
@@ -93,7 +93,7 @@ this skill (see Important Notes).
 If a comment ID or PR comment URL was provided → **review fixup** mode.
 
 If the invocation args include a **target commit SHA + description** (e.g.
-`/dev10x:git-fixup abc1234 Fix null handling in phone lookup`), intent is clear —
+`/dev10x-coding:git-fixup abc1234 Fix null handling in phone lookup`), intent is clear —
 proceed directly in **standalone fixup** mode without asking.
 
 Otherwise, **REQUIRED: Call `AskUserQuestion`** (do NOT use plain
@@ -101,10 +101,10 @@ text) to ask:
 
 > "No review comment provided. Create a standalone fixup?"
 
-Options: "Yes, standalone fixup" / "No, use /dev10x:git-commit instead"
+Options: "Yes, standalone fixup" / "No, use /dev10x-coding:git-commit instead"
 
 If the user confirms → **standalone fixup** mode.
-If the user declines → suggest using `/dev10x:git-commit` instead.
+If the user declines → suggest using `/dev10x-coding:git-commit` instead.
 
 ### Step 2: Fetch Comment Details (review fixup only)
 
@@ -208,9 +208,9 @@ Suggested workflow (one fixup per owner):
 
   git restore --staged .
   git add -p src/payments/service.py        # stage only abc1234's hunks
-  Skill(dev10x:git-fixup)
+  Skill(dev10x-coding:git-fixup)
   git add -p tests/payments/test_service.py # stage only def5678's hunks
-  Skill(dev10x:git-fixup)
+  Skill(dev10x-coding:git-fixup)
 
 Each fixup may reference the same review comment URL — the
 "one fixup per comment" rule is a traceability floor, not a hard
@@ -383,17 +383,17 @@ https://github.com/owner/repo/pull/123#discussion_r456789
 This links the fixup to the specific review comment it addresses.
 ```
 
-## Integration with dev10x:gh-pr-fixup
+## Integration with dev10x-coding:gh-pr-fixup
 
-The `dev10x:gh-pr-fixup` skill calls this skill instead of creating commits
+The `dev10x-coding:gh-pr-fixup` skill calls this skill instead of creating commits
 directly:
 
 ```
-dev10x:gh-pr-fixup workflow:
+dev10x-coding:gh-pr-fixup workflow:
 1. Analyze comment
 2. Implement fix
 3. Stage changes: git add {file}
-4. Call dev10x:git-fixup with (pr_number, comment_id)  <-- uses this skill
+4. Call dev10x-coding:git-fixup with (pr_number, comment_id)  <-- uses this skill
 5. Push: mcp__plugin_dev10x_cli__push_safe
 6. Reply to comment with commit reference
 ```
@@ -412,7 +412,7 @@ dev10x:gh-pr-fixup workflow:
 
 ## Example Usage
 
-### Review fixup (called by dev10x:gh-pr-fixup)
+### Review fixup (called by dev10x-coding:gh-pr-fixup)
 
 ```bash
 # Stage the fix
@@ -436,7 +436,7 @@ https://github.com/example-org/app-e2e/pull/269#discussion_r2706078039
 # Stage the fix
 git add src/app_pos/motor/api/nodes.py
 
-# Invoke /dev10x:git-fixup with no comment argument
+# Invoke /dev10x-coding:git-fixup with no comment argument
 # Claude asks: "No review comment provided. Create a standalone fixup?"
 # User confirms → standalone mode
 ```

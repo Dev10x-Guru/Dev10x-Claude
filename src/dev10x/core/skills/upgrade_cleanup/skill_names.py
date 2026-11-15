@@ -12,9 +12,10 @@ The table is empty between extractions. The B1–B3 rows (``dev10x-qa``,
 ``dev10x-infra``, ``dev10x-db``) shipped in 0.114.0 and 0.115.0 and were
 retired at 0.116.0 (GH-1865). B4 (GH-1567) adds the seven skills that moved
 to ``dev10x-comm``, B5 (GH-1568) the seven that moved to ``dev10x-teach``,
-B6 (GH-1569) the eight that moved to ``dev10x-tasks`` and B7 (GH-1570) the
-nineteen that moved to ``dev10x-scoping``; all four ship in 0.116.0, so
-their rows end two releases later. Every write takes the file's lock and
+B6 (GH-1569) the eight that moved to ``dev10x-tasks``, B7 (GH-1570) the
+nineteen that moved to ``dev10x-scoping`` and B9 (GH-1572) the forty that
+moved to ``dev10x-coding``; all five ship in 0.116.0, so their rows end two
+releases later. Every write takes the file's lock and
 lands atomically, and a second run finds nothing left to rewrite.
 """
 
@@ -95,6 +96,48 @@ _MOVED_IN_0_116_EXTRACTIONS: dict[str, tuple[str, ...]] = {
         "ticket-create",
         "ticket-jtbd",
         "ticket-scope",
+    ),
+    "dev10x-coding": (
+        "ci-review",
+        "fanout",
+        "foreman",
+        "gchat-review-request",
+        "gh-pr-bookmark",
+        "gh-pr-create",
+        "gh-pr-doctor",
+        "gh-pr-fixup",
+        "gh-pr-merge",
+        "gh-pr-monitor",
+        "gh-pr-request-review",
+        "gh-pr-respond",
+        "gh-pr-review",
+        "gh-pr-triage",
+        "gh-review-setup",
+        "git",
+        "git-alias-setup",
+        "git-branch-prune",
+        "git-commit",
+        "git-commit-split",
+        "git-fixup",
+        "git-groom",
+        "git-promote",
+        "git-worktree",
+        "git-worktree-prune",
+        "ide-normalize",
+        "investigate",
+        "py-mockito",
+        "py-test",
+        "py-test-flaky",
+        "py-uv",
+        "qa-scope",
+        "release-notes",
+        "request-review",
+        "review",
+        "review-fix",
+        "slack-review-request",
+        "ticket-branch",
+        "verify-acc-dod",
+        "work-on",
     ),
 }
 

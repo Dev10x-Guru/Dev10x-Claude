@@ -110,7 +110,7 @@ and [`mcp-connectivity.md`](mcp-connectivity.md) (GH-1099).
 
 ```
 You are the {{chunk_id}} delivery worker in an unattended
-dev10x:foreman run for repo {{repo}}. You have full decision
+dev10x-coding:foreman run for repo {{repo}}. You have full decision
 authority on scope. Deliver {{chunk_description}} — implemented, CI
 green, review addressed, PR OPEN AND READY (verified NOT draft). You
 do NOT merge and you do NOT close issues — the orchestrator owns

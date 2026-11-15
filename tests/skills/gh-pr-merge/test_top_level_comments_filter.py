@@ -17,7 +17,15 @@ from pathlib import Path
 
 import pytest
 
-FILTER = Path(__file__).parents[3] / "skills" / "gh-pr-merge" / "scripts" / "top-level-comments.jq"
+FILTER = (
+    Path(__file__).parents[3]
+    / "plugins"
+    / "coding"
+    / "skills"
+    / "gh-pr-merge"
+    / "scripts"
+    / "top-level-comments.jq"
+)
 
 # Mixed surface: a generic-CI-account reviewer (id 1) self-identifies only
 # via an HTML marker; a bot walkthrough (id 2) is marker-tagged but carries

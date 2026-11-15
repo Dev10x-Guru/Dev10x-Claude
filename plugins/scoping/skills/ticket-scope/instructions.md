@@ -113,8 +113,8 @@ Options:
 When `confidence` is `low`, proceed normally to Phase 2.
 
 The heuristic itself lives in the MCP tool, not in this document
-— sibling skills (`dev10x:investigate`, `dev10x-scoping:ticket-create`,
-`dev10x:work-on`) that ingest Slack URLs should call the same
+— sibling skills (`dev10x-coding:investigate`, `dev10x-scoping:ticket-create`,
+`dev10x-coding:work-on`) that ingest Slack URLs should call the same
 tool rather than re-implement the logic.
 
 ### Phase 2: Technical Research (Uses base scope skill)
@@ -211,7 +211,7 @@ reads correctly, the skipped delegation is a compliance
 violation — the jtbd skill's own attended-mode approval gate
 must fire.
 
-**Do NOT update the Linear ticket description at this point** — the story is saved in the scoping document and will be applied to the PR later via `dev10x-scoping:ticket-jtbd` or `dev10x:gh-pr-create`.
+**Do NOT update the Linear ticket description at this point** — the story is saved in the scoping document and will be applied to the PR later via `dev10x-scoping:ticket-jtbd` or `dev10x-coding:gh-pr-create`.
 
 ### Phase 5: Format Scoping Document
 
@@ -572,7 +572,7 @@ dev10x-scoping:ticket-scope
 ├── Extends: scope (base scoping workflow)
 ├── Uses: Linear MCP (ticket data)
 ├── Uses: dev10x-scoping:jtbd (JTBD story drafting in Phase 4b)
-├── May lead to: dev10x:work-on (start implementation)
+├── May lead to: dev10x-coding:work-on (start implementation)
 ├── Alternative: dev10x-scoping:adr (for architectural decisions)
 └── Saves to: /tmp/Dev10x/ticket-scope/TICKET-ID-scope.md
 ```
@@ -610,4 +610,4 @@ dev10x-scoping:ticket-scope
 ### Related Skills
 - `scope` - Base scoping skill
 - `dev10x-scoping:adr` - For architectural decisions
-- `dev10x:work-on` - Start implementation
+- `dev10x-coding:work-on` - Start implementation

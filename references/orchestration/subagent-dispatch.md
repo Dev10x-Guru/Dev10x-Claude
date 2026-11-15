@@ -234,9 +234,9 @@ references to the old "Permission-Aware Dispatch table" appear
 in skill docs, treat them as superseded by the Agent Isolation
 Matrix above.
 
-**Example**: `dev10x:fanout` dispatches each non-conflicting
+**Example**: `dev10x-coding:fanout` dispatches each non-conflicting
 work item as a worktree-isolated `Agent` whose prompt invokes
-`Skill(dev10x:work-on)`, running the full lifecycle inside the
+`Skill(dev10x-coding:work-on)`, running the full lifecycle inside the
 isolated worktree. Conflict-chain successors wait for upstream
 items to merge, then dispatch in the next wave.
 

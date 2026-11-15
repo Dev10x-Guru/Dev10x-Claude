@@ -71,7 +71,7 @@ class TestSkillRedirectCorrect:
         result = validator.correct(inp=inp)
         assert result is not None
         assert isinstance(result, HookRetry)
-        assert "dev10x:git-commit" in result.message
+        assert "dev10x-coding:git-commit" in result.message
 
     def test_returns_none_for_allowed_commit(self, validator) -> None:
         inp = BashHookInputFaker.build(

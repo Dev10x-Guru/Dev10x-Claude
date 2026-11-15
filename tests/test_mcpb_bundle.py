@@ -73,7 +73,7 @@ def test_the_bundle_launches_the_cli_server(manifest: dict[str, Any]) -> None:
     [
         "src/dev10x/mcp/server_cli.py",
         "servers/cli_server.py",
-        "skills/gh-pr-create",
+        "plugins/coding/skills/gh-pr-create",
         ".claude-plugin/plugin.json",
     ],
 )

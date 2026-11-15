@@ -21,9 +21,8 @@ from pathlib import Path
 
 import pytest
 
-_SCRIPT = (
-    Path(__file__).parents[2] / "skills" / "git-alias-setup" / "scripts" / "git-alias-setup.sh"
-)
+_CODING_SKILLS = Path(__file__).parents[2] / "plugins" / "coding" / "skills"
+_SCRIPT = _CODING_SKILLS / "git-alias-setup" / "scripts" / "git-alias-setup.sh"
 _TIMEOUT_SECONDS = 30
 
 _COMPARISON_BASES = ("develop", "development", "trunk", "main", "master")

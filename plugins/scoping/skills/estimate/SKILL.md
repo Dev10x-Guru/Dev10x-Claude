@@ -10,7 +10,7 @@ description: >
   "what would it take to…?", "when could this ship?" — inside or
   outside a scoping skill.
   DO NOT TRIGGER when: tracking time already spent (use a time
-  tracker), or reporting what shipped (use dev10x:release-notes).
+  tracker), or reporting what shipped (use dev10x-coding:release-notes).
 user-invocable: true
 invocation-name: dev10x-scoping:estimate
 allowed-tools:
@@ -26,7 +26,7 @@ allowed-tools:
 **Announce:** "Using dev10x-scoping:estimate to size [ticket/project]."
 
 This is the single source of truth for estimation in Dev10x.
-`dev10x-scoping:project-scope`, `dev10x-scoping:ticket-scope` and `dev10x:work-on`
+`dev10x-scoping:project-scope`, `dev10x-scoping:ticket-scope` and `dev10x-coding:work-on`
 delegate here, and the SessionStart guidance points every other
 estimate here too (GH-1495).
 

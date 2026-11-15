@@ -6,8 +6,8 @@
 
 ## Problem
 
-PR review requests are posted to Slack today via `dev10x:request-review`
-→ `dev10x:slack-review-request` → `dev10x-comm:slack`. The team also wants the
+PR review requests are posted to Slack today via `dev10x-coding:request-review`
+→ `dev10x-coding:slack-review-request` → `dev10x-comm:slack`. The team also wants the
 same review request delivered to a **Google Chat** space, in parallel with
 Slack (Slack stays as-is).
 
@@ -21,12 +21,12 @@ cache and not by replacing Slack.
   one (JTBD Job Story + linked PR title + mention).
 - Author configuration the **same way as Slack**: per-repo space + named
   group mentions (`@dev-team-fe`), resolved from a central config.
-- Standalone invocation (`dev10x:gchat-review-request`) — the user runs it in
-  addition to `dev10x:request-review`. NOT auto-wired into `request-review`.
+- Standalone invocation (`dev10x-coding:gchat-review-request`) — the user runs it in
+  addition to `dev10x-coding:request-review`. NOT auto-wired into `request-review`.
 
 ## Non-goals (YAGNI)
 
-- Wiring Google Chat into `dev10x:request-review` orchestration.
+- Wiring Google Chat into `dev10x-coding:request-review` orchestration.
 - Rich card (cardsV2) messages — plain text/markup only for v1.
 - Threading / reply-in-thread.
 - Advanced transport flags (file upload, message update/delete, reactions) —
@@ -101,7 +101,7 @@ the target space.
 Flags mirror the Slack CLI where sensible: `--space <alias>`,
 `--message` / `--message-file`, and a `--space-id` override for ad-hoc posts.
 
-### 2. `dev10x:gchat-review-request` (mirrors `dev10x:slack-review-request`)
+### 2. `dev10x-coding:gchat-review-request` (mirrors `dev10x-coding:slack-review-request`)
 
 Flow, mirroring the Slack skill:
 

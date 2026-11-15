@@ -13,26 +13,26 @@ than a developer does, not less.
 The `business-change` fragment in
 [`playbook.d/coding.yaml`](playbook.d/coding.yaml) runs:
 
-1. **Set up workspace** — `dev10x:ticket-branch`
+1. **Set up workspace** — `dev10x-coding:ticket-branch`
 2. **Describe the change** — one or two plain sentences, and a
    question back when the request is ambiguous
 3. **Make the change** — copy, labels, styles, images, layout only
 4. **Preview the change** — plain-language summary, the diff, and the
    project's own checks, before anything is committed
-5. **Commit the change** — `dev10x:git-commit`
-6. **Create PR** — `dev10x:gh-pr-create`, with its preview gate
-7. **Monitor CI** — `dev10x:gh-pr-monitor`
-8. **Respond to review comments** — `dev10x:gh-pr-respond`
-9. **Verify acceptance criteria** — `dev10x:verify-acc-dod`
+5. **Commit the change** — `dev10x-coding:git-commit`
+6. **Create PR** — `dev10x-coding:gh-pr-create`, with its preview gate
+7. **Monitor CI** — `dev10x-coding:gh-pr-monitor`
+8. **Respond to review comments** — `dev10x-coding:gh-pr-respond`
+9. **Verify acceptance criteria** — `dev10x-coding:verify-acc-dod`
 
 It deliberately leaves out what only a developer should drive: the
 design epic, the self-review fan-out, history grooming
-(`dev10x:git-groom`) and merging (`dev10x:gh-pr-merge`). The play's
+(`dev10x-coding:git-groom`) and merging (`dev10x-coding:gh-pr-merge`). The play's
 deliverable is an open PR with green CI; a developer merges it.
 
 ## Adopting it in a repository
 
-Phase 1 of `dev10x:work-on` never classifies a request as
+Phase 1 of `dev10x-coding:work-on` never classifies a request as
 `business`, so a repository opts in by pointing its `feature` and
 `bugfix` plays at the fragment. Add a `projects[]` entry to the
 global playbook override:
@@ -57,7 +57,7 @@ projects:
 [`config-resolution.md`](../../../references/config-resolution.md)). Every
 other repository keeps the full coding plays.
 
-`dev10x:work-on` reads `projects[].overrides[].steps` for the first
+`dev10x-coding:work-on` reads `projects[].overrides[].steps` for the first
 entry whose `match_repo` fits and expands the fragment there, so the
 next work-on plan in that repository lists the nine steps above.
 To confirm the entry selects the repository before that, run

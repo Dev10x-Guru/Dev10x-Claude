@@ -1,5 +1,5 @@
 ---
-name: dev10x:gh-review-setup
+name: dev10x-coding:gh-review-setup
 description: >
   Guided, discovery-driven setup of Claude code-review GitHub Actions on
   any repo. Detects the stack, lets you pick independently-skippable review
@@ -9,10 +9,10 @@ description: >
   project-identifying strings copied from any source project.
   TRIGGER when: standing up Claude code review on a repo that has none, or
   adding/regenerating review automation on an existing repo.
-  DO NOT TRIGGER when: running an existing review (use dev10x:gh-pr-review
-  or dev10x:review), or monitoring a PR (use dev10x:gh-pr-monitor).
+  DO NOT TRIGGER when: running an existing review (use dev10x-coding:gh-pr-review
+  or dev10x-coding:review), or monitoring a PR (use dev10x-coding:gh-pr-monitor).
 user-invocable: true
-invocation-name: dev10x:gh-review-setup
+invocation-name: dev10x-coding:gh-review-setup
 allowed-tools:
   - AskUserQuestion
   - Bash(gh:*)
@@ -31,9 +31,9 @@ allowed-tools:
   - mcp__plugin_dev10x_cli__resolve_gate
 ---
 
-# dev10x:gh-review-setup — Guided Code-Review Provisioning
+# dev10x-coding:gh-review-setup — Guided Code-Review Provisioning
 
-**Announce:** "Using dev10x:gh-review-setup to provision Claude
+**Announce:** "Using dev10x-coding:gh-review-setup to provision Claude
 code-review GitHub Actions on this repo."
 
 Scaffolds an opinionated-but-flexible Claude code-review pipeline. Every
@@ -143,8 +143,8 @@ mechanism as `dev10x-teach:skill-audit`. See `instructions.md` § Phase 5.
 ## Integration
 
 ```
-dev10x:gh-review-setup   (provisions review automation — this skill)
-├─ dev10x:gh-pr-review   (runs a review on a PR)
-├─ dev10x:review         (self-review before PR)
-└─ dev10x:gh-pr-monitor  (watches CI + review comments)
+dev10x-coding:gh-review-setup   (provisions review automation — this skill)
+├─ dev10x-coding:gh-pr-review   (runs a review on a PR)
+├─ dev10x-coding:review         (self-review before PR)
+└─ dev10x-coding:gh-pr-monitor  (watches CI + review comments)
 ```

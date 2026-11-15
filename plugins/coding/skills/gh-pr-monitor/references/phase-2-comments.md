@@ -13,13 +13,13 @@ gates. Loop until no unaddressed comments remain.
 2. Parse the returned JSON. If all three arrays are empty, exit
    Phase 2 and proceed to Phase 2.5.
 
-3. Invoke `Skill(dev10x:gh-pr-respond)` in batch mode with the PR
+3. Invoke `Skill(dev10x-coding:gh-pr-respond)` in batch mode with the PR
    URL — that skill runs in the supervisor session, has full
    reasoning + user gates, and handles validation, fixup commits,
    and reply posting:
 
    ```
-   Skill("dev10x:gh-pr-respond", "{pr_url}")
+   Skill("dev10x-coding:gh-pr-respond", "{pr_url}")
    ```
 
    The supervisor's BLOCKED OPERATIONS list (Step 0) is preserved
@@ -97,21 +97,21 @@ Move to Phase 2.5 when ALL of these are true:
 ## Phase 2.5: QA Scope Assessment (REQUIRES USER CONFIRMATION)
 
 This phase runs ONCE when Phase 2 completes. It delegates to the
-`dev10x:qa-scope` skill if available.
+`dev10x-coding:qa-scope` skill if available.
 
-1. Invoke the dev10x:qa-scope skill:
+1. Invoke the dev10x-coding:qa-scope skill:
    ```
-   Skill(skill="dev10x:qa-scope", args="{pr_number}")
+   Skill(skill="dev10x-coding:qa-scope", args="{pr_number}")
    ```
 
-   The dev10x:qa-scope skill will:
+   The dev10x-coding:qa-scope skill will:
    - Analyze the PR diff for QA risk (low/medium/high)
    - Check the project's e2e test directory for existing coverage
    - Present a QA assessment to the user via AskUserQuestion
 
 2. Wait for the skill to complete before proceeding to Phase 3.
 
-3. If dev10x:qa-scope determines the change is low-risk (config-only,
+3. If dev10x-coding:qa-scope determines the change is low-risk (config-only,
    test-only, docs-only), it will skip ticket creation automatically.
 
 **Note:** This phase only runs once per PR monitor session. If already
@@ -169,10 +169,10 @@ the configured channel.
 
 Example invocation:
 ```
-Skill(skill="dev10x:slack-review-request", args="--pr {pr_number} --repo {repo} --message '@{reviewer} please take another look'")
+Skill(skill="dev10x-coding:slack-review-request", args="--pr {pr_number} --repo {repo} --message '@{reviewer} please take another look'")
 ```
 
-The dev10x:slack-review-request skill will:
+The dev10x-coding:slack-review-request skill will:
 - Resolve the project's configured channel from userspace config
 - Post the message to that channel
 - Report the result back to the agent

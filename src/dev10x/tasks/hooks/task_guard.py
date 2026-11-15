@@ -100,9 +100,10 @@ def guard_decision(
     return HookResult(
         message=(
             f"Empty-task-list invariant (GH-149): refusing to mark the {label} "
-            f"'{violation.subject}' as {status}. An orchestrated session (dev10x:work-on, "
-            f"or any plan whose context sets {GUARD_FLAG}) must keep at least one open "
-            "task until the supervisor confirms the work is shippable (PR merged, CI "
+            f"'{violation.subject}' as {status}. An orchestrated session "
+            f"(dev10x-coding:work-on, or any plan whose context sets {GUARD_FLAG}) "
+            "must keep at least one open task until the supervisor confirms the work "
+            "is shippable (PR merged, CI "
             "green, no open review comments). If the supervisor has confirmed "
             "completion, re-issue TaskUpdate with metadata.supervisor_confirmed=true; "
             "otherwise add the next task before closing this one, or keep a 'Verify "

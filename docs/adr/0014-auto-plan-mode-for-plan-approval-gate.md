@@ -14,7 +14,7 @@ is retained by the resolver's preset/overlay model.
 
 `friction_level` (strict / guided / adaptive) is a single global axis
 applied to every gate (`references/friction-levels.md`). The
-`dev10x:work-on` Phase 3 plan-approval gate and all downstream
+`dev10x-coding:work-on` Phase 3 plan-approval gate and all downstream
 decision gates resolve under the same level, which leaves one cell of
 the (plan-gate × downstream-gate) matrix unreachable (GH-678):
 

@@ -8,7 +8,7 @@ description: >
   with no side effects.
   TRIGGER when: drafting a JTBD Job Story for a ticket, PR, or release.
   DO NOT TRIGGER when: Job Story already exists on the target, or writing
-  commit messages (use dev10x:git-commit).
+  commit messages (use dev10x-coding:git-commit).
 user-invocable: false
 allowed-tools:
   - AskUserQuestion
@@ -81,7 +81,7 @@ Pick exactly one bucket, and record the rejected runner-up in one line —
 that line is usually the release-note angle a salesperson would lead with.
 The bucket says where the money is; it does not dictate the sentence shape.
 `Prevent stale plans from reaching new worktrees` is Cost money in a
-prevention sentence (see `dev10x:git-commit` Step 2.5).
+prevention sentence (see `dev10x-coding:git-commit` Step 2.5).
 
 Engineering value is always secondary. A refactor or dependency
 bump that ships no business outcome should be either (a) the
@@ -427,7 +427,7 @@ The clause is the **input** to that title, not a template for it
 schema poller") upward to the human role that actually benefits, exactly
 as the trace-upward rule requires of the story itself, or pick a frame
 with no actor slot. PR titles follow the same rules — see
-`dev10x:gh-pr-create` § Title Frames.
+`dev10x-coding:gh-pr-create` § Title Frames.
 
 ### PR monitor skill
 Delegates to the ticket write layer when a PR is missing its Job Story.

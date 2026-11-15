@@ -22,7 +22,7 @@ default label set.
 
 One label per unique skill that appears in the findings table
 "Skill" column. The `dev10x:` prefix is stripped — e.g., findings
-about `dev10x:work-on` produce `skill:work-on`.
+about `dev10x-coding:work-on` produce `skill:work-on`.
 
 Color: `#1D76DB` (blue). Description:
 `Findings about the dev10x:<name> skill`.

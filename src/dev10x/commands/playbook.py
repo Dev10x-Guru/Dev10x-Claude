@@ -18,9 +18,10 @@ from dev10x.core.config.fragments import FragmentError
 from dev10x.domain.plugin_root import resolve_plugin_root
 from dev10x.skills.playbook import (
     compare_playbooks,
+    default_path_in,
     find_user_playbooks,
+    installed_plugin_roots,
     load_plugin_default,
-    plugin_default_path,
     render_markdown_report,
 )
 
@@ -137,9 +138,10 @@ def playbook_diff(*, skill_key: str | None, plugin_root: str | None) -> None:
 
     findings_count = 0
     skipped: list[str] = []
+    plugin_roots = installed_plugin_roots(core_root=root)
     for override in overrides:
-        default_path = plugin_default_path(skill_key=override.skill_key, plugin_root=root)
-        default_doc = _load_default(skill_key=override.skill_key, plugin_roots=[root])
+        default_path = default_path_in(skill_key=override.skill_key, plugin_roots=plugin_roots)
+        default_doc = _load_default(skill_key=override.skill_key, plugin_roots=plugin_roots)
         if default_doc is None:
             skipped.append(override.skill_key)
             click.echo(

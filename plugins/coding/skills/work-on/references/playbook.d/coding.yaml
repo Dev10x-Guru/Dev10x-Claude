@@ -16,14 +16,14 @@ fragments:
     - subject: Commit implementation changes
       type: detailed
       prompt: >
-        Commit outstanding implementation work now so dev10x:review
+        Commit outstanding implementation work now so dev10x-coding:review
         has a non-empty diff to inspect — the review skills compute
         their diff from commits against base (develop-diff), not the
         working tree, so an uncommitted-only branch reviews nothing
         (GH-858 F3). Atomic commits, gitmoji + ticket ID.
         Auto-advance — do not pause after committing. No-op when the
         Implement epic already committed.
-      skills: [dev10x:git-commit]
+      skills: [dev10x-coding:git-commit]
     - subject: Code review
       type: detailed
       prompt: >
@@ -35,7 +35,7 @@ fragments:
         review ends "BLOCKED: review-loop", queue that decision for
         the supervisor and do not create or advance the PR until
         it is answered.
-      skills: [dev10x:review, dev10x:review-fix]
+      skills: [dev10x-coding:review, dev10x-coding:review-fix]
       modes:
         supervised:
           prompt: >
@@ -58,14 +58,14 @@ fragments:
         Stage and commit any uncommitted work from the review
         fixes. Use atomic commits with gitmoji + ticket ID.
         Auto-advance — do not pause after committing.
-      skills: [dev10x:git-commit]
+      skills: [dev10x-coding:git-commit]
     - subject: Create draft PR
       type: detailed
       prompt: >
         Create a draft PR immediately. The PR body and commit
         history can be refined later. Auto-advance — do not
         block on PR preview approval.
-      skills: [dev10x:gh-pr-create]
+      skills: [dev10x-coding:gh-pr-create]
     - subject: Monitor CI
       type: detailed
       prompt: >
@@ -80,7 +80,7 @@ fragments:
         reviewers before the supervisor has read it): keep the
         draft and record in the Verify-AC task that CI has not run
         on the draft.
-      skills: [dev10x:gh-pr-monitor]
+      skills: [dev10x-coding:gh-pr-monitor]
     - subject: Apply fixups to review comments
       type: epic
       prompt: >
@@ -89,7 +89,7 @@ fragments:
         first: when unresolved_threads and check_top_level_comments
         both report zero, mark this step done with "nothing to
         respond to".
-      skills: [dev10x:gh-pr-respond]
+      skills: [dev10x-coding:gh-pr-respond]
     - subject: Groom commit history
       type: detailed
       prompt: >
@@ -102,7 +102,7 @@ fragments:
         PR is approved — keep the fixups so reviewers can follow
         them, and leave this step pending. Solo / `none` posture
         grooms as before.
-      skills: [dev10x:git-groom]
+      skills: [dev10x-coding:git-groom]
     - subject: Update PR description
       type: detailed
       prompt: >
@@ -111,7 +111,7 @@ fragments:
         pass and `supervisor_review_status` reports `none`, mark
         the PR ready (`pr_ready`). Under `required` leave the PR
         as a draft — readiness waits for the supervisor.
-      skills: [dev10x:gh-pr-create]
+      skills: [dev10x-coding:gh-pr-create]
     - fragment: self-qa-evidence
     - subject: Request review
       type: detailed
@@ -119,13 +119,13 @@ fragments:
         When the self-QA review pack sent with gaps stated, its
         section 4 lists them; when self-QA was skipped or held there
         is no list to read. Before requesting review, close what can
-        be closed now — e.g. fix a non-UI defect (dev10x:git-commit,
-        push via dev10x:git). After all fixes, run dev10x:review
+        be closed now — e.g. fix a non-UI defect (dev10x-coding:git-commit,
+        push via dev10x-coding:git). After all fixes, run dev10x-coding:review
         --unattended --loop once on the new HEAD, then re-run
         dev10x-qa:review-pack --no-request-review once so section 4
         matches that HEAD, and refresh the PR body's linked commit
         list the way Update PR description wrote it
-        (dev10x:gh-pr-create) so it names the fix commits; skip all
+        (dev10x-coding:gh-pr-create) so it names the fix commits; skip all
         three when nothing was fixed. A
         UI-changing fix makes the pack's video stale, so list that
         gap instead of fixing it here. Record in the Verify-AC summary
@@ -134,7 +134,7 @@ fragments:
         with the remaining gaps stated: assign reviewers and post
         Slack notification per project config. Auto-assign from
         CODEOWNERS — no AskUserQuestion for reviewer selection.
-      skills: [dev10x:gh-pr-request-review]
+      skills: [dev10x-coding:gh-pr-request-review]
       modes:
         solo-maintainer:
           subject: Mark PR ready for review
@@ -150,29 +150,29 @@ fragments:
         Merge the PR after all checks pass. Use the merge
         strategy from project settings (rebase preferred to
         preserve groomed commit history). If the DX019 review
-        stamp gate denies, run dev10x:review --unattended --loop
-        on the PR branch, push its fixups via dev10x:git, wait for
+        stamp gate denies, run dev10x-coding:review --unattended --loop
+        on the PR branch, push its fixups via dev10x-coding:git, wait for
         CI on the new head, then retry. If that review ends
         "BLOCKED: review-loop", stop and queue the decision for the
         supervisor. Never disable the rule.
-      skills: [dev10x:gh-pr-merge]
+      skills: [dev10x-coding:gh-pr-merge]
       modes:
         solo-maintainer:
           prompt: >
             Solo maintainer — no reviewers to wait for. Merge
             immediately after marking ready and CI passes. If the
-            DX019 review stamp gate denies, run dev10x:review
+            DX019 review stamp gate denies, run dev10x-coding:review
             --unattended --loop on the PR branch, push its fixups via
-            dev10x:git, wait for CI on the new head, then retry. If
+            dev10x-coding:git, wait for CI on the new head, then retry. If
             that review ends "BLOCKED: review-loop", stop and queue
             the decision for the supervisor. Never disable the rule.
       condition: solo-maintainer
     - subject: Verify acceptance criteria
       type: detailed
       prompt: >
-        Always delegate to dev10x:verify-acc-dod skill
+        Always delegate to dev10x-coding:verify-acc-dod skill
         regardless of mode. The skill owns its own gates.
-      skills: [dev10x:verify-acc-dod]
+      skills: [dev10x-coding:verify-acc-dod]
     - fragment: session-reflection
 
   # The last step of every default play (GH-1822): file what the session
@@ -185,7 +185,7 @@ fragments:
     - subject: Reflect lessons into the knowledge vault
       type: detailed
       prompt: >
-        Non-blocking final step. Run it once dev10x:verify-acc-dod has
+        Non-blocking final step. Run it once dev10x-coding:verify-acc-dod has
         reported, while "Verify acceptance criteria" stays open for the
         supervisor — never mark Verify AC completed or deleted here.
         dev10x-tasks:reflect skips with one line when no vault is
@@ -206,7 +206,7 @@ fragments:
     - subject: Record self-QA video and review pack
       type: detailed
       prompt: >
-        (1) Run dev10x:qa-scope on the PR. When it reports no
+        (1) Run dev10x-coding:qa-scope on the PR. When it reports no
         user-facing change, print "Self-QA skipped: no user-facing
         change" and complete the step. (2) Otherwise run
         dev10x-qa:qa-self with --exploratory <PR> against staging or
@@ -223,19 +223,19 @@ fragments:
         the evidence local and is reported, not retried around. The
         review pack's own pre-send gate stays; this step never
         requests review itself, the play's next step does.
-      skills: [dev10x:qa-scope, dev10x-qa:qa-self, dev10x-qa:review-pack]
+      skills: [dev10x-coding:qa-scope, dev10x-qa:qa-self, dev10x-qa:review-pack]
       modes:
         qa-off: skip
         qa-record-only:
           prompt: >
-            Run dev10x:qa-scope and, when it reports a user-facing
+            Run dev10x-coding:qa-scope and, when it reports a user-facing
             change, dev10x-qa:qa-self --exploratory <PR> with a narrated
             recording. Publish nothing: leave the run directory local,
             name it in the Verify-AC summary, and print "Self-QA
             recorded, not published (qa-record-only)". Skip with one
             printed line on no user-facing change, no runnable
             environment, or no dev10x-qa plugin installed.
-          skills: [dev10x:qa-scope, dev10x-qa:qa-self]
+          skills: [dev10x-coding:qa-scope, dev10x-qa:qa-self]
 
   # Re-record counterpart for pr-continuation (GH-1848). Review fixes
   # that change the UI make the first pack's video stale; this re-records
@@ -303,7 +303,7 @@ fragments:
         (b) Implement the changes that close every batch
         member.
         (c) Delegate exactly one commit via
-        Skill(dev10x:git-commit) — body must enumerate
+        Skill(dev10x-coding:git-commit) — body must enumerate
         every batch member and emit one `Fixes:` line per
         ticket so each issue auto-closes on merge.
         Do NOT delegate a commit between batch members of
@@ -324,19 +324,19 @@ fragments:
         review ends "BLOCKED: review-loop", queue that decision for
         the supervisor and do not push or advance the PR until it
         is answered.
-      skills: [dev10x:review, dev10x:review-fix]
+      skills: [dev10x-coding:review, dev10x-coding:review-fix]
     - subject: Commit outstanding changes
       type: detailed
       prompt: >
         Stage and commit any uncommitted fixup work.
         Auto-advance — do not pause after committing.
-      skills: [dev10x:git-commit]
+      skills: [dev10x-coding:git-commit]
     - subject: Monitor CI
       type: detailed
       prompt: >
         Push changes and monitor CI. Fix any failures
         introduced by the fixups.
-      skills: [dev10x:gh-pr-monitor]
+      skills: [dev10x-coding:gh-pr-monitor]
     - subject: Groom commit history
       type: detailed
       prompt: >
@@ -349,19 +349,19 @@ fragments:
         or reply references a fixup SHA, defer grooming until the
         PR is approved — keep the fixups and leave this step
         pending. Solo / `none` posture grooms as before.
-      skills: [dev10x:git-groom]
+      skills: [dev10x-coding:git-groom]
     - subject: Update PR description
       type: detailed
       prompt: >
         Update the PR with final linked commits and checklist.
-      skills: [dev10x:gh-pr-create]
+      skills: [dev10x-coding:gh-pr-create]
     - fragment: self-qa-evidence-refresh
     - subject: Request re-review
       type: detailed
       prompt: >
         Notify reviewers that feedback has been addressed
         and request re-review.
-      skills: [dev10x:gh-pr-request-review]
+      skills: [dev10x-coding:gh-pr-request-review]
       modes:
         solo-maintainer:
           subject: Mark PR ready for review
@@ -375,29 +375,29 @@ fragments:
         Merge the PR after all checks pass. Use the merge
         strategy from project settings (rebase preferred to
         preserve groomed commit history). If the DX019 review
-        stamp gate denies, run dev10x:review --unattended --loop
-        on the PR branch, push its fixups via dev10x:git, wait for
+        stamp gate denies, run dev10x-coding:review --unattended --loop
+        on the PR branch, push its fixups via dev10x-coding:git, wait for
         CI on the new head, then retry. If that review ends
         "BLOCKED: review-loop", stop and queue the decision for the
         supervisor. Never disable the rule.
-      skills: [dev10x:gh-pr-merge]
+      skills: [dev10x-coding:gh-pr-merge]
       modes:
         solo-maintainer:
           prompt: >
             Solo maintainer — no reviewers to wait for. Merge
             immediately after marking ready and CI passes. If the
-            DX019 review stamp gate denies, run dev10x:review
+            DX019 review stamp gate denies, run dev10x-coding:review
             --unattended --loop on the PR branch, push its fixups via
-            dev10x:git, wait for CI on the new head, then retry. If
+            dev10x-coding:git, wait for CI on the new head, then retry. If
             that review ends "BLOCKED: review-loop", stop and queue
             the decision for the supervisor. Never disable the rule.
       condition: solo-maintainer
     - subject: Verify acceptance criteria
       type: detailed
       prompt: >
-        Always delegate to dev10x:verify-acc-dod skill
+        Always delegate to dev10x-coding:verify-acc-dod skill
         regardless of mode. The skill owns its own gates.
-      skills: [dev10x:verify-acc-dod]
+      skills: [dev10x-coding:verify-acc-dod]
     - fragment: session-reflection
 
   # Light UI/content change to PR for a non-developer (GH-1026).
@@ -411,7 +411,7 @@ fragments:
       prompt: >
         Create a branch for the change from the base branch. Name
         it after the ticket when there is one.
-      skills: [dev10x:ticket-branch]
+      skills: [dev10x-coding:ticket-branch]
     - subject: Describe the change
       type: detailed
       prompt: >
@@ -450,14 +450,14 @@ fragments:
       prompt: >
         Commit through the commit skill so the message carries the
         gitmoji, ticket and an outcome-focused title.
-      skills: [dev10x:git-commit]
+      skills: [dev10x-coding:git-commit]
     - subject: Create PR
       type: detailed
       prompt: >
         Open the PR through the PR skill and let its preview gate
         show the title and body before it is created — the
         requester confirms what the reviewer will read.
-      skills: [dev10x:gh-pr-create]
+      skills: [dev10x-coding:gh-pr-create]
     - subject: Monitor CI
       type: detailed
       prompt: >
@@ -470,7 +470,7 @@ fragments:
         under `none` mark the PR ready via the `pr_ready` MCP
         wrapper before monitoring; under `required` keep the draft
         and record in Verify-AC that CI has not run on it.
-      skills: [dev10x:gh-pr-monitor]
+      skills: [dev10x-coding:gh-pr-monitor]
     - fragment: self-qa-evidence
     - subject: Respond to review comments
       type: epic
@@ -479,13 +479,13 @@ fragments:
         reply. Short-circuit when unresolved_threads and
         check_top_level_comments both report zero. History is not
         groomed here: the developer who merges does that.
-      skills: [dev10x:gh-pr-respond]
+      skills: [dev10x-coding:gh-pr-respond]
     - subject: Verify acceptance criteria
       type: detailed
       prompt: >
-        Delegate to dev10x:verify-acc-dod. The open PR, not a
+        Delegate to dev10x-coding:verify-acc-dod. The open PR, not a
         merge, is the deliverable of this play.
-      skills: [dev10x:verify-acc-dod]
+      skills: [dev10x-coding:verify-acc-dod]
     - fragment: session-reflection
 
 # Mode definitions — structural modes that adapt step behavior.
@@ -522,7 +522,7 @@ defaults:
           Create a feature branch from develop. Skip if a matching
           branch already exists. In a worktree with a generic
           branch, create a work-specific branch.
-        skills: [dev10x:ticket-branch]
+        skills: [dev10x-coding:ticket-branch]
       - subject: Draft Job Story
         type: detailed
         prompt: >
@@ -624,7 +624,7 @@ defaults:
         prompt: >
           Create a feature branch from develop. Skip if a matching
           branch already exists.
-        skills: [dev10x:ticket-branch]
+        skills: [dev10x-coding:ticket-branch]
       - subject: Reproduce the issue
         type: detailed
         prompt: >
@@ -705,7 +705,7 @@ defaults:
           unresolved_threads and check_top_level_comments both
           report zero, mark this step done with "nothing to
           respond to".
-        skills: [dev10x:gh-pr-respond]
+        skills: [dev10x-coding:gh-pr-respond]
       - fragment: shipping-pipeline-continuation
 
   local-only:
@@ -719,11 +719,11 @@ defaults:
       - subject: Set up workspace
         type: detailed
         condition: if-branch-needed
-        skills: [dev10x:ticket-branch]
+        skills: [dev10x-coding:ticket-branch]
         prompt: >
           Create a feature branch if not already on one.
           Skip if current branch is already a feature branch.
-          Use dev10x:ticket-branch skill — never raw git
+          Use dev10x-coding:ticket-branch skill — never raw git
           checkout -b.
       - subject: Summarize the work from gathered context
         type: detailed
@@ -852,7 +852,7 @@ defaults:
         prompt: >
           Create a feature branch from develop. Skip if a matching
           branch already exists.
-        skills: [dev10x:ticket-branch]
+        skills: [dev10x-coding:ticket-branch]
       - subject: Scope ticket with REASONS sections
         type: detailed
         prompt: >

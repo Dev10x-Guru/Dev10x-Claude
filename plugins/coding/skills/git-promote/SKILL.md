@@ -1,5 +1,5 @@
 ---
-name: dev10x:git-promote
+name: dev10x-coding:git-promote
 description: >
   Convert existing git commits into issue tracker tickets with proper
   branch management and commit message formatting. Automates creating
@@ -10,7 +10,7 @@ description: >
   DO NOT TRIGGER when: commit already has a ticket reference, or creating
   a new ticket before committing (use dev10x-scoping:ticket-create).
 user-invocable: true
-invocation-name: dev10x:git-promote
+invocation-name: dev10x-coding:git-promote
 allowed-tools:
   - Bash(git show:*)
   - Bash(git cherry-pick:*)
@@ -70,7 +70,7 @@ Use the `dev10x-scoping:ticket-create` skill to create a properly structured tic
 
 ### Step 4: Create Branch
 
-Use the `dev10x:ticket-branch` skill to create a properly named branch.
+Use the `dev10x-coding:ticket-branch` skill to create a properly named branch.
 
 ### Step 5: Cherry-pick Commit
 
@@ -90,13 +90,13 @@ Show the updated commit and verify changes.
 
 ### Step 8: Push and Create PR (Optional)
 
-Use the `dev10x:gh-pr-create` skill to push the branch and create a PR.
+Use the `dev10x-coding:gh-pr-create` skill to push the branch and create a PR.
 
 ## Integration with Other Skills
 
 ```
-dev10x:git-promote
+dev10x-coding:git-promote
 ├── Uses: dev10x-scoping:ticket-create (Step 3)
-├── Uses: dev10x:ticket-branch (Step 4)
-└── Uses: dev10x:gh-pr-create (Step 8, optional)
+├── Uses: dev10x-coding:ticket-branch (Step 4)
+└── Uses: dev10x-coding:gh-pr-create (Step 8, optional)
 ```

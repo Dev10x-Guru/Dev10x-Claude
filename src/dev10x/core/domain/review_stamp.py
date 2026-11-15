@@ -1,6 +1,6 @@
 """Review stamps: which commit a clean self-review covered (GH-1830).
 
-A clean ``dev10x:review`` round records the head it reviewed, keyed by
+A clean ``dev10x-coding:review`` round records the head it reviewed, keyed by
 ``owner/repo`` and branch. The DX019 validator later compares the stamp
 with the PR head before ``merge_pr``, ``pr_ready`` or ``request_review``
 runs, so a fix pushed after the review no longer looks reviewed.

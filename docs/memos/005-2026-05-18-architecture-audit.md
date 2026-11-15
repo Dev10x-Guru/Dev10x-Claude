@@ -124,7 +124,7 @@ batch API stays disconnected.
 - 4 MCP tool handlers shipped via GH-205/220
   (`pr_issue_comment`, `minimize_comments`, `request_review`,
   `resolve_review_thread`) have zero tests
-- `Dev10x:fanout`, `Dev10x:work-on` (most-traffic supervisor
+- `Dev10x-coding:fanout`, `Dev10x-coding:work-on` (most-traffic supervisor
   skills) have zero Python tests
 - `dev10x playbook diff` CLI has no `CliRunner` test
 

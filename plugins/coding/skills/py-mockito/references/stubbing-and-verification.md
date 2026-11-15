@@ -1,6 +1,6 @@
 # Stubbing and Verification
 
-Reference for `dev10x:py-mockito`: how to declare stubs, assert
+Reference for `dev10x-coding:py-mockito`: how to declare stubs, assert
 interactions, capture arguments, and build standalone mocks.
 
 ## Stubbing with `when()`

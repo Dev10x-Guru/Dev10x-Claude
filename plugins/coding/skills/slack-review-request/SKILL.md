@@ -1,14 +1,14 @@
 ---
-name: dev10x:slack-review-request
+name: dev10x-coding:slack-review-request
 description: >
   Post a Slack review request for a PR using per-project config
   (channel, mentions). Reads configuration from userspace YAML.
   TRIGGER when: PR needs a Slack review notification posted to the
   team channel.
   DO NOT TRIGGER when: Slack not configured, or using the combined
-  dev10x:request-review skill (which delegates here automatically).
+  dev10x-coding:request-review skill (which delegates here automatically).
 user-invocable: true
-invocation-name: dev10x:slack-review-request
+invocation-name: dev10x-coding:slack-review-request
 allowed-tools:
   - AskUserQuestion
   - Skill(dev10x-comm:slack)
@@ -93,7 +93,7 @@ merge, not another review pass. Bot approvals (`claude[bot]`,
 
 Skip this precheck when invoked with `--force` flag or when the
 caller passes `bypass_approval_check: true` (e.g., re-review
-notifications composed by `dev10x:gh-pr-monitor` Phase 2.7 after
+notifications composed by `dev10x-coding:gh-pr-monitor` Phase 2.7 after
 fixups, where the caller has already validated state).
 
 ### Step 1: Prepare
@@ -164,12 +164,12 @@ Report success: channel ID, thread timestamp (if available).
 ## Integration
 
 This skill is invoked by:
-- `dev10x:request-review` — combined review request orchestrator
-- `dev10x:gh-pr-monitor` Phase 2.7 (re-review notification)
+- `dev10x-coding:request-review` — combined review request orchestrator
+- `dev10x-coding:gh-pr-monitor` Phase 2.7 (re-review notification)
 
 It handles only Slack posting — no GitHub API calls.
 
-For re-review notifications (Phase 2.7 in `dev10x:gh-pr-monitor`), the
+For re-review notifications (Phase 2.7 in `dev10x-coding:gh-pr-monitor`), the
 calling skill composes a custom message (e.g., "@reviewer please take
 another look") and invokes this skill with `--message` directly,
 skipping the `prepare` step.
@@ -197,14 +197,14 @@ Fix payment routing
 ### Direct invocation (user-facing)
 
 ```
-/dev10x:slack-review-request                     # uses current branch PR
-/dev10x:slack-review-request --manual            # force config review
+/dev10x-coding:slack-review-request                     # uses current branch PR
+/dev10x-coding:slack-review-request --manual            # force config review
 ```
 
 ### Programmatic (from other skills)
 
 ```
-Skill("dev10x:slack-review-request",
+Skill("dev10x-coding:slack-review-request",
   args={
     "pr_number": 42,
     "repo": "org/my-app",
@@ -215,5 +215,5 @@ Skill("dev10x:slack-review-request",
 
 ## See Also
 
-- `dev10x:gh-pr-monitor` — calls this skill in Phase 3 (review request workflow)
+- `dev10x-coding:gh-pr-monitor` — calls this skill in Phase 3 (review request workflow)
 - `slack-config.yaml` — mention resolution mappings

@@ -9,7 +9,7 @@ import click
 
 @click.group()
 def foreman() -> None:
-    """Watcher CLI for dev10x:foreman overnight delivery runs.
+    """Watcher CLI for dev10x-coding:foreman overnight delivery runs.
 
     One pre-approved command surface for every loop/poll the harness
     needs — inline Monitor/Bash loop shapes prompt unpredictably and

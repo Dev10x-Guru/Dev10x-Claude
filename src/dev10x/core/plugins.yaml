@@ -29,6 +29,7 @@ extracted:
   - teach
   - tasks
   - scoping
+  - coding
 dependencies:
   coding:
     - tasks

@@ -152,12 +152,12 @@ because the supervisor's reasoning capacity is in the loop.
 
 | Failure Type | Supervisor action |
 |---|---|
-| ruff/black/isort | Run the formatter; commit via `Skill(dev10x:git-commit)` |
-| mypy / flake8 / import errors | Apply fix; commit via `Skill(dev10x:git-commit)` |
+| ruff/black/isort | Run the formatter; commit via `Skill(dev10x-coding:git-commit)` |
+| mypy / flake8 / import errors | Apply fix; commit via `Skill(dev10x-coding:git-commit)` |
 | pytest failures | Read the test + code; decide between fix and ticket; act |
 | Coverage < 100% | Add tests for uncovered lines |
-| gitlint (title > 72 chars) | Reword via `git commit --amend` or `Skill(dev10x:git-groom)` |
-| git-history-linting (fixup! only) | Delegate to `Skill(dev10x:git-groom)` — groom enforces its own preconditions, including the thread-open refusal (GH-68, Fix E) |
+| gitlint (title > 72 chars) | Reword via `git commit --amend` or `Skill(dev10x-coding:git-groom)` |
+| git-history-linting (fixup! only) | Delegate to `Skill(dev10x-coding:git-groom)` — groom enforces its own preconditions, including the thread-open refusal (GH-68, Fix E) |
 
 **Before any commit/groom**, the supervisor MUST:
 
@@ -181,9 +181,9 @@ branch-head change (e.g. a maintainer ran GitHub's "Update
 branch", or the local HEAD sha no longer matches what this
 monitor last observed), resolve the PR merge state via
 `mcp__plugin_dev10x_cli__pr_get` (read `state` / `mergedAt`) —
-same pattern as `dev10x:gh-pr-respond`'s Merge-State Check
+same pattern as `dev10x-coding:gh-pr-respond`'s Merge-State Check
 preamble — BEFORE re-dispatching `haiku-ci-poll` or delegating to
-`dev10x:git-groom` for a rebase. If `state == "MERGED"`, stop:
+`dev10x-coding:git-groom` for a rebase. If `state == "MERGED"`, stop:
 do not rebase or force-push a branch whose PR already merged.
 
 When `gh pr view` reports `mergeable: CONFLICTING` (and the PR is
@@ -192,7 +192,7 @@ confirmed not merged):
 1. Resolve the base branch via `mcp__plugin_dev10x_cli__pr_detect`
    (returns `baseRefName`).
 
-2. Delegate the rebase + force-push to `Skill(dev10x:git-groom)` —
+2. Delegate the rebase + force-push to `Skill(dev10x-coding:git-groom)` —
    it fetches the base, rebases, and runs the protected-branch
    safety checks before force-pushing. Do NOT call `git rebase` or
    `git push --force-with-lease` directly from this skill: routing
@@ -200,7 +200,7 @@ confirmed not merged):
    protected-branch guardrails (see Skill Routing Enforcement in
    `skills/work-on/instructions.md`).
 
-3. If `dev10x:git-groom` reports unresolved conflicts, stop the
+3. If `dev10x-coding:git-groom` reports unresolved conflicts, stop the
    monitor and report the conflicting files to the user.
 
 4. After the wrapper completes the force-push, re-run the Phase 0.5

@@ -98,7 +98,7 @@ sign-off signal that lifts the floor for the commits under review.
 ### `active_modes`
 
 Named modes customising **non-gate** behaviour — structural skill
-steps, `dev10x:verify-acc-dod`'s check filter, and playbook step
+steps, `dev10x-coding:verify-acc-dod`'s check filter, and playbook step
 `modes:` blocks. It has no gate-resolution role; see
 `references/active-modes.md` for the catalog and the reasoning.
 Nothing derives overlays from it, so an overlay-only entry leaves

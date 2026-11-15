@@ -58,7 +58,7 @@ adopt parts of SPDD and, if so, how.
 2. **Norms travel out-of-band.** Generation prompts inherit
    project rules through CLAUDE.md auto-load, but Norms are
    never re-stated inside the ticket spec, so a fresh
-   `dev10x:work-on` session that compacts CLAUDE.md (or runs
+   `dev10x-coding:work-on` session that compacts CLAUDE.md (or runs
    in a worktree with diverging rules) can drift.
 3. **Safeguards are reactive.** "Risks + Mitigations" answer
    *what could go wrong*; SPDD's Safeguards answer *what must
@@ -71,7 +71,7 @@ adopt parts of SPDD and, if so, how.
 5. **No drift detection.** There is no `dev10x-scoping:spec-update`
    (logic changes: edit spec → regenerate) or
    `dev10x-scoping:spec-sync` (refactors: edit code → update spec).
-   `dev10x:gh-pr-respond` and `dev10x:git-groom` do not check
+   `dev10x-coding:gh-pr-respond` and `dev10x-coding:git-groom` do not check
    for spec drift.
 
 ## Decision
@@ -98,17 +98,17 @@ Safeguards ("what must always be true post-change").
 
 | New skill             | Trigger                                           | Behaviour |
 |-----------------------|---------------------------------------------------|-----------|
-| `dev10x-scoping:spec-update`  | Logic change: requirements / behaviour shift     | Edit spec first, regenerate code via `dev10x:work-on` |
+| `dev10x-scoping:spec-update`  | Logic change: requirements / behaviour shift     | Edit spec first, regenerate code via `dev10x-coding:work-on` |
 | `dev10x-scoping:spec-sync`    | Refactor: code shape changes but behaviour stable | Diff code against spec, update spec to match |
 
-Wire them into `dev10x:gh-pr-respond` (catch drift at review)
-and `dev10x:git-groom` (catch drift at merge). The spec is
+Wire them into `dev10x-coding:gh-pr-respond` (catch drift at review)
+and `dev10x-coding:git-groom` (catch drift at merge). The spec is
 the saved ticket-scope document promoted to a tracked path
 (`docs/specs/<TICKET-ID>.md` — proposed) once approved.
 
 ### Layer 3 — `work-on` integration (proposed, separate ticket)
 
-Add a `structured-spec` play to `dev10x:work-on` mirroring
+Add a `structured-spec` play to `dev10x-coding:work-on` mirroring
 SPDD's six-step pipeline on top of existing skills:
 
 ```
@@ -194,7 +194,7 @@ let CLAUDE.md auto-loading carry them.
 - Every scoping doc now self-contains the constraints
   (Norms, Safeguards) needed for fresh generation — no
   reliance on session context.
-- `dev10x:work-on` agents (especially fanout swarm children
+- `dev10x-coding:work-on` agents (especially fanout swarm children
   per ADR 0004) can act on a spec without re-fetching project
   rules.
 - Spec drift becomes detectable at review (`gh-pr-respond`)
@@ -243,8 +243,8 @@ records the *decision*; the tickets carry the work.
 | 2      | GH-170  | Build Norms/Safeguards autopopulator (path-aware rule matching, render-on-generation) |
 | 3      | GH-171  | Create `dev10x-scoping:spec-update` skill (logic-change flow)                                  |
 | 4      | GH-172  | Create `dev10x-scoping:spec-sync` skill (refactor flow)                                        |
-| 5      | GH-173  | Wire spec-drift checks into `dev10x:gh-pr-respond` + `dev10x:git-groom`                |
-| 6      | GH-174  | Add `structured-spec` play to `dev10x:work-on` + suitability gate in Phase 1          |
+| 5      | GH-173  | Wire spec-drift checks into `dev10x-coding:gh-pr-respond` + `dev10x-coding:git-groom`                |
+| 6      | GH-174  | Add `structured-spec` play to `dev10x-coding:work-on` + suitability gate in Phase 1          |
 | 7      | GH-175  | Document the SPDD-style pipeline in `references/skill-pipelines.md`                    |
 
 ## References

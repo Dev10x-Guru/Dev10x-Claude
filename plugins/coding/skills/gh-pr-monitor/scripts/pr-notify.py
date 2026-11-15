@@ -12,12 +12,16 @@ sender to coding's pr_notify, so the coding module never imports comm.
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "git" / "lib"))
 
-from dev10x.skills.monitor.pr_notify import *  # noqa: F401, F403
-from dev10x.skills.monitor.pr_notify import main
+from core_src import add_core_src  # noqa: E402
 
-from dev10x.comm.skills.notifications.slack_notify import notify_slack
+add_core_src(script=Path(__file__))
+
+from dev10x.skills.monitor.pr_notify import *  # noqa: E402, F401, F403
+from dev10x.skills.monitor.pr_notify import main  # noqa: E402
+
+from dev10x.comm.skills.notifications.slack_notify import notify_slack  # noqa: E402
 
 if __name__ == "__main__":
     main(send_slack=notify_slack)

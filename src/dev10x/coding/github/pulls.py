@@ -12,6 +12,7 @@ import asyncio
 import json
 from typing import Any
 
+from dev10x.coding.coding_script import coding_script
 from dev10x.coding.github import milestones
 from dev10x.core.github import _gateway
 from dev10x.core.paths import skill_script
@@ -175,7 +176,7 @@ async def create_pr(
     args.append(repo or "")
 
     result = await _gateway.async_run_script(
-        skill_script(skill="gh-pr-create", rel="create-pr.sh"),
+        coding_script(skill="gh-pr-create", rel="create-pr.sh"),
         *args,
     )
 

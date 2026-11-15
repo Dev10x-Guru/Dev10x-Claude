@@ -19,7 +19,8 @@ from pathlib import Path
 
 import pytest
 
-_SCRIPT = Path(__file__).parents[2] / "skills" / "gh-pr-create" / "scripts" / "pre-pr-checks.sh"
+_CODING_SKILLS = Path(__file__).parents[2] / "plugins" / "coding" / "skills"
+_SCRIPT = _CODING_SKILLS / "gh-pr-create" / "scripts" / "pre-pr-checks.sh"
 
 
 @pytest.fixture(scope="module")

@@ -169,7 +169,7 @@
     ],
     "should_not_trigger": [
       "Executing the QA test cases (use dev10x-qa:qa-self)",
-      "Analyzing a PR for QA needs (use dev10x:qa-scope)",
+      "Analyzing a PR for QA needs (use dev10x-coding:qa-scope)",
       "Publishing a single video with no ticket write-up (use dev10x-qa:yt-upload)",
       "Synthesizing narration audio (use dev10x-qa:tts)"
     ]

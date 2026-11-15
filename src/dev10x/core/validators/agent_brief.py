@@ -4,7 +4,7 @@ Foreman and fanout crews get a structured brief; a plain ``Agent`` call
 gets whatever the dispatcher typed. Those free-form briefs are where
 subagents rebuild what a skill already does — a hand-rolled Playwright
 harness instead of ``dev10x-qa:qa-self``, a raw ``git commit`` instead
-of ``dev10x:git-commit`` — and where a hook denial turns into a hunt for
+of ``dev10x-coding:git-commit`` — and where a hook denial turns into a hunt for
 another way to run the same command.
 
 This validator reads the ``Agent`` prompt. When it matches a pattern
@@ -56,7 +56,7 @@ def name_tokens(*, text: str) -> tuple[str, ...]:
     """The lowercased name tokens of ``text``.
 
     A token is a run of word characters, colons, hyphens, dots and
-    slashes, so ``dev10x:git-commit`` and
+    slashes, so ``dev10x-coding:git-commit`` and
     ``mcp__plugin_dev10x_cli__push_safe`` each stay whole, a path such
     as ``src/dev10x/push_safe.py`` or ``./push_safe`` is one token
     rather than a mention of ``push_safe``, and ``Skill(test)`` splits

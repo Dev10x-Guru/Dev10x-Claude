@@ -86,8 +86,8 @@ because the policy already matches).
 Invoke this skill at the start of a session where the supervisor
 will be unavailable for hours. Typical entry points:
 
-- `dev10x:afk` then `dev10x:work-on bundle <milestone-url>`
-- `dev10x:afk` then `dev10x:fanout` over a queue of tickets
+- `dev10x:afk` then `dev10x-coding:work-on bundle <milestone-url>`
+- `dev10x:afk` then `dev10x-coding:fanout` over a queue of tickets
 - Resuming an unattended run after compaction — the policy survives
   in `friction.yaml` and is re-read on the next Phase 0
 

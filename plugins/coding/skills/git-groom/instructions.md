@@ -47,7 +47,7 @@ Set dependencies: strategy blocked by analysis, execute blocked
 by strategy, push blocked by execute.
 
 **Nested-mode exemption:** When invoked as a nested skill within
-a parent orchestrator (e.g., via `Skill()` from `dev10x:work-on`),
+a parent orchestrator (e.g., via `Skill()` from `dev10x-coding:work-on`),
 startup task creation is optional — at most 1 summary task. See
 `references/task-orchestration.md` § Delegated Invocation Exception.
 
@@ -104,7 +104,7 @@ Reviewers who post fixups expect the SHAs they reference to
 remain reachable until they resolve their threads.
 
 **Hard rule:** When git-groom is invoked **as a nested skill from
-`dev10x:gh-pr-monitor`** (or any other background agent), refuse
+`dev10x-coding:gh-pr-monitor`** (or any other background agent), refuse
 to groom if any unresolved review thread exists. The supervisor's
 main session may still groom under their direct control — only
 agent-initiated grooming is blocked.
@@ -113,11 +113,11 @@ agent-initiated grooming is blocked.
 
 1. Determine the invocation context. The parent skill MUST pass
    `invoker={parent-skill-name}` in the args (e.g.,
-   `invoker=dev10x:gh-pr-monitor`). Absent any `invoker=` arg,
+   `invoker=dev10x-coding:gh-pr-monitor`). Absent any `invoker=` arg,
    assume the invocation is supervisor-driven and skip this
    precondition.
 
-2. If `invoker` matches `dev10x:gh-pr-monitor` or another
+2. If `invoker` matches `dev10x-coding:gh-pr-monitor` or another
    background-agent skill, fetch the PR and count unresolved
    threads via MCP tools:
 
@@ -143,7 +143,7 @@ agent-initiated grooming is blocked.
    The fact that fixup commits exist IS the signal that a
    reviewer is mid-conversation. Wait for thread resolution
    before grooming, or invoke git-groom from the supervisor's
-   main session (without `invoker=dev10x:gh-pr-monitor`) if you
+   main session (without `invoker=dev10x-coding:gh-pr-monitor`) if you
    explicitly want to override.
    ```
 
@@ -281,7 +281,7 @@ Any commit (rebase, amend, reset) changes all descendant SHAs. Using
 analysis-time SHAs in execution scripts will silently target wrong commits.
 
 **This phase does not violate work-on's never-self-assess rule
-(GH-997).** `dev10x:work-on` forbids the *orchestrator* from inspecting
+(GH-997).** `dev10x-coding:work-on` forbids the *orchestrator* from inspecting
 commit history to predict whether grooming is needed — before or after
 delegating. That prohibition is scoped to the caller, outside this
 skill. Phase 1 is the groom's own first step, and the strategy decision
@@ -714,7 +714,7 @@ is a request, not a receipt).
 
 **CI invalidation warning:** Force push triggers new CI runs on
 the new HEAD. All previous CI results become invalid. The calling
-skill (e.g., `dev10x:work-on`) MUST re-monitor CI after grooming
+skill (e.g., `dev10x-coding:work-on`) MUST re-monitor CI after grooming
 completes — do not declare CI green based on pre-groom results.
 
 **REQUIRED — re-ready a PR the push drafted (GH-958, GH-1731).** A
@@ -739,7 +739,7 @@ mcp__plugin_dev10x_cli__pr_labels(pr_number=<n>, action="remove",
 
 The call is idempotent — on a PR that was never cleared it is a no-op,
 so run it unconditionally rather than probing first. Leaving the label
-in place would let `dev10x:gh-pr-request-review` skip its stand-by
+in place would let `dev10x-coding:gh-pr-request-review` skip its stand-by
 clearance gate on rewritten history, silently inheriting a sign-off
 for commits nobody reviewed.
 
@@ -802,7 +802,7 @@ the full rewrite lifecycle including reference updates.
    (`/repos/$OWNER/$REPO/issues/comments/$id`) and have their own
    wrapper — `mcp__plugin_dev10x_cli__issue_comment_edit`. Walk
    both surfaces, each through its own tool. This mirrors the
-   guidance already stated in `dev10x:gh-pr-respond`
+   guidance already stated in `dev10x-coding:gh-pr-respond`
    § Post-Groom SHA Refresh.
 
    If a SHA is referenced but does not appear in the
@@ -889,7 +889,7 @@ Limit title to 72 characters. Add body for complex changes.
 **Reuse git-commit's line-length validation.** Any hand-written or
 amended message during a groom (e.g. a Strategy B rebuild, or a
 `reword` in Strategy C) MUST pass the same ≤72-char title/body-line
-check that `dev10x:git-commit` applies before staging. Skipping it
+check that `dev10x-coding:git-commit` applies before staging. Skipping it
 lets a groom introduce a history-lint failure that only surfaces
 in CI, after the force-push.
 
@@ -1082,16 +1082,16 @@ git reset --hard HEAD@{n}
 
 ## Integration with Other Skills
 
-### dev10x:git-commit-split
+### dev10x-coding:git-commit-split
 
 When the user asks to split a specific commit mid-session (e.g. "Split
-<sha>"), invoke the `dev10x:git-commit-split` skill rather than handling it inline.
-`dev10x:git-commit-split` provides the canonical workflow with dependency-order
+<sha>"), invoke the `dev10x-coding:git-commit-split` skill rather than handling it inline.
+`dev10x-coding:git-commit-split` provides the canonical workflow with dependency-order
 guidance and commit message conventions.
 
 ```
 User: "Split 835fc34"
--> Invoke Skill(dev10x:git-commit-split) before proceeding
+-> Invoke Skill(dev10x-coding:git-commit-split) before proceeding
 ```
 
 ## Integration with PR Workflow

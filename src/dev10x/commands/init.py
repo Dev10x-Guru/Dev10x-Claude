@@ -18,17 +18,17 @@ from dev10x.domain.documents.friction_yaml import FrictionYamlDocument
 QUICK_START_WORKFLOWS = [
     (
         "git-commit",
-        "/dev10x:git-commit",
+        "/dev10x-coding:git-commit",
         "JTBD-style commit messages with gitmoji + ticket ID",
     ),
     (
         "pr-create",
-        "/dev10x:gh-pr-create",
+        "/dev10x-coding:gh-pr-create",
         "Draft PR with Job Story body and Fixes: link",
     ),
     (
         "review",
-        "/dev10x:review",
+        "/dev10x-coding:review",
         "Self-review your branch before requesting a human reviewer",
     ),
     (

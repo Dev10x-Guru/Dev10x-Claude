@@ -296,7 +296,7 @@ class TestRetiredDurablePrefPath:
         back in alongside it.
         """
         repo_root = Path(__file__).resolve().parents[3]
-        violations = mod.scan_file(repo_root / "skills" / "verify-acc-dod" / "SKILL.md")
+        violations = mod.scan_file(repo_root / "plugins" / "coding" / "skills" / "verify-acc-dod" / "SKILL.md")
         assert [v.rule.rule_id for v in violations] == []
 
 
@@ -499,4 +499,4 @@ class TestViolationFormat:
         assert str(skill) in formatted
         assert "[raw-git-commit]" in formatted
         assert "git commit -m foo" in formatted
-        assert "Skill(dev10x:git-commit)" in formatted
+        assert "Skill(dev10x-coding:git-commit)" in formatted

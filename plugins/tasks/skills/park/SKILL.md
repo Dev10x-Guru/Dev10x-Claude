@@ -257,4 +257,4 @@ mcp__plugin_dev10x_cli__issue_comment_edit(comment_id=<id>, body=<new-body>)
 ## Used By
 
 - `dev10x-tasks:session-wrap-up` — Phase 3 calls this for each deferred item
-- `dev10x:gh-pr-bookmark` — thin wrapper that pre-selects PR session bookmark target
+- `dev10x-coding:gh-pr-bookmark` — thin wrapper that pre-selects PR session bookmark target

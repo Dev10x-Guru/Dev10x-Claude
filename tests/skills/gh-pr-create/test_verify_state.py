@@ -14,7 +14,9 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-SCRIPT = REPO_ROOT / "skills" / "gh-pr-create" / "scripts" / "verify-state.sh"
+SCRIPT = (
+    REPO_ROOT / "plugins" / "coding" / "skills" / "gh-pr-create" / "scripts" / "verify-state.sh"
+)
 
 GIT_ENV = {
     **os.environ,

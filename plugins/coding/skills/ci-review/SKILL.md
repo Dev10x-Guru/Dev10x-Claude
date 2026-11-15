@@ -1,5 +1,5 @@
 ---
-name: dev10x:ci-review
+name: dev10x-coding:ci-review
 description: >
   Use when a change to a Claude CI review prompt, args file, reviewer
   agent or CLI pin needs checking before it merges — so you read what
@@ -9,19 +9,19 @@ description: >
   TRIGGER when: "what would the CI review say", replaying the Claude CI
   review locally, verifying a review prompt or model change on a PR.
   DO NOT TRIGGER when: self-reviewing a branch with no PR (use
-  dev10x:review), or reviewing someone's PR and posting (use
-  dev10x:gh-pr-review).
+  dev10x-coding:review), or reviewing someone's PR and posting (use
+  dev10x-coding:gh-pr-review).
 user-invocable: true
-invocation-name: dev10x:ci-review
+invocation-name: dev10x-coding:ci-review
 allowed-tools:
   - AskUserQuestion
   - Bash(uvx dev10x ci-review:*)
   - mcp__plugin_dev10x_cli__pr_detect
 ---
 
-# dev10x:ci-review
+# dev10x-coding:ci-review
 
-**Announce:** "Using dev10x:ci-review to replay the Claude CI review
+**Announce:** "Using dev10x-coding:ci-review to replay the Claude CI review
 locally on PR #<N>."
 
 ## Orchestration
@@ -68,7 +68,7 @@ Two runs on the same PR can differ.
 Take the PR number or URL from the arguments. With none, call
 `mcp__plugin_dev10x_cli__pr_detect` for the current branch's PR. A
 branch with no PR has no CI review to replay; point to
-`dev10x:review` and stop.
+`dev10x-coding:review` and stop.
 
 ### Step 2: Render (free)
 

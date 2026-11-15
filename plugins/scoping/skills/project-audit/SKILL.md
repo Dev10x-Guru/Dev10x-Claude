@@ -8,7 +8,7 @@ description: >
   prioritized improvement backlog.
   TRIGGER when: user requests architecture audit, project health
   check, pattern catalog mapping, or comprehensive quality review.
-  DO NOT TRIGGER when: reviewing a single branch (use dev10x:review),
+  DO NOT TRIGGER when: reviewing a single branch (use dev10x-coding:review),
   scoping a single ticket (use dev10x-scoping:ticket-scope), or running a
   DDD workshop (use dev10x-scoping:ddd).
 user-invocable: true
@@ -26,7 +26,7 @@ allowed-tools:
   - Skill(dev10x-scoping:project-scope)
   - Skill(dev10x-scoping:adr)
   - Skill(dev10x-scoping:ticket-create)
-  - Skill(dev10x:git-commit)
+  - Skill(dev10x-coding:git-commit)
   - mcp__plugin_dev10x_cli__detect_tracker
 ---
 
@@ -45,10 +45,10 @@ prioritized improvement backlog with milestones and blocking chains.
 - Mapping delivered value (JTBD) against test coverage
 
 **Do NOT use for:**
-- Single-branch code review → `dev10x:review`
+- Single-branch code review → `dev10x-coding:review`
 - Single-ticket scoping → `dev10x-scoping:ticket-scope`
 - DDD domain modeling → `dev10x-scoping:ddd`
-- Single-PR QA analysis → `dev10x:qa-scope`
+- Single-PR QA analysis → `dev10x-coding:qa-scope`
 
 ## Orchestration
 
@@ -169,7 +169,7 @@ After all agents return:
    the durable artifact of an expensive multi-agent audit. Left as an
    untracked working-tree file it is the most easily-lost form of work:
    any `git clean`, worktree reset, or branch switch discards it
-   silently. Immediately commit it via `Skill(dev10x:git-commit)` so it
+   silently. Immediately commit it via `Skill(dev10x-coding:git-commit)` so it
    lands in history regardless of whether Phase 5 runs. Do NOT end the
    skill (or proceed to the gate) with the memo uncommitted.
 7. **Draft ADR proposals** — for HIGH-impact findings that represent

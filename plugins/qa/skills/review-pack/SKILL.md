@@ -10,7 +10,7 @@ description: >
   or asked to make a change "easy to review".
   DO NOT TRIGGER when: capturing a QA run (use dev10x-qa:qa-self),
   publishing a QA verdict to a ticket (use dev10x-qa:qa-publish), or
-  assigning reviewers and notifying chat (use dev10x:request-review).
+  assigning reviewers and notifying chat (use dev10x-coding:request-review).
 user-invocable: true
 invocation-name: dev10x-qa:review-pack
 allowed-tools:
@@ -22,7 +22,7 @@ allowed-tools:
   - Skill(dev10x-qa:yt-upload)
   - Skill(dev10x-qa:qa-publish)
   - Skill(dev10x-qa:playwright)
-  - Skill(dev10x:request-review)
+  - Skill(dev10x-coding:request-review)
   - Bash(gh repo view:*)
   - Bash(gh repo clone:*)
   - Bash(gh api repos/:*)
@@ -55,7 +55,7 @@ It owns no capture, narration or upload mechanics:
 | Voice narration | `dev10x-qa:tts` |
 | Video → unlisted link + per-destination embed | `dev10x-qa:yt-upload` |
 | QA verdict to ticket and PR | `dev10x-qa:qa-publish` |
-| Reviewer assignment + chat ping | `dev10x:request-review` |
+| Reviewer assignment + chat ping | `dev10x-coding:request-review` |
 | Pack content, hosting, PR link, pre-send gate | **this skill** |
 
 ## Arguments
@@ -63,8 +63,8 @@ It owns no capture, narration or upload mechanics:
 - PR URL or number (optional) — passed to `pr_detect`.
 - `--no-request-review` (GH-1912) — pack only: build and link the pack,
   run the pre-send gate's pack-only branch, then return the pack link
-  without calling `dev10x:request-review`. Callers with their own
-  review-request step pass it (`dev10x:work-on`'s self-QA and Request
+  without calling `dev10x-coding:request-review`. Callers with their own
+  review-request step pass it (`dev10x-coding:work-on`'s self-QA and Request
   review steps), so that step stays the only one.
 
 ## Configuration
@@ -92,7 +92,7 @@ projects:
 
 There is **no built-in evidence repo** — a wrong default would publish
 screenshots somewhere nobody chose.
-Reviewer names are not configured here; `dev10x:request-review` reads
+Reviewer names are not configured here; `dev10x-coding:request-review` reads
 `github-reviewers-config.yaml`.
 
 **REQUIRED: Call `AskUserQuestion`** (do NOT use plain text) when no
@@ -133,7 +133,7 @@ Options:
    Link every PR, ticket and pack the pack names — never a bare
    identifier.
 6. **Run the pre-send gate** below, then hand off to
-   `dev10x:request-review`.
+   `dev10x-coding:request-review`.
    With `--no-request-review` (pack only), the gate resolves as
    described below; stop after it and return the pack link: the
    caller requests review itself. The work-on self-QA step uses this,
@@ -187,7 +187,7 @@ The requirement is **reviewer access, not public hosting**.
 A run that requests review does not do so until **all** hold (a
 pack-only run hands the gaps on instead, as described below):
 
-- [ ] Self-review loop (`dev10x:review`) reached a clean round on HEAD.
+- [ ] Self-review loop (`dev10x-coding:review`) reached a clean round on HEAD.
 - [ ] E2E actually **executed** — name the scenarios and the environment.
 - [ ] You drove it yourself and would call the experience great, not
       merely correct.

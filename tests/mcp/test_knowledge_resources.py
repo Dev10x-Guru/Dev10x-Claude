@@ -122,14 +122,22 @@ class TestSharedDefaultPlaybook:
         assert "# --- skills/work-on/references/playbook.d/coding.yaml ---" in text
 
     def test_repository_resource_matches_the_resolved_default(self) -> None:
-        from dev10x.skills.playbook import load_plugin_default
+        from dev10x.skills.playbook import installed_plugin_roots, load_plugin_default
         from dev10x.subprocess_utils import get_plugin_root
 
         text = knowledge_resources.skill_playbook(skill_name="playbook")
 
         assert yaml.safe_load(text) == load_plugin_default(
-            skill_key="playbook", plugin_roots=[get_plugin_root()]
+            skill_key="playbook",
+            plugin_roots=installed_plugin_roots(core_root=get_plugin_root()),
         )
+
+    @pytest.mark.parametrize("skill_name", ["gh-pr-respond", "investigate", "release-notes"])
+    def test_serves_a_satellite_skill_playbook(self, skill_name: str) -> None:
+        """GH-1572: these playbooks ship in dev10x-coding, not core's tree."""
+        text = knowledge_resources.skill_playbook(skill_name=skill_name)
+
+        assert not text.startswith("# Not found")
 
 
 # ── rules_index ────────────────────────────────────────────────────

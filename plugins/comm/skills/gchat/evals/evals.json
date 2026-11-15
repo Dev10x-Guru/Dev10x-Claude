@@ -123,7 +123,7 @@
     "should_not_trigger": [
       {
         "query": "post a review request for PR #12 to Chat",
-        "rationale": "Use dev10x:gchat-review-request"
+        "rationale": "Use dev10x-coding:gchat-review-request"
       },
       {
         "query": "read the DM thread this link points to",

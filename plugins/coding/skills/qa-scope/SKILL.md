@@ -1,5 +1,5 @@
 ---
-name: dev10x:qa-scope
+name: dev10x-coding:qa-scope
 description: >
   Analyze a PR for QA needs, check e2e coverage gaps, and create QA
   sub-tickets when manual testing or new e2e tests are needed.
@@ -8,7 +8,7 @@ description: >
   DO NOT TRIGGER when: executing QA test cases (use dev10x-qa:qa-self),
   or PR has no user-facing changes.
 user-invocable: true
-invocation-name: dev10x:qa-scope
+invocation-name: dev10x-coding:qa-scope
 allowed-tools:
   - AskUserQuestion
   - Bash(gh pr diff:*)
@@ -41,7 +41,7 @@ sub-tickets in Linear when manual testing or new e2e scenarios are needed.
 **Use when:**
 - A PR is ready for merge and needs QA assessment
 - You want to check if a change needs manual QA testing
-- `/dev10x:gh-pr-monitor` triggers Phase 2.5 (automatic)
+- `/dev10x-coding:gh-pr-monitor` triggers Phase 2.5 (automatic)
 
 **Do NOT use for:**
 - Test-only PRs (no production code changes)
@@ -338,7 +338,7 @@ Output the created ticket ID and URL.
 ## Integration with Other Skills
 
 ```
-dev10x:qa-scope
+dev10x-coding:qa-scope
 ├── Uses: Linear MCP (ticket data, create sub-ticket)
 ├── Uses: GitHub CLI (PR diff, PR details)
 ├── Reads: $E2E_ROOT (e2e coverage check, resolved at Phase 3.0)

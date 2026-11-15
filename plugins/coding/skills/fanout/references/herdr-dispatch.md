@@ -2,7 +2,7 @@
 
 Used when fanout runs inside [Herdr](https://herdr.dev)
 (`HERDR_ENV=1`). Each item gets its own Herdr workspace with a Claude
-agent named after its ticket, created through `dev10x:git-worktree`
+agent named after its ticket, created through `dev10x-coding:git-worktree`
 Path C ([`herdr-path.md`](../../git-worktree/references/herdr-path.md)).
 The `Agent(isolation="worktree")` swarm stays the path outside Herdr.
 

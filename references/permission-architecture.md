@@ -78,11 +78,11 @@ redirects to skill equivalents with educational messages:
 
 | Allow rule | Hook blocks | Redirects to | Guardrails |
 |-----------|-------------|-------------|------------|
-| `Bash(gh pr create:*)` | `gh pr create` | `dev10x:gh-pr-create` | Job Story, ticket linking |
-| `Bash(git push:*)` | `git push` | `dev10x:git` | Protected branches, force-push safety |
-| `Bash(git rebase -i:*)` | `git rebase -i` | `dev10x:git-groom` | Atomic commits, conventions |
-| `Bash(git commit -m:*)` | `git commit -m` | `dev10x:git-commit` | Gitmoji, JTBD title, 72-char |
-| `Bash(gh pr checks:*)` | `gh pr checks --watch` | `dev10x:gh-pr-monitor` | Failure detection, fixups |
+| `Bash(gh pr create:*)` | `gh pr create` | `dev10x-coding:gh-pr-create` | Job Story, ticket linking |
+| `Bash(git push:*)` | `git push` | `dev10x-coding:git` | Protected branches, force-push safety |
+| `Bash(git rebase -i:*)` | `git rebase -i` | `dev10x-coding:git-groom` | Atomic commits, conventions |
+| `Bash(git commit -m:*)` | `git commit -m` | `dev10x-coding:git-commit` | Gitmoji, JTBD title, 72-char |
+| `Bash(gh pr checks:*)` | `gh pr checks --watch` | `dev10x-coding:gh-pr-monitor` | Failure detection, fixups |
 
 These allow rules are classified as `HOOK_ENABLED` in permission
 audits. Removing them degrades UX — the user sees a generic

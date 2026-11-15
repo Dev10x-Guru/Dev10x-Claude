@@ -7,7 +7,9 @@ from pathlib import Path
 import pytest
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.skills.playbook.discovery import (
+    default_path_in,
     find_user_playbooks,
+    installed_plugin_roots,
     load_plugin_default,
     plugin_default_path,
     shared_fragment_directories,
@@ -233,3 +235,48 @@ class TestLoadPluginDefault:
             split_root / "skills/park/references/playbook.d",
             split_root / "skills/work-on/references/playbook.d",
         ]
+
+
+class TestInstalledPluginRoots:
+    """GH-1572: satellites ship playbook defaults, so readers scan them too."""
+
+    def test_core_only_install_has_just_core(self, tmp_path: Path) -> None:
+        assert installed_plugin_roots(core_root=tmp_path) == [tmp_path]
+
+    def test_lists_a_satellite_under_a_checkout(self, tmp_path: Path) -> None:
+        (tmp_path / "plugins" / "coding" / "skills").mkdir(parents=True)
+
+        assert installed_plugin_roots(core_root=tmp_path) == [
+            tmp_path,
+            tmp_path / "plugins" / "coding",
+        ]
+
+    def test_repository_roots_find_the_coding_plays(self) -> None:
+        from dev10x.subprocess_utils import get_plugin_root
+
+        roots = installed_plugin_roots(core_root=get_plugin_root())
+
+        assert load_plugin_default(skill_key="work-on", plugin_roots=roots)["defaults"]
+
+
+class TestDefaultPathIn:
+    def test_prefers_a_dedicated_default_in_a_later_root(
+        self, split_root: Path, tmp_path: Path
+    ) -> None:
+        satellite = tmp_path / "satellite"
+        dedicated = satellite / "skills/investigate/references/playbook.yaml"
+        _write(dedicated, "defaults: {}\n")
+
+        assert default_path_in(skill_key="investigate", plugin_roots=[split_root, satellite]) == (
+            dedicated
+        )
+
+    def test_falls_back_to_the_shared_default(self, split_root: Path) -> None:
+        assert default_path_in(skill_key="work-on", plugin_roots=[split_root]) == (
+            split_root / "skills/playbook/references/playbook.yaml"
+        )
+
+    def test_names_the_expected_path_when_nothing_ships(self, tmp_path: Path) -> None:
+        assert default_path_in(skill_key="ghost", plugin_roots=[tmp_path]) == (
+            tmp_path / "skills/ghost/references/playbook.yaml"
+        )

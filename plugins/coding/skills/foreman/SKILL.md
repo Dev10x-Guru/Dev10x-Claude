@@ -1,5 +1,5 @@
 ---
-name: dev10x:foreman
+name: dev10x-coding:foreman
 description: >
   Unattended overnight delivery of a milestone/bundle queue — a
   two-tier harness (watchdog main session + cheap foreman overseer +
@@ -11,11 +11,11 @@ description: >
   TRIGGER when: the supervisor is leaving (AFK / overnight / "ship
   these milestones while I sleep") with 1+ milestones or issue
   bundles queued for autonomous delivery.
-  DO NOT TRIGGER when: single attended bundle (use dev10x:work-on),
-  parallel independent items while attended (use dev10x:fanout), or
+  DO NOT TRIGGER when: single attended bundle (use dev10x-coding:work-on),
+  parallel independent items while attended (use dev10x-coding:fanout), or
   only the gate policy is wanted (use dev10x:afk).
 user-invocable: true
-invocation-name: dev10x:foreman
+invocation-name: dev10x-coding:foreman
 allowed-tools:
   - AskUserQuestion
   - Read(~/.config/Dev10x/friction.yaml)
@@ -28,9 +28,9 @@ allowed-tools:
   - Bash(uv run dev10x foreman:*)
   - ToolSearch
   - Skill(dev10x:afk)
-  - Skill(dev10x:work-on)
-  - Skill(dev10x:gh-pr-merge)
-  - Skill(dev10x:fanout)
+  - Skill(dev10x-coding:work-on)
+  - Skill(dev10x-coding:gh-pr-merge)
+  - Skill(dev10x-coding:fanout)
   - Skill(dev10x:diag-friction)
   - Skill(dev10x-teach:skill-audit-queue)
   - Skill(dev10x-tasks:session-wrap-up)
@@ -48,9 +48,9 @@ allowed-tools:
   - mcp__plugin_dev10x_cli__mktmp
 ---
 
-# dev10x:foreman — Overnight Milestone Delivery Harness
+# dev10x-coding:foreman — Overnight Milestone Delivery Harness
 
-**Announce:** "Using dev10x:foreman to pre-flight and run the
+**Announce:** "Using dev10x-coding:foreman to pre-flight and run the
 unattended delivery of [queue] while you're away."
 
 The supervisor leaves the site; the foreman runs the crew; the

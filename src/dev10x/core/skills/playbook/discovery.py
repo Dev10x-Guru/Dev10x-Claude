@@ -14,6 +14,8 @@ from dev10x.core.config.fragments import (
     load_merged,
     plugin_order,
 )
+from dev10x.core.paths import satellite_root
+from dev10x.core.plugin_map import load_plugin_map
 from dev10x.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.subprocess_utils import effective_cwd
 
@@ -120,6 +122,39 @@ def plugin_default_path(*, skill_key: str, plugin_root: Path) -> Path:
 # (schema, version, overrides) in core; each plugin contributes its plays as
 # a `<plugin>.yaml` fragment under one of its skills' `playbook.d/`.
 SHARED_FRAGMENT_GLOB = "skills/*/references/playbook.d"
+
+
+def installed_plugin_roots(*, core_root: Path) -> list[Path]:
+    """Core's root, then every installed satellite's, in ``plugins.yaml`` order.
+
+    Satellites ship their own playbook defaults (``dev10x-coding`` holds
+    work-on's plays since B9, GH-1572), so a reader that scans only core's
+    root would report those defaults missing.
+    """
+    plugin_map = load_plugin_map()
+    satellites = (
+        satellite_root(
+            plugin_root=core_root,
+            key=key,
+            plugin_name=plugin_map.installed_name(key=key),
+        )
+        for key in plugin_order()
+        if plugin_map.is_extracted(key=key)
+    )
+    return [core_root, *(root for root in satellites if root is not None)]
+
+
+def default_path_in(*, skill_key: str, plugin_roots: Sequence[Path]) -> Path:
+    """The plugin default ``load_plugin_default`` reads for ``skill_key``,
+    for reporting; the first root's expected path when none exists."""
+    for root in plugin_roots:
+        path = plugin_default_path(skill_key=skill_key, plugin_root=root)
+        if path.is_file() and path != root / SHARED_DEFAULT_RELATIVE:
+            return path
+    for root in plugin_roots:
+        if (root / SHARED_DEFAULT_RELATIVE).is_file():
+            return root / SHARED_DEFAULT_RELATIVE
+    return plugin_default_path(skill_key=skill_key, plugin_root=plugin_roots[0])
 
 
 def shared_fragment_directories(*, plugin_roots: Sequence[Path]) -> list[Path]:

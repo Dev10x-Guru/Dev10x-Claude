@@ -1,5 +1,5 @@
 ---
-name: dev10x:gh-pr-review
+name: dev10x-coding:gh-pr-review
 description: >
   Review a GitHub pull request and post findings with inline comments.
   Fetches PR diff, reads changed files, checks for interface impact,
@@ -9,9 +9,9 @@ description: >
   may be pushed as fixup! commits with reviewer consent (Step 5b/6b).
   TRIGGER when: reviewing an external PR and posting review comments.
   DO NOT TRIGGER when: reviewing own branch changes before PR creation
-  (use dev10x:review), or PR does not exist yet.
+  (use dev10x-coding:review), or PR does not exist yet.
 user-invocable: true
-invocation-name: dev10x:gh-pr-review
+invocation-name: dev10x-coding:gh-pr-review
 allowed-tools:
   - Bash(gh:*)
   - Bash(/tmp/Dev10x/bin/mktmp.sh:*)
@@ -39,11 +39,11 @@ Accepts one of:
 - Reviewing any PR where you want findings posted to GitHub
 - When asked to "review PR #N" or given a PR URL
 
-**Not for self-review** — use `dev10x:review` to review your own
+**Not for self-review** — use `dev10x-coding:review` to review your own
 branch before creating a PR.
 
 **Not a CI replica** — it reviews in this session's model and config;
-to see what the Claude CI review would post, use `dev10x:ci-review`
+to see what the Claude CI review would post, use `dev10x-coding:ci-review`
 (GH-1621).
 
 ## Orchestration
@@ -221,7 +221,7 @@ for classification criteria, examples, and list-building instructions.
 fires at ALL friction levels). Decision gate specification and per-finding mode:
 see [`tool-calls/ask-courtesy-fixup-scope.md`](tool-calls/ask-courtesy-fixup-scope.md).
 
-**After user approval:** For each approved courtesy fix, invoke `dev10x:gh-pr-fixup`
+**After user approval:** For each approved courtesy fix, invoke `dev10x-coding:gh-pr-fixup`
 to push the change and reply with the required "feel free to amend or drop" language.
 Do NOT auto-resolve threads. Remove courtesy-fixed findings from `author_comments`
 to avoid duplication.
@@ -341,12 +341,12 @@ From `review-guidelines.md` and `review-checks-common.md`:
 ## Integration
 
 ```
-dev10x:gh-pr-review
+dev10x-coding:gh-pr-review
 ├─ Standalone review of any GitHub PR
 └─ Posts findings directly to GitHub
 ```
 
 Complements:
-- `dev10x:review` — self-review before PR creation (no GitHub posting)
-- `dev10x:gh-pr-respond` — respond to review comments on YOUR PR
-- `dev10x:gh-pr-triage` — validate a single review comment
+- `dev10x-coding:review` — self-review before PR creation (no GitHub posting)
+- `dev10x-coding:gh-pr-respond` — respond to review comments on YOUR PR
+- `dev10x-coding:gh-pr-triage` — validate a single review comment

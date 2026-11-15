@@ -24,6 +24,8 @@ import pytest
 
 SCRIPT = (
     Path(__file__).resolve().parents[3]
+    / "plugins"
+    / "coding"
     / "skills"
     / "gh-pr-merge"
     / "scripts"

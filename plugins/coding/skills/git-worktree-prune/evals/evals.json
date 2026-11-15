@@ -1,5 +1,5 @@
 {
-  "skill_name": "dev10x:git-worktree-prune",
+  "skill_name": "dev10x-coding:git-worktree-prune",
   "eval_dimensions": [
     {
       "id": "task_tracking",
@@ -37,7 +37,7 @@
       "id": "mixed-worktrees-happy-path",
       "name": "Merged, closed-PR and dirty worktrees together",
       "description": "Survey returns remove, ask and keep entries; one gate fires, then only approved paths are removed",
-      "input": "/dev10x:git-worktree-prune",
+      "input": "/dev10x-coding:git-worktree-prune",
       "assertions": [
         {
           "dimension": "task_tracking",
@@ -49,7 +49,7 @@
           "dimension": "announce",
           "check": "behavioral",
           "value": "announce_line",
-          "signal": "Response opens with 'Using dev10x:git-worktree-prune'"
+          "signal": "Response opens with 'Using dev10x-coding:git-worktree-prune'"
         },
         {
           "dimension": "removal_gate_enforcement",
@@ -86,7 +86,7 @@
       "id": "dirty-and-open-worktrees-kept",
       "name": "Dirty merged checkout and herdr-open checkout",
       "description": "A merged branch with uncommitted edits and a clean merged checkout open in a herdr workspace are both classified keep",
-      "input": "/dev10x:git-worktree-prune with a dirty merged worktree and an open herdr workspace",
+      "input": "/dev10x-coding:git-worktree-prune with a dirty merged worktree and an open herdr workspace",
       "assertions": [
         {
           "dimension": "keep_safety",
@@ -106,7 +106,7 @@
       "id": "mirrors-only-force",
       "name": "Mirrors-only checkout needs --force",
       "description": "A merged clean checkout holding only untracked .agents/ and .codex/ is removed with --force because the fresh read says force_required",
-      "input": "/dev10x:git-worktree-prune with a mirrors-only merged worktree",
+      "input": "/dev10x-coding:git-worktree-prune with a mirrors-only merged worktree",
       "assertions": [
         {
           "dimension": "fresh_read",
@@ -120,7 +120,7 @@
       "id": "state-changed-before-removal",
       "name": "Worktree became dirty between survey and removal",
       "description": "The fresh read reclassifies an approved path as keep; it is skipped with the fresh reason",
-      "input": "/dev10x:git-worktree-prune where an approved worktree gains uncommitted edits before removal",
+      "input": "/dev10x-coding:git-worktree-prune where an approved worktree gains uncommitted edits before removal",
       "assertions": [
         {
           "dimension": "fresh_read",
@@ -134,7 +134,7 @@
       "id": "new-worktree-mid-run",
       "name": "Worktree created by a parallel session mid-run",
       "description": "A worktree that was not in the survey is never removed, even when it would classify as remove",
-      "input": "/dev10x:git-worktree-prune while a parallel session adds worktrees",
+      "input": "/dev10x-coding:git-worktree-prune while a parallel session adds worktrees",
       "assertions": [
         {
           "dimension": "survey_scope",
@@ -146,7 +146,7 @@
           "dimension": "survey_scope",
           "check": "behavioral",
           "value": "no_branch_deletion",
-          "signal": "No git branch -d or -D runs; the report points to dev10x:git-branch-prune"
+          "signal": "No git branch -d or -D runs; the report points to dev10x-coding:git-branch-prune"
         }
       ]
     }
@@ -159,8 +159,8 @@
       "git-worktree-prune"
     ],
     "should_not_trigger": [
-      "Delete merged local branches (use dev10x:git-branch-prune)",
-      "Create a new worktree for this ticket (use dev10x:git-worktree)",
+      "Delete merged local branches (use dev10x-coding:git-branch-prune)",
+      "Create a new worktree for this ticket (use dev10x-coding:git-worktree)",
       "Groom commit history"
     ]
   }

@@ -169,7 +169,7 @@
     "should_not_trigger": [
       {
         "query": "let's start on DEV-42, the payment retry ticket",
-        "rationale": "Starting structured work from a ticket — use dev10x:work-on"
+        "rationale": "Starting structured work from a ticket — use dev10x-coding:work-on"
       },
       {
         "query": "wrap up the session, I'm done for today",

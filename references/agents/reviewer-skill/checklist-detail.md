@@ -189,8 +189,8 @@ output as CRITICAL. Common findings:
 - Raw `gh pr|issue|api|repo` in bash fences → must use
   `mcp__plugin_dev10x_cli__*` tools
 - Raw `git commit|push|rebase|checkout -b` → must delegate to the
-  matching `Skill(dev10x:git-*)` / `Skill(dev10x:ticket-branch)` wrapper
-- Raw `pytest` invocation → must use `Skill(dev10x:py-test)`
+  matching `Skill(dev10x:git-*)` / `Skill(dev10x-coding:ticket-branch)` wrapper
+- Raw `pytest` invocation → must use `Skill(dev10x-coding:py-test)`
 - `--no-verify` anywhere → CLAUDE.md global rule, no exemption
 
 Skills that *implement* a wrapper are exempt automatically (see

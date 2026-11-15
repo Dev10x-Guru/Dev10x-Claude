@@ -7,7 +7,11 @@
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "git" / "lib"))
+
+from core_src import add_core_src  # noqa: E402
+
+add_core_src(script=Path(__file__))
 
 from dev10x.skills.git_fixup.find_fixup_target import main  # noqa: E402
 

@@ -1,5 +1,5 @@
 ---
-name: dev10x:gh-pr-triage
+name: dev10x-coding:gh-pr-triage
 description: >
   Validate a PR review comment against the codebase. If invalid, reply
   with evidence. Never auto-resolves threads — resolution requires
@@ -8,9 +8,9 @@ description: >
   out-of-scope code, reply, or defer.
   TRIGGER when: PR review comment needs validation before implementing fix.
   DO NOT TRIGGER when: comment is clearly valid and needs immediate fix
-  (use dev10x:gh-pr-fixup directly).
+  (use dev10x-coding:gh-pr-fixup directly).
 user-invocable: true
-invocation-name: dev10x:gh-pr-triage
+invocation-name: dev10x-coding:gh-pr-triage
 allowed-tools:
   - mcp__plugin_dev10x_cli__pr_comment_reply
   - mcp__plugin_dev10x_cli__pr_comments
@@ -54,7 +54,7 @@ the PR review needs resolved threads to remain visible so they can
 verify the triage decisions without searching through hidden threads.
 
 **When to use this skill:**
-- Called by `dev10x:gh-pr-respond` before delegating to `dev10x:gh-pr-fixup`
+- Called by `dev10x-coding:gh-pr-respond` before delegating to `dev10x-coding:gh-pr-fixup`
 - Standalone when you want to validate a comment without committing to a fix
 
 ## NEVER inline triage (GH-463, GH-97)
@@ -68,7 +68,7 @@ If you find yourself writing:
 
 > "Comment 3 is VALID — the test does need a fixture."
 
-without a preceding `Skill(dev10x:gh-pr-triage)` tool call, you
+without a preceding `Skill(dev10x-coding:gh-pr-triage)` tool call, you
 have bypassed the delegation. The bypass typically happens under
 context pressure when the verdict feels obvious. It is exactly
 the regression GH-463 and GH-97 caught (~42% compliance in the
@@ -77,11 +77,11 @@ across one PR cycle, all without a single `Skill()` call. The
 verdict feeling obvious is precisely the rationalization that
 triggers the bypass.
 
-**Detection hint for parent skills:** When `dev10x:gh-pr-respond`
+**Detection hint for parent skills:** When `dev10x-coding:gh-pr-respond`
 or another caller observes inline classification language
-without a preceding `Skill(dev10x:gh-pr-triage)` call in the
+without a preceding `Skill(dev10x-coding:gh-pr-triage)` call in the
 same turn, the caller MUST abort the current comment and
-re-enter via this skill. See `dev10x:gh-pr-respond/instructions.md`
+re-enter via this skill. See `dev10x-coding:gh-pr-respond/instructions.md`
 § Critical: Delegation is Mandatory.
 
 ## Orchestration
@@ -109,7 +109,7 @@ validate.
 
 **Optional additional context:**
 - User may provide extra context after the URL
-- Example: `/dev10x:gh-pr-triage https://...#discussion_r456 this is a Django project`
+- Example: `/dev10x-coding:gh-pr-triage https://...#discussion_r456 this is a Django project`
 
 ## Workflow
 
@@ -271,7 +271,7 @@ the comment is factually correct (about to verdict `VALID`). Skip for
    When two or more correct bug reports cluster on one out-of-scope
    feature, all of them route to **YAGNI** with a shared removal
    recommendation. Record the bundle in the verdict output so
-   `dev10x:gh-pr-respond` can collapse them into one removal commit.
+   `dev10x-coding:gh-pr-respond` can collapse them into one removal commit.
 
 **Decision matrix:**
 
@@ -293,8 +293,8 @@ Based on investigation, choose one of:
 
 #### VALID — Real issue, needs a fix
 
-Do nothing. Return verdict to caller (usually `dev10x:gh-pr-respond`) which will
-delegate to `dev10x:gh-pr-fixup`.
+Do nothing. Return verdict to caller (usually `dev10x-coding:gh-pr-respond`) which will
+delegate to `dev10x-coding:gh-pr-fixup`.
 
 **Output:**
 ```
@@ -306,7 +306,7 @@ Signal: text | reaction:👍 | reaction:❤️ | reaction:🚀
 #### YAGNI — Real issue, but code is out-of-scope for the PR's JTBD
 
 Post a brief reply naming the scope mismatch and proposing removal.
-Do **NOT** resolve the thread — the caller (`dev10x:gh-pr-respond`)
+Do **NOT** resolve the thread — the caller (`dev10x-coding:gh-pr-respond`)
 collapses related YAGNI verdicts into a single removal commit and
 closes the threads together.
 
@@ -428,8 +428,8 @@ findings — replies posted through it appear inline with the
 original finding in the PR conversation.
 
 **Thread resolution:** Do NOT resolve threads. Return the verdict to the
-caller (`dev10x:gh-pr-respond` or the user). Resolution only happens when the user
-explicitly confirms it — either via `dev10x:gh-pr-respond`'s confirmation flow or
+caller (`dev10x-coding:gh-pr-respond` or the user). Resolution only happens when the user
+explicitly confirms it — either via `dev10x-coding:gh-pr-respond`'s confirmation flow or
 by direct user request.
 
 ## Error Handling
@@ -457,24 +457,24 @@ Skipped: Thread already resolved
 ## Integration
 
 ```
-dev10x:gh-pr-monitor → dev10x:gh-pr-respond (orchestrator)
-                 ├── dev10x:gh-pr-triage         ← this skill
-                 └── dev10x:gh-pr-fixup
+dev10x-coding:gh-pr-monitor → dev10x-coding:gh-pr-respond (orchestrator)
+                 ├── dev10x-coding:gh-pr-triage         ← this skill
+                 └── dev10x-coding:gh-pr-fixup
                       └── commit:fixup
 ```
 
 **Standalone usage:**
 ```bash
-/dev10x:gh-pr-triage https://github.com/owner/repo/pull/123#discussion_r456
+/dev10x-coding:gh-pr-triage https://github.com/owner/repo/pull/123#discussion_r456
 ```
 
-**Called by dev10x:gh-pr-respond:**
+**Called by dev10x-coding:gh-pr-respond:**
 ```
-dev10x:gh-pr-respond receives comment URL
-  → delegates to dev10x:gh-pr-triage
-  → if VALID → delegates to dev10x:gh-pr-fixup
-  → if INVALID/QUESTION/OUT_OF_SCOPE → dev10x:gh-pr-triage replied,
-    dev10x:gh-pr-respond asks user to confirm thread resolution
+dev10x-coding:gh-pr-respond receives comment URL
+  → delegates to dev10x-coding:gh-pr-triage
+  → if VALID → delegates to dev10x-coding:gh-pr-fixup
+  → if INVALID/QUESTION/OUT_OF_SCOPE → dev10x-coding:gh-pr-triage replied,
+    dev10x-coding:gh-pr-respond asks user to confirm thread resolution
 ```
 
 ## References

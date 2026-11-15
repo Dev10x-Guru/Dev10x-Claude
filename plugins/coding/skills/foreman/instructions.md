@@ -1,8 +1,8 @@
-# dev10x:foreman — Full Workflow
+# dev10x-coding:foreman — Full Workflow
 
 The cast: **supervisor** (the human, leaving), **watchdog** (the main
 session — you), **foreman** (a cheap overseer subagent managing the
-crew), **crew** (delivery workers running the dev10x:work-on bundle
+crew), **crew** (delivery workers running the dev10x-coding:work-on bundle
 lifecycle). The supervisor reads the shift log in the morning.
 
 **The cast is split by tool surface, not just by job.** Only the
@@ -31,7 +31,7 @@ night shift")`, marked completed at Phase 3 wrap-up.
 Resolve the input via `issue_list` / `issue_get`, reading milestone
 descriptions for declared dependencies. Chunk the work — one milestone
 or coherent bundle per chunk, **sequential by default** (reach for
-`dev10x:fanout` only for provably disjoint file sets). Order by
+`dev10x-coding:fanout` only for provably disjoint file sets). Order by
 dependency, pushing risky/decision-hungry chunks to the queue END.
 Classify each chunk: `mechanical` / `standard` / `domain-heavy`.
 
@@ -153,7 +153,7 @@ each into this directory.
    relays `BASE MOVED` and merge requests, verifies per-chunk closure
    itself (GH-922), and keeps `roster.md` current (GH-976) —
    `manifest.md` stays authoritative. It can never call
-   `Skill(dev10x:gh-pr-merge)`. Full brief:
+   `Skill(dev10x-coding:gh-pr-merge)`. Full brief:
    [`references/overseer-discipline.md`](references/overseer-discipline.md)
    and
    [`references/architecture.md`](references/architecture.md).
@@ -204,7 +204,7 @@ turn are the most precious resources on site:
 - `BASE MOVED` → relay to the foreman (it instructs the active worker
   to rebase, re-verify, and never merge on stale ancestry).
 - **`MERGE REQUEST <chunk>` from the foreman → run the merge gate.**
-  The one piece of real work the watchdog owns — `Skill(dev10x:gh-pr-merge)`
+  The one piece of real work the watchdog owns — `Skill(dev10x-coding:gh-pr-merge)`
   is unreachable from a subagent. Re-read live state first (CI
   verdict, `isDraft`, mergeability, ancestry) — a worker's report is a
   memory, not a fact — then merge, close the chunk's issues, and
@@ -375,7 +375,7 @@ apply with no `dev10x foreman watch` armed (never a crew worker):
 |---|---|
 | "This Monitor one-liner is simple, no script needed" | The 7-hour overnight freeze was exactly such a one-liner. Script or nothing. |
 | "The worker knows the repo conventions" | It has a fresh system prompt. It knows nothing you didn't put in it. |
-| "The prompt says `Skill(dev10x:gh-pr-merge)`, so the 9 checks run" | The worker cannot call it. Naming a skill a subagent cannot reach buys the appearance of a gate and none of the gate. |
+| "The prompt says `Skill(dev10x-coding:gh-pr-merge)`, so the 9 checks run" | The worker cannot call it. Naming a skill a subagent cannot reach buys the appearance of a gate and none of the gate. |
 | "The worker reported the PR is ready and green — merge it" | That is a memory of a past state. Force-pushes re-draft PRs and bases move. Re-read `isDraft`, CI, and ancestry at the gate. |
 | "A worker can't merge — it has no `gh-pr-merge` skill" | The skill, no; `merge_pr` yes — it is a deferred MCP tool any subagent can `ToolSearch` for, and one did exactly that and merged. The stop is prompt-deep only (GH-1061). |
 | "The third overseer just died too — spawn a fourth" | Three identical failures is evidence about the tier, not the agent. Raise the model tier or collapse to watchdog-direct (`references/overseer-fallback-ladder.md`). |

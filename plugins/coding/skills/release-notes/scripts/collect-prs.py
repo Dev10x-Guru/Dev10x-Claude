@@ -6,10 +6,14 @@
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "git" / "lib"))
 
-from dev10x.skills.release.collect_prs import *  # noqa: F401, F403
-from dev10x.skills.release.collect_prs import main
+from core_src import add_core_src  # noqa: E402
+
+add_core_src(script=Path(__file__))
+
+from dev10x.skills.release.collect_prs import *  # noqa: E402, F401, F403
+from dev10x.skills.release.collect_prs import main  # noqa: E402
 
 if __name__ == "__main__":
     main()

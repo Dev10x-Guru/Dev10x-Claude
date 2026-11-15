@@ -24,7 +24,7 @@ import pytest
 
 _ROOT = Path(__file__).parents[2]
 _ESSENTIALS = _ROOT / ".claude" / "rules" / "essentials.md"
-_WORK_ON = _ROOT / "skills" / "work-on" / "instructions.md"
+_WORK_ON = _ROOT / "plugins" / "coding" / "skills" / "work-on" / "instructions.md"
 
 _SECTION = "When the task tools are absent"
 

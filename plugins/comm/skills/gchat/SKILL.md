@@ -5,7 +5,7 @@ description: >
   (service-account app auth). Mirrors dev10x-comm:slack.
   TRIGGER when: sending a message to a Google Chat space.
   DO NOT TRIGGER when: posting a review request (use
-  dev10x:gchat-review-request), or sending to Slack (use dev10x-comm:slack).
+  dev10x-coding:gchat-review-request), or sending to Slack (use dev10x-comm:slack).
 user-invocable: true
 invocation-name: dev10x-comm:gchat
 allowed-tools:

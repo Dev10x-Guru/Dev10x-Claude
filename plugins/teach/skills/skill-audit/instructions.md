@@ -828,7 +828,7 @@ a new rule). Structural friction needs skill updates and/or hooks.
 | `HOOK_BLOCKED_RETRY` | `cat <<'EOF'...` or `echo >` | Hook rejects it; Claude retries anyway | Update skill to use Write + `-F` |
 | `NUISANCE_APPROVE` | Safe command prompted 3+ times | Allow rule exists but pattern doesn't match | Widen existing rule or add new one |
 | `UNNECESSARY_CD_WORKTREE` | `cd /worktree/path && command` | `cd` shifts prefix; CWD is already the worktree | Drop the `cd` — session is already there |
-| `WORKTREE_CWD_NOT_SWITCHED` | Commands run in main repo after worktree creation | Worktree creation should switch CWD | Investigate `dev10x:git-worktree` — CWD switch may have failed |
+| `WORKTREE_CWD_NOT_SWITCHED` | Commands run in main repo after worktree creation | Worktree creation should switch CWD | Investigate `dev10x-coding:git-worktree` — CWD switch may have failed |
 
 **Detection algorithm:**
 
@@ -871,13 +871,13 @@ a new rule). Structural friction needs skill updates and/or hooks.
    the worktree root is always redundant. Classification:
    `UNNECESSARY_CD_WORKTREE`. Fix: drop the `cd` prefix.
 
-9. **Worktree CWD not switched**: After a `dev10x:git-worktree`
+9. **Worktree CWD not switched**: After a `dev10x-coding:git-worktree`
    invocation in the transcript, check whether subsequent Bash
    commands target the new worktree path or still operate in the
    original repo. If commands use `cd <worktree>` or `git -C
    <worktree>` after creation, the CWD switch may have failed.
    Classification: `WORKTREE_CWD_NOT_SWITCHED`. Fix: investigate
-   `dev10x:git-worktree` skill.
+   `dev10x-coding:git-worktree` skill.
 
 **Output format:**
 
@@ -889,7 +889,7 @@ a new rule). Structural friction needs skill updates and/or hooks.
 | 4 | `git -C /work/myproject log` | PREFIX_POISONED_GIT_C | `-C` breaks `Bash(git log:*)` | Skill: use CWD |
 | 5 | `pytest src/` (3x) | NUISANCE_APPROVE | No matching rule | Allow: `Bash(pytest:*)` |
 | 6 | `cd /work/.worktrees/proj && pytest` | UNNECESSARY_CD_WORKTREE | CWD is already the worktree | Drop the `cd` |
-| 7 | `git -C /work/.worktrees/proj log` after worktree create | WORKTREE_CWD_NOT_SWITCHED | CWD switch failed | Fix `dev10x:git-worktree` skill |
+| 7 | `git -C /work/.worktrees/proj log` after worktree create | WORKTREE_CWD_NOT_SWITCHED | CWD switch failed | Fix `dev10x-coding:git-worktree` skill |
 
 **10. Wrapper discovery**: For each PREFIX_POISONED or chained
 command finding, check whether a wrapper already exists that
@@ -925,7 +925,7 @@ When wrapper exists, the primary recommendation is MEMORY_UPDATE
 - Where the wrapper lives (for reference)
 
 When no wrapper exists, propose creating one AND a memory update
-documenting it. For git aliases, reference `dev10x:git-alias-setup`
+documenting it. For git aliases, reference `dev10x-coding:git-alias-setup`
 as the canonical setup mechanism rather than proposing raw
 `git config` commands.
 
@@ -1031,7 +1031,7 @@ first, then route based on result:
 3. No new hook or script needed — the wrapper already solves it
 
 **2b. No wrapper exists (`CREATE_WRAPPER_ALIAS` / `CREATE_WRAPPER_SCRIPT`):**
-1. Propose creating the wrapper (alias via `dev10x:git-alias-setup`
+1. Propose creating the wrapper (alias via `dev10x-coding:git-alias-setup`
    or script in `~/.claude/tools/`)
 2. Propose SKILL_UPDATE replacing the toxic pattern
 3. Propose MEMORY_UPDATE documenting the new wrapper

@@ -46,10 +46,13 @@ _BACKTICKED = re.compile(r"`(?P<token>[^`\s]+)`")
 _FOREIGN_REFERENCES: frozenset[tuple[str, str]] = frozenset(
     {
         # A file the skill generates in the user's repository.
-        ("skills/gh-review-setup/instructions.md", "references/rules/review-guidelines.md"),
+        (
+            "plugins/coding/skills/gh-review-setup/instructions.md",
+            "references/rules/review-guidelines.md",
+        ),
         # Eval fixtures that describe a hypothetical skill tree.
-        ("skills/git-groom/evals/evals.json", "references/a.md"),
-        ("skills/git-groom/evals/evals.json", "references/sub/a.md"),
+        ("plugins/coding/skills/git-groom/evals/evals.json", "references/a.md"),
+        ("plugins/coding/skills/git-groom/evals/evals.json", "references/sub/a.md"),
         # The destination named by a split plan, not yet created.
         ("skills/plugin-maintenance/SKILL.md", "references/preflight.md"),
         # Generic per-skill file names in a migration how-to.
@@ -66,6 +69,9 @@ _SPECULATIVE_GLOBS: frozenset[tuple[str, str]] = frozenset(
     {
         # The alternate workflow extension; no workflow uses it yet.
         ("github-workflows.md", ".github/workflows/**/*.yaml"),
+        # GH-1973: every uv-script moved under plugins/ in B9; the rule's
+        # paths: needs a supervisor .claude/ edit to follow them.
+        ("uv-script-dependency-pins.md", "skills/**/*.py"),
     }
 )
 

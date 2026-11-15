@@ -18,7 +18,14 @@ from pathlib import Path
 
 import pytest
 
-SCRIPTS_DIR = Path(__file__).resolve().parents[3] / "skills" / "git-worktree" / "scripts"
+SCRIPTS_DIR = (
+    Path(__file__).resolve().parents[3]
+    / "plugins"
+    / "coding"
+    / "skills"
+    / "git-worktree"
+    / "scripts"
+)
 
 
 def _git(*args: str, cwd: Path) -> str:
