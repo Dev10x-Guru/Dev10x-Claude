@@ -289,7 +289,7 @@ forever — while looking fully wired up everywhere a reader would think
 to check.
 
 `triage_roster` was the worked example: registered, declared in
-`dev10x:ticket-create`'s front matter, and present in the availability
+`dev10x-scoping:ticket-create`'s front matter, and present in the availability
 table — and still prompting. The guard that found six more of them
 (`audit_hook_log_path`, `audit_hook_recent`, `background_preamble`,
 `resolve_plugin_origin`, `slack_thread_is_forward`, all read-only and

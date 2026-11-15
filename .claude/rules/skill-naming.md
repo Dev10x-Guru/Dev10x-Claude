@@ -33,12 +33,14 @@ completion and directory listings.
 ## Invocation Name (SKILL.md `name:` field)
 
 Use the `dev10x:<feature-name>` format in the SKILL.md front matter.
+A skill shipped by a satellite plugin (`plugins/<key>/`, ADR-0034)
+uses that plugin's name instead: `dev10x-<key>:<feature-name>`.
 
 **Good:**
 ```yaml
 name: dev10x:git-worktree
-name: dev10x:skill-audit
-name: dev10x:park
+name: dev10x-teach:skill-audit
+name: dev10x-tasks:park
 ```
 
 **Bad:**
@@ -143,19 +145,19 @@ Skills use family prefixes for tab-completion discoverability:
 
 | Directory         | Invocation name      |
 |-------------------|----------------------|
-| `park/`           | `dev10x:park`            |
-| `park-todo/`      | `dev10x:park-todo`       |
-| `park-remind/`    | `dev10x:park-remind`     |
-| `park-discover/`  | `dev10x:park-discover`   |
-| `session-tasks/`  | `dev10x:session-tasks`   |
-| `session-wrap-up/`| `dev10x:session-wrap-up`  |
-| `ticket-branch/`  | `dev10x:ticket-branch`   |
-| `ticket-create/`  | `dev10x:ticket-create`   |
-| `ticket-jtbd/`    | `dev10x:ticket-jtbd`     |
-| `ticket-scope/`   | `dev10x:ticket-scope`    |
+| `park/`           | `dev10x-tasks:park`            |
+| `park-todo/`      | `dev10x-tasks:park-todo`       |
+| `park-remind/`    | `dev10x-tasks:park-remind`     |
+| `park-discover/`  | `dev10x-tasks:park-discover`   |
+| `session-tasks/`  | `dev10x-tasks:session-tasks`   |
+| `session-wrap-up/`| `dev10x-tasks:session-wrap-up` |
+| `ticket-branch/`  | `dev10x:ticket-branch`         |
+| `ticket-create/`  | `dev10x-scoping:ticket-create` |
+| `ticket-jtbd/`    | `dev10x-scoping:ticket-jtbd`   |
+| `ticket-scope/`   | `dev10x-scoping:ticket-scope`  |
 
 Other skills use the full directory name: `dev10x:git-worktree`,
-`dev10x:skill-audit`, `dev10x:skill-create`.
+`dev10x-teach:skill-audit`, `dev10x-teach:skill-create`.
 
 ## `invocation-name` field
 

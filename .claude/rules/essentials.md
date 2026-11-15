@@ -103,7 +103,7 @@ discrete unit while a broader plan is in flight.
    ```
 3. Never mark `Verify AC` `completed` autonomously — the supervisor
    completes it explicitly during `dev10x:verify-acc-dod` or
-   `dev10x:session-wrap-up`
+   `dev10x-tasks:session-wrap-up`
 
 ### When the task tools are absent (GH-1055)
 
@@ -152,7 +152,7 @@ must not treat the emptiness as evidence of anything else.
 | Document | Topic | Loaded by |
 |----------|-------|-----------|
 | `references/git-commits.md` | Commit format, gitmoji, atomic commits | `dev10x:git-commit` skill |
-| `references/git-jtbd.md` | Job Story format, anti-patterns | `dev10x:jtbd` skill |
+| `references/git-jtbd.md` | Job Story format, anti-patterns | `dev10x-scoping:jtbd` skill |
 | `references/git-pr.md` | PR body, grooming, review feedback | `dev10x:gh-pr-create` skill |
 | `references/review-guidelines.md` | Review workflow, threads, summaries | `dev10x:gh-pr-review` skill |
 | `references/review-checks-common.md` | False positive prevention, verification | Review agent specs |
