@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import pytest
-from dev10x.domain.common.result import err, ok
 
-from dev10x.mcp.git_tools import _seed_worktree_defaults
+from dev10x.coding.mcp.git_tools import _seed_worktree_defaults
+from dev10x.core.domain.common.result import err, ok
 
 
 @pytest.fixture
@@ -15,9 +15,8 @@ def wired(monkeypatch: pytest.MonkeyPatch):
     Seeding reads the merged catalog (GH-1677), so a rule remembered from a
     grant reaches the new worktree.
     """
-    from dev10x.skills.permission.catalog_merge import MergedCatalog
-
-    from dev10x.skills.permission import update_paths as paths_mod
+    from dev10x.core.skills.permission import update_paths as paths_mod
+    from dev10x.core.skills.permission.catalog_merge import MergedCatalog
 
     monkeypatch.setattr(paths_mod, "find_config", lambda: ok("/cfg.yaml"))
     monkeypatch.setattr(

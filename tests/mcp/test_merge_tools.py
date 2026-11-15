@@ -3,8 +3,8 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from dev10x.domain.common.result import err, ok
 
+from dev10x.core.domain.common.result import err, ok
 from dev10x.mcp import server_cli as cli_server
 
 
@@ -30,7 +30,7 @@ class TestAuditHandoffReport:
     async def test_forwards_cwd(self, mock_fn: AsyncMock, tmp_path) -> None:
         mock_fn.return_value = ok({"verdict": "reject", "accepted": False})
 
-        with patch("dev10x.subprocess_utils.use_cwd") as mock_use_cwd:
+        with patch("dev10x.core.subprocess_utils.use_cwd") as mock_use_cwd:
             await cli_server.audit_handoff_report(report={}, pr_state={}, cwd=str(tmp_path))
 
         mock_use_cwd.assert_called_once_with(str(tmp_path))
@@ -96,7 +96,7 @@ class TestReviewStampWrite:
     async def test_binds_cwd(self, mock_fn: AsyncMock, tmp_path) -> None:
         mock_fn.return_value = ok({})
 
-        with patch("dev10x.subprocess_utils.use_cwd") as mock_use_cwd:
+        with patch("dev10x.core.subprocess_utils.use_cwd") as mock_use_cwd:
             await cli_server.review_stamp_write(cwd=str(tmp_path))
 
         mock_use_cwd.assert_called_once_with(str(tmp_path))

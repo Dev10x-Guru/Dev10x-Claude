@@ -15,11 +15,11 @@ from pathlib import Path
 import pytest
 import yaml
 from click.testing import CliRunner
-from dev10x.config.loader import load_config, load_document
-from dev10x.domain.rules.rule_engine import RuleEngine
-from dev10x.hooks.edit_validator import validate_edit_write
 
 from dev10x.cli import cli
+from dev10x.core.config.loader import load_config, load_document
+from dev10x.core.domain.rules.rule_engine import RuleEngine
+from dev10x.core.hooks.edit_validator import validate_edit_write
 from dev10x.core.paths import skill_roots
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -287,7 +287,7 @@ class TestPythonEntryPointLoadability:
         "module",
         [
             pytest.param(
-                "dev10x.hooks.edit_validator",
+                "dev10x.core.hooks.edit_validator",
                 marks=pytest.mark.xfail(
                     reason=(
                         "Circular import: edit_validator → domain → rule_engine → edit_validator"
@@ -295,9 +295,9 @@ class TestPythonEntryPointLoadability:
                 ),
             ),
             "dev10x.commands.hook",
-            "dev10x.hooks.task_plan_sync",
-            "dev10x.validators.skill_redirect",
-            "dev10x.skills.audit.extract_session",
+            "dev10x.tasks.hooks.task_plan_sync",
+            "dev10x.core.validators.skill_redirect",
+            "dev10x.teach.skills.audit.extract_session",
         ],
     )
     def test_dev10x_module_importable(self, module: str) -> None:

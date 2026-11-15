@@ -23,9 +23,9 @@ from __future__ import annotations
 
 import re
 
-from dev10x.domain.common.allow_rule import AllowRule
-from dev10x.domain.common.mcp_tool_name import McpToolName
-from dev10x.skills.permission.merge_worktree_permissions import generalize_permission
+from dev10x.core.domain.common.allow_rule import AllowRule
+from dev10x.core.domain.common.mcp_tool_name import McpToolName
+from dev10x.core.skills.permission.merge_worktree_permissions import generalize_permission
 
 # Over-broad: verb-blind command prefixes whose bare ``*`` grants
 # destructive subcommands. Narrow each to the safe read subcommand the

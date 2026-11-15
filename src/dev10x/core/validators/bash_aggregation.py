@@ -32,10 +32,10 @@ import re
 from dataclasses import dataclass
 from typing import ClassVar
 
-from dev10x.domain import HookInput, HookResult
-from dev10x.domain.common.bash_tokens import strip_line_continuations, strip_quoted_spans
-from dev10x.domain.profile_tier import ProfileTier
-from dev10x.validators.base import ValidatorBase
+from dev10x.core.domain import HookInput, HookResult
+from dev10x.core.domain.common.bash_tokens import strip_line_continuations, strip_quoted_spans
+from dev10x.core.domain.profile_tier import ProfileTier
+from dev10x.core.validators.base import ValidatorBase
 
 SINGLE_QUOTED_RE = re.compile(r"'[^']*'")
 

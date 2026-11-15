@@ -11,15 +11,15 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from dev10x.domain.documents.session_yaml import SessionYamlDocument
-from dev10x.domain.gate_policy import MIGRATOR_COMMAND
 
-from dev10x.mcp.gate_query import (
+from dev10x.core.domain.documents.session_yaml import SessionYamlDocument
+from dev10x.core.domain.gate_policy import MIGRATOR_COMMAND
+from dev10x.core.mcp.gate_query import (
     LEGACY_PROJECT_POLICY_RELPATH,
     PROJECT_POLICY_RELPATH,
     _project_overrides,
 )
-from dev10x.mcp.gate_tools import (
+from dev10x.core.mcp.gate_tools import (
     DOUBT_SINK_RELPATH,
     resolve_gate_for_toplevel,
 )
@@ -533,7 +533,7 @@ class TestAutoAdvanceRecordEmission:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         # presets/friction/ absent at runtime → empty load → domain default.
-        import dev10x.config.friction_presets as fp
+        import dev10x.core.config.friction_presets as fp
 
         monkeypatch.setattr(fp, "load_shipped_presets", lambda: {})
         monkeypatch.setattr(fp, "load_shipped_overlays", lambda: {})
@@ -563,14 +563,14 @@ class TestPresetPinTools:
         main = tmp_path / "work" / "bl-zebra"
         (main / ".git").mkdir(parents=True)
         monkeypatch.setattr(
-            "dev10x.session.preset_pin._common_dir", lambda *, cwd: str(main / ".git")
+            "dev10x.core.session.preset_pin._common_dir", lambda *, cwd: str(main / ".git")
         )
         return main
 
     @pytest.mark.asyncio
     async def test_pin_and_status_round_trip_across_worktrees(self, zebra_repo: Path) -> None:
         """GH-855 AC: pin in `<repo>-3`, and `<repo>-9` sees it — no re-ask."""
-        from dev10x.mcp.gate_tools import pin_gate_preset, preset_pin_status
+        from dev10x.core.mcp.gate_tools import pin_gate_preset, preset_pin_status
 
         before = await preset_pin_status(cwd="/work/bl/.worktrees/bl-zebra-3")
         assert before["pinned"] is False
@@ -584,7 +584,7 @@ class TestPresetPinTools:
 
     @pytest.mark.asyncio
     async def test_pin_reports_an_unknown_scope_as_a_wire_error(self, zebra_repo: Path) -> None:
-        from dev10x.mcp.gate_tools import pin_gate_preset
+        from dev10x.core.mcp.gate_tools import pin_gate_preset
 
         payload = await pin_gate_preset(preset="adaptive", scope="galaxy")
 
@@ -607,13 +607,13 @@ class TestPresetPinTools:
         Writing it would make every later resolve_gate for this repo fail
         with UnknownPresetError until someone re-pinned by hand.
         """
-        from dev10x.mcp.gate_tools import pin_gate_preset
+        from dev10x.core.mcp.gate_tools import pin_gate_preset
 
         assert expected in (await pin_gate_preset(**kwargs))["error"]
 
     @pytest.mark.asyncio
     async def test_pin_forwards_overlays_and_overrides(self, zebra_repo: Path) -> None:
-        from dev10x.mcp.gate_tools import pin_gate_preset
+        from dev10x.core.mcp.gate_tools import pin_gate_preset
 
         payload = await pin_gate_preset(
             preset="adaptive", overlays=["afk"], gate_overrides={"merge": "ask"}
@@ -626,10 +626,12 @@ class TestPresetPinTools:
     async def test_status_reports_a_wire_error_outside_a_repo(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from dev10x.mcp.gate_tools import preset_pin_status
+        from dev10x.core.mcp.gate_tools import preset_pin_status
 
-        monkeypatch.setattr("dev10x.session.preset_pin._common_dir", lambda *, cwd: None)
-        monkeypatch.setattr("dev10x.session.preset_pin._bounded_toplevel", lambda *, cwd: None)
+        monkeypatch.setattr("dev10x.core.session.preset_pin._common_dir", lambda *, cwd: None)
+        monkeypatch.setattr(
+            "dev10x.core.session.preset_pin._bounded_toplevel", lambda *, cwd: None
+        )
 
         assert "Not in a git repository" in (await preset_pin_status())["error"]
 
@@ -648,11 +650,11 @@ class TestSupervisorReviewStatusTool:
     ) -> None:
         # GH-1161: the boolean `human_review` payload key reached its
         # removal version (ADR-0028), so only the enum is reported.
-        from dev10x.mcp.gate_tools import supervisor_review_status
+        from dev10x.core.mcp.gate_tools import supervisor_review_status
 
         _write_session_yaml(tmp_path, "supervisor_review: none\n")
         monkeypatch.setattr(
-            "dev10x.domain.git_context.GitContext.toplevel",
+            "dev10x.core.domain.git_context.GitContext.toplevel",
             property(lambda self: str(tmp_path)),
         )
 
@@ -666,10 +668,10 @@ class TestSupervisorReviewStatusTool:
     async def test_defaults_to_required(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
-        from dev10x.mcp.gate_tools import supervisor_review_status
+        from dev10x.core.mcp.gate_tools import supervisor_review_status
 
         monkeypatch.setattr(
-            "dev10x.domain.git_context.GitContext.toplevel",
+            "dev10x.core.domain.git_context.GitContext.toplevel",
             property(lambda self: str(tmp_path)),
         )
         assert (await supervisor_review_status())["supervisor_review"] == "required"
@@ -678,11 +680,11 @@ class TestSupervisorReviewStatusTool:
     async def test_retired_config_key_is_ignored(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
-        from dev10x.mcp.gate_tools import supervisor_review_status
+        from dev10x.core.mcp.gate_tools import supervisor_review_status
 
         _write_session_yaml(tmp_path, "human_review: false\n")
         monkeypatch.setattr(
-            "dev10x.domain.git_context.GitContext.toplevel",
+            "dev10x.core.domain.git_context.GitContext.toplevel",
             property(lambda self: str(tmp_path)),
         )
 
@@ -703,10 +705,10 @@ class TestSupervisorReviewStatusTool:
         the repo's `none` and lifted its floor — one durable fact, two answers.
         """
         import yaml
-        from dev10x.domain.dev10x_paths import Dev10xConfigDir
 
-        from dev10x.mcp.gate_tools import supervisor_review_status
-        from dev10x.session import preset_pin
+        from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
+        from dev10x.core.mcp.gate_tools import supervisor_review_status
+        from dev10x.core.session import preset_pin
 
         repo = tmp_path / "work" / "bl-zebra"
         (repo / ".git").mkdir(parents=True)
@@ -727,7 +729,7 @@ class TestSupervisorReviewStatusTool:
             )
         )
         monkeypatch.setattr(
-            "dev10x.domain.git_context.GitContext.toplevel",
+            "dev10x.core.domain.git_context.GitContext.toplevel",
             property(lambda self: str(worktree)),
         )
 
@@ -735,15 +737,14 @@ class TestSupervisorReviewStatusTool:
 
     @pytest.fixture
     def zebra_entry(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
-        from dev10x.domain.dev10x_paths import Dev10xConfigDir
-
-        from dev10x.session import preset_pin
+        from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
+        from dev10x.core.session import preset_pin
 
         repo = tmp_path / "work" / "bl-zebra"
         (repo / ".git").mkdir(parents=True)
         monkeypatch.setattr(preset_pin, "_common_dir", lambda *, cwd: str(repo / ".git"))
         monkeypatch.setattr(
-            "dev10x.domain.git_context.GitContext.toplevel",
+            "dev10x.core.domain.git_context.GitContext.toplevel",
             property(lambda self: str(repo)),
         )
         friction = Dev10xConfigDir.friction_yaml()
@@ -756,7 +757,7 @@ class TestSupervisorReviewStatusTool:
     ) -> None:
         import yaml
 
-        from dev10x.mcp.gate_tools import supervisor_review_status
+        from dev10x.core.mcp.gate_tools import supervisor_review_status
 
         zebra_entry.write_text(
             yaml.safe_dump({"projects": [{"match": ["*/bl-zebra"], "human_review": False}]})
@@ -773,7 +774,7 @@ class TestSupervisorReviewStatusTool:
     async def test_a_migrated_entry_carries_no_warning(self, zebra_entry: Path) -> None:
         import yaml
 
-        from dev10x.mcp.gate_tools import supervisor_review_status
+        from dev10x.core.mcp.gate_tools import supervisor_review_status
 
         zebra_entry.write_text(
             yaml.safe_dump(
@@ -799,11 +800,11 @@ class TestSupervisorReviewStatusTool:
     async def test_malformed_value_fails_toward_more_oversight(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
-        from dev10x.mcp.gate_tools import supervisor_review_status
+        from dev10x.core.mcp.gate_tools import supervisor_review_status
 
         _write_session_yaml(tmp_path, 'supervisor_review: "no"\n')
         monkeypatch.setattr(
-            "dev10x.domain.git_context.GitContext.toplevel",
+            "dev10x.core.domain.git_context.GitContext.toplevel",
             property(lambda self: str(tmp_path)),
         )
 
@@ -813,10 +814,10 @@ class TestSupervisorReviewStatusTool:
     async def test_reports_a_wire_error_outside_a_repo(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from dev10x.mcp.gate_tools import supervisor_review_status
+        from dev10x.core.mcp.gate_tools import supervisor_review_status
 
         monkeypatch.setattr(
-            "dev10x.domain.git_context.GitContext.toplevel",
+            "dev10x.core.domain.git_context.GitContext.toplevel",
             property(lambda self: None),
         )
 
@@ -831,13 +832,13 @@ class TestSupervisorReviewPinTool:
         main = tmp_path / "work" / "bl-zebra"
         (main / ".git").mkdir(parents=True)
         monkeypatch.setattr(
-            "dev10x.session.preset_pin._common_dir", lambda *, cwd: str(main / ".git")
+            "dev10x.core.session.preset_pin._common_dir", lambda *, cwd: str(main / ".git")
         )
         # `supervisor_review_status` resolves its toplevel via `GitContext`
         # directly (unlike the `_common_dir`-keyed pin tools), so it needs
         # its own patch — same pattern `TestSupervisorReviewStatusTool` uses.
         monkeypatch.setattr(
-            "dev10x.domain.git_context.GitContext.toplevel",
+            "dev10x.core.domain.git_context.GitContext.toplevel",
             property(lambda self: str(main)),
         )
         return main
@@ -845,7 +846,7 @@ class TestSupervisorReviewPinTool:
     @pytest.mark.asyncio
     async def test_pin_and_status_round_trip(self, zebra_repo: Path) -> None:
         """Pin persists, and `supervisor_review_status` sees it — no re-ask."""
-        from dev10x.mcp.gate_tools import pin_supervisor_review, supervisor_review_status
+        from dev10x.core.mcp.gate_tools import pin_supervisor_review, supervisor_review_status
 
         before = await supervisor_review_status()
         assert before["pinned"] is False
@@ -862,9 +863,8 @@ class TestSupervisorReviewPinTool:
         self, zebra_repo: Path
     ) -> None:
         """GH-1771: only `supervisor_review` pins; run `migrate-schema` first."""
-        from dev10x.session.preset_pin import pin_project_prefs
-
-        from dev10x.mcp.gate_tools import supervisor_review_status
+        from dev10x.core.mcp.gate_tools import supervisor_review_status
+        from dev10x.core.session.preset_pin import pin_project_prefs
 
         pin_project_prefs(prefs={"human_review": False}, cwd=str(zebra_repo))
 
@@ -875,7 +875,7 @@ class TestSupervisorReviewPinTool:
 
     @pytest.mark.asyncio
     async def test_pin_rejects_an_unknown_value_at_the_wire(self, zebra_repo: Path) -> None:
-        from dev10x.mcp.gate_tools import pin_supervisor_review
+        from dev10x.core.mcp.gate_tools import pin_supervisor_review
 
         payload = await pin_supervisor_review(supervisor_review="maybe")
 
@@ -883,7 +883,7 @@ class TestSupervisorReviewPinTool:
 
     @pytest.mark.asyncio
     async def test_pin_reports_an_unknown_scope_as_a_wire_error(self, zebra_repo: Path) -> None:
-        from dev10x.mcp.gate_tools import pin_supervisor_review
+        from dev10x.core.mcp.gate_tools import pin_supervisor_review
 
         payload = await pin_supervisor_review(supervisor_review="none", scope="galaxy")
 
@@ -891,7 +891,7 @@ class TestSupervisorReviewPinTool:
 
     @pytest.mark.asyncio
     async def test_pin_is_idempotent(self, zebra_repo: Path) -> None:
-        from dev10x.mcp.gate_tools import pin_supervisor_review
+        from dev10x.core.mcp.gate_tools import pin_supervisor_review
 
         await pin_supervisor_review(supervisor_review="none", cwd=str(zebra_repo))
         second = await pin_supervisor_review(supervisor_review="required", cwd=str(zebra_repo))
@@ -902,10 +902,12 @@ class TestSupervisorReviewPinTool:
     async def test_pin_reports_a_wire_error_outside_a_repo(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from dev10x.mcp.gate_tools import pin_supervisor_review
+        from dev10x.core.mcp.gate_tools import pin_supervisor_review
 
-        monkeypatch.setattr("dev10x.session.preset_pin._common_dir", lambda *, cwd: None)
-        monkeypatch.setattr("dev10x.session.preset_pin._bounded_toplevel", lambda *, cwd: None)
+        monkeypatch.setattr("dev10x.core.session.preset_pin._common_dir", lambda *, cwd: None)
+        monkeypatch.setattr(
+            "dev10x.core.session.preset_pin._bounded_toplevel", lambda *, cwd: None
+        )
 
         assert (
             "Not in a git repository"

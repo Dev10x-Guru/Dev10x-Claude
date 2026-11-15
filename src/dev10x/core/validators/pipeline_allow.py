@@ -34,16 +34,16 @@ from dataclasses import dataclass, field
 from pathlib import PurePosixPath
 from typing import ClassVar
 
-from dev10x.domain import HookAllow, HookInput
-from dev10x.domain.common.bash_tokens import (
+from dev10x.core.domain import HookAllow, HookInput
+from dev10x.core.domain.common.bash_tokens import (
     CommandSegment,
     UntokenizableCommandError,
     command_segments,
     substitution_bodies,
 )
-from dev10x.domain.profile_tier import ProfileTier
-from dev10x.validators.base import ValidatorBase
-from dev10x.validators.prefix_friction import (
+from dev10x.core.domain.profile_tier import ProfileTier
+from dev10x.core.validators.base import ValidatorBase
+from dev10x.core.validators.prefix_friction import (
     _load_all_allow_patterns,
     _matches_allow_rule,
 )

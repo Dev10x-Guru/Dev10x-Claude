@@ -1,4 +1,4 @@
-"""Unit tests for dev10x.scope.safeguards_renderer (GH-170)."""
+"""Unit tests for dev10x.scoping.scope.safeguards_renderer (GH-170)."""
 
 from __future__ import annotations
 
@@ -6,7 +6,8 @@ import json
 from pathlib import Path
 
 import pytest
-from dev10x.scope.safeguards_renderer import render_safeguards
+
+from dev10x.scoping.scope.safeguards_renderer import render_safeguards
 
 
 @pytest.fixture

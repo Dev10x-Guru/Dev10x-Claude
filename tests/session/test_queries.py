@@ -7,13 +7,14 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
-from dev10x.domain.documents.session_context import (
+
+from dev10x.core.domain.documents.session_context import (
     SessionContextQuery,
     format_compaction_summary,
     format_reload_context,
 )
-from dev10x.domain.documents.session_state import PlanSummary, SessionState
-from dev10x.domain.friction_level import FrictionLevel
+from dev10x.core.domain.documents.session_state import PlanSummary, SessionState
+from dev10x.core.domain.friction_level import FrictionLevel
 
 
 def _plan(*, tasks: list[dict] | None = None) -> PlanSummary:
@@ -155,16 +156,18 @@ class TestFormatCompactionSummary:
 class TestGatherReload:
     def test_returns_query_with_correct_toplevel(self, tmp_path: Path) -> None:
         with (
-            patch("dev10x.domain.documents.session_context.claim_state_file", return_value={}),
             patch(
-                "dev10x.domain.documents.session_context.state_path_for_toplevel",
+                "dev10x.core.domain.documents.session_context.claim_state_file", return_value={}
+            ),
+            patch(
+                "dev10x.core.domain.documents.session_context.state_path_for_toplevel",
                 return_value=tmp_path / "state.json",
             ),
             patch(
-                "dev10x.domain.documents.session_context.plan_path_for_toplevel",
+                "dev10x.core.domain.documents.session_context.plan_path_for_toplevel",
                 return_value=tmp_path / "plan.json",
             ),
-            patch("dev10x.domain.documents.session_context.SessionYamlDocument") as mock_doc,
+            patch("dev10x.core.domain.documents.session_context.SessionYamlDocument") as mock_doc,
         ):
             mock_doc.return_value.read_friction_level.return_value = FrictionLevel.default()
             ctx = SessionContextQuery.gather_reload(toplevel=str(tmp_path))
@@ -172,16 +175,18 @@ class TestGatherReload:
 
     def test_plan_exists_false_when_no_plan_file(self, tmp_path: Path) -> None:
         with (
-            patch("dev10x.domain.documents.session_context.claim_state_file", return_value={}),
             patch(
-                "dev10x.domain.documents.session_context.state_path_for_toplevel",
+                "dev10x.core.domain.documents.session_context.claim_state_file", return_value={}
+            ),
+            patch(
+                "dev10x.core.domain.documents.session_context.state_path_for_toplevel",
                 return_value=tmp_path / "state.json",
             ),
             patch(
-                "dev10x.domain.documents.session_context.plan_path_for_toplevel",
+                "dev10x.core.domain.documents.session_context.plan_path_for_toplevel",
                 return_value=tmp_path / "plan.json",
             ),
-            patch("dev10x.domain.documents.session_context.SessionYamlDocument") as mock_doc,
+            patch("dev10x.core.domain.documents.session_context.SessionYamlDocument") as mock_doc,
         ):
             mock_doc.return_value.read_friction_level.return_value = FrictionLevel.default()
             ctx = SessionContextQuery.gather_reload(toplevel=str(tmp_path))
@@ -191,20 +196,22 @@ class TestGatherReload:
         plan_file = tmp_path / "plan.json"
         plan_file.write_text("{}")
         with (
-            patch("dev10x.domain.documents.session_context.claim_state_file", return_value={}),
             patch(
-                "dev10x.domain.documents.session_context.state_path_for_toplevel",
+                "dev10x.core.domain.documents.session_context.claim_state_file", return_value={}
+            ),
+            patch(
+                "dev10x.core.domain.documents.session_context.state_path_for_toplevel",
                 return_value=tmp_path / "state.json",
             ),
             patch(
-                "dev10x.domain.documents.session_context.plan_path_for_toplevel",
+                "dev10x.core.domain.documents.session_context.plan_path_for_toplevel",
                 return_value=plan_file,
             ),
             patch(
-                "dev10x.domain.documents.session_context.read_plan_summary",
+                "dev10x.core.domain.documents.session_context.read_plan_summary",
                 return_value={"tasks": []},
             ),
-            patch("dev10x.domain.documents.session_context.SessionYamlDocument") as mock_doc,
+            patch("dev10x.core.domain.documents.session_context.SessionYamlDocument") as mock_doc,
         ):
             mock_doc.return_value.read_friction_level.return_value = FrictionLevel.default()
             ctx = SessionContextQuery.gather_reload(toplevel=str(tmp_path))
@@ -214,17 +221,18 @@ class TestGatherReload:
         fake_state = {"session_id": "test-123", "branch": "main"}
         with (
             patch(
-                "dev10x.domain.documents.session_context.claim_state_file", return_value=fake_state
+                "dev10x.core.domain.documents.session_context.claim_state_file",
+                return_value=fake_state,
             ),
             patch(
-                "dev10x.domain.documents.session_context.state_path_for_toplevel",
+                "dev10x.core.domain.documents.session_context.state_path_for_toplevel",
                 return_value=tmp_path / "state.json",
             ),
             patch(
-                "dev10x.domain.documents.session_context.plan_path_for_toplevel",
+                "dev10x.core.domain.documents.session_context.plan_path_for_toplevel",
                 return_value=tmp_path / "plan.json",
             ),
-            patch("dev10x.domain.documents.session_context.SessionYamlDocument") as mock_doc,
+            patch("dev10x.core.domain.documents.session_context.SessionYamlDocument") as mock_doc,
         ):
             mock_doc.return_value.read_friction_level.return_value = FrictionLevel.default()
             ctx = SessionContextQuery.gather_reload(toplevel=str(tmp_path))
@@ -241,13 +249,14 @@ class TestGatherCompaction:
     def test_returns_query_with_correct_toplevel(self, tmp_path: Path) -> None:
         with (
             patch(
-                "dev10x.domain.documents.session_context.GitContext", return_value=self._mock_git()
+                "dev10x.core.domain.documents.session_context.GitContext",
+                return_value=self._mock_git(),
             ),
             patch(
-                "dev10x.domain.documents.session_context.plan_path_for_toplevel",
+                "dev10x.core.domain.documents.session_context.plan_path_for_toplevel",
                 return_value=tmp_path / "plan.json",
             ),
-            patch("dev10x.domain.documents.session_context.SessionYamlDocument") as mock_doc,
+            patch("dev10x.core.domain.documents.session_context.SessionYamlDocument") as mock_doc,
         ):
             mock_doc.return_value.read_friction_level.return_value = FrictionLevel.default()
             ctx = SessionContextQuery.gather_compaction(toplevel=str(tmp_path))
@@ -256,14 +265,14 @@ class TestGatherCompaction:
     def test_branch_comes_from_git_context(self, tmp_path: Path) -> None:
         with (
             patch(
-                "dev10x.domain.documents.session_context.GitContext",
+                "dev10x.core.domain.documents.session_context.GitContext",
                 return_value=self._mock_git(branch="feature/test"),
             ),
             patch(
-                "dev10x.domain.documents.session_context.plan_path_for_toplevel",
+                "dev10x.core.domain.documents.session_context.plan_path_for_toplevel",
                 return_value=tmp_path / "plan.json",
             ),
-            patch("dev10x.domain.documents.session_context.SessionYamlDocument") as mock_doc,
+            patch("dev10x.core.domain.documents.session_context.SessionYamlDocument") as mock_doc,
         ):
             mock_doc.return_value.read_friction_level.return_value = FrictionLevel.default()
             ctx = SessionContextQuery.gather_compaction(toplevel=str(tmp_path))
@@ -274,13 +283,14 @@ class TestGatherCompaction:
         git_dir.mkdir()
         with (
             patch(
-                "dev10x.domain.documents.session_context.GitContext", return_value=self._mock_git()
+                "dev10x.core.domain.documents.session_context.GitContext",
+                return_value=self._mock_git(),
             ),
             patch(
-                "dev10x.domain.documents.session_context.plan_path_for_toplevel",
+                "dev10x.core.domain.documents.session_context.plan_path_for_toplevel",
                 return_value=tmp_path / "plan.json",
             ),
-            patch("dev10x.domain.documents.session_context.SessionYamlDocument") as mock_doc,
+            patch("dev10x.core.domain.documents.session_context.SessionYamlDocument") as mock_doc,
         ):
             mock_doc.return_value.read_friction_level.return_value = FrictionLevel.default()
             ctx = SessionContextQuery.gather_compaction(toplevel=str(tmp_path))
@@ -291,13 +301,14 @@ class TestGatherCompaction:
         git_file.write_text("gitdir: ../../.git/worktrees/foo")
         with (
             patch(
-                "dev10x.domain.documents.session_context.GitContext", return_value=self._mock_git()
+                "dev10x.core.domain.documents.session_context.GitContext",
+                return_value=self._mock_git(),
             ),
             patch(
-                "dev10x.domain.documents.session_context.plan_path_for_toplevel",
+                "dev10x.core.domain.documents.session_context.plan_path_for_toplevel",
                 return_value=tmp_path / "plan.json",
             ),
-            patch("dev10x.domain.documents.session_context.SessionYamlDocument") as mock_doc,
+            patch("dev10x.core.domain.documents.session_context.SessionYamlDocument") as mock_doc,
         ):
             mock_doc.return_value.read_friction_level.return_value = FrictionLevel.default()
             ctx = SessionContextQuery.gather_compaction(toplevel=str(tmp_path))
@@ -310,12 +321,14 @@ class TestGatherCompaction:
         mock_git.branch = "main"
         mock_git.run.side_effect = subprocess.CalledProcessError(1, "git")
         with (
-            patch("dev10x.domain.documents.session_context.GitContext", return_value=mock_git),
             patch(
-                "dev10x.domain.documents.session_context.plan_path_for_toplevel",
+                "dev10x.core.domain.documents.session_context.GitContext", return_value=mock_git
+            ),
+            patch(
+                "dev10x.core.domain.documents.session_context.plan_path_for_toplevel",
                 return_value=tmp_path / "plan.json",
             ),
-            patch("dev10x.domain.documents.session_context.SessionYamlDocument") as mock_doc,
+            patch("dev10x.core.domain.documents.session_context.SessionYamlDocument") as mock_doc,
         ):
             mock_doc.return_value.read_friction_level.return_value = FrictionLevel.default()
             ctx = SessionContextQuery.gather_compaction(toplevel=str(tmp_path))

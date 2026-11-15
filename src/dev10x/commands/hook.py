@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 import click
 
 if TYPE_CHECKING:
-    from dev10x.hooks.permission_diagnostics import DiagnosticResult
+    from dev10x.core.hooks.permission_diagnostics import DiagnosticResult
 
 _DEBUG = os.environ.get("HOOK_DEBUG", "") != ""
 
@@ -38,16 +38,16 @@ def validate_bash() -> None:
     Reads JSON from stdin, dispatches to registered validators.
     Exit codes: 0=allow, 2=block.
     """
-    from dev10x.domain.events.hook_event import HookEventName
-    from dev10x.hooks.audit_emit import audit_hook
+    from dev10x.core.domain.events.hook_event import HookEventName
+    from dev10x.core.hooks.audit_emit import audit_hook
 
     _run = audit_hook(name="validate-bash", event=HookEventName.PRE_TOOL_USE)(_validate_bash_body)
     _run()
 
 
 def _validate_bash_body() -> None:
-    from dev10x.hooks.hook_transport import emit, read_hook_input, select_result
-    from dev10x.validators import get_chain
+    from dev10x.core.hooks.hook_transport import emit, read_hook_input, select_result
+    from dev10x.core.validators import get_chain
 
     inp = read_hook_input()
     if inp.tool_name not in _COMMAND_TOOLS:
@@ -74,8 +74,8 @@ def validate_ship_gate() -> None:
 
     Reads JSON from stdin. Exit codes: 0=allow, 2=block.
     """
-    from dev10x.domain.events.hook_event import HookEventName
-    from dev10x.hooks.audit_emit import audit_hook
+    from dev10x.core.domain.events.hook_event import HookEventName
+    from dev10x.core.hooks.audit_emit import audit_hook
 
     _run = audit_hook(name="validate-ship-gate", event=HookEventName.PRE_TOOL_USE)(
         _validate_ship_gate_body
@@ -97,8 +97,8 @@ def validate_agent_brief() -> None:
 
     Reads JSON from stdin. Exit codes: 0=allow or hint, 2=block.
     """
-    from dev10x.domain.events.hook_event import HookEventName
-    from dev10x.hooks.audit_emit import audit_hook
+    from dev10x.core.domain.events.hook_event import HookEventName
+    from dev10x.core.hooks.audit_emit import audit_hook
 
     _run = audit_hook(name="validate-agent-brief", event=HookEventName.PRE_TOOL_USE)(
         _validate_agent_brief_body
@@ -111,8 +111,8 @@ def _validate_agent_brief_body() -> None:
 
 
 def _run_rule_subset(*, rule_ids: tuple[str, ...]) -> None:
-    from dev10x.hooks.hook_transport import emit, read_hook_input, select_result
-    from dev10x.validators import ValidatorChain, ValidatorRegistry, get_registry
+    from dev10x.core.hooks.hook_transport import emit, read_hook_input, select_result
+    from dev10x.core.validators import ValidatorChain, ValidatorRegistry, get_registry
 
     inp = read_hook_input()
     registry = get_registry()
@@ -178,10 +178,10 @@ def permission_denied() -> None:
     than hand-transcribed (GH-1406).
     Exit codes: 0 always (retry decision is in JSON output).
     """
-    from dev10x.domain.events.hook_event import HookEventName
-    from dev10x.hooks.audit_emit import audit_hook
-    from dev10x.hooks.hook_transport import emit, read_hook_input
-    from dev10x.validators import get_chain
+    from dev10x.core.domain.events.hook_event import HookEventName
+    from dev10x.core.hooks.audit_emit import audit_hook
+    from dev10x.core.hooks.hook_transport import emit, read_hook_input
+    from dev10x.core.validators import get_chain
 
     @audit_hook(name="permission-denied", event=HookEventName.PERMISSION_DENIED)
     def _body() -> None:
@@ -209,8 +209,8 @@ def _record_denied_tool(*, result: DiagnosticResult) -> None:
     rule needs under a name of its own; `reason` alone would collapse
     the signature and the diagnosis into one unparseable string.
     """
-    from dev10x.hooks.audit_emit import set_decision_attribution
-    from dev10x.skills.permission.catalog_gap import rule_family
+    from dev10x.core.hooks.audit_emit import set_decision_attribution
+    from dev10x.core.skills.permission.catalog_gap import rule_family
 
     set_decision_attribution(
         rule_id="permission-denied",
@@ -224,7 +224,7 @@ def _record_denied_tool(*, result: DiagnosticResult) -> None:
 
 def _run_permission_diagnostics(*, raw: dict, cwd: str) -> None:
     try:
-        from dev10x.hooks.permission_diagnostics import diagnose, format_diagnostic
+        from dev10x.core.hooks.permission_diagnostics import diagnose, format_diagnostic
 
         result = diagnose(raw=raw, cwd=cwd)
         if result is None:
@@ -265,7 +265,7 @@ def _record_diagnostics_failure() -> None:
     """
     log.warning("permission_diagnostics raised — diagnostic degraded", exc_info=True)
     try:
-        from dev10x.hooks.audit_emit import set_decision_attribution
+        from dev10x.core.hooks.audit_emit import set_decision_attribution
 
         set_decision_attribution(
             rule_id="permission-diagnostics-failed",
@@ -291,7 +291,7 @@ def validate_edit(config_path: Path | None, debug: bool) -> None:
     """
     import json
 
-    from dev10x.hooks.edit_validator import validate_edit_write
+    from dev10x.core.hooks.edit_validator import validate_edit_write
 
     try:
         data = json.load(sys.stdin)
@@ -313,7 +313,7 @@ def session() -> None:
 @session.command(name="reload")
 def session_reload_cmd() -> None:
     """Reload prior session state (SessionStart hook)."""
-    from dev10x.hooks.session import session_reload
+    from dev10x.core.hooks.session import session_reload
 
     session_reload()
 
@@ -321,7 +321,7 @@ def session_reload_cmd() -> None:
 @session.command(name="compact")
 def session_compact_cmd() -> None:
     """Restore context after compaction (SessionStart hook, source: compact)."""
-    from dev10x.hooks.session import context_compact
+    from dev10x.core.hooks.session import context_compact
 
     context_compact()
 
@@ -329,7 +329,7 @@ def session_compact_cmd() -> None:
 @session.command(name="tmpdir")
 def session_tmpdir_cmd() -> None:
     """Create session scratch directory and install mktmp.sh (SessionStart hook)."""
-    from dev10x.hooks.session import session_tmpdir
+    from dev10x.core.hooks.session import session_tmpdir
 
     session_tmpdir()
 
@@ -337,7 +337,7 @@ def session_tmpdir_cmd() -> None:
 @session.command(name="guidance")
 def session_guidance_cmd() -> None:
     """Output session-guidance.md as additionalContext (SessionStart hook)."""
-    from dev10x.hooks.session import session_guidance
+    from dev10x.core.hooks.session import session_guidance
 
     session_guidance()
 
@@ -345,7 +345,7 @@ def session_guidance_cmd() -> None:
 @session.command(name="git-aliases")
 def session_git_aliases_cmd() -> None:
     """Check git branch-comparison aliases and report status (SessionStart hook)."""
-    from dev10x.hooks.session import session_git_aliases
+    from dev10x.core.hooks.session import session_git_aliases
 
     session_git_aliases()
 
@@ -353,7 +353,7 @@ def session_git_aliases_cmd() -> None:
 @session.command(name="migrate-permissions")
 def session_migrate_permissions_cmd() -> None:
     """Migrate stale plugin permission rules to current version (SessionStart hook)."""
-    from dev10x.hooks.session import session_migrate_permissions
+    from dev10x.core.hooks.session import session_migrate_permissions
 
     session_migrate_permissions()
 
@@ -361,7 +361,7 @@ def session_migrate_permissions_cmd() -> None:
 @session.command(name="persist")
 def session_persist_cmd() -> None:
     """Persist session state to disk for next-session reload (SessionStop hook)."""
-    from dev10x.hooks.session import session_persist
+    from dev10x.core.hooks.session import session_persist
 
     session_persist()
 
@@ -369,7 +369,7 @@ def session_persist_cmd() -> None:
 @session.command(name="goodbye")
 def session_goodbye_cmd() -> None:
     """Output goodbye message with community link and resume hint (SessionStop hook)."""
-    from dev10x.hooks.session import session_goodbye
+    from dev10x.core.hooks.session import session_goodbye
 
     session_goodbye()
 
@@ -382,7 +382,7 @@ def skill() -> None:
 @skill.command(name="tmpdir")
 def skill_tmpdir_cmd() -> None:
     """Create scratch directory for skill (PreToolUse hook)."""
-    from dev10x.hooks.skill import skill_tmpdir
+    from dev10x.core.hooks.skill import skill_tmpdir
 
     skill_tmpdir()
 
@@ -390,7 +390,7 @@ def skill_tmpdir_cmd() -> None:
 @skill.command(name="metrics")
 def skill_metrics_cmd() -> None:
     """Append skill invocation metric to JSONL file (PostToolUse hook)."""
-    from dev10x.hooks.skill import skill_metrics
+    from dev10x.core.hooks.skill import skill_metrics
 
     skill_metrics()
 
@@ -398,7 +398,7 @@ def skill_metrics_cmd() -> None:
 @hook.command(name="ruff-format")
 def ruff_format_cmd() -> None:
     """Auto-format Python files with ruff after Edit/Write (PostToolUse hook)."""
-    from dev10x.hooks.skill import ruff_format
+    from dev10x.core.hooks.skill import ruff_format
 
     ruff_format()
 

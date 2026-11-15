@@ -4,7 +4,7 @@ The plan-sync hooks mirror the session task list into
 `<git-toplevel>/.claude/session/plan.yaml`.
 The Stop verdict and the task guard read it through the core reader
 `dev10x.core.plan_mirror` (GH-1530, ADR-0034 Stage A0).
-The writer stays in `dev10x.domain.documents.plan.Plan` until NS-15
+The writer stays in `dev10x.core.domain.documents.plan.Plan` until NS-15
 moves it to the task-management plugin; the reader contract below
 must not change when it does.
 

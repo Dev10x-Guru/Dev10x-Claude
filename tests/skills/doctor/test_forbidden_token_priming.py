@@ -7,13 +7,13 @@ from pathlib import Path
 import pytest
 
 strategy_mod = pytest.importorskip(
-    "dev10x.skills.doctor.strategies.forbidden_token_priming",
+    "dev10x.core.skills.doctor.strategies.forbidden_token_priming",
     reason="dev10x not installed",
 )
-from dev10x.skills.doctor.strategies.forbidden_token_priming import (  # noqa: E402
+from dev10x.core.skills.doctor.strategies.forbidden_token_priming import (  # noqa: E402
     ForbiddenTokenRemediation,
 )
-from dev10x.skills.doctor.strategy import Context, Finding  # noqa: E402
+from dev10x.core.skills.doctor.strategy import Context, Finding  # noqa: E402
 
 
 class TestDetect:

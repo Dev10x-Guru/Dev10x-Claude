@@ -12,15 +12,15 @@ import json
 from pathlib import Path
 
 import pytest
-from dev10x.hooks.session_dispatch import build_stop_verdict
-from dev10x.hooks.stop_verdict import (
+
+from dev10x.core.hooks import session_dispatch
+from dev10x.core.hooks.session_dispatch import build_stop_verdict
+from dev10x.core.hooks.stop_verdict import (
     StopSignal,
     decide,
     plan_is_foreign,
     read_session_start,
 )
-
-from dev10x.hooks import session_dispatch
 
 _STARTED = "2026-09-26T10:00:00.000Z"
 

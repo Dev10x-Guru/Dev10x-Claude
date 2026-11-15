@@ -40,8 +40,8 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from dev10x.domain.common.result import Result, ok
-from dev10x.domain.common.singleton_holder import SingletonHolder
+from dev10x.core.domain.common.result import Result, ok
+from dev10x.core.domain.common.singleton_holder import SingletonHolder
 
 if TYPE_CHECKING:  # pragma: no cover
     from mcp.server.session import ServerSession
@@ -235,7 +235,7 @@ def list_roots() -> Result[dict[str, Any]]:
     """Return the client-declared roots payload (GH-344, GH-502).
 
     Backing domain function for the ``list_client_roots`` MCP tool. Returns
-    a :class:`~dev10x.domain.common.result.Result` so the handler can unwrap
+    a :class:`~dev10x.core.domain.common.result.Result` so the handler can unwrap
     it via ``to_wire()`` like every other tool at the MCP boundary
     (ADR-0009). There is no error path today — the payload is always a
     success — but the two-layer shape keeps the tool consistent and leaves

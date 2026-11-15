@@ -1,6 +1,6 @@
 """GH-588: the transcript grammar has one source of truth.
 
-``dev10x.audit.transcript_grammar`` owns the regexes.
+``dev10x.teach.audit.transcript_grammar`` owns the regexes.
 ``friction_transcript_model`` imports them (identity check).
 ``analyze_actions`` is a PEP 723 standalone uv-script that mirrors them
 inline; these tests assert the mirror never drifts from the source of
@@ -11,9 +11,11 @@ from __future__ import annotations
 
 import pytest
 
-grammar = pytest.importorskip("dev10x.audit.transcript_grammar", reason="dev10x not installed")
-from dev10x.audit import friction_transcript_model  # noqa: E402
-from dev10x.skills.audit import analyze_actions  # noqa: E402
+grammar = pytest.importorskip(
+    "dev10x.teach.audit.transcript_grammar", reason="dev10x not installed"
+)
+from dev10x.teach.audit import friction_transcript_model  # noqa: E402
+from dev10x.teach.skills.audit import analyze_actions  # noqa: E402
 
 NAMES = ["TURN_RE", "TOOL_RE", "TOOL_INPUT_BLOCK_RE"]
 

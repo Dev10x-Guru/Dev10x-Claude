@@ -53,7 +53,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from dev10x.domain.common.singleton_holder import SingletonHolder
+from dev10x.core.domain.common.singleton_holder import SingletonHolder
 
 if TYPE_CHECKING:  # pragma: no cover
     from mcp.server.session import ServerSession

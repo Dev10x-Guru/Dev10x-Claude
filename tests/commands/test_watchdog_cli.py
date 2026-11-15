@@ -7,9 +7,9 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
-from dev10x.domain.common.result import err, ok
 
 from dev10x.cli import cli
+from dev10x.core.domain.common.result import err, ok
 
 
 @pytest.fixture()
@@ -33,7 +33,7 @@ class TestRegistration:
 class TestProbe:
     def test_json_output(self, runner: CliRunner, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
-            "dev10x.domain.watchdog.quota_state",
+            "dev10x.core.domain.watchdog.quota_state",
             lambda **_: ok({"block_available": True, "active_block": None}),
         )
         result = runner.invoke(cli, ["watchdog", "probe", "--json"])
@@ -44,7 +44,7 @@ class TestProbe:
         self, runner: CliRunner, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(
-            "dev10x.domain.watchdog.quota_state", lambda **_: err("no transcripts")
+            "dev10x.core.domain.watchdog.quota_state", lambda **_: err("no transcripts")
         )
         result = runner.invoke(cli, ["watchdog", "probe"])
         assert result.exit_code == 1
@@ -55,7 +55,7 @@ class TestSessions:
         self, runner: CliRunner, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
         monkeypatch.setattr(
-            "dev10x.domain.watchdog.find_paused_runs",
+            "dev10x.core.domain.watchdog.find_paused_runs",
             lambda **_: ok({"candidates": [{"run_dir": "/runs/a"}], "count": 1}),
         )
         result = runner.invoke(
@@ -87,7 +87,7 @@ class TestWake:
             seen.update(kwargs)
             return ok({"woken": []})
 
-        monkeypatch.setattr("dev10x.domain.watchdog.wake", _fake_wake)
+        monkeypatch.setattr("dev10x.core.domain.watchdog.wake", _fake_wake)
         result = runner.invoke(
             cli,
             [
@@ -110,7 +110,7 @@ class TestWake:
         # --json makes stdout a parsed surface, so a consumer must never
         # see empty stdout on failure.
         monkeypatch.setattr(
-            "dev10x.domain.watchdog.wake", lambda **_: err("no run roots configured")
+            "dev10x.core.domain.watchdog.wake", lambda **_: err("no run roots configured")
         )
         result = runner.invoke(
             cli,

@@ -6,15 +6,15 @@ import json
 from pathlib import Path
 
 import pytest
-from dev10x.skills.doctor.registry import load_strategies
-from dev10x.skills.doctor.strategies.satellite_dependencies import (
+
+from dev10x.core.plugin_map import PluginMap, load_plugin_map
+from dev10x.core.skills.doctor.registry import load_strategies
+from dev10x.core.skills.doctor.strategies.satellite_dependencies import (
     STRATEGY,
     detect,
     detect_with_map,
 )
-from dev10x.skills.doctor.strategy import Context, Finding
-
-from dev10x.core.plugin_map import PluginMap, load_plugin_map
+from dev10x.core.skills.doctor.strategy import Context, Finding
 
 PLUGIN_MAP = PluginMap(
     plugins={"core": ("afk",), "tasks": ("park",), "coding": ("work-on",), "qa": ("tts",)},

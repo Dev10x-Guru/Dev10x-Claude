@@ -22,8 +22,8 @@ from dataclasses import dataclass
 from fnmatch import fnmatchcase
 from pathlib import Path
 
-from dev10x.domain.common.tracker_choice import TRACKER_SERVER_ALIASES, Tracker
-from dev10x.skills.doctor.strategy import Context, Finding, Remediation, Strategy
+from dev10x.core.domain.common.tracker_choice import TRACKER_SERVER_ALIASES, Tracker
+from dev10x.core.skills.doctor.strategy import Context, Finding, Remediation, Strategy
 
 STRATEGY_ID = "tracker-alias-parity"
 _MCP_PREFIX = "mcp__"

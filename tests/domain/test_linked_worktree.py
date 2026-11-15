@@ -1,11 +1,12 @@
-"""Tests for dev10x.domain.linked_worktree (GH-1493)."""
+"""Tests for dev10x.core.domain.linked_worktree (GH-1493)."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
 import pytest
-from dev10x.domain.linked_worktree import main_checkout
+
+from dev10x.core.domain.linked_worktree import main_checkout
 
 
 @pytest.fixture

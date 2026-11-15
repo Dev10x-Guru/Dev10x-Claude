@@ -36,10 +36,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import ClassVar
 
-from dev10x.domain import HookAllow, HookAsk, HookInput
-from dev10x.domain.common.bash_tokens import is_simple_command
-from dev10x.domain.profile_tier import ProfileTier
-from dev10x.domain.sensitivity import (
+from dev10x.core.domain import HookAllow, HookAsk, HookInput
+from dev10x.core.domain.common.bash_tokens import is_simple_command
+from dev10x.core.domain.profile_tier import ProfileTier
+from dev10x.core.domain.sensitivity import (
     ExceptionEffect,
     SensitivityClassifier,
     SensitivityException,
@@ -47,8 +47,8 @@ from dev10x.domain.sensitivity import (
     SensitivityPattern,
     resolve_exception_effect,
 )
-from dev10x.validators.base import ValidatorBase
-from dev10x.validators.sensitivity_exceptions import load_sensitivity_exceptions
+from dev10x.core.validators.base import ValidatorBase
+from dev10x.core.validators.sensitivity_exceptions import load_sensitivity_exceptions
 
 _ASK_MSG_TEMPLATE = """\
 ⚠️  Sensitive target detected — command requires review before execution.

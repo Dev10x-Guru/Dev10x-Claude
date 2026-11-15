@@ -6,9 +6,9 @@ import json
 from pathlib import Path
 
 import pytest
-from dev10x.domain.common.result import ErrorResult, SuccessResult
 
-from dev10x.skills.permission import enumerate_mcp
+from dev10x.core.domain.common.result import ErrorResult, SuccessResult
+from dev10x.core.skills.permission import enumerate_mcp
 
 
 class TestDiscoverMcpTools:
@@ -21,7 +21,7 @@ class TestDiscoverMcpTools:
         src = tmp_path / "src" / "dev10x" / "mcp"
         src.mkdir(parents=True)
         (src / "github_tools.py").write_text(
-            "from dev10x.mcp._app import server\n"
+            "from dev10x.core.mcp._app import server\n"
             "\n"
             "@server.tool()\n"
             "async def alpha() -> dict: pass\n"
@@ -29,7 +29,7 @@ class TestDiscoverMcpTools:
             "def _private(): pass\n"
         )
         (src / "git_tools.py").write_text(
-            "from dev10x.mcp._app import server\n"
+            "from dev10x.core.mcp._app import server\n"
             "\n"
             "@server.tool()\n"
             "async def beta() -> dict: pass\n"

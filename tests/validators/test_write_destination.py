@@ -5,13 +5,13 @@ from __future__ import annotations
 from pathlib import Path, PurePosixPath
 
 import pytest
-from dev10x.domain.dev10x_paths import Dev10xConfigDir
-from dev10x.validators.write_destination import (
+
+from dev10x.core.domain import HookResult
+from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.core.validators.write_destination import (
     WriteDestinationValidator,
     _destinations,
 )
-
-from dev10x.domain import HookResult
 from tests.fakers import BashHookInputFaker
 
 REPO = "/work/dx/repo"
@@ -32,7 +32,7 @@ def synthetic_root(monkeypatch: pytest.MonkeyPatch) -> None:
     exercises the real resolution.
     """
     monkeypatch.setattr(
-        "dev10x.validators.write_destination._working_tree",
+        "dev10x.core.validators.write_destination._working_tree",
         lambda *, cwd: PurePosixPath(cwd),
     )
 

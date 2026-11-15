@@ -15,7 +15,7 @@ to notice quickly, and it is the mode this exists for.
 does not re-send, schedule, or track delivery state. Nothing reads the
 file; a person greps it in the morning. Adding a retry subsystem here
 would be a different feature with a different failure mode, and
-``dev10x.domain.retry`` already covers the transient case *before* a
+``dev10x.core.domain.retry`` already covers the transient case *before* a
 message reaches this sink.
 """
 
@@ -27,8 +27,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from dev10x.domain.dev10x_paths import Dev10xConfigDir
-from dev10x.domain.file_locks import atomic_append_line
+from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.core.domain.file_locks import atomic_append_line
 
 log = logging.getLogger(__name__)
 

@@ -14,7 +14,7 @@ from typing import Any
 
 import click
 
-from dev10x.domain.common.result import ErrorResult, Result
+from dev10x.core.domain.common.result import ErrorResult, Result
 
 
 @click.group()
@@ -63,7 +63,7 @@ _stale_option = click.option(
 @_json_option
 def probe(*, as_json: bool) -> None:
     """Report the active 5h block and whether a fresh one is available."""
-    from dev10x.domain.watchdog import quota_state
+    from dev10x.core.domain.watchdog import quota_state
 
     _emit(quota_state(), as_json=as_json)
 
@@ -74,7 +74,7 @@ def probe(*, as_json: bool) -> None:
 @_json_option
 def sessions(*, run_roots: tuple[Path, ...], stale_after: int, as_json: bool) -> None:
     """List run directories whose heartbeats have gone silent."""
-    from dev10x.domain.watchdog import find_paused_runs
+    from dev10x.core.domain.watchdog import find_paused_runs
 
     _emit(
         find_paused_runs(
@@ -118,7 +118,7 @@ def wake_command_entry(
     """
     import shlex
 
-    from dev10x.domain.watchdog import wake
+    from dev10x.core.domain.watchdog import wake
 
     _emit(
         wake(

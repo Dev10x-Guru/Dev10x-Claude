@@ -9,9 +9,9 @@ import json
 from typing import Any
 
 from dev10x.core.db_script import DB_PLUGIN_NAME, db_script
-from dev10x.domain.common.result import Result, err, ok
-from dev10x.domain.rules.sql import is_read_only_sql
-from dev10x.subprocess_utils import SCRIPT_NOT_FOUND, get_plugin_root, run_script
+from dev10x.core.domain.common.result import Result, err, ok
+from dev10x.core.domain.rules.sql import is_read_only_sql
+from dev10x.core.subprocess_utils import SCRIPT_NOT_FOUND, get_plugin_root, run_script
 
 
 def query(database: str, sql: str) -> Result[dict[str, Any]]:

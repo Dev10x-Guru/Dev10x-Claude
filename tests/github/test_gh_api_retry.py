@@ -12,7 +12,8 @@ import subprocess
 
 import pytest
 
-import dev10x.github as gh
+import dev10x.coding.github as gh
+from dev10x.core.github import _gateway as gateway
 from tests.fakers.process import completed as _completed
 
 
@@ -24,7 +25,7 @@ def no_real_sleeping(monkeypatch: pytest.MonkeyPatch) -> list[float]:
     async def fake_sleep(seconds: float) -> None:
         slept.append(seconds)
 
-    monkeypatch.setattr(gh._gateway.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(gateway.asyncio, "sleep", fake_sleep)
     return slept
 
 
@@ -49,7 +50,7 @@ class TestGhApiRawRetries:
             _completed(returncode=1, stderr="HTTP 429: API rate limit exceeded"),
             _completed(returncode=0, stdout='{"ok": true}'),
         ]
-        monkeypatch.setattr(gh._gateway, "async_run", self._replaying(outcomes, calls))
+        monkeypatch.setattr(gateway, "async_run", self._replaying(outcomes, calls))
 
         result = await gh._gh_api_raw("repos/o/r/pulls/1")
 
@@ -64,7 +65,7 @@ class TestGhApiRawRetries:
     ) -> None:
         calls: list = []
         monkeypatch.setattr(
-            gh._gateway, "async_run", self._replaying([_completed(returncode=0)], calls)
+            gateway, "async_run", self._replaying([_completed(returncode=0)], calls)
         )
 
         await gh._gh_api_raw("repos/o/r")
@@ -88,7 +89,7 @@ class TestGhApiRawRetries:
     ) -> None:
         calls: list = []
         monkeypatch.setattr(
-            gh._gateway,
+            gateway,
             "async_run",
             self._replaying([_completed(returncode=1, stderr=stderr)], calls),
         )
@@ -115,7 +116,7 @@ class TestGhApiRawRetries:
         """A 404 is not more likely to exist on the second ask."""
         calls: list = []
         monkeypatch.setattr(
-            gh._gateway,
+            gateway,
             "async_run",
             self._replaying([_completed(returncode=1, stderr=stderr)], calls),
         )
@@ -136,7 +137,7 @@ class TestGhApiRawRetries:
         """
         calls: list = []
         monkeypatch.setattr(
-            gh._gateway,
+            gateway,
             "async_run",
             self._replaying([_completed(returncode=-1, stderr="Process timed out")], calls),
         )
@@ -154,7 +155,7 @@ class TestGhApiRawRetries:
     ) -> None:
         calls: list = []
         monkeypatch.setattr(
-            gh._gateway,
+            gateway,
             "async_run",
             self._replaying([_completed(returncode=1, stderr="HTTP 429\nRetry-After: 2")], calls),
         )
@@ -171,7 +172,7 @@ class TestGhApiRawRetries:
     ) -> None:
         calls: list = []
         monkeypatch.setattr(
-            gh._gateway,
+            gateway,
             "async_run",
             self._replaying([_completed(returncode=1, stderr="HTTP 503")], calls),
         )

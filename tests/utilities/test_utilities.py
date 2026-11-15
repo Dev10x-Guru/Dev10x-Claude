@@ -5,13 +5,13 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-util_mod = pytest.importorskip("dev10x.utilities", reason="dev10x not installed")
-from dev10x.domain.common.result import ErrorResult, SuccessResult  # noqa: E402
+util_mod = pytest.importorskip("dev10x.core.utilities", reason="dev10x not installed")
+from dev10x.core.domain.common.result import ErrorResult, SuccessResult  # noqa: E402
 
 
 class TestMktmp:
     @pytest.mark.asyncio
-    @patch("dev10x.utilities.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.core.utilities.async_run_script", new_callable=AsyncMock)
     async def test_returns_path_on_success(self, mock_run: AsyncMock) -> None:
         mock_run.return_value = subprocess.CompletedProcess(
             args=[],
@@ -24,7 +24,7 @@ class TestMktmp:
         assert result.value == {"path": "/tmp/Dev10x/git/msg.abc.txt"}
 
     @pytest.mark.asyncio
-    @patch("dev10x.utilities.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.core.utilities.async_run_script", new_callable=AsyncMock)
     async def test_returns_structured_error_on_failure(self, mock_run: AsyncMock) -> None:
         mock_run.return_value = subprocess.CompletedProcess(
             args=[],

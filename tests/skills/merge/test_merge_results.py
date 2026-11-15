@@ -4,10 +4,10 @@ from datetime import UTC, datetime
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from dev10x.domain.common.result import ErrorResult, SuccessResult
 from tests.fakers.process import completed as _completed
 
 from dev10x.coding.merge import audit_handoff_report, reconcile_fixes_links
+from dev10x.core.domain.common.result import ErrorResult, SuccessResult
 
 HEAD = "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0"
 

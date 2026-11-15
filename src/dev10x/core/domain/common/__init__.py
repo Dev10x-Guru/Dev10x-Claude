@@ -15,6 +15,6 @@ state. Document deviations explicitly rather than introducing a
 mutable variant by accident.
 
 This package re-exports nothing — import the concrete type from its
-sibling module (e.g. ``from dev10x.domain.common.branch_name import
+sibling module (e.g. ``from dev10x.core.domain.common.branch_name import
 BranchName``).
 """

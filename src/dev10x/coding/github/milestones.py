@@ -1,7 +1,7 @@
 """Milestone capability (ADR-0027).
 
 Dependencies are reached through ``_gateway.<name>`` (ADR-0027 D2), so a
-test patches ``dev10x.github._gateway.<name>`` and intercepts every caller.
+test patches ``dev10x.core.github._gateway.<name>`` and intercepts every caller.
 """
 
 from __future__ import annotations
@@ -10,10 +10,10 @@ import asyncio
 import json
 from typing import Any
 
+from dev10x.core.domain.common.repository_ref import RepositoryRef
+from dev10x.core.domain.common.result import ErrorResult, Result, err, ok
+from dev10x.core.domain.milestone_prefixes import unregistered_prefix_error
 from dev10x.core.github import _gateway
-from dev10x.domain.common.repository_ref import RepositoryRef
-from dev10x.domain.common.result import ErrorResult, Result, err, ok
-from dev10x.domain.milestone_prefixes import unregistered_prefix_error
 
 
 async def _resolve_milestone_number(

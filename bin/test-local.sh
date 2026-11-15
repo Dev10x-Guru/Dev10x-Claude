@@ -109,8 +109,8 @@ uv pip install --python "$venv/bin/python" "$wheel" "mcp>=1.0,<2" >/dev/null
 header "Phase 3 · Smoke the packaged artifact"
 step "dev10x --help ..."
 "$venv/bin/dev10x" --help >/dev/null
-step "import dev10x.mcp.server_cli, dev10x.mcp.server_db ..."
-"$venv/bin/python" -c "import dev10x.mcp.server_cli, dev10x.mcp.server_db"
+step "import dev10x.mcp.server_cli, dev10x.db.mcp.server_db ..."
+"$venv/bin/python" -c "import dev10x.mcp.server_cli, dev10x.db.mcp.server_db"
 echo -e "  ${GREEN}✓ Packaged CLI + MCP server modules import cleanly${RESET}"
 
 if [[ "$RUN_VERIFY" == "1" ]]; then

@@ -5,14 +5,14 @@ classification passes both judge rules — but before PAP-5 their output
 was prose keyed on bare rule strings. This module is the protocol
 surface both tools report through: findings become
 :class:`PolicyAssessment` records attached to the policies they judge
-(via :func:`dev10x.domain.common.policy_resolution.attach_assessments`),
+(via :func:`dev10x.core.domain.common.policy_resolution.attach_assessments`),
 and the report renders each finding against its typed Policy entry —
 signature, tier, source, and effect — instead of a bare string.
 """
 
 from __future__ import annotations
 
-from dev10x.domain.common.policy import Policy, PolicyAssessment
+from dev10x.core.domain.common.policy import Policy, PolicyAssessment
 
 INVESTIGATOR_KIND = "investigator"
 AUDITOR_KIND = "auditor"

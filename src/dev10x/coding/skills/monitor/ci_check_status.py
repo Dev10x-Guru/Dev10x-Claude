@@ -131,8 +131,8 @@ import time
 from dataclasses import dataclass
 from typing import NoReturn
 
-from dev10x.domain.common.repository_ref import RepositoryRef
-from dev10x.domain.polling import Deadline
+from dev10x.core.domain.common.repository_ref import RepositoryRef
+from dev10x.core.domain.polling import Deadline
 
 # Bound every gh subprocess so a wedged CLI cannot hang the poll loop
 # indefinitely (GH-824), matching pr_notify.py / slack_review_request.py.
@@ -966,7 +966,7 @@ def poll_until_terminal(
 
     The poll budget is kept below the MCP idle-timeout so a `wait=true`
     call returns a verdict rather than being torn down mid-poll (GH-808
-    F2). `dev10x.monitor` no longer trusts its caller for that: it asks
+    F2). `dev10x.coding.monitor` no longer trusts its caller for that: it asks
     `polls_within_budget` how many polls `MAX_TOOL_CALL_SECONDS` affords
     and passes that number here, so `--max-polls` arrives already
     reduced (GH-1288). At the defaults it grants 32, making the in-loop

@@ -11,17 +11,17 @@ from pathlib import Path
 
 import pytest
 import yaml
-from dev10x.domain.common.result import ErrorResult, err, ok
-from dev10x.domain.dev10x_paths import Dev10xConfigDir
-from dev10x.domain.gate_policy import MIGRATOR_COMMAND, GateContext
 
-from dev10x import github as github_module
-from dev10x.mcp.gate_query import (
+from dev10x.coding import github as github_module
+from dev10x.core.domain.common.result import ErrorResult, err, ok
+from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.core.domain.gate_policy import MIGRATOR_COMMAND, GateContext
+from dev10x.core.mcp.gate_query import (
     REVIEW_CLEARED_LABEL,
     GateResolutionOutcome,
     GateResolutionQuery,
 )
-from dev10x.session import preset_pin
+from dev10x.core.session import preset_pin
 
 
 def _write_config(toplevel: Path, body: str) -> None:

@@ -1,11 +1,12 @@
-"""Unit tests for dev10x.scope.norms_renderer (GH-170)."""
+"""Unit tests for dev10x.scoping.scope.norms_renderer (GH-170)."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
 import pytest
-from dev10x.scope.norms_renderer import render_norms
+
+from dev10x.scoping.scope.norms_renderer import render_norms
 
 
 @pytest.fixture
@@ -36,7 +37,7 @@ class TestRenderNorms:
 
     def test_renders_header(self, index_file: Path) -> None:
         out = render_norms(affected_files=["src/foo.py"], index_path=index_file)
-        assert "Auto-populated by dev10x.scope.norms_renderer" in out
+        assert "Auto-populated by dev10x.scoping.scope.norms_renderer" in out
 
     def test_no_matches_returns_empty_body(self, index_file: Path) -> None:
         out = render_norms(affected_files=["docs/readme.txt"], index_path=index_file)

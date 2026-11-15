@@ -1,7 +1,7 @@
 """Detect unbounded subprocess calls in PEP 723 uv-scripts (GH-1414).
 
 In-package code routes subprocess work through
-`dev10x.subprocess_utils`, which bounds every call. A PEP 723
+`dev10x.core.subprocess_utils`, which bounds every call. A PEP 723
 standalone script runs in a fresh isolated interpreter that cannot
 import `dev10x` at all, so `.claude/rules/mcp-tools.md` asks each one to
 declare a local `_SUBPROCESS_TIMEOUT_SECONDS` and pass `timeout=`
@@ -37,7 +37,7 @@ import ast
 import logging
 from pathlib import Path
 
-from dev10x.repo_scan import SKIPPED_DIRS, walk_repository
+from dev10x.repo_scan import walk_repository
 
 _logger = logging.getLogger(__name__)
 

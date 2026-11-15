@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from dev10x.domain.log_redaction import REDACTED
 
 import dev10x.mcp.server_cli as server_cli
 from dev10x.commands.skill import skill
@@ -24,6 +23,7 @@ from dev10x.core.diagnostic_log import (
     configure_diagnostic_log,
     log_dir,
 )
+from dev10x.core.domain.log_redaction import REDACTED
 
 
 @pytest.fixture
@@ -77,7 +77,9 @@ def test_skill_group_attaches_the_skill_sink(configure_calls: list[str]) -> None
 def test_mcp_main_attaches_the_mcp_sink(
     configure_calls: list[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr("dev10x.mcp.wiring.select_transport_with_daemon_fallback", lambda: "stdio")
+    monkeypatch.setattr(
+        "dev10x.core.mcp.wiring.select_transport_with_daemon_fallback", lambda: "stdio"
+    )
     monkeypatch.setattr(server_cli.server, "run", lambda *, transport: None)
 
     server_cli.main()

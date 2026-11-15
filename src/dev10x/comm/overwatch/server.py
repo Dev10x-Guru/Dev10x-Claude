@@ -98,8 +98,8 @@ from dev10x.comm.overwatch.workspace import (
     read_workspace,
 )
 from dev10x.comm.skills.bus.maildir import InvalidMessageError
-from dev10x.domain.common.result import ErrorResult, Result
-from dev10x.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.core.domain.common.result import ErrorResult, Result
+from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
 
 log = logging.getLogger(__name__)
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from dev10x.skills.permission.resolve import resolve_report
+from dev10x.core.skills.permission.resolve import resolve_report
 
 
 def _flat_layer(tmp_path: Path, *, allow: list[str]) -> Path:

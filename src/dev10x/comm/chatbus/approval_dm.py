@@ -22,7 +22,7 @@ from typing import Any
 
 from dev10x.comm.chatbus.authz import APPROVE_COMMAND, APPROVE_REACTION
 from dev10x.comm.chatbus.sources.google_http import CHAT_API, NOT_FOUND, GoogleJsonClient
-from dev10x.domain.common.result import ErrorResult, Result, err, ok
+from dev10x.core.domain.common.result import ErrorResult, Result, err, ok
 
 log = logging.getLogger(__name__)
 

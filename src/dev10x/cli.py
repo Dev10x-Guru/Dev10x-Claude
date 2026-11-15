@@ -74,6 +74,6 @@ def cli(ctx: click.Context) -> None:
     scripts and docs. Equivalent to `dev10x config root`.
     """
     if ctx.invoked_subcommand is None:
-        from dev10x.domain.dev10x_paths import Dev10xConfigDir
+        from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
 
         click.echo(Dev10xConfigDir.home())

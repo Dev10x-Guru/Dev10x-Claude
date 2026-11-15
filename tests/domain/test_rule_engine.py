@@ -4,10 +4,11 @@ from pathlib import Path
 
 import pytest
 import yaml
-from dev10x.domain.common.config_io import ConfigIOError
-from dev10x.domain.documents.config_document import Config
-from dev10x.domain.rules.rule_engine import RuleEngine
-from dev10x.domain.rules.validation_rule import Compensation, MatchingRule, is_search_command
+
+from dev10x.core.domain.common.config_io import ConfigIOError
+from dev10x.core.domain.documents.config_document import Config
+from dev10x.core.domain.rules.rule_engine import RuleEngine
+from dev10x.core.domain.rules.validation_rule import Compensation, MatchingRule, is_search_command
 
 
 class TestRuleFromYamlEntry:

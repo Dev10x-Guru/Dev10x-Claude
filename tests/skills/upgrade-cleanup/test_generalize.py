@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from dev10x.skills.permission import update_paths
+from dev10x.core.skills.permission import update_paths
 
 
 class TestGeneralizePermission:

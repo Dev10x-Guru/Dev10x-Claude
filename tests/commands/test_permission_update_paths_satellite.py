@@ -7,9 +7,9 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner, Result
-from dev10x.domain.common.result import ok
 
 from dev10x.commands.permission import update_paths
+from dev10x.core.domain.common.result import ok
 from dev10x.core.plugin_map import parse_plugin_map
 from dev10x.core.skills.permission.satellite_paths import SatelliteRelocator
 
@@ -67,17 +67,18 @@ def user_settings(
         lambda: SatelliteRelocator(plugin_map=plugin_map),
     )
     monkeypatch.setattr(
-        "dev10x.skills.permission.catalog_write.Path.home",
+        "dev10x.core.skills.permission.catalog_write.Path.home",
         classmethod(lambda cls: tmp_path),
     )
     monkeypatch.setattr(
-        "dev10x.skills.permission.update_paths.find_config", lambda: ok(config_path)
+        "dev10x.core.skills.permission.update_paths.find_config", lambda: ok(config_path)
     )
     monkeypatch.setattr(
-        "dev10x.skills.permission.update_paths.detect_latest_version", lambda _cache: "0.114.0"
+        "dev10x.core.skills.permission.update_paths.detect_latest_version",
+        lambda _cache: "0.114.0",
     )
     monkeypatch.setattr(
-        "dev10x.skills.permission.update_paths.find_settings_files", lambda **_kw: [settings]
+        "dev10x.core.skills.permission.update_paths.find_settings_files", lambda **_kw: [settings]
     )
     return settings
 

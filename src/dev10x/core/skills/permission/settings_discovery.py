@@ -17,9 +17,9 @@ import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from dev10x import subprocess_utils
-from dev10x.domain.claude_paths import ClaudeDir
-from dev10x.domain.linked_worktree import main_checkout
+from dev10x.core import subprocess_utils
+from dev10x.core.domain.claude_paths import ClaudeDir
+from dev10x.core.domain.linked_worktree import main_checkout
 
 VENDORED_DIRS = frozenset(
     {

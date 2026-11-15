@@ -17,12 +17,12 @@ import subprocess
 from pathlib import Path
 
 import pytest
-from dev10x.hooks.session_dispatch import build_stop_verdict
-from dev10x.hooks.stop_verdict import StopSignal
 
 from dev10x.core.config.hook_fragments import hook_files, merged_hook_entries
-from dev10x.hooks import session_dispatch
-from dev10x.subprocess_utils import get_plugin_root
+from dev10x.core.hooks import session_dispatch
+from dev10x.core.hooks.session_dispatch import build_stop_verdict
+from dev10x.core.hooks.stop_verdict import StopSignal
+from dev10x.core.subprocess_utils import get_plugin_root
 
 from .test_stop_verdict import _assistant, _text
 from .test_stop_verdict import _transcript as _write_transcript

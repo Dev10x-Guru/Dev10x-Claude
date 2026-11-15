@@ -104,7 +104,7 @@ class Strategy:
 
 `Context` carries paths to settings files, memory directories, and
 hook log access — strategies read but do not mutate. The first
-shipped strategy is :mod:`dev10x.skills.doctor.strategies.mcp_vs_script_drift`
+shipped strategy is :mod:`dev10x.core.skills.doctor.strategies.mcp_vs_script_drift`
 (MCP tool vs shell fallback). See
 [`references/strategy-catalog.md`](references/strategy-catalog.md)
 for the planned strategy roster.

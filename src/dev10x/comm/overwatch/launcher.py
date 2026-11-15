@@ -8,7 +8,7 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from typing import Any
 
-from dev10x.subprocess_utils import run
+from dev10x.core.subprocess_utils import run
 
 HERDR_TIMEOUT_SECONDS = 60
 AGENT_NAME_CHARS = 28

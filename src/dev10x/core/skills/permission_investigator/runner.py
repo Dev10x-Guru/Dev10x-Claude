@@ -21,15 +21,15 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
+from dev10x.core.domain.common.policy import Policy, PolicyAssessment, PolicySource
+from dev10x.core.domain.common.policy_resolution import attach_assessments
 from dev10x.core.skills.permission_investigator import fixtures, load_matrix_from_state
-from dev10x.domain.common.policy import Policy, PolicyAssessment, PolicySource
-from dev10x.domain.common.policy_resolution import attach_assessments
-from dev10x.skills.permission_investigator.matrix import Matrix, RuleShape, generate_matrix
-from dev10x.skills.permission_investigator.policy_report import (
+from dev10x.core.skills.permission_investigator.matrix import Matrix, RuleShape, generate_matrix
+from dev10x.core.skills.permission_investigator.policy_report import (
     investigator_assessment,
     render_policy_report,
 )
-from dev10x.skills.permission_investigator.report import render_markdown_report
+from dev10x.core.skills.permission_investigator.report import render_markdown_report
 
 
 def _state_missing() -> dict[str, Any]:
@@ -217,9 +217,9 @@ def build_report(*, state_path: Path, output: str | None) -> dict[str, Any]:
 
     The markdown outcome table is followed by a PAP-5 policy-assessment
     section (GH-802): every recorded cell outcome is emitted as a typed
-    :class:`~dev10x.domain.common.policy.PolicyAssessment` and rendered
+    :class:`~dev10x.core.domain.common.policy.PolicyAssessment` and rendered
     against the rule it judged via
-    :func:`~dev10x.skills.permission_investigator.policy_report.render_policy_report`.
+    :func:`~dev10x.core.skills.permission_investigator.policy_report.render_policy_report`.
     """
     if not state_path.is_file():
         return _state_missing()

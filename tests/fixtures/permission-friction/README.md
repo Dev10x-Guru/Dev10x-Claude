@@ -18,7 +18,7 @@ row:
 | `command` | string | The verbatim command that triggered friction |
 | `tool` | `Bash` \| `Read` \| `WebFetch` \| `<mcp tool>` | Invoking tool |
 | `friction` | `permission-prompt` \| `hook-block` \| `PREFIX_POISONED_CHAIN` \| `MISSING_RULE` \| `option-2-footgun` \| `agent-bouncing-loop` \| null | What was observed |
-| `effect` | `allow` \| `ask` \| `deny` | Cedar-style decision — matches `dev10x.domain.common.policy.PolicyEffect` |
+| `effect` | `allow` \| `ask` \| `deny` | Cedar-style decision — matches `dev10x.core.domain.common.policy.PolicyEffect` |
 | `command_class` | `safe-read` \| `safe-write` \| `destructive` \| `fence-tool` \| `arbitrary-code` | Classification tier (reflection taxonomy) |
 | `reversibility` | `trivial` \| `assisted` \| `none` | Tri-state (reflection #43) |
 | `rule` | string \| null | Proposed `settings.json` rule shape |

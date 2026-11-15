@@ -7,7 +7,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
-from dev10x.skills.bus.maildir import (
+
+from dev10x.comm.skills.bus.maildir import (
     Delivery,
     Envelope,
     InvalidMessageError,

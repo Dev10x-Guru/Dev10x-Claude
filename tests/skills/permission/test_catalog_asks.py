@@ -5,13 +5,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from dev10x.domain.common.policy import PolicyEffect
-from dev10x.domain.common.policy_migration import migrate_flat_config
-from dev10x.skills.permission.catalog_gap import compute_gap
-from dev10x.skills.permission.catalog_paths import load_catalog_document
-from dev10x.skills.permission.policy_renderer import render_permissions
-
-from dev10x.skills.permission import update_paths as mod
+from dev10x.core.domain.common.policy import PolicyEffect
+from dev10x.core.domain.common.policy_migration import migrate_flat_config
+from dev10x.core.skills.permission import update_paths as mod
+from dev10x.core.skills.permission.catalog_gap import compute_gap
+from dev10x.core.skills.permission.catalog_paths import load_catalog_document
+from dev10x.core.skills.permission.policy_renderer import render_permissions
 
 
 def _ask(path: Path) -> list[str]:

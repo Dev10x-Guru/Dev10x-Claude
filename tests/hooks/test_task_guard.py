@@ -9,10 +9,10 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from dev10x.domain.documents.plan import Plan
-from dev10x.domain.events.hook_input import HookResult
 
-from dev10x.hooks import task_guard as legacy_tg
+from dev10x.core.domain.documents.plan import Plan
+from dev10x.core.domain.events.hook_input import HookResult
+from dev10x.tasks.hooks import task_guard as legacy_tg
 from dev10x.tasks.hooks import task_guard as tg
 
 CODING = frozenset({"coding"})

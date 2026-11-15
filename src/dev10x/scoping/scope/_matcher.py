@@ -1,7 +1,7 @@
 """Shared path-matching helper for norms/safeguards renderers (GH-170).
 
 Per-entry matching (``**`` → ``*`` fnmatch semantics) is owned by
-:meth:`dev10x.scope.index_parser.RuleEntry.matches`; this module only
+:meth:`dev10x.scoping.scope.index_parser.RuleEntry.matches`; this module only
 selects which entries match any affected file.
 """
 

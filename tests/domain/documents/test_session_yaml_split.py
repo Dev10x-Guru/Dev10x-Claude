@@ -6,7 +6,8 @@ import ast
 from types import ModuleType
 
 import pytest
-from dev10x.domain.documents import config_yaml, friction_yaml, session_yaml
+
+from dev10x.core.domain.documents import config_yaml, friction_yaml, session_yaml
 
 MOVED = [
     *(("friction_yaml", name) for name in friction_yaml.__all__),

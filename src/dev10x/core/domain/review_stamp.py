@@ -27,7 +27,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
-from dev10x.domain.file_locks import atomic_write_text, file_lock
+from dev10x.core.domain.file_locks import atomic_write_text, file_lock
 
 log = logging.getLogger(__name__)
 

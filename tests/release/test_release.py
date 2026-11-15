@@ -4,14 +4,15 @@ import subprocess
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from dev10x.domain.common.result import ErrorResult, SuccessResult
 
-rel_mod = pytest.importorskip("dev10x.release", reason="dev10x not installed")
+from dev10x.core.domain.common.result import ErrorResult, SuccessResult
+
+rel_mod = pytest.importorskip("dev10x.coding.release", reason="dev10x not installed")
 
 
 class TestCollectPrs:
     @pytest.mark.asyncio
-    @patch("dev10x.release.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.release.async_run", new_callable=AsyncMock)
     async def test_returns_output_on_success(
         self,
         mock_run: AsyncMock,
@@ -27,7 +28,7 @@ class TestCollectPrs:
         assert result.value["success"] is True
 
     @pytest.mark.asyncio
-    @patch("dev10x.release.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.release.async_run", new_callable=AsyncMock)
     async def test_returns_error_on_failure(
         self,
         mock_run: AsyncMock,
@@ -44,7 +45,7 @@ class TestCollectPrs:
         assert result.to_dict() == {"error": "Not a git repo"}
 
     @pytest.mark.asyncio
-    @patch("dev10x.release.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.release.async_run", new_callable=AsyncMock)
     async def test_passes_optional_args(
         self,
         mock_run: AsyncMock,

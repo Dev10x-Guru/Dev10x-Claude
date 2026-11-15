@@ -18,9 +18,9 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from dev10x.domain.file_locks import atomic_write_text, file_lock
-from dev10x.skills.permission.backup import create_backup
-from dev10x.skills.permission.star_prefix import is_unmatchable
+from dev10x.core.domain.file_locks import atomic_write_text, file_lock
+from dev10x.core.skills.permission.backup import create_backup
+from dev10x.core.skills.permission.star_prefix import is_unmatchable
 
 _LIST_ITEM = re.compile(r"""^\s*-\s*(?P<quote>["']?)(?P<rule>Bash\(.*\))(?P=quote)\s*(?:\#.*)?$""")
 _TOP_LEVEL_KEY = re.compile(r"^(?P<key>[A-Za-z_][\w-]*):")

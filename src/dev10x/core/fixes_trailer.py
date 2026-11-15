@@ -2,7 +2,7 @@
 
 Stdlib-only: `bin/extract-linked-issues.py` runs as a dependency-free
 uv-script in `close-issues.yml` and reaches this module through a
-`sys.path` shim, while `dev10x.domain.pr_body` imports it in-process, so
+`sys.path` shim, while `dev10x.core.domain.pr_body` imports it in-process, so
 PR creation and merge read one rule.
 
 `extract` writes one `<owner>/<repo>#<number>` reference per issue,

@@ -1,6 +1,6 @@
 """Tests for the shared repo-walker (GH-1460).
 
-`dev10x.subprocess_timeouts` and `dev10x.dependency_pins` both delegate
+`dev10x.core.subprocess_timeouts` and `dev10x.dependency_pins` both delegate
 their `scanned_files` to `walk_repository` here — this file covers the
 walker directly so the two detector test suites don't have to re-prove
 its exclusion/symlink/suffix behaviour.

@@ -18,23 +18,23 @@ from dataclasses import dataclass, field
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, ClassVar
 
-from dev10x.domain import HookAllow, HookInput, HookResult
-from dev10x.domain.claude_paths import ClaudeDir
-from dev10x.domain.common.allow_rule import AllowRule, AllowRuleLoader
-from dev10x.domain.common.bash_tokens import (
+from dev10x.core.domain import HookAllow, HookInput, HookResult
+from dev10x.core.domain.claude_paths import ClaudeDir
+from dev10x.core.domain.common.allow_rule import AllowRule, AllowRuleLoader
+from dev10x.core.domain.common.bash_tokens import (
     GIT_C_DIR_RE,
     is_simple_command,
     split_tokens,
     strip_line_continuations,
     strip_quoted_spans,
 )
-from dev10x.domain.profile_tier import ProfileTier
-from dev10x.validators.base import ValidatorBase
+from dev10x.core.domain.profile_tier import ProfileTier
+from dev10x.core.validators.base import ValidatorBase
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from dev10x.domain import HookRetry
+    from dev10x.core.domain import HookRetry
 
 SETUP_TOKENS = frozenset(
     ["mkdir", "cd", "export", "source", ".", "pushd", "popd", "touch", "unset"]
@@ -941,7 +941,7 @@ class PrefixFrictionValidator(ValidatorBase):
         return None
 
     def correct(self, inp: HookInput) -> HookRetry | None:
-        from dev10x.domain import HookRetry as _HookRetry
+        from dev10x.core.domain import HookRetry as _HookRetry
 
         result = self.validate(inp=inp)
         if result is None or isinstance(result, HookAllow):

@@ -24,14 +24,14 @@ Sidecar naming convention:
 * ``locked_json_update`` **replaces** the target's suffix with
   ``.lock`` — e.g. ``settings.local.json`` → ``settings.local.lock``.
   This is preserved deliberately for backward compatibility with the
-  existing :mod:`dev10x.skills.permission` call sites and the test
+  existing :mod:`dev10x.core.skills.permission` call sites and the test
   in ``tests/skills/upgrade-cleanup/test_file_lock.py``; switching
   it now would orphan on-disk sidecars across the upgrade boundary.
 
 The two functions must not be used against the same target path
 because their sidecars resolve to different files. New code MUST use
 ``file_lock`` (append-``.lock`` convention); ``locked_json_update``
-is frozen for its existing :mod:`dev10x.skills.permission` call sites.
+is frozen for its existing :mod:`dev10x.core.skills.permission` call sites.
 See ADR-0011 for the rationale.
 """
 

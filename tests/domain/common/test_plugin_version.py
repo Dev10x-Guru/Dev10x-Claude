@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import pytest
-from dev10x.domain.common.plugin_version import SEMVER_PATTERN, PluginVersion
+
+from dev10x.core.domain.common.plugin_version import SEMVER_PATTERN, PluginVersion
 
 
 class TestParse:

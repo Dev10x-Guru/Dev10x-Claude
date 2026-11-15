@@ -11,9 +11,9 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
-from dev10x.domain.common.result import err, ok
 
 from dev10x.commands.deps import deps
+from dev10x.core.domain.common.result import err, ok
 
 
 @pytest.fixture
@@ -82,7 +82,7 @@ def test_sweep_defaults_to_the_effective_working_directory(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     stub_latest("8.1.7", monkeypatch)
-    monkeypatch.setattr("dev10x.subprocess_utils.effective_cwd", lambda: str(repo))
+    monkeypatch.setattr("dev10x.core.subprocess_utils.effective_cwd", lambda: str(repo))
 
     result = CliRunner().invoke(deps, ["sweep"])
 
@@ -91,7 +91,7 @@ def test_sweep_defaults_to_the_effective_working_directory(
 
 
 def test_sweep_reports_a_domain_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("dev10x.subprocess_utils.effective_cwd", lambda: None)
+    monkeypatch.setattr("dev10x.core.subprocess_utils.effective_cwd", lambda: None)
     monkeypatch.setattr("dev10x.dependency_sweep.sweep", lambda root, fetch: err("boom"))
 
     result = CliRunner().invoke(deps, ["sweep"])

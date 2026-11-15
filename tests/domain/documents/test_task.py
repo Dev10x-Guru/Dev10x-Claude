@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dev10x.domain.documents.task import Task, TaskStatus
+from dev10x.core.domain.documents.task import Task, TaskStatus
 
 
 class TestTaskFromDict:

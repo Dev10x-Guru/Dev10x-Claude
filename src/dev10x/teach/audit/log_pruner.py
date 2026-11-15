@@ -5,7 +5,7 @@ distinct from reading/appending the JSONL event log (`log_reader`) and
 from summarizing records (`summarizer`). It lived in `audit.log_reader`
 only because that was the first home; this module owns it now so the
 reader stays focused on log IO. The stable import path is
-`dev10x.audit.prune` (re-exported from the package).
+`dev10x.teach.audit.prune` (re-exported from the package).
 """
 
 from __future__ import annotations

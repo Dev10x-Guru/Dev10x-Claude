@@ -10,9 +10,11 @@ from dataclasses import dataclass
 from typing import ClassVar
 
 import pytest
-from dev10x.domain.profile_tier import ProfileTier
-from dev10x.validators.base import ValidatorBase
-from dev10x.validators.registry import (
+
+from dev10x.core.domain import HookInput, HookResult, HookRetry
+from dev10x.core.domain.profile_tier import ProfileTier
+from dev10x.core.validators.base import ValidatorBase
+from dev10x.core.validators.registry import (
     DisableListFilter,
     ExperimentalFilter,
     ProfileFilter,
@@ -21,8 +23,6 @@ from dev10x.validators.registry import (
     ValidatorSpec,
     _assert_metadata_matches,
 )
-
-from dev10x.domain import HookInput, HookResult, HookRetry
 
 
 @dataclass

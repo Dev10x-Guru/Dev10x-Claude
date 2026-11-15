@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from dev10x.platform import PlatformConfig, PlatformRepository, known_platforms
+from dev10x.core.platform import PlatformConfig, PlatformRepository, known_platforms
 
 
 class TestKnownPlatforms:
@@ -65,7 +65,7 @@ class TestPlatformRepositoryAdd:
         """A12: PlatformRepository.add serializes load→mutate→save via file_lock."""
         from unittest.mock import MagicMock, patch
 
-        with patch("dev10x.platform.registry.file_lock") as mock_lock:
+        with patch("dev10x.core.platform.registry.file_lock") as mock_lock:
             mock_lock.return_value = MagicMock(__enter__=MagicMock(), __exit__=MagicMock())
             registry.add(name="windsurf")
 
@@ -75,7 +75,7 @@ class TestPlatformRepositoryAdd:
         from unittest.mock import MagicMock, patch
 
         registry.add(name="windsurf")
-        with patch("dev10x.platform.registry.file_lock") as mock_lock:
+        with patch("dev10x.core.platform.registry.file_lock") as mock_lock:
             mock_lock.return_value = MagicMock(__enter__=MagicMock(), __exit__=MagicMock())
             registry.remove("windsurf")
 

@@ -9,15 +9,15 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from dev10x.domain.common.result import err, ok
-from dev10x.skills.permission.catalog_merge import MergedCatalog
 
+from dev10x.core.domain.common.result import err, ok
+from dev10x.core.skills.permission.catalog_merge import MergedCatalog
 from dev10x.mcp import server_cli as cli_server
 
 
 class TestPushSafe:
     @pytest.mark.asyncio
-    @patch("dev10x.git.push_safe", new_callable=AsyncMock)
+    @patch("dev10x.coding.git.push_safe", new_callable=AsyncMock)
     async def test_delegates_to_git_module(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = ok({"pushed": True, "branch": "feature"})
 
@@ -27,7 +27,7 @@ class TestPushSafe:
         assert mock_fn.call_args.kwargs["args"] == ["-u", "origin", "feature"]
 
     @pytest.mark.asyncio
-    @patch("dev10x.git.push_safe", new_callable=AsyncMock)
+    @patch("dev10x.coding.git.push_safe", new_callable=AsyncMock)
     async def test_forwards_protected_branches(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = ok({})
 
@@ -39,7 +39,7 @@ class TestPushSafe:
         assert mock_fn.call_args.kwargs["protected_branches"] == ["main", "develop"]
 
     @pytest.mark.asyncio
-    @patch("dev10x.git.push_safe", new_callable=AsyncMock)
+    @patch("dev10x.coding.git.push_safe", new_callable=AsyncMock)
     async def test_returns_error_on_failure(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = err("push blocked: protected branch")
 
@@ -48,11 +48,11 @@ class TestPushSafe:
         assert "error" in result
 
     @pytest.mark.asyncio
-    @patch("dev10x.git.push_safe", new_callable=AsyncMock)
+    @patch("dev10x.coding.git.push_safe", new_callable=AsyncMock)
     async def test_forwards_cwd(self, mock_fn: AsyncMock, tmp_path) -> None:
         mock_fn.return_value = ok({})
 
-        with patch("dev10x.subprocess_utils.use_cwd") as mock_use_cwd:
+        with patch("dev10x.core.subprocess_utils.use_cwd") as mock_use_cwd:
             await cli_server.push_safe(args=["origin", "feature"], cwd=str(tmp_path))
 
         mock_use_cwd.assert_called_once_with(str(tmp_path))
@@ -60,7 +60,7 @@ class TestPushSafe:
 
 class TestRebaseGroom:
     @pytest.mark.asyncio
-    @patch("dev10x.git.rebase_groom", new_callable=AsyncMock)
+    @patch("dev10x.coding.git.rebase_groom", new_callable=AsyncMock)
     async def test_delegates_to_git_module(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = ok({"commits_rewritten": 3})
 
@@ -70,7 +70,7 @@ class TestRebaseGroom:
         assert mock_fn.call_args.kwargs == {"seq_path": "/tmp/seq", "base_ref": "develop"}
 
     @pytest.mark.asyncio
-    @patch("dev10x.git.rebase_groom", new_callable=AsyncMock)
+    @patch("dev10x.coding.git.rebase_groom", new_callable=AsyncMock)
     async def test_returns_error_on_failure(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = err("rebase conflict at HEAD")
 
@@ -79,11 +79,11 @@ class TestRebaseGroom:
         assert "error" in result
 
     @pytest.mark.asyncio
-    @patch("dev10x.git.rebase_groom", new_callable=AsyncMock)
+    @patch("dev10x.coding.git.rebase_groom", new_callable=AsyncMock)
     async def test_forwards_cwd(self, mock_fn: AsyncMock, tmp_path) -> None:
         mock_fn.return_value = ok({"commits_rewritten": 0})
 
-        with patch("dev10x.subprocess_utils.use_cwd") as mock_use_cwd:
+        with patch("dev10x.core.subprocess_utils.use_cwd") as mock_use_cwd:
             await cli_server.rebase_groom(
                 seq_path="/tmp/seq",
                 base_ref="develop",
@@ -95,7 +95,7 @@ class TestRebaseGroom:
 
 class TestCreateWorktree:
     @pytest.mark.asyncio
-    @patch("dev10x.git.create_worktree", new_callable=AsyncMock)
+    @patch("dev10x.coding.git.create_worktree", new_callable=AsyncMock)
     async def test_delegates_to_git_module(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = ok(
             {"worktree_path": "/work/.worktrees/feature-1", "branch": "feature", "created": True}
@@ -107,7 +107,7 @@ class TestCreateWorktree:
         assert mock_fn.call_args.kwargs["branch"] == "feature"
 
     @pytest.mark.asyncio
-    @patch("dev10x.git.create_worktree", new_callable=AsyncMock)
+    @patch("dev10x.coding.git.create_worktree", new_callable=AsyncMock)
     async def test_forwards_base_and_path(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = ok({"worktree_path": "/tmp/wt", "branch": "feat", "created": True})
 
@@ -117,7 +117,7 @@ class TestCreateWorktree:
         assert mock_fn.call_args.kwargs["path"] == "/tmp/wt"
 
     @pytest.mark.asyncio
-    @patch("dev10x.git.create_worktree", new_callable=AsyncMock)
+    @patch("dev10x.coding.git.create_worktree", new_callable=AsyncMock)
     async def test_returns_error_on_failure(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = err("branch already checked out")
 
@@ -126,20 +126,20 @@ class TestCreateWorktree:
         assert "error" in result
 
     @pytest.mark.asyncio
-    @patch("dev10x.git.create_worktree", new_callable=AsyncMock)
+    @patch("dev10x.coding.git.create_worktree", new_callable=AsyncMock)
     async def test_forwards_cwd(self, mock_fn: AsyncMock, tmp_path) -> None:
         mock_fn.return_value = ok({"worktree_path": "/tmp/wt", "branch": "feat", "created": True})
 
-        with patch("dev10x.subprocess_utils.use_cwd") as mock_use_cwd:
+        with patch("dev10x.core.subprocess_utils.use_cwd") as mock_use_cwd:
             await cli_server.create_worktree(branch="feat", cwd=str(tmp_path))
 
         mock_use_cwd.assert_called_once_with(str(tmp_path))
 
     @pytest.mark.asyncio
-    @patch("dev10x.git.create_worktree", new_callable=AsyncMock)
-    @patch("dev10x.skills.permission.update_paths.find_config")
-    @patch("dev10x.skills.permission.update_paths.load_effective_config")
-    @patch("dev10x.skills.permission.update_paths.seed_worktree")
+    @patch("dev10x.coding.git.create_worktree", new_callable=AsyncMock)
+    @patch("dev10x.core.skills.permission.update_paths.find_config")
+    @patch("dev10x.core.skills.permission.update_paths.load_effective_config")
+    @patch("dev10x.core.skills.permission.update_paths.seed_worktree")
     async def test_seed_success_adds_seeded_permissions(
         self,
         mock_seed: AsyncMock,
@@ -147,7 +147,7 @@ class TestCreateWorktree:
         mock_find: AsyncMock,
         mock_create: AsyncMock,
     ) -> None:
-        from dev10x.domain.common.result import ok as domain_ok
+        from dev10x.core.domain.common.result import ok as domain_ok
 
         mock_create.return_value = ok(
             {"worktree_path": "/tmp/wt", "branch": "feat", "created": True}
@@ -163,14 +163,14 @@ class TestCreateWorktree:
         assert result.get("seeded_permissions") == 3
 
     @pytest.mark.asyncio
-    @patch("dev10x.git.create_worktree", new_callable=AsyncMock)
-    @patch("dev10x.skills.permission.update_paths.find_config")
+    @patch("dev10x.coding.git.create_worktree", new_callable=AsyncMock)
+    @patch("dev10x.core.skills.permission.update_paths.find_config")
     async def test_seed_skipped_when_find_config_fails(
         self,
         mock_find: AsyncMock,
         mock_create: AsyncMock,
     ) -> None:
-        from dev10x.domain.common.result import err as domain_err
+        from dev10x.core.domain.common.result import err as domain_err
 
         mock_create.return_value = ok(
             {"worktree_path": "/tmp/wt", "branch": "feat", "created": True}
@@ -185,10 +185,10 @@ class TestCreateWorktree:
         assert "seed_error" not in result
 
     @pytest.mark.asyncio
-    @patch("dev10x.git.create_worktree", new_callable=AsyncMock)
-    @patch("dev10x.skills.permission.update_paths.find_config")
-    @patch("dev10x.skills.permission.update_paths.load_effective_config")
-    @patch("dev10x.skills.permission.update_paths.seed_worktree")
+    @patch("dev10x.coding.git.create_worktree", new_callable=AsyncMock)
+    @patch("dev10x.core.skills.permission.update_paths.find_config")
+    @patch("dev10x.core.skills.permission.update_paths.load_effective_config")
+    @patch("dev10x.core.skills.permission.update_paths.seed_worktree")
     async def test_seed_failure_records_seed_error_not_error(
         self,
         mock_seed: AsyncMock,
@@ -196,8 +196,8 @@ class TestCreateWorktree:
         mock_find: AsyncMock,
         mock_create: AsyncMock,
     ) -> None:
-        from dev10x.domain.common.result import err as domain_err
-        from dev10x.domain.common.result import ok as domain_ok
+        from dev10x.core.domain.common.result import err as domain_err
+        from dev10x.core.domain.common.result import ok as domain_ok
 
         mock_create.return_value = ok(
             {"worktree_path": "/tmp/wt", "branch": "feat", "created": True}
@@ -213,8 +213,8 @@ class TestCreateWorktree:
         assert result.get("seed_error") == "permission denied writing settings"
 
     @pytest.mark.asyncio
-    @patch("dev10x.git.create_worktree", new_callable=AsyncMock)
-    @patch("dev10x.skills.permission.update_paths.find_config")
+    @patch("dev10x.coding.git.create_worktree", new_callable=AsyncMock)
+    @patch("dev10x.core.skills.permission.update_paths.find_config")
     async def test_oserror_during_seed_records_seed_error(
         self,
         mock_find: AsyncMock,
@@ -232,7 +232,7 @@ class TestCreateWorktree:
         assert "disk full" in result.get("seed_error", "")
 
     @pytest.mark.asyncio
-    @patch("dev10x.git.create_worktree", new_callable=AsyncMock)
+    @patch("dev10x.coding.git.create_worktree", new_callable=AsyncMock)
     async def test_seed_skipped_when_result_has_error(self, mock_create: AsyncMock) -> None:
         mock_create.return_value = err("branch already checked out")
 
@@ -244,7 +244,7 @@ class TestCreateWorktree:
         assert "seed_error" not in result
 
     @pytest.mark.asyncio
-    @patch("dev10x.git.create_worktree", new_callable=AsyncMock)
+    @patch("dev10x.coding.git.create_worktree", new_callable=AsyncMock)
     async def test_seed_skipped_when_worktree_path_absent(self, mock_create: AsyncMock) -> None:
         # git module may return a payload without worktree_path on certain code-paths.
         mock_create.return_value = ok({"branch": "feat", "created": True})
@@ -257,7 +257,7 @@ class TestCreateWorktree:
 
 class TestMassRewrite:
     @pytest.mark.asyncio
-    @patch("dev10x.git.mass_rewrite", new_callable=AsyncMock)
+    @patch("dev10x.coding.git.mass_rewrite", new_callable=AsyncMock)
     async def test_delegates_to_git_module(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = ok({"success": True, "output": "3 commits rewritten"})
 
@@ -267,7 +267,7 @@ class TestMassRewrite:
         assert mock_fn.call_args.kwargs["config_path"] == "/tmp/rewrites.json"
 
     @pytest.mark.asyncio
-    @patch("dev10x.git.mass_rewrite", new_callable=AsyncMock)
+    @patch("dev10x.coding.git.mass_rewrite", new_callable=AsyncMock)
     async def test_returns_error_on_failure(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = err("config file not found")
 
@@ -276,11 +276,11 @@ class TestMassRewrite:
         assert "error" in result
 
     @pytest.mark.asyncio
-    @patch("dev10x.git.mass_rewrite", new_callable=AsyncMock)
+    @patch("dev10x.coding.git.mass_rewrite", new_callable=AsyncMock)
     async def test_forwards_cwd(self, mock_fn: AsyncMock, tmp_path) -> None:
         mock_fn.return_value = ok({"success": True, "output": ""})
 
-        with patch("dev10x.subprocess_utils.use_cwd") as mock_use_cwd:
+        with patch("dev10x.core.subprocess_utils.use_cwd") as mock_use_cwd:
             await cli_server.mass_rewrite(config_path="/tmp/x.json", cwd=str(tmp_path))
 
         mock_use_cwd.assert_called_once_with(str(tmp_path))
@@ -288,7 +288,7 @@ class TestMassRewrite:
 
 class TestStartSplitRebase:
     @pytest.mark.asyncio
-    @patch("dev10x.git.start_split_rebase", new_callable=AsyncMock)
+    @patch("dev10x.coding.git.start_split_rebase", new_callable=AsyncMock)
     async def test_delegates_to_git_module(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = ok({"success": True, "output": "rebase started"})
 
@@ -298,7 +298,7 @@ class TestStartSplitRebase:
         assert mock_fn.call_args.kwargs["commit_hash"] == "abc1234"
 
     @pytest.mark.asyncio
-    @patch("dev10x.git.start_split_rebase", new_callable=AsyncMock)
+    @patch("dev10x.coding.git.start_split_rebase", new_callable=AsyncMock)
     async def test_forwards_base_branch(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = ok({"success": True, "output": ""})
 
@@ -307,7 +307,7 @@ class TestStartSplitRebase:
         assert mock_fn.call_args.kwargs["base_branch"] == "main"
 
     @pytest.mark.asyncio
-    @patch("dev10x.git.start_split_rebase", new_callable=AsyncMock)
+    @patch("dev10x.coding.git.start_split_rebase", new_callable=AsyncMock)
     async def test_returns_error_on_failure(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = err("commit not found")
 
@@ -316,11 +316,11 @@ class TestStartSplitRebase:
         assert "error" in result
 
     @pytest.mark.asyncio
-    @patch("dev10x.git.start_split_rebase", new_callable=AsyncMock)
+    @patch("dev10x.coding.git.start_split_rebase", new_callable=AsyncMock)
     async def test_forwards_cwd(self, mock_fn: AsyncMock, tmp_path) -> None:
         mock_fn.return_value = ok({"success": True, "output": ""})
 
-        with patch("dev10x.subprocess_utils.use_cwd") as mock_use_cwd:
+        with patch("dev10x.core.subprocess_utils.use_cwd") as mock_use_cwd:
             await cli_server.start_split_rebase(commit_hash="abc1234", cwd=str(tmp_path))
 
         mock_use_cwd.assert_called_once_with(str(tmp_path))
@@ -328,7 +328,7 @@ class TestStartSplitRebase:
 
 class TestNextWorktreeName:
     @pytest.mark.asyncio
-    @patch("dev10x.git.next_worktree_name", new_callable=AsyncMock)
+    @patch("dev10x.coding.git.next_worktree_name", new_callable=AsyncMock)
     async def test_delegates_to_git_module(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = ok({"path": "/work/.worktrees/proj-02"})
 
@@ -338,7 +338,7 @@ class TestNextWorktreeName:
         assert mock_fn.call_args.kwargs["base_dir"] is None
 
     @pytest.mark.asyncio
-    @patch("dev10x.git.next_worktree_name", new_callable=AsyncMock)
+    @patch("dev10x.coding.git.next_worktree_name", new_callable=AsyncMock)
     async def test_forwards_base_dir(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = ok({"path": "/custom/.worktrees/proj-01"})
 
@@ -347,7 +347,7 @@ class TestNextWorktreeName:
         assert mock_fn.call_args.kwargs["base_dir"] == "/custom/.worktrees"
 
     @pytest.mark.asyncio
-    @patch("dev10x.git.next_worktree_name", new_callable=AsyncMock)
+    @patch("dev10x.coding.git.next_worktree_name", new_callable=AsyncMock)
     async def test_returns_error_on_failure(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = err("no repo found")
 
@@ -356,11 +356,11 @@ class TestNextWorktreeName:
         assert "error" in result
 
     @pytest.mark.asyncio
-    @patch("dev10x.git.next_worktree_name", new_callable=AsyncMock)
+    @patch("dev10x.coding.git.next_worktree_name", new_callable=AsyncMock)
     async def test_forwards_cwd(self, mock_fn: AsyncMock, tmp_path) -> None:
         mock_fn.return_value = ok({"path": "/work/.worktrees/proj-01"})
 
-        with patch("dev10x.subprocess_utils.use_cwd") as mock_use_cwd:
+        with patch("dev10x.core.subprocess_utils.use_cwd") as mock_use_cwd:
             await cli_server.next_worktree_name(cwd=str(tmp_path))
 
         mock_use_cwd.assert_called_once_with(str(tmp_path))
@@ -368,7 +368,7 @@ class TestNextWorktreeName:
 
 class TestFindFixupTarget:
     @pytest.mark.asyncio
-    @patch("dev10x.git.find_fixup_target", new_callable=AsyncMock)
+    @patch("dev10x.coding.git.find_fixup_target", new_callable=AsyncMock)
     async def test_delegates_to_git_module(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = ok({"status": "single", "target": "abc123"})
 
@@ -378,7 +378,7 @@ class TestFindFixupTarget:
         assert mock_fn.call_args.kwargs["base"] is None
 
     @pytest.mark.asyncio
-    @patch("dev10x.git.find_fixup_target", new_callable=AsyncMock)
+    @patch("dev10x.coding.git.find_fixup_target", new_callable=AsyncMock)
     async def test_forwards_base(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = ok({"status": "no_staged"})
 
@@ -387,7 +387,7 @@ class TestFindFixupTarget:
         assert mock_fn.call_args.kwargs["base"] == "origin/main"
 
     @pytest.mark.asyncio
-    @patch("dev10x.git.find_fixup_target", new_callable=AsyncMock)
+    @patch("dev10x.coding.git.find_fixup_target", new_callable=AsyncMock)
     async def test_returns_error_on_failure(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = err("No commits in origin/develop..HEAD")
 
@@ -396,11 +396,11 @@ class TestFindFixupTarget:
         assert result["error"] == "No commits in origin/develop..HEAD"
 
     @pytest.mark.asyncio
-    @patch("dev10x.git.find_fixup_target", new_callable=AsyncMock)
+    @patch("dev10x.coding.git.find_fixup_target", new_callable=AsyncMock)
     async def test_forwards_cwd(self, mock_fn: AsyncMock, tmp_path) -> None:
         mock_fn.return_value = ok({"status": "no_staged"})
 
-        with patch("dev10x.subprocess_utils.use_cwd") as mock_use_cwd:
+        with patch("dev10x.core.subprocess_utils.use_cwd") as mock_use_cwd:
             await cli_server.find_fixup_target(cwd=str(tmp_path))
 
         mock_use_cwd.assert_called_once_with(str(tmp_path))
@@ -454,7 +454,7 @@ class TestWorktreePruneCandidates:
     async def test_forwards_cwd(self, mock_fn: AsyncMock, tmp_path) -> None:
         mock_fn.return_value = ok({"worktrees": []})
 
-        with patch("dev10x.subprocess_utils.use_cwd") as mock_use_cwd:
+        with patch("dev10x.core.subprocess_utils.use_cwd") as mock_use_cwd:
             await cli_server.worktree_prune_candidates(cwd=str(tmp_path))
 
         mock_use_cwd.assert_called_once_with(str(tmp_path))
@@ -462,7 +462,7 @@ class TestWorktreePruneCandidates:
 
 class TestSetupAliases:
     @pytest.mark.asyncio
-    @patch("dev10x.git.setup_aliases", new_callable=AsyncMock)
+    @patch("dev10x.coding.git.setup_aliases", new_callable=AsyncMock)
     async def test_delegates_to_git_module(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = ok({"success": True, "output": "aliases set"})
 
@@ -472,7 +472,7 @@ class TestSetupAliases:
         mock_fn.assert_awaited_once()
 
     @pytest.mark.asyncio
-    @patch("dev10x.git.setup_aliases", new_callable=AsyncMock)
+    @patch("dev10x.coding.git.setup_aliases", new_callable=AsyncMock)
     async def test_returns_error_on_failure(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = err("git config failed")
 

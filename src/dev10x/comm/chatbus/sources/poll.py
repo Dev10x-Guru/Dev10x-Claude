@@ -27,7 +27,7 @@ from dev10x.comm.chatbus.events import (
 )
 from dev10x.comm.chatbus.ingest import Cursor, IngestReport, get_cursor, ingest_events
 from dev10x.comm.skills.notifications.gchat_watch import ChatMessage, Watch, parse_message
-from dev10x.domain.common.result import ErrorResult, Result, err, ok
+from dev10x.core.domain.common.result import ErrorResult, Result, err, ok
 
 log = logging.getLogger(__name__)
 

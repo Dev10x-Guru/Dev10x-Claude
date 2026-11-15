@@ -19,8 +19,8 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from dev10x.domain.documents.plan import Plan, get_plan_path, get_toplevel
-from dev10x.domain.file_locks import file_lock  # noqa: F401
+from dev10x.core.domain.documents.plan import Plan, get_plan_path, get_toplevel
+from dev10x.core.domain.file_locks import file_lock  # noqa: F401
 
 
 class PlanServiceError(Exception):

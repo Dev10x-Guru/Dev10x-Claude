@@ -27,10 +27,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from dev10x import subprocess_utils
-from dev10x.domain.file_locks import atomic_append_line
-from dev10x.domain.git_context import GitContext
-from dev10x.skills.permission.settings_discovery import VENDORED_DIRS, walk_repos
+from dev10x.core import subprocess_utils
+from dev10x.core.domain.file_locks import atomic_append_line
+from dev10x.core.domain.git_context import GitContext
+from dev10x.core.skills.permission.settings_discovery import VENDORED_DIRS, walk_repos
 
 #: Relative to the repo root — the spelling `.git/info/exclude` expects.
 IGNORE_PATTERN = ".claude/Dev10x/"

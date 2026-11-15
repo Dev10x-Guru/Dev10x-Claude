@@ -17,9 +17,9 @@ bootstrap passes:
   carved out of the fence-tool ``ask`` surface (GH-310).
 
 Moved into the domain layer from
-``dev10x.skills.permission.policy_catalog_migration`` (GH-819 domain
-purity follow-up, ADR-0008): :func:`~dev10x.domain.common.policy_resolution.load_policy_layers`
-calls :func:`migrate_flat_config` directly, and a ``domain/`` module
+``dev10x.core.skills.permission.policy_catalog_migration`` (GH-819 domain
+purity follow-up, ADR-0008):
+:func:`~dev10x.core.domain.common.policy_resolution.load_policy_layers` calls :func:`migrate_flat_config` directly, and a ``domain/`` module
 must not import from ``skills/`` (the adapter layer). The skills module
 re-exports this function for backward compatibility.
 """
@@ -28,8 +28,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from dev10x.domain.common.allow_rule import AllowRule
-from dev10x.domain.common.policy import (
+from dev10x.core.domain.common.allow_rule import AllowRule
+from dev10x.core.domain.common.policy import (
     Policy,
     PolicyCatalog,
     PolicyEffect,

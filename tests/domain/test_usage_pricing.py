@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import pytest
-from dev10x.domain.usage import pricing
+
+from dev10x.core.domain.usage import pricing
 
 
 @pytest.mark.parametrize(

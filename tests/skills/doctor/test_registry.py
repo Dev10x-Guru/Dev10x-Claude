@@ -5,10 +5,10 @@ from __future__ import annotations
 import pytest
 
 registry = pytest.importorskip(
-    "dev10x.skills.doctor.registry",
+    "dev10x.core.skills.doctor.registry",
     reason="dev10x not installed",
 )
-from dev10x.skills.doctor.strategy import Strategy, StrategyProtocol  # noqa: E402
+from dev10x.core.skills.doctor.strategy import Strategy, StrategyProtocol  # noqa: E402
 
 
 class TestLoadStrategies:
@@ -46,5 +46,5 @@ class TestLoadStrategies:
             assert isinstance(strategy, StrategyProtocol)
 
     def test_module_without_strategy_constant_is_skipped(self) -> None:
-        result = registry.load_strategies(module_paths=("dev10x.skills.doctor.strategy",))
+        result = registry.load_strategies(module_paths=("dev10x.core.skills.doctor.strategy",))
         assert result == []

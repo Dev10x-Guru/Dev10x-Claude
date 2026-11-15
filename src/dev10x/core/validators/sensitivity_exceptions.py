@@ -3,7 +3,7 @@
 Reads ``~/.config/Dev10x/sensitivity-exceptions.yaml`` (Tier 2, synced
 across worktrees) into domain :class:`SensitivityException` value
 objects. The matching logic itself is pure domain code
-(:func:`dev10x.domain.sensitivity.resolve_exception_effect`); this
+(:func:`dev10x.core.domain.sensitivity.resolve_exception_effect`); this
 module owns only the file I/O and YAML→value-object translation, per
 ``.claude/rules/script-domain-boundaries.md``.
 
@@ -20,8 +20,8 @@ import re
 
 import yaml
 
-from dev10x.domain.dev10x_paths import Dev10xConfigDir
-from dev10x.domain.sensitivity import ExceptionEffect, SensitivityException, SensitivityLabel
+from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.core.domain.sensitivity import ExceptionEffect, SensitivityException, SensitivityLabel
 
 log = logging.getLogger(__name__)
 

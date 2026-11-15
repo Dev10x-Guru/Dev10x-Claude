@@ -9,7 +9,7 @@ hook entry-points deliberately: folding this orchestration into the
 dispatch shims would couple them to the filesystem layout and prevent
 direct unit testing.
 
-Both ``dev10x.hooks.session_dispatch`` and any future MCP surface
+Both ``dev10x.core.hooks.session_dispatch`` and any future MCP surface
 delegate here, eliminating the previously inlined orchestration from
 the dispatch functions.
 """
@@ -76,11 +76,11 @@ class SessionService:
         found no repo) to return early without git discovery. Omit the
         parameter to let the service run git discovery itself.
         """
-        from dev10x.domain.documents.session_context import (
+        from dev10x.core.domain.documents.session_context import (
             SessionContextQuery,
             format_reload_context,
         )
-        from dev10x.domain.git_context import GitContext
+        from dev10x.core.domain.git_context import GitContext
 
         resolved: str | None = GitContext().toplevel if toplevel is _UNSET else toplevel
         if not resolved:
@@ -104,7 +104,7 @@ class SessionService:
         or unreadable index is silently absent from ``additionalContext``
         rather than breaking the SessionStart orchestrator.
         """
-        from dev10x.domain.claude_paths import ClaudeDir
+        from dev10x.core.domain.claude_paths import ClaudeDir
 
         index_file = ClaudeDir.skills_index_md()
         try:
@@ -149,9 +149,9 @@ class SessionService:
         Pass ``None`` explicitly to return early without git discovery. Omit
         the parameter to let the service run git discovery itself.
         """
-        from dev10x.domain.documents.session_yaml import SessionYamlDocument
-        from dev10x.domain.git_context import GitContext
-        from dev10x.domain.session_rules import BuildAutonomyReassuranceRule
+        from dev10x.core.domain.documents.session_yaml import SessionYamlDocument
+        from dev10x.core.domain.git_context import GitContext
+        from dev10x.core.domain.session_rules import BuildAutonomyReassuranceRule
 
         resolved: str | None = GitContext().toplevel if toplevel is _UNSET else toplevel
         if not resolved:
@@ -172,9 +172,9 @@ class SessionService:
         Pass ``None`` explicitly to return early without git discovery. Omit
         the parameter to let the service run git discovery itself.
         """
-        from dev10x.domain.documents.session_yaml import SessionYamlDocument
-        from dev10x.domain.git_context import GitContext
-        from dev10x.domain.session_rules import BuildAutoPlanGuidanceRule
+        from dev10x.core.domain.documents.session_yaml import SessionYamlDocument
+        from dev10x.core.domain.git_context import GitContext
+        from dev10x.core.domain.session_rules import BuildAutoPlanGuidanceRule
 
         resolved: str | None = GitContext().toplevel if toplevel is _UNSET else toplevel
         if not resolved:
@@ -196,9 +196,9 @@ class SessionService:
         Pass ``None`` explicitly to return early without git discovery. Omit
         the parameter to let the service run git discovery itself.
         """
-        from dev10x.domain.documents.session_yaml import SessionYamlDocument
-        from dev10x.domain.git_context import GitContext
-        from dev10x.domain.session_rules import ModeGuardRule
+        from dev10x.core.domain.documents.session_yaml import SessionYamlDocument
+        from dev10x.core.domain.git_context import GitContext
+        from dev10x.core.domain.session_rules import ModeGuardRule
 
         resolved: str | None = GitContext().toplevel if toplevel is _UNSET else toplevel
         if not resolved:
@@ -225,14 +225,14 @@ class SessionService:
         """
         import os
 
-        from dev10x.domain.dev10x_paths import Dev10xConfigDir
-        from dev10x.domain.documents.config_yaml import ConfigYamlDocument
-        from dev10x.domain.documents.friction_yaml import (
+        from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
+        from dev10x.core.domain.documents.config_yaml import ConfigYamlDocument
+        from dev10x.core.domain.documents.friction_yaml import (
             FrictionYamlDocument,
             seed_safe_baseline_if_absent,
         )
-        from dev10x.domain.git_context import GitContext
-        from dev10x.domain.session_rules import FrictionSetupNudgeRule, FrictionSetupState
+        from dev10x.core.domain.git_context import GitContext
+        from dev10x.core.domain.session_rules import FrictionSetupNudgeRule, FrictionSetupState
 
         resolved: str | None = GitContext().toplevel if toplevel is _UNSET else toplevel
         if not resolved:
@@ -279,8 +279,8 @@ class SessionService:
         config state, and a genuinely stale config on an up-to-date plugin
         was never mentioned at all. Each fact now gates its own sentence.
         """
-        from dev10x.domain.config_migration import schema_v2_pending
-        from dev10x.domain.install_version import install_state
+        from dev10x.core.domain.config_migration import schema_v2_pending
+        from dev10x.core.domain.install_version import install_state
 
         state = install_state()
         if state.needs_bootstrap:
@@ -314,7 +314,7 @@ class SessionService:
         Returns an empty string when no drift is detected or when either version
         cannot be determined.
         """
-        from dev10x.domain.install_version import (
+        from dev10x.core.domain.install_version import (
             read_latest_installed_version,
             read_running_hook_version,
         )
@@ -342,11 +342,11 @@ class SessionService:
         Pass ``None`` explicitly to return early without git discovery. Omit
         the parameter to let the service run git discovery itself.
         """
-        from dev10x.domain.documents.session_context import (
+        from dev10x.core.domain.documents.session_context import (
             SessionContextQuery,
             format_compaction_summary,
         )
-        from dev10x.domain.git_context import GitContext
+        from dev10x.core.domain.git_context import GitContext
 
         resolved: str | None = GitContext().toplevel if toplevel is _UNSET else toplevel
         if not resolved:

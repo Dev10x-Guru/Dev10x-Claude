@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from dev10x.core.paths import SCRIPTS_DIR, SKILLS_DIR, skill_script
-from dev10x.skills.doctor.strategy import (
+from dev10x.core.skills.doctor.strategy import (
     Context,
     Finding,
     Remediation,

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from dev10x.domain.common.result import Result
-from dev10x.mcp._app import mcp_tool
+from dev10x.core.domain.common.result import Result
+from dev10x.core.mcp._app import mcp_tool
 
 
 @mcp_tool
@@ -92,7 +92,7 @@ async def resolve_plugin_origin(skill_paths: list[str]) -> Result[dict]:
         marketplace, plugin, version, repo, issue_tracker, is_dev10x,
         skill_paths), unresolved, target_count, unresolved_count.
     """
-    from dev10x.domain.plugin_origin import resolve_skill_origins
+    from dev10x.core.domain.plugin_origin import resolve_skill_origins
 
     return resolve_skill_origins(skill_paths=skill_paths)
 

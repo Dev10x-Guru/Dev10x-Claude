@@ -2,7 +2,7 @@
 
 MVP visibility step for the review-bot initiative: takes the recurring
 review-comment patterns mined by
-:func:`dev10x.github.review_patterns.cluster_review_comments` (GH-346)
+:func:`dev10x.coding.github.review_patterns.cluster_review_comments` (GH-346)
 and formats them into a human-readable Markdown memo.
 
 This report is intentionally **read-only**. It surfaces what reviewers
@@ -20,7 +20,7 @@ import re
 from typing import Any
 
 from dev10x.coding.github import review_patterns
-from dev10x.domain.common.result import Result, SuccessResult, ok
+from dev10x.core.domain.common.result import Result, SuccessResult, ok
 
 # Max characters kept from an example comment in the memo. Examples are a
 # readability aid, not the full comment — long bodies are truncated.

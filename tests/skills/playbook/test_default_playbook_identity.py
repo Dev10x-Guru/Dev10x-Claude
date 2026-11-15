@@ -23,8 +23,8 @@ from typing import Any
 
 import pytest
 
-from dev10x.skills.playbook import installed_plugin_roots, load_plugin_default
-from dev10x.subprocess_utils import get_plugin_root
+from dev10x.core.skills.playbook import installed_plugin_roots, load_plugin_default
+from dev10x.core.subprocess_utils import get_plugin_root
 
 RESOLVED_SHA256 = "6e81311423e0c49012a796d26e1cc731f02573f1b025b3da029f638f85db67ae"
 VERSION_KEY = "version"

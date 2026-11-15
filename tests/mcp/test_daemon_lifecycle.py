@@ -34,7 +34,7 @@ from unittest.mock import patch
 
 import pytest
 
-from dev10x.mcp.daemon import (
+from dev10x.core.mcp.daemon import (
     DaemonLifecycle,
     is_daemon_healthy,
     pid_file_path,
@@ -43,7 +43,7 @@ from dev10x.mcp.daemon import (
     socket_file_path,
     write_pid_file,
 )
-from dev10x.mcp.wiring import select_transport_with_daemon_fallback
+from dev10x.core.mcp.wiring import select_transport_with_daemon_fallback
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -167,7 +167,7 @@ class TestStdioFallbackIntegration:
         import dev10x.mcp.server_cli as cli_mod
 
         with (
-            patch("dev10x.mcp.wiring.is_daemon_healthy", return_value=False),
+            patch("dev10x.core.mcp.wiring.is_daemon_healthy", return_value=False),
             patch.object(cli_mod.server, "run") as mock_run,
         ):
             cli_mod.main()
@@ -183,7 +183,7 @@ class TestStdioFallbackIntegration:
         import dev10x.mcp.server_cli as cli_mod
 
         with (
-            patch("dev10x.mcp.wiring.is_daemon_healthy", return_value=False),
+            patch("dev10x.core.mcp.wiring.is_daemon_healthy", return_value=False),
             patch.object(cli_mod.server, "run") as mock_run,
         ):
             cli_mod.main()
@@ -199,7 +199,7 @@ class TestStdioFallbackIntegration:
         import dev10x.mcp.server_cli as cli_mod
 
         with (
-            patch("dev10x.mcp.wiring.is_daemon_healthy", return_value=True),
+            patch("dev10x.core.mcp.wiring.is_daemon_healthy", return_value=True),
             patch.object(cli_mod.server, "run") as mock_run,
         ):
             cli_mod.main()
@@ -218,7 +218,7 @@ class TestStdioFallbackIntegration:
         """Explicit DEV10X_MCP_TRANSPORT skips daemon health check entirely."""
         monkeypatch.setenv("DEV10X_MCP_TRANSPORT", transport)
 
-        with patch("dev10x.mcp.daemon.is_daemon_healthy") as mock_health:
+        with patch("dev10x.core.mcp.daemon.is_daemon_healthy") as mock_health:
             result = select_transport_with_daemon_fallback()
 
         assert result == transport
@@ -231,7 +231,7 @@ class TestStdioFallbackIntegration:
         """Health check is invoked exactly once per transport selection."""
         monkeypatch.delenv("DEV10X_MCP_TRANSPORT", raising=False)
 
-        with patch("dev10x.mcp.wiring.is_daemon_healthy", return_value=False) as mock:
+        with patch("dev10x.core.mcp.wiring.is_daemon_healthy", return_value=False) as mock:
             select_transport_with_daemon_fallback()
 
         mock.assert_called_once_with()
@@ -253,7 +253,7 @@ class TestDeletedCwdRecoveryInMcpContext:
 
     def test_recover_process_cwd_calls_chdir_on_deleted_cwd(self) -> None:
         """When os.getcwd() raises FileNotFoundError, os.chdir(plugin_root) is called."""
-        from dev10x.subprocess_utils import _recover_process_cwd, get_plugin_root
+        from dev10x.core.subprocess_utils import _recover_process_cwd, get_plugin_root
 
         with (
             patch("os.getcwd", side_effect=FileNotFoundError("No such file or directory")),
@@ -265,7 +265,7 @@ class TestDeletedCwdRecoveryInMcpContext:
 
     def test_recover_process_cwd_noop_when_cwd_exists(self) -> None:
         """_recover_process_cwd() does nothing when the process CWD is healthy."""
-        from dev10x.subprocess_utils import _recover_process_cwd
+        from dev10x.core.subprocess_utils import _recover_process_cwd
 
         with (
             patch("os.getcwd", return_value="/some/valid/path"),
@@ -277,11 +277,11 @@ class TestDeletedCwdRecoveryInMcpContext:
 
     def test_safe_effective_cwd_triggers_recovery_when_cwd_deleted(self) -> None:
         """safe_effective_cwd() calls _recover_process_cwd() when process CWD is gone."""
-        from dev10x.subprocess_utils import safe_effective_cwd
+        from dev10x.core.subprocess_utils import safe_effective_cwd
 
         with (
-            patch("dev10x.subprocess_utils._recover_process_cwd") as mock_recover,
-            patch("dev10x.subprocess_utils._effective_cwd") as mock_var,
+            patch("dev10x.core.subprocess_utils._recover_process_cwd") as mock_recover,
+            patch("dev10x.core.subprocess_utils._effective_cwd") as mock_var,
         ):
             mock_var.get.return_value = None  # no bound worktree
             safe_effective_cwd()
@@ -293,7 +293,7 @@ class TestDeletedCwdRecoveryInMcpContext:
         tmp_path: Path,
     ) -> None:
         """Bound directory deleted → safe_effective_cwd() returns None, not raises."""
-        from dev10x.subprocess_utils import safe_effective_cwd, use_cwd
+        from dev10x.core.subprocess_utils import safe_effective_cwd, use_cwd
 
         deleted = tmp_path / "deleted-worktree"
         deleted.mkdir()

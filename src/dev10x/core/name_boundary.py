@@ -9,7 +9,7 @@ DX020 compares whole name tokens instead and reaches for
 ``name_pattern`` only for an alias that is not a single token.
 
 Imports nothing beyond the standard library and lives outside
-``dev10x.domain``, whose package init needs yaml, so the
+``dev10x.core.domain``, whose package init needs yaml, so the
 dependency-free bin/ scanners can import it.
 """
 

@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
 
-from dev10x.domain.documents.task import Task, TaskStatus
+from dev10x.core.domain.documents.task import Task, TaskStatus
 
 AFK_OVERLAY = "afk"
 

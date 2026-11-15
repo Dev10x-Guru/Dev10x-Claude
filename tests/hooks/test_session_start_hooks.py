@@ -40,7 +40,7 @@ class TestSessionTmpdir:
         assert result.output == ""
 
     def test_exits_silently_on_invalid_json(self) -> None:
-        from dev10x.hooks.session import session_tmpdir
+        from dev10x.core.hooks.session import session_tmpdir
 
         original_stdin = sys.stdin
         sys.stdin = io.StringIO("{not valid json}")
@@ -92,8 +92,8 @@ class TestSessionGuidance:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        import dev10x.hooks.session_dispatch as mod
-        from dev10x.session.service import SessionService
+        import dev10x.core.hooks.session_dispatch as mod
+        from dev10x.core.session.service import SessionService
 
         fake_root = Path("/tmp/nonexistent-plugin-root-xyz")
         monkeypatch.setattr(mod, "_plugin_root", lambda: fake_root)
@@ -110,10 +110,10 @@ class TestSessionInstallCheck:
     def test_silent_when_install_current(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
-        from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR
-        from dev10x.domain.dev10x_paths import CONFIG_HOME_ENV_VAR, Dev10xConfigDir
-        from dev10x.domain.install_version import write_applied_version
-        from dev10x.hooks.session_dispatch import build_install_check_context
+        from dev10x.core.domain.claude_paths import CLAUDE_HOME_ENV_VAR
+        from dev10x.core.domain.dev10x_paths import CONFIG_HOME_ENV_VAR, Dev10xConfigDir
+        from dev10x.core.domain.install_version import write_applied_version
+        from dev10x.core.hooks.session_dispatch import build_install_check_context
 
         monkeypatch.setenv(CLAUDE_HOME_ENV_VAR, str(tmp_path))
         monkeypatch.setenv(CONFIG_HOME_ENV_VAR, str(tmp_path / "config_dev10x"))
@@ -132,9 +132,9 @@ class TestSessionInstallCheck:
     def test_guides_bootstrap_when_config_missing(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
-        from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR
-        from dev10x.domain.dev10x_paths import CONFIG_HOME_ENV_VAR, Dev10xConfigDir
-        from dev10x.hooks.session_dispatch import build_install_check_context
+        from dev10x.core.domain.claude_paths import CLAUDE_HOME_ENV_VAR
+        from dev10x.core.domain.dev10x_paths import CONFIG_HOME_ENV_VAR, Dev10xConfigDir
+        from dev10x.core.hooks.session_dispatch import build_install_check_context
 
         monkeypatch.setenv(CLAUDE_HOME_ENV_VAR, str(tmp_path))
         monkeypatch.setenv(CONFIG_HOME_ENV_VAR, str(tmp_path / "config_dev10x"))
@@ -148,10 +148,10 @@ class TestSessionInstallCheck:
     def test_guides_upgrade_on_version_mismatch(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
-        from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR
-        from dev10x.domain.dev10x_paths import CONFIG_HOME_ENV_VAR, Dev10xConfigDir
-        from dev10x.domain.install_version import write_applied_version
-        from dev10x.hooks.session_dispatch import build_install_check_context
+        from dev10x.core.domain.claude_paths import CLAUDE_HOME_ENV_VAR
+        from dev10x.core.domain.dev10x_paths import CONFIG_HOME_ENV_VAR, Dev10xConfigDir
+        from dev10x.core.domain.install_version import write_applied_version
+        from dev10x.core.hooks.session_dispatch import build_install_check_context
 
         monkeypatch.setenv(CLAUDE_HOME_ENV_VAR, str(tmp_path))
         monkeypatch.setenv(CONFIG_HOME_ENV_VAR, str(tmp_path / "config_dev10x"))
@@ -176,9 +176,9 @@ class TestSessionInstallCheck:
     # the config held, and a stale config on a current plugin said nothing.
 
     def _isolate(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, *, applied: str) -> None:
-        from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR
-        from dev10x.domain.dev10x_paths import CONFIG_HOME_ENV_VAR, Dev10xConfigDir
-        from dev10x.domain.install_version import write_applied_version
+        from dev10x.core.domain.claude_paths import CLAUDE_HOME_ENV_VAR
+        from dev10x.core.domain.dev10x_paths import CONFIG_HOME_ENV_VAR, Dev10xConfigDir
+        from dev10x.core.domain.install_version import write_applied_version
 
         monkeypatch.setenv(CLAUDE_HOME_ENV_VAR, str(tmp_path))
         monkeypatch.setenv(CONFIG_HOME_ENV_VAR, str(tmp_path / "config_dev10x"))
@@ -195,8 +195,8 @@ class TestSessionInstallCheck:
     def test_warns_on_unmigrated_config_despite_current_version(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
-        from dev10x.domain.dev10x_paths import Dev10xConfigDir
-        from dev10x.hooks.session_dispatch import build_install_check_context
+        from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
+        from dev10x.core.hooks.session_dispatch import build_install_check_context
 
         self._isolate(monkeypatch, tmp_path, applied="0.72.0")
         Dev10xConfigDir.friction_yaml().write_text(
@@ -213,8 +213,8 @@ class TestSessionInstallCheck:
         # The 2026-09-09 field case: an already-migrated config must not be
         # nagged. Surviving `active_modes` is a playbook/DoD axis the
         # migrator deliberately preserves (ADR-0022 D-6), not v1 residue.
-        from dev10x.domain.dev10x_paths import Dev10xConfigDir
-        from dev10x.hooks.session_dispatch import build_install_check_context
+        from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
+        from dev10x.core.hooks.session_dispatch import build_install_check_context
 
         self._isolate(monkeypatch, tmp_path, applied="0.72.0")
         Dev10xConfigDir.friction_yaml().write_text(
@@ -233,8 +233,8 @@ class TestSessionInstallCheck:
     def test_reports_both_facts_when_both_are_outstanding(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
-        from dev10x.domain.dev10x_paths import Dev10xConfigDir
-        from dev10x.hooks.session_dispatch import build_install_check_context
+        from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
+        from dev10x.core.hooks.session_dispatch import build_install_check_context
 
         self._isolate(monkeypatch, tmp_path, applied="0.71.0")
         Dev10xConfigDir.friction_yaml().write_text(
@@ -248,9 +248,9 @@ class TestSessionInstallCheck:
     def test_session_install_check_emits_envelope(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys
     ) -> None:
-        from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR
-        from dev10x.domain.dev10x_paths import CONFIG_HOME_ENV_VAR, Dev10xConfigDir
-        from dev10x.hooks.session_dispatch import session_install_check
+        from dev10x.core.domain.claude_paths import CLAUDE_HOME_ENV_VAR
+        from dev10x.core.domain.dev10x_paths import CONFIG_HOME_ENV_VAR, Dev10xConfigDir
+        from dev10x.core.hooks.session_dispatch import session_install_check
 
         monkeypatch.setenv(CLAUDE_HOME_ENV_VAR, str(tmp_path))
         monkeypatch.setenv(CONFIG_HOME_ENV_VAR, str(tmp_path / "config_dev10x"))
@@ -266,9 +266,9 @@ class TestSessionInstallCheck:
     def test_session_install_check_silent_when_current(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys
     ) -> None:
-        from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR, ClaudeDir
-        from dev10x.domain.install_version import write_applied_version
-        from dev10x.hooks.session_dispatch import session_install_check
+        from dev10x.core.domain.claude_paths import CLAUDE_HOME_ENV_VAR, ClaudeDir
+        from dev10x.core.domain.install_version import write_applied_version
+        from dev10x.core.hooks.session_dispatch import session_install_check
 
         monkeypatch.setenv(CLAUDE_HOME_ENV_VAR, str(tmp_path))
         ClaudeDir.dev10x_config_dir().mkdir(parents=True)
@@ -289,9 +289,9 @@ class TestSessionInstallCheck:
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
         """Config dir present but version.yml absent — needs_upgrade fires with 'never applied'."""
-        from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR
-        from dev10x.domain.dev10x_paths import CONFIG_HOME_ENV_VAR, Dev10xConfigDir
-        from dev10x.hooks.session_dispatch import build_install_check_context
+        from dev10x.core.domain.claude_paths import CLAUDE_HOME_ENV_VAR
+        from dev10x.core.domain.dev10x_paths import CONFIG_HOME_ENV_VAR, Dev10xConfigDir
+        from dev10x.core.hooks.session_dispatch import build_install_check_context
 
         monkeypatch.setenv(CLAUDE_HOME_ENV_VAR, str(tmp_path))
         monkeypatch.setenv(CONFIG_HOME_ENV_VAR, str(tmp_path / "config_dev10x"))
@@ -315,10 +315,10 @@ class TestSessionInstallCheck:
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
         """Plugin manifest missing/unreadable — needs_upgrade short-circuits to False."""
-        from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR
-        from dev10x.domain.dev10x_paths import CONFIG_HOME_ENV_VAR, Dev10xConfigDir
-        from dev10x.domain.install_version import write_applied_version
-        from dev10x.hooks.session_dispatch import build_install_check_context
+        from dev10x.core.domain.claude_paths import CLAUDE_HOME_ENV_VAR
+        from dev10x.core.domain.dev10x_paths import CONFIG_HOME_ENV_VAR, Dev10xConfigDir
+        from dev10x.core.domain.install_version import write_applied_version
+        from dev10x.core.hooks.session_dispatch import build_install_check_context
 
         monkeypatch.setenv(CLAUDE_HOME_ENV_VAR, str(tmp_path))
         monkeypatch.setenv(CONFIG_HOME_ENV_VAR, str(tmp_path / "config_dev10x"))
@@ -327,7 +327,7 @@ class TestSessionInstallCheck:
         write_applied_version(plugin_version="0.71.0")
 
         monkeypatch.setattr(
-            "dev10x.domain.install_version.read_plugin_version",
+            "dev10x.core.domain.install_version.read_plugin_version",
             lambda **kwargs: None,
         )
 
@@ -340,8 +340,8 @@ class TestSessionHookVersionDrift:
     def test_silent_when_versions_match(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
-        from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR, ClaudeDir
-        from dev10x.hooks.session_dispatch import build_hook_version_drift_context
+        from dev10x.core.domain.claude_paths import CLAUDE_HOME_ENV_VAR, ClaudeDir
+        from dev10x.core.hooks.session_dispatch import build_hook_version_drift_context
 
         plugin_root = tmp_path / "plugins" / "cache" / "Dev10x-Guru" / "dev10x-claude" / "0.76.0"
         (plugin_root / ".claude-plugin").mkdir(parents=True)
@@ -357,8 +357,8 @@ class TestSessionHookVersionDrift:
     def test_warns_when_newer_version_installed(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
-        from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR, ClaudeDir
-        from dev10x.hooks.session_dispatch import build_hook_version_drift_context
+        from dev10x.core.domain.claude_paths import CLAUDE_HOME_ENV_VAR, ClaudeDir
+        from dev10x.core.hooks.session_dispatch import build_hook_version_drift_context
 
         cache_base = tmp_path / "plugins" / "cache" / "Dev10x-Guru" / "dev10x-claude"
         old_root = cache_base / "0.72.0"
@@ -380,8 +380,8 @@ class TestSessionHookVersionDrift:
     def test_silent_when_running_version_unknown(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
-        from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR, ClaudeDir
-        from dev10x.hooks.session_dispatch import build_hook_version_drift_context
+        from dev10x.core.domain.claude_paths import CLAUDE_HOME_ENV_VAR, ClaudeDir
+        from dev10x.core.hooks.session_dispatch import build_hook_version_drift_context
 
         monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
         monkeypatch.setenv(CLAUDE_HOME_ENV_VAR, str(tmp_path))
@@ -392,8 +392,8 @@ class TestSessionHookVersionDrift:
     def test_silent_when_cache_absent(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
-        from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR, ClaudeDir
-        from dev10x.hooks.session_dispatch import build_hook_version_drift_context
+        from dev10x.core.domain.claude_paths import CLAUDE_HOME_ENV_VAR, ClaudeDir
+        from dev10x.core.hooks.session_dispatch import build_hook_version_drift_context
 
         plugin_root = tmp_path / "plugin"
         (plugin_root / ".claude-plugin").mkdir(parents=True)
@@ -411,8 +411,8 @@ class TestSessionHookVersionDrift:
     ) -> None:
         """Drift message must not reference settings/upgrade state — only
         running-hook vs installed-version mismatch."""
-        from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR, ClaudeDir
-        from dev10x.hooks.session_dispatch import build_hook_version_drift_context
+        from dev10x.core.domain.claude_paths import CLAUDE_HOME_ENV_VAR, ClaudeDir
+        from dev10x.core.hooks.session_dispatch import build_hook_version_drift_context
 
         cache_base = tmp_path / "plugins" / "cache" / "Dev10x-Guru" / "dev10x-claude"
         old_root = cache_base / "0.72.0"
@@ -455,7 +455,7 @@ class TestSessionGitAliases:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        import dev10x.hooks.session_place as mod
+        import dev10x.core.hooks.session_place as mod
 
         monkeypatch.setattr(mod, "_run_git", lambda *args: "")
 
@@ -474,7 +474,7 @@ class TestSessionGitAliases:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        import dev10x.hooks.session_place as mod
+        import dev10x.core.hooks.session_place as mod
 
         call_count = 0
 
@@ -499,7 +499,7 @@ class TestSessionGitAliases:
 
 class TestBuildMigrationReplacements:
     def test_builds_replacements_for_sibling_versions(self, tmp_path: Path) -> None:
-        from dev10x.hooks.session import _build_migration_replacements
+        from dev10x.core.hooks.session import _build_migration_replacements
 
         plugin_root = tmp_path / "1.0.0"
         old_version = tmp_path / "0.9.0"
@@ -519,7 +519,7 @@ class TestBuildMigrationReplacements:
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        from dev10x.hooks.session import _build_migration_replacements
+        from dev10x.core.hooks.session import _build_migration_replacements
 
         plugin_root = tmp_path / "current"
         plugin_root.mkdir()
@@ -538,7 +538,7 @@ class TestBuildMigrationReplacements:
 
 class TestMigrateRules:
     def test_replaces_old_path_in_rule(self, tmp_path: Path) -> None:
-        from dev10x.domain.documents.settings_document import _migrate_rules
+        from dev10x.core.domain.documents.settings_document import _migrate_rules
 
         old = str(tmp_path / "old") + "/"
         new = str(tmp_path / "new") + "/"
@@ -549,7 +549,7 @@ class TestMigrateRules:
         assert new in result[0]
 
     def test_preserves_unmatched_rules(self) -> None:
-        from dev10x.domain.documents.settings_document import _migrate_rules
+        from dev10x.core.domain.documents.settings_document import _migrate_rules
 
         rules = ["Read", "Write", "Bash(~/.claude/tools/:*)"]
         result, count = _migrate_rules(rules=rules, replacements=[("/old/", "/new/")])
@@ -560,7 +560,7 @@ class TestMigrateRules:
 
 class TestDeduplicateRules:
     def test_removes_duplicates(self) -> None:
-        from dev10x.domain.documents.settings_document import _deduplicate_rules
+        from dev10x.core.domain.documents.settings_document import _deduplicate_rules
 
         rules = ["rule-a", "rule-b", "rule-a", "rule-c"]
         result = _deduplicate_rules(rules=rules)
@@ -568,7 +568,7 @@ class TestDeduplicateRules:
         assert result == ["rule-a", "rule-b", "rule-c"]
 
     def test_preserves_order(self) -> None:
-        from dev10x.domain.documents.settings_document import _deduplicate_rules
+        from dev10x.core.domain.documents.settings_document import _deduplicate_rules
 
         rules = ["c", "a", "b", "a"]
         result = _deduplicate_rules(rules=rules)
@@ -591,8 +591,8 @@ class TestSessionMigratePermissions:
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        import dev10x.hooks.session as mod
-        import dev10x.hooks.session_dispatch as dispatch_mod
+        import dev10x.core.hooks.session as mod
+        import dev10x.core.hooks.session_dispatch as dispatch_mod
 
         fake_plugin_root = tmp_path / "plugins" / "cache" / "Dev10x" / "1.0.0"
         fake_old_version = tmp_path / "plugins" / "cache" / "Dev10x" / "0.9.0"

@@ -9,16 +9,16 @@ from typing import Any
 
 import pytest
 import yaml
-from dev10x.domain.common.result import ErrorResult
-from dev10x.domain.dev10x_paths import Dev10xConfigDir
-from dev10x.domain.documents.session_yaml import (
+
+from dev10x.core.domain.common.result import ErrorResult
+from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.core.domain.documents.session_yaml import (
     FrictionYamlDocument,
     match_globs_for_repo,
     repo_stem,
     upsert_project_prefs,
 )
-
-from dev10x.session import preset_pin
+from dev10x.core.session import preset_pin
 
 
 @pytest.fixture
@@ -83,7 +83,7 @@ def test_match_globs_for_repo_escapes_glob_metacharacters(odd_name: str) -> None
     """A checkout named `foo*` must not pin a glob matching unrelated repos."""
     globs = match_globs_for_repo(repo_name=odd_name, scope="repo")
 
-    from dev10x.domain.documents.session_yaml import match_globs
+    from dev10x.core.domain.documents.session_yaml import match_globs
 
     assert match_globs(f"/work/{odd_name}", globs) is True
     assert match_globs("/work/foobar", globs) is False
@@ -112,14 +112,14 @@ def test_repo_scoped_globs_match_main_and_every_worktree(checkout: str) -> None:
     friction = FrictionYamlDocument(toplevel=checkout)
     assert friction  # constructed against the checkout under test
     entry = doc["projects"][0]
-    from dev10x.domain.documents.session_yaml import match_globs
+    from dev10x.core.domain.documents.session_yaml import match_globs
 
     assert match_globs(checkout, entry["match"]) is True
 
 
 def test_repo_scoped_globs_do_not_match_an_unrelated_repo() -> None:
     globs = match_globs_for_repo(repo_name="bl-zebra", scope="repo")
-    from dev10x.domain.documents.session_yaml import match_globs
+    from dev10x.core.domain.documents.session_yaml import match_globs
 
     assert match_globs("/work/bl/bl-lion", globs) is False
 
@@ -288,7 +288,7 @@ def test_common_dir_returns_none_when_git_fails(
     # GH-1445: the lookup moved onto GitContext.common_dir, so the stub sits
     # at the subprocess seam rather than on GitContext.run. The contract
     # under test is unchanged.
-    monkeypatch.setattr("dev10x.domain.git_context.subprocess.check_output", boom)
+    monkeypatch.setattr("dev10x.core.domain.git_context.subprocess.check_output", boom)
 
     assert preset_pin._common_dir(cwd=None) is None
 
@@ -307,7 +307,7 @@ def test_git_lookups_are_bounded(
         seen.update(kwargs)
         return stdout
 
-    monkeypatch.setattr("dev10x.domain.git_context.subprocess.check_output", record)
+    monkeypatch.setattr("dev10x.core.domain.git_context.subprocess.check_output", record)
 
     getattr(preset_pin, helper)(cwd=None)
 
@@ -328,7 +328,7 @@ def test_bounded_toplevel_returns_none_when_git_fails(
     def boom(*args: object, **kwargs: object) -> str:
         raise failure
 
-    monkeypatch.setattr("dev10x.domain.git_context.subprocess.check_output", boom)
+    monkeypatch.setattr("dev10x.core.domain.git_context.subprocess.check_output", boom)
 
     assert preset_pin._bounded_toplevel(cwd=None) is None
 
@@ -336,7 +336,9 @@ def test_bounded_toplevel_returns_none_when_git_fails(
 def test_bounded_toplevel_treats_empty_output_as_absent(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("dev10x.domain.git_context.subprocess.check_output", lambda *a, **k: "")
+    monkeypatch.setattr(
+        "dev10x.core.domain.git_context.subprocess.check_output", lambda *a, **k: ""
+    )
 
     assert preset_pin._bounded_toplevel(cwd=None) is None
 
@@ -457,7 +459,7 @@ def test_pin_preset_accepts_a_user_defined_preset(
 ) -> None:
     """Validation must not be stricter than the resolver (user presets are legal)."""
     monkeypatch.setattr(
-        "dev10x.config.friction_presets.load_user_presets", lambda **_: {"house-style": {}}
+        "dev10x.core.config.friction_presets.load_user_presets", lambda **_: {"house-style": {}}
     )
 
     result = preset_pin.pin_preset(preset="house-style")

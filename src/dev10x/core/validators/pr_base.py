@@ -13,12 +13,12 @@ import re
 from dataclasses import dataclass
 from typing import ClassVar
 
-from dev10x import subprocess_utils
-from dev10x.domain import HookInput, HookResult
-from dev10x.domain.common.branch_name import BASE_BRANCH_PRIORITY
-from dev10x.domain.profile_tier import ProfileTier
-from dev10x.domain.rules.validation_rule import is_search_command
-from dev10x.validators.base import ValidatorBase
+from dev10x.core import subprocess_utils
+from dev10x.core.domain import HookInput, HookResult
+from dev10x.core.domain.common.branch_name import BASE_BRANCH_PRIORITY
+from dev10x.core.domain.profile_tier import ProfileTier
+from dev10x.core.domain.rules.validation_rule import is_search_command
+from dev10x.core.validators.base import ValidatorBase
 
 GH_PR_CREATE_RE = re.compile(r"gh\s+pr\s+create")
 

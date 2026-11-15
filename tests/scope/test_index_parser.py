@@ -1,11 +1,12 @@
-"""Unit tests for dev10x.scope.index_parser (GH-170)."""
+"""Unit tests for dev10x.scoping.scope.index_parser (GH-170)."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
 import pytest
-from dev10x.scope.index_parser import RuleEntry, parse_index
+
+from dev10x.scoping.scope.index_parser import RuleEntry, parse_index
 
 
 @pytest.fixture

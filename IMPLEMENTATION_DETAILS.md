@@ -70,7 +70,7 @@ Applied value filter to lessons learned from GH-246 (PR #382). 2 of 5 proposed i
 
 ### Exception: Config Loaders at Critical Path
 
-Some config loaders (e.g., `dev10x.skills.permission.config::resolve_config`)
+Some config loaders (e.g., `dev10x.core.skills.permission.config::resolve_config`)
 call `sys.exit(1)` on missing configuration. This is acceptable when:
 1. The function has exactly one call chain: CLI command → domain module
    → config loader.

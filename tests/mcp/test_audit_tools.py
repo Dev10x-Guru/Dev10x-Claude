@@ -8,7 +8,7 @@ Verifies that each of the five MCP tools:
 - Returns a success dict (no "error" key) on the happy path.
 
 The domain layer already has its own unit tests (tests/audit/test_audit.py),
-so these tests mock at the ``dev10x.audit.*`` boundary and focus on the
+so these tests mock at the ``dev10x.teach.audit.*`` boundary and focus on the
 adapter contract, not on domain logic.
 """
 
@@ -27,7 +27,7 @@ from dev10x.mcp import server_cli as cli_server
 
 class TestAuditExtractSessionErrorContract:
     @pytest.mark.asyncio
-    @patch("dev10x.audit.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.teach.audit.async_run_script", new_callable=AsyncMock)
     async def test_missing_jsonl_file_returns_error_key(
         self,
         mock_run: AsyncMock,
@@ -48,7 +48,7 @@ class TestAuditExtractSessionErrorContract:
         assert "No such file" in result["error"]
 
     @pytest.mark.asyncio
-    @patch("dev10x.audit.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.teach.audit.async_run_script", new_callable=AsyncMock)
     async def test_malformed_jsonl_script_failure_returns_error_key(
         self,
         mock_run: AsyncMock,
@@ -69,7 +69,7 @@ class TestAuditExtractSessionErrorContract:
         assert "JSONDecodeError" in result["error"]
 
     @pytest.mark.asyncio
-    @patch("dev10x.audit.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.teach.audit.async_run_script", new_callable=AsyncMock)
     async def test_success_has_no_error_key(
         self,
         mock_run: AsyncMock,
@@ -89,7 +89,7 @@ class TestAuditExtractSessionErrorContract:
         assert result["success"] is True
 
     @pytest.mark.asyncio
-    @patch("dev10x.audit.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.teach.audit.async_run_script", new_callable=AsyncMock)
     async def test_output_path_forwarded(
         self,
         mock_run: AsyncMock,
@@ -116,7 +116,7 @@ class TestAuditExtractSessionErrorContract:
 
 class TestAuditAnalyzeActionsErrorContract:
     @pytest.mark.asyncio
-    @patch("dev10x.audit.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.teach.audit.async_run_script", new_callable=AsyncMock)
     async def test_missing_transcript_returns_error_key(
         self,
         mock_run: AsyncMock,
@@ -136,7 +136,7 @@ class TestAuditAnalyzeActionsErrorContract:
         assert "transcript not found" in result["error"]
 
     @pytest.mark.asyncio
-    @patch("dev10x.audit.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.teach.audit.async_run_script", new_callable=AsyncMock)
     async def test_empty_transcript_script_failure_returns_error_key(
         self,
         mock_run: AsyncMock,
@@ -156,7 +156,7 @@ class TestAuditAnalyzeActionsErrorContract:
         assert "error" in result
 
     @pytest.mark.asyncio
-    @patch("dev10x.audit.async_run_script", new_callable=AsyncMock)
+    @patch("dev10x.teach.audit.async_run_script", new_callable=AsyncMock)
     async def test_success_has_no_error_key(
         self,
         mock_run: AsyncMock,
@@ -203,7 +203,7 @@ class TestAuditAnalyzePermissionsErrorContract:
         transcript.write_text("# session\n")
 
         with patch(
-            "dev10x.audit.analyze.build_audit_report",
+            "dev10x.teach.audit.analyze.build_audit_report",
             side_effect=RuntimeError("internal failure"),
         ):
             result = await cli_server.audit_analyze_permissions(
@@ -242,7 +242,7 @@ class TestAuditAnalyzePermissionsErrorContract:
         settings = tmp_path / "custom_settings.json"
         settings.write_text('{"permissions": {"allow": ["Bash(echo *)"]}}')
 
-        with patch("dev10x.audit.analyze.build_audit_report") as mock_build:
+        with patch("dev10x.teach.audit.analyze.build_audit_report") as mock_build:
             mock_build.return_value = MagicMock(render_markdown=lambda: "# Report\n")
             await cli_server.audit_analyze_permissions(
                 transcript_path=str(transcript),

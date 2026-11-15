@@ -12,14 +12,14 @@ Wrapped with @audit_hook so body-phase timing lands in the JSONL log.
 import sys
 
 try:
-    from dev10x.hooks.audit_emit import audit_hook
-    from dev10x.hooks.skill import skill_metrics
+    from dev10x.core.hooks.audit_emit import audit_hook
+    from dev10x.core.hooks.skill import skill_metrics
 except ImportError:
     from pathlib import Path
 
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "src"))
-    from dev10x.hooks.audit_emit import audit_hook
-    from dev10x.hooks.skill import skill_metrics
+    from dev10x.core.hooks.audit_emit import audit_hook
+    from dev10x.core.hooks.skill import skill_metrics
 
 if __name__ == "__main__":
     audit_hook(name="skill-metrics", event="PostToolUse")(skill_metrics)()

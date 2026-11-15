@@ -1,4 +1,4 @@
-"""Unit tests for dev10x.github.rule_confidence (GH-350).
+"""Unit tests for dev10x.coding.github.rule_confidence (GH-350).
 
 Contract class: real
   Scoring and ranking are pure functions; the feedback store uses
@@ -14,9 +14,10 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from dev10x.domain.common.result import ErrorResult, SuccessResult
 
-rc = pytest.importorskip("dev10x.github.rule_confidence", reason="dev10x not installed")
+from dev10x.core.domain.common.result import ErrorResult, SuccessResult
+
+rc = pytest.importorskip("dev10x.coding.github.rule_confidence", reason="dev10x not installed")
 
 
 class TestConfidenceScore:

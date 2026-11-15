@@ -23,7 +23,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from dev10x.domain.common.result import Result, ok
+from dev10x.core.domain.common.result import Result, ok
 
 SHORT_BODY_WORD_THRESHOLD = 30
 

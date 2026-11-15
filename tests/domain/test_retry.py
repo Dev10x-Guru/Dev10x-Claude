@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import pytest
-from dev10x.domain.retry import (
+
+from dev10x.core.domain.retry import (
     RetryPolicy,
     http_status,
     is_retryable,

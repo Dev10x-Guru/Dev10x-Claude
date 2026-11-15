@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 import pytest
-from dev10x.skills.permission_investigator.matrix import (
+
+from dev10x.core.skills.permission_investigator.matrix import (
     Matrix,
     MatrixCell,
     MatrixResult,
     MatrixStatus,
     RuleShape,
 )
-from dev10x.skills.permission_investigator.report import (
+from dev10x.core.skills.permission_investigator.report import (
     aggregate_results,
     compute_delta,
     render_markdown_report,

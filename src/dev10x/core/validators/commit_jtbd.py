@@ -16,12 +16,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, ClassVar
 
-from dev10x.domain import HookInput, HookResult
-from dev10x.domain.common.commit_subject import CommitSubject
-from dev10x.domain.common.result import ErrorResult, Result, err, ok
-from dev10x.domain.gitmoji import BYPASS_GITMOJI
-from dev10x.domain.profile_tier import ProfileTier
-from dev10x.validators.base import ValidatorBase
+from dev10x.core.domain import HookInput, HookResult
+from dev10x.core.domain.common.commit_subject import CommitSubject
+from dev10x.core.domain.common.result import ErrorResult, Result, err, ok
+from dev10x.core.domain.gitmoji import BYPASS_GITMOJI
+from dev10x.core.domain.profile_tier import ProfileTier
+from dev10x.core.validators.base import ValidatorBase
 
 _VERB_BASES = [
     "Add",

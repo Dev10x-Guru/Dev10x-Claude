@@ -21,10 +21,10 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
-from dev10x import subprocess_utils
-from dev10x.domain.common.result import ErrorResult, Result, err, ok
-from dev10x.domain.file_locks import atomic_append_line
-from dev10x.domain.usage import blocks_report
+from dev10x.core import subprocess_utils
+from dev10x.core.domain.common.result import ErrorResult, Result, err, ok
+from dev10x.core.domain.file_locks import atomic_append_line
+from dev10x.core.domain.usage import blocks_report
 
 log = logging.getLogger(__name__)
 

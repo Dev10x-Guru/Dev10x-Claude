@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import pytest
-from dev10x.skills.permission_investigator.matrix import (
+
+from dev10x.core.skills.permission_investigator.matrix import (
     DEFAULT_LOCATIONS,
     DEFAULT_PREFIXES,
     DEFAULT_TOOLS,

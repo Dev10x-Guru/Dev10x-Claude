@@ -4,14 +4,14 @@ import json
 from pathlib import Path
 
 import pytest
-from dev10x.skills.permission.catalog_paths import (
+
+from dev10x.core.skills.permission import clean_project_files as clean_mod
+from dev10x.core.skills.permission.catalog_paths import (
     load_catalog_document,
     shipped_projects_catalog,
 )
-from dev10x.skills.permission.catalog_write import render_catalog
-
-from dev10x.skills.permission import clean_project_files as clean_mod
-from dev10x.subprocess_utils import get_plugin_root
+from dev10x.core.skills.permission.catalog_write import render_catalog
+from dev10x.core.subprocess_utils import get_plugin_root
 
 
 class TestIsShellFragment:
@@ -614,7 +614,7 @@ class TestCleanFileConcurrentWriter:
         settings_file: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> list[str]:
-        from dev10x.skills.permission import backup
+        from dev10x.core.skills.permission import backup
 
         real_backup = backup.create_backup
 
@@ -851,7 +851,7 @@ class TestAskShadowedByAllow:
 class TestVerboseFormatting:
     @pytest.fixture
     def format_messages(self):
-        from dev10x.skills.permission.clean_project_files import _format_messages
+        from dev10x.core.skills.permission.clean_project_files import _format_messages
 
         return _format_messages
 

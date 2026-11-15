@@ -24,11 +24,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from dev10x.domain.claude_paths import ClaudeDir
-from dev10x.domain.common.allow_rule import AllowRule, AllowRuleLoader
-from dev10x.domain.common.mcp_tool_name import McpToolName
-from dev10x.domain.common.tool_signature import ToolSignature
-from dev10x.subprocess_utils import effective_cwd
+from dev10x.core.domain.claude_paths import ClaudeDir
+from dev10x.core.domain.common.allow_rule import AllowRule, AllowRuleLoader
+from dev10x.core.domain.common.mcp_tool_name import McpToolName
+from dev10x.core.domain.common.tool_signature import ToolSignature
+from dev10x.core.subprocess_utils import effective_cwd
 
 
 @dataclass(frozen=True)

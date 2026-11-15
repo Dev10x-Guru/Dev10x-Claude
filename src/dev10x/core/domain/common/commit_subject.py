@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from dev10x.domain.common.ticket_id import TicketId
+from dev10x.core.domain.common.ticket_id import TicketId
 
 
 @dataclass(frozen=True)

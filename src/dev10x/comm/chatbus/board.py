@@ -23,7 +23,7 @@ from dev10x.comm.chatbus.status import BusStatus, empty_queue, read_status
 from dev10x.comm.chatbus.store import BUSY_TIMEOUT_SECONDS
 from dev10x.comm.chatbus.worklist import WorkView, event_text, event_thread, list_work
 from dev10x.comm.skills.notifications.gchat_users import load_chat_users
-from dev10x.domain.common.result import ErrorResult, Result, err, ok
+from dev10x.core.domain.common.result import ErrorResult, Result, err, ok
 
 log = logging.getLogger(__name__)
 

@@ -21,7 +21,7 @@ to trigger registration.
 
 from __future__ import annotations
 
-from dev10x.mcp._app import server
+from dev10x.core.mcp._app import server
 
 
 @server.prompt(

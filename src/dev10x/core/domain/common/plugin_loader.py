@@ -1,7 +1,7 @@
 """Generic Plugin loader (Fowler PoEAA).
 
-Both :mod:`dev10x.validators.registry` and
-:mod:`dev10x.skills.doctor.registry` load their extensions the same way:
+Both :mod:`dev10x.core.validators.registry` and
+:mod:`dev10x.core.skills.doctor.registry` load their extensions the same way:
 import a module path late, pull a named attribute (a *marker*) from it,
 and keep it only when it satisfies a Protocol. This utility captures that
 import → resolve → type-gate mechanic so the two registries stop

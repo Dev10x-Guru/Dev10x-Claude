@@ -3,10 +3,10 @@
 Durable prefs live in three documents with different lifetimes, each in
 its own module:
 
-- :class:`~dev10x.domain.documents.friction_yaml.FrictionYamlDocument` —
+- :class:`~dev10x.core.domain.documents.friction_yaml.FrictionYamlDocument` —
   the **global** ``~/.config/Dev10x/friction.yaml``, cross-repo, keyed by
   project globs, with its own reap/GC semantics (ADR-0018).
-- :class:`~dev10x.domain.documents.config_yaml.ConfigYamlDocument` — the
+- :class:`~dev10x.core.domain.documents.config_yaml.ConfigYamlDocument` — the
   legacy **per-repo** ``.claude/Dev10x/config.yaml``, a one-cycle
   migration fallback.
 - :class:`SessionYamlDocument` (here) — the **per-worktree**
@@ -17,7 +17,7 @@ the three in ADR-0018 precedence and the typed readers coerce the result
 (ADR-0007 D3 keeps Policy Rules I/O-free).
 
 The names that moved out in GH-1431 are re-exported below so every
-existing ``from dev10x.domain.documents.session_yaml import ...`` keeps
+existing ``from dev10x.core.domain.documents.session_yaml import ...`` keeps
 resolving; new code should import from the owning module.
 """
 
@@ -27,12 +27,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from dev10x.domain.documents.config_yaml import (
+from dev10x.core.domain.documents.config_yaml import (
     FRICTION_SETUP_SKIP_MODE,
     ConfigYamlDocument,
     set_playbook_modes,
 )
-from dev10x.domain.documents.friction_yaml import (
+from dev10x.core.domain.documents.friction_yaml import (
     _DURABLE_KEYS,
     DURABLE_KEYS,
     PIN_SCOPES,
@@ -48,9 +48,9 @@ from dev10x.domain.documents.friction_yaml import (
     seed_safe_baseline_if_absent,
     upsert_project_prefs,
 )
-from dev10x.domain.documents.yaml_mapping import load_yaml_mapping
-from dev10x.domain.friction_level import FrictionLevel
-from dev10x.domain.gate_policy import (
+from dev10x.core.domain.documents.yaml_mapping import load_yaml_mapping
+from dev10x.core.domain.friction_level import FrictionLevel
+from dev10x.core.domain.gate_policy import (
     SUPERVISOR_REVIEW_REQUIRED,
     coerce_supervisor_review,
 )
@@ -274,7 +274,7 @@ class SessionYamlDocument:
         The v1 keys (``friction_level``, ``walk_away``, and
         ``active_modes``) still ride along, but nothing translates them
         into a posture any more (GH-1162). They are reported so
-        :func:`dev10x.domain.gate_policy.legacy_policy_keys` can *detect*
+        :func:`dev10x.core.domain.gate_policy.legacy_policy_keys` can *detect*
         an un-migrated config and refuse it by name — resolving one at the
         sole remaining baseline would widen autonomy on a repo that had
         pinned a stricter posture.
@@ -321,7 +321,7 @@ class SessionYamlDocument:
 
     # ADR-0018: session identity (branch/tickets) is no longer persisted
     # under .claude/Dev10x/session.yaml. Staleness reads it from plan-sync
-    # via dev10x.domain.session_document.read_plan_identity instead, and
+    # via dev10x.core.domain.session_document.read_plan_identity instead, and
     # nothing writes session.yaml — so the self-settings gate never fires.
     # ``_load``/``path`` survive only to read a legacy pre-split session.yaml
     # as a durable-prefs migration fallback in ``_durable``.

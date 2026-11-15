@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from dev10x.domain.common.result import to_wire
-from dev10x.mcp._app import server
+from dev10x.core.domain.common.result import to_wire
+from dev10x.core.mcp._app import server
 
 
 @server.tool()
@@ -82,8 +82,8 @@ async def ci_check_status(
         a name in ``skipping_checks`` but not in ``disabled_checks`` is a
         review that never fired.
     """
-    from dev10x import monitor as mon
-    from dev10x.subprocess_utils import use_cwd
+    from dev10x.coding import monitor as mon
+    from dev10x.core.subprocess_utils import use_cwd
 
     with use_cwd(cwd):
         return to_wire(
@@ -143,7 +143,7 @@ async def pr_wait(
         ``closed``, closed while waiting for an approval.
     """
     from dev10x.coding.monitor import pr_wait as pw
-    from dev10x.subprocess_utils import use_cwd
+    from dev10x.core.subprocess_utils import use_cwd
 
     with use_cwd(cwd):
         return to_wire(
@@ -194,7 +194,7 @@ async def wait_for(
         refused HTTP connection keeps waiting.
     """
     from dev10x.coding.monitor import wait_for as wf
-    from dev10x.subprocess_utils import use_cwd
+    from dev10x.core.subprocess_utils import use_cwd
 
     with use_cwd(cwd):
         return to_wire(

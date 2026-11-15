@@ -2,8 +2,8 @@
 
 GH-511: the Claude Code hook envelope (``hookSpecificOutput`` +
 ``sys.exit``) and stdin parsing are process-boundary concerns. They
-live here in the ``dev10x.hooks`` adapter layer rather than on the
-``dev10x.domain.events`` value objects, per
+live here in the ``dev10x.core.hooks`` adapter layer rather than on the
+``dev10x.core.domain.events`` value objects, per
 ``.claude/rules/script-domain-boundaries.md`` (GH-246 H3/H7): domain
 objects keep their data shape and ``to_dict()``; this thin adapter
 translates a domain decision into the wire response and owns the
@@ -19,8 +19,8 @@ import sys
 from dataclasses import replace
 from typing import NoReturn
 
-from dev10x.domain.events.hook_event import HookEventName
-from dev10x.domain.events.hook_input import (
+from dev10x.core.domain.events.hook_event import HookEventName
+from dev10x.core.domain.events.hook_input import (
     HookAllow,
     HookAsk,
     HookHint,
@@ -28,7 +28,7 @@ from dev10x.domain.events.hook_input import (
     HookResult,
     HookRetry,
 )
-from dev10x.subprocess_utils import effective_cwd
+from dev10x.core.subprocess_utils import effective_cwd
 
 
 def read_hook_input() -> HookInput:
@@ -61,7 +61,7 @@ def _record_attribution(*, rule_id: str, reason: str) -> None:
     if not rule_id and not reason:
         return
     try:
-        from dev10x.hooks.audit_emit import set_decision_attribution
+        from dev10x.core.hooks.audit_emit import set_decision_attribution
 
         set_decision_attribution(rule_id=rule_id, reason=reason)
     except Exception:  # pragma: no cover - telemetry must never block a hook

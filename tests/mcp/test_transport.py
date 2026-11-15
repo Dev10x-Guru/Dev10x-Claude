@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import pytest
 
-from dev10x.mcp.transport import select_transport
+from dev10x.core.mcp.transport import select_transport
 
 
 class TestSelectTransport:
@@ -102,7 +102,7 @@ class TestServerMainDelegation:
 
         monkeypatch.setenv("DEV10X_MCP_TRANSPORT", "stdio")
 
-        import dev10x.mcp.server_db as db_mod
+        import dev10x.db.mcp.server_db as db_mod
 
         with patch.object(db_mod.server, "run") as mock_run:
             db_mod.main()
@@ -116,7 +116,7 @@ class TestServerMainDelegation:
 
         monkeypatch.setenv("DEV10X_MCP_TRANSPORT", "sse")
 
-        import dev10x.mcp.server_db as db_mod
+        import dev10x.db.mcp.server_db as db_mod
 
         with patch.object(db_mod.server, "run") as mock_run:
             db_mod.main()

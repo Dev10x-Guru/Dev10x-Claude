@@ -5,7 +5,8 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from dev10x.domain.common.audit_findings import (
+
+from dev10x.core.domain.common.audit_findings import (
     AuditFinding,
     FixAction,
     RuleList,
@@ -13,7 +14,7 @@ from dev10x.domain.common.audit_findings import (
     parse_findings,
     select_findings,
 )
-from dev10x.domain.common.result import ErrorResult, SuccessResult
+from dev10x.core.domain.common.result import ErrorResult, SuccessResult
 
 
 def _finding(**overrides: Any) -> dict[str, Any]:

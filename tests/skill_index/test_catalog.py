@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from dev10x.skill_index.builder import SkillEntry
-from dev10x.skill_index.catalog import SkillCatalog
+from dev10x.teach.skill_index.builder import SkillEntry
+from dev10x.teach.skill_index.catalog import SkillCatalog
 
 
 def _skill_md(*, name: str, invocation: str | None = None) -> str:

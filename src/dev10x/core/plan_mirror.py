@@ -14,8 +14,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from dev10x.domain.documents.plan import Plan
-from dev10x.domain.documents.task import Task, TaskStatus
+from dev10x.core.domain.documents.plan import Plan
+from dev10x.core.domain.documents.task import Task, TaskStatus
 
 PLAN_MIRROR_PARTS = (".claude", "session", "plan.yaml")
 OPEN_STATUSES = (TaskStatus.PENDING, TaskStatus.IN_PROGRESS)

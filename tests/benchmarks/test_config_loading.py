@@ -22,7 +22,8 @@ from pathlib import Path
 
 import msgpack
 import pytest
-from dev10x.config.loader import load_document
+
+from dev10x.core.config.loader import load_document
 
 YAML_PATH = (
     Path(__file__).resolve().parent.parent.parent

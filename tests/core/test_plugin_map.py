@@ -12,7 +12,7 @@ from dev10x.core.plugin_map import (
     repo_skill_directories,
     skill_directories,
 )
-from dev10x.subprocess_utils import get_plugin_root
+from dev10x.core.subprocess_utils import get_plugin_root
 
 ADR_0034_COUNTS = {
     "qa": 6,

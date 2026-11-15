@@ -2,9 +2,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from dev10x.domain.common.result import ErrorResult, Result, SuccessResult
-
 from dev10x.comm.chatbus.events import MESSAGE_CREATED, ChatEvent, EventSource
+from dev10x.core.domain.common.result import ErrorResult, Result, SuccessResult
 
 NOW = datetime(2026, 11, 6, 12, 0, 0, tzinfo=UTC)
 SPACE = "spaces/AAAA"

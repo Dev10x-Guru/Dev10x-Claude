@@ -26,7 +26,7 @@ write cells scoped by GH-812 S1.
 |-------|--------|---------|
 | `id` | `<source>/<label>` | Provenance (evidence id, issue, or catalog group) |
 | `input` | string | Verbatim command / tool-call / skill shape |
-| `sensitivity` | `benign` \| `pii` \| `secret` \| `unspecified` | `dev10x.domain.common.policy.PolicySensitivity` |
+| `sensitivity` | `benign` \| `pii` \| `secret` \| `unspecified` | `dev10x.core.domain.common.policy.PolicySensitivity` |
 | `effect` | `allow` \| `ask` \| `deny` | `PolicyEffect` — the ticket's permit/ask/forbid tri-state |
 | `source_tier` | `plugin-default` \| `user-private` \| `project-local` | `PolicySource` — which tier should own the governing rule |
 | `notes` | string | The *why* / classification rationale |

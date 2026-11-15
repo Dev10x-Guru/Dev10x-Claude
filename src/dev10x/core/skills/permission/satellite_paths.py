@@ -26,11 +26,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from dev10x.core.domain.common.plugin_version import SEMVER_PATTERN
+from dev10x.core.domain.plugin_identity import CORE_PLUGIN_NAMES
 from dev10x.core.paths import satellite_subdir
 from dev10x.core.plugin_map import PluginMap, load_plugin_map
-from dev10x.domain.common.plugin_version import SEMVER_PATTERN
-from dev10x.domain.plugin_identity import CORE_PLUGIN_NAMES
-from dev10x.skills.permission.backup import backed_up_write
+from dev10x.core.skills.permission.backup import backed_up_write
 
 KEPT_LISTS = ("ask", "deny")
 RULE_LISTS = ("allow", *KEPT_LISTS)

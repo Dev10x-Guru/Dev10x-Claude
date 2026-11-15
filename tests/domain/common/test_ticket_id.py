@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import pytest
-from dev10x.domain.common.ticket_id import TICKET_ID_PATTERN, TicketId
+
+from dev10x.core.domain.common.ticket_id import TICKET_ID_PATTERN, TicketId
 
 
 class TestParse:

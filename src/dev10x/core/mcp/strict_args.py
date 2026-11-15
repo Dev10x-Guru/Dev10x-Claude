@@ -30,7 +30,7 @@ from typing import Any
 
 from mcp.server.fastmcp.utilities.func_metadata import FuncMetadata
 
-from dev10x.domain.install_version import read_plugin_version
+from dev10x.core.domain.install_version import read_plugin_version
 
 log = logging.getLogger(__name__)
 

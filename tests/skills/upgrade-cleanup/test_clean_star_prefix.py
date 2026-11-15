@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from dev10x.skills.permission import clean_project_files as clean_mod
+from dev10x.core.skills.permission import clean_project_files as clean_mod
 
 USER_SETTINGS = {
     "permissions": {

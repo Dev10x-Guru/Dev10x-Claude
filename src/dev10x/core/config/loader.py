@@ -9,10 +9,10 @@ import msgpack
 import yaml
 
 from dev10x.core.config.fragments import discover_fragments, load_merged, plugin_order
-from dev10x.domain.config_loader import ConfigLoader
-from dev10x.domain.documents.config_document import Config
-from dev10x.domain.file_locks import atomic_write_bytes
-from dev10x.domain.rules.validation_rule import (
+from dev10x.core.domain.config_loader import ConfigLoader
+from dev10x.core.domain.documents.config_document import Config
+from dev10x.core.domain.file_locks import atomic_write_bytes
+from dev10x.core.domain.rules.validation_rule import (
     Compensation,
     MatchingRule,
     MatchPosition,

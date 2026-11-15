@@ -6,7 +6,8 @@ import json
 from pathlib import Path
 
 import pytest
-from dev10x.skills.permission.enumerate_mcp import (
+
+from dev10x.core.skills.permission.enumerate_mcp import (
     CapabilityGroupEntry,
     McpServerEntry,
     build_capability_groups,

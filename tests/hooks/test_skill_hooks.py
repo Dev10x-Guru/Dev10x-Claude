@@ -65,7 +65,7 @@ class TestSkillMetrics:
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        import dev10x.hooks.skill as mod
+        import dev10x.core.hooks.skill as mod
 
         monkeypatch.setattr(mod, "_get_toplevel", lambda: str(tmp_path))
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
@@ -91,7 +91,7 @@ class TestSkillMetrics:
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        import dev10x.hooks.skill as mod
+        import dev10x.core.hooks.skill as mod
 
         monkeypatch.setattr(mod, "_get_toplevel", lambda: str(tmp_path))
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
@@ -123,7 +123,7 @@ class TestSkillMetrics:
     ) -> None:
         # GH-548: the O_APPEND write must add to the file, never truncate
         # a prior concurrent writer's line.
-        import dev10x.hooks.skill as mod
+        import dev10x.core.hooks.skill as mod
 
         monkeypatch.setattr(mod, "_get_toplevel", lambda: str(tmp_path))
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
@@ -171,7 +171,7 @@ class TestSkillMetrics:
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        import dev10x.hooks.skill as mod
+        import dev10x.core.hooks.skill as mod
 
         monkeypatch.setattr(mod, "_get_toplevel", lambda: str(tmp_path))
         monkeypatch.setattr(Path, "home", lambda: tmp_path)

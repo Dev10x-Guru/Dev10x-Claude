@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 import pytest
 
-from dev10x.github import app_api as api
+from dev10x.core.github import app_api as api
 
 
 @pytest.fixture

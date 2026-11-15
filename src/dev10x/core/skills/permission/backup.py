@@ -28,7 +28,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal, overload
 
-from dev10x.skills.permission.file_lock import locked_json_update
+from dev10x.core.skills.permission.file_lock import locked_json_update
 
 BACKUP_SUFFIX_PREFIX = ".bak."
 TIMESTAMP_FORMAT = "%Y%m%dT%H%M%SZ"

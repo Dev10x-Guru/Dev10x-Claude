@@ -18,9 +18,9 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from dev10x.domain.claude_paths import ClaudeDir
-from dev10x.skills.doctor.strategy import Context
-from dev10x.subprocess_utils import effective_cwd
+from dev10x.core.domain.claude_paths import ClaudeDir
+from dev10x.core.skills.doctor.strategy import Context
+from dev10x.core.subprocess_utils import effective_cwd
 
 _PROJECT_SETTINGS_NAMES = ("settings.json", "settings.local.json")
 

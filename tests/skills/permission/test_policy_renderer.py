@@ -13,10 +13,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from dev10x.domain.common.policy import Policy, PolicyEffect, PolicyLifecycle, PolicySource
-from dev10x.domain.common.workspace import Workspace
-from dev10x.skills.permission.catalog_paths import load_catalog_document
-from dev10x.skills.permission.policy_renderer import expand_twin_paths, render_permissions
+from dev10x.core.domain.common.policy import Policy, PolicyEffect, PolicyLifecycle, PolicySource
+from dev10x.core.domain.common.workspace import Workspace
+from dev10x.core.skills.permission.catalog_paths import load_catalog_document
+from dev10x.core.skills.permission.policy_renderer import expand_twin_paths, render_permissions
 
 _HOME = "/home/tester"
 
@@ -125,7 +125,7 @@ class TestParityWithShippedCatalog:
     """PAP-3 AC: renderer output matches the pre-PAP settings lists."""
 
     def _shipped(self, projects_yaml: Path) -> tuple[dict, list[Policy]]:
-        from dev10x.skills.permission.policy_catalog_migration import migrate_flat_config
+        from dev10x.core.skills.permission.policy_catalog_migration import migrate_flat_config
 
         config = load_catalog_document(catalog_path=projects_yaml)
         return config, migrate_flat_config(config=config)

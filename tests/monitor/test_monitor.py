@@ -4,15 +4,16 @@ import subprocess
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from dev10x.domain.common.result import ErrorResult, SuccessResult
-from dev10x.domain.transport_budget import MAX_TOOL_CALL_SECONDS
 
-monitor_mod = pytest.importorskip("dev10x.monitor", reason="dev10x not installed")
+from dev10x.core.domain.common.result import ErrorResult, SuccessResult
+from dev10x.core.domain.transport_budget import MAX_TOOL_CALL_SECONDS
+
+monitor_mod = pytest.importorskip("dev10x.coding.monitor", reason="dev10x not installed")
 
 
 class TestCiCheckStatus:
     @pytest.mark.asyncio
-    @patch("dev10x.monitor.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.monitor.async_run", new_callable=AsyncMock)
     async def test_returns_verdict_on_success(
         self,
         mock_run: AsyncMock,
@@ -29,7 +30,7 @@ class TestCiCheckStatus:
         assert result.value["total"] == 3
 
     @pytest.mark.asyncio
-    @patch("dev10x.monitor.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.monitor.async_run", new_callable=AsyncMock)
     async def test_returns_error_on_failure(
         self,
         mock_run: AsyncMock,
@@ -48,7 +49,7 @@ class TestCiCheckStatus:
         assert "exited 1" in result.error
 
     @pytest.mark.asyncio
-    @patch("dev10x.monitor.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.monitor.async_run", new_callable=AsyncMock)
     async def test_script_json_error_on_stdout_is_surfaced(
         self,
         mock_run: AsyncMock,
@@ -65,7 +66,7 @@ class TestCiCheckStatus:
         assert result.error == "gh pr checks failed (exit 8) with no output"
 
     @pytest.mark.asyncio
-    @patch("dev10x.monitor.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.monitor.async_run", new_callable=AsyncMock)
     async def test_failure_with_no_output_never_returns_an_empty_error(
         self,
         mock_run: AsyncMock,
@@ -84,7 +85,7 @@ class TestCiCheckStatus:
         assert result.to_dict()["error"] != ""
 
     @pytest.mark.asyncio
-    @patch("dev10x.monitor.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.monitor.async_run", new_callable=AsyncMock)
     async def test_unparseable_stdout_falls_back_to_the_raw_output(
         self,
         mock_run: AsyncMock,
@@ -101,7 +102,7 @@ class TestCiCheckStatus:
         assert "boom" in result.error
 
     @pytest.mark.asyncio
-    @patch("dev10x.monitor.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.monitor.async_run", new_callable=AsyncMock)
     async def test_returns_error_on_invalid_json(
         self,
         mock_run: AsyncMock,
@@ -117,7 +118,7 @@ class TestCiCheckStatus:
         assert "Invalid JSON output" in result.error
 
     @pytest.mark.asyncio
-    @patch("dev10x.monitor.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.monitor.async_run", new_callable=AsyncMock)
     async def test_passes_wait_flags(
         self,
         mock_run: AsyncMock,
@@ -143,7 +144,7 @@ class TestCiCheckStatus:
         assert "10" in args_list
 
     @pytest.mark.asyncio
-    @patch("dev10x.monitor.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.monitor.async_run", new_callable=AsyncMock)
     async def test_passes_required_only_flag(
         self,
         mock_run: AsyncMock,
@@ -164,7 +165,7 @@ class TestCiCheckStatus:
         assert "--required-only" in args_list
 
     @pytest.mark.asyncio
-    @patch("dev10x.monitor.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.monitor.async_run", new_callable=AsyncMock)
     async def test_wait_out_pending_is_the_default_and_sends_no_flag(
         self,
         mock_run: AsyncMock,
@@ -191,7 +192,7 @@ class TestTheWaitStaysUnderTheTransportCeiling:
     """
 
     @pytest.mark.asyncio
-    @patch("dev10x.monitor.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.monitor.async_run", new_callable=AsyncMock)
     async def test_the_default_wait_fits_the_budget(
         self,
         mock_run: AsyncMock,
@@ -204,7 +205,7 @@ class TestTheWaitStaysUnderTheTransportCeiling:
         assert mock_run.call_args.kwargs["timeout"] <= MAX_TOOL_CALL_SECONDS
 
     @pytest.mark.asyncio
-    @patch("dev10x.monitor.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.monitor.async_run", new_callable=AsyncMock)
     async def test_an_extravagant_poll_count_cannot_outrun_the_budget(
         self,
         mock_run: AsyncMock,
@@ -221,7 +222,7 @@ class TestTheWaitStaysUnderTheTransportCeiling:
         assert mock_run.call_args.kwargs["timeout"] <= MAX_TOOL_CALL_SECONDS
 
     @pytest.mark.asyncio
-    @patch("dev10x.monitor.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.monitor.async_run", new_callable=AsyncMock)
     async def test_the_script_is_told_to_stop_polling_before_it_is_killed(
         self,
         mock_run: AsyncMock,
@@ -242,7 +243,7 @@ class TestTheWaitStaysUnderTheTransportCeiling:
         assert 60 + 30 * granted < mock_run.call_args.kwargs["timeout"]
 
     @pytest.mark.asyncio
-    @patch("dev10x.monitor.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.monitor.async_run", new_callable=AsyncMock)
     async def test_a_wait_that_already_fits_is_left_alone(
         self,
         mock_run: AsyncMock,
@@ -264,7 +265,7 @@ class TestTheWaitStaysUnderTheTransportCeiling:
         assert mock_run.call_args.kwargs["timeout"] == 95
 
     @pytest.mark.asyncio
-    @patch("dev10x.monitor.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.monitor.async_run", new_callable=AsyncMock)
     async def test_opting_out_forwards_the_flag(
         self,
         mock_run: AsyncMock,
@@ -281,7 +282,7 @@ class TestTheWaitStaysUnderTheTransportCeiling:
         assert "--no-wait-out-pending" in mock_run.call_args.kwargs["args"]
 
     @pytest.mark.asyncio
-    @patch("dev10x.monitor.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.monitor.async_run", new_callable=AsyncMock)
     async def test_opting_out_without_wait_sends_nothing(
         self,
         mock_run: AsyncMock,

@@ -1,11 +1,11 @@
-"""Unit tests for dev10x.audit.log_pruner module (GH-530)."""
+"""Unit tests for dev10x.teach.audit.log_pruner module (GH-530)."""
 
 from __future__ import annotations
 
 import os
 
-from dev10x.audit.log_pruner import prune
-from dev10x.audit.log_reader import AUDIT_RETAIN_ENV
+from dev10x.teach.audit.log_pruner import prune
+from dev10x.teach.audit.log_reader import AUDIT_RETAIN_ENV
 
 
 class TestPrune:

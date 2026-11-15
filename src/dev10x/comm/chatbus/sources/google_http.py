@@ -1,7 +1,7 @@
 """Google REST transport for the Pub/Sub source and backfill (ADR-0035 D1, D7, D8).
 
 One JSON request helper with bounded back-off on 408, 429, the
-retryable 5xx and network faults (``dev10x.domain.retry``, per
+retryable 5xx and network faults (``dev10x.core.domain.retry``, per
 ADR-0029), plus the two thin REST adapters the Pub/Sub source needs
 and the Chat history reader backfill needs.
 The token comes from a caller-supplied provider holding the user's
@@ -36,8 +36,8 @@ from dev10x.comm.chatbus.sources.pubsub import (
     SubscriptionState,
 )
 from dev10x.comm.skills.notifications.gchat_watch import parse_time
-from dev10x.domain.common.result import ErrorResult, Result, err, ok
-from dev10x.domain.retry import RetryPolicy, is_retryable_status
+from dev10x.core.domain.common.result import ErrorResult, Result, err, ok
+from dev10x.core.domain.retry import RetryPolicy, is_retryable_status
 
 log = logging.getLogger(__name__)
 

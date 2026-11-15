@@ -18,11 +18,11 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from dev10x.domain.events.hook_input import HookInput, HookResult
-from dev10x.hooks.hook_transport import emit, select_result
+from dev10x.core.domain.events.hook_input import HookInput, HookResult
+from dev10x.core.hooks.hook_transport import emit, select_result
 
 if TYPE_CHECKING:
-    from dev10x.domain.rules.rule_engine import RuleEngine
+    from dev10x.core.domain.rules.rule_engine import RuleEngine
 
 _YAML_PATH = Path(__file__).parent.parent / "validators" / "command-skill-map.yaml"
 
@@ -36,10 +36,10 @@ def _cached_engine(yaml_path_str: str, mtime_ns: int) -> RuleEngine:
     file's mtime parses an unchanged config once per process while an
     edit to the YAML (new mtime) transparently yields a fresh engine.
     Mirrors the ``_cached_registry`` pattern in
-    ``dev10x.validators.__init__``.
+    ``dev10x.core.validators.__init__``.
     """
-    from dev10x.config.loader import load_config
-    from dev10x.domain.rules.rule_engine import RuleEngine
+    from dev10x.core.config.loader import load_config
+    from dev10x.core.domain.rules.rule_engine import RuleEngine
 
     config = load_config(yaml_path=Path(yaml_path_str))
     return RuleEngine.from_config(config=config)
@@ -68,7 +68,7 @@ def _run_python_validators(*, data: dict[str, Any], debug: bool = False) -> None
     given Edit|Write input.  YAML-rule blocks have already been handled
     before this function is called.
     """
-    from dev10x.validators import get_chain
+    from dev10x.core.validators import get_chain
 
     inp = HookInput.from_dict(data=data)
     result = select_result(get_chain().run(inp=inp))

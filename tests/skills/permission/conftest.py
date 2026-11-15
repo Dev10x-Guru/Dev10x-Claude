@@ -7,7 +7,7 @@ production-side resolver work removes — so the tests get one definition
 too.
 
 The catalog path goes through
-:func:`~dev10x.skills.permission.catalog_paths.shipped_projects_catalog`
+:func:`~dev10x.core.skills.permission.catalog_paths.shipped_projects_catalog`
 so the tests exercise the same helper the four call sites use.
 """
 
@@ -16,7 +16,8 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from dev10x.skills.permission.catalog_paths import shipped_projects_catalog
+
+from dev10x.core.skills.permission.catalog_paths import shipped_projects_catalog
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 PROJECTS_YAML = shipped_projects_catalog(plugin_root=REPO_ROOT)

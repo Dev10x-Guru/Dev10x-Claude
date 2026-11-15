@@ -16,7 +16,8 @@ import uuid
 from pathlib import Path
 
 import pytest
-from dev10x.domain.friction_level import FrictionLevel
+
+from dev10x.core.domain.friction_level import FrictionLevel
 
 SCRIPTS = Path(__file__).resolve().parents[2] / "hooks" / "scripts"
 SESSION_START = SCRIPTS / "session-start.py"
@@ -168,7 +169,7 @@ class TestCompactionRecovery:
         assert self.RECOVERY_HEADER not in result.stdout
 
     def test_builder_is_empty_without_payload(self) -> None:
-        from dev10x.hooks import session_dispatch
+        from dev10x.core.hooks import session_dispatch
 
         assert session_dispatch.build_compaction_context() == ""
 
@@ -177,7 +178,7 @@ class TestCompactionRecovery:
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        from dev10x.hooks import session_dispatch
+        from dev10x.core.hooks import session_dispatch
 
         monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps({"source": "compact"})))
         monkeypatch.setattr(
@@ -202,7 +203,7 @@ class TestCompactionRecovery:
         capsys: pytest.CaptureFixture[str],
         payload: str,
     ) -> None:
-        from dev10x.hooks import session_dispatch
+        from dev10x.core.hooks import session_dispatch
 
         monkeypatch.setattr(sys, "stdin", io.StringIO(payload))
 
@@ -435,9 +436,8 @@ class TestSkillsIndexWiring:
     def test_dispatch_empty_when_index_missing(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR, ClaudeDir
-
-        from dev10x.hooks import session_dispatch
+        from dev10x.core.domain.claude_paths import CLAUDE_HOME_ENV_VAR, ClaudeDir
+        from dev10x.core.hooks import session_dispatch
 
         monkeypatch.setenv(CLAUDE_HOME_ENV_VAR, str(tmp_path / "claude-home"))
         ClaudeDir.reset_cache()
@@ -447,9 +447,8 @@ class TestSkillsIndexWiring:
     def test_dispatch_returns_index_contents_when_present(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR, ClaudeDir
-
-        from dev10x.hooks import session_dispatch
+        from dev10x.core.domain.claude_paths import CLAUDE_HOME_ENV_VAR, ClaudeDir
+        from dev10x.core.hooks import session_dispatch
 
         claude_home = tmp_path / "claude-home"
         claude_home.mkdir(parents=True)
@@ -462,7 +461,7 @@ class TestSkillsIndexWiring:
         assert "example: does a thing" in result
 
     def test_facade_reexports_dispatch(self) -> None:
-        from dev10x.hooks import session
+        from dev10x.core.hooks import session
 
         assert hasattr(session, "build_skills_index_context")
 
@@ -500,7 +499,7 @@ class TestAutonomyReassurance:
         return toplevel
 
     def test_fires_on_adaptive_solo_maintainer(self) -> None:
-        from dev10x.domain.session_rules import BuildAutonomyReassuranceRule
+        from dev10x.core.domain.session_rules import BuildAutonomyReassuranceRule
 
         result = BuildAutonomyReassuranceRule(
             friction_level=FrictionLevel.ADAPTIVE, active_modes=["solo-maintainer"]
@@ -509,7 +508,7 @@ class TestAutonomyReassurance:
         assert "trust the plan" in result
 
     def test_silent_when_friction_guided(self) -> None:
-        from dev10x.domain.session_rules import BuildAutonomyReassuranceRule
+        from dev10x.core.domain.session_rules import BuildAutonomyReassuranceRule
 
         rule = BuildAutonomyReassuranceRule(
             friction_level=FrictionLevel.GUIDED, active_modes=["solo-maintainer"]
@@ -517,7 +516,7 @@ class TestAutonomyReassurance:
         assert rule.apply() == ""
 
     def test_silent_when_solo_maintainer_missing(self) -> None:
-        from dev10x.domain.session_rules import BuildAutonomyReassuranceRule
+        from dev10x.core.domain.session_rules import BuildAutonomyReassuranceRule
 
         rule = BuildAutonomyReassuranceRule(friction_level=FrictionLevel.ADAPTIVE, active_modes=[])
         assert rule.apply() == ""
@@ -525,7 +524,7 @@ class TestAutonomyReassurance:
     def test_dispatch_returns_empty_without_toplevel(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from dev10x.hooks import session_dispatch
+        from dev10x.core.hooks import session_dispatch
 
         monkeypatch.setattr(session_dispatch, "_get_toplevel", lambda: None)
         assert session_dispatch.build_autonomy_reassurance_context() == ""
@@ -533,7 +532,7 @@ class TestAutonomyReassurance:
     def test_dispatch_resolves_through_rule_with_toplevel(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from dev10x.hooks import session_dispatch
+        from dev10x.core.hooks import session_dispatch
 
         toplevel = self._write_session_yaml(
             tmp_path=tmp_path,
@@ -545,7 +544,7 @@ class TestAutonomyReassurance:
         )
 
     def test_facade_reexports_dispatch(self) -> None:
-        from dev10x.hooks import session
+        from dev10x.core.hooks import session
 
         assert hasattr(session, "build_autonomy_reassurance_context")
 
@@ -562,7 +561,7 @@ class TestAutoPlanGuidanceWiring:
     def test_dispatch_returns_empty_without_toplevel(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from dev10x.hooks import session_dispatch
+        from dev10x.core.hooks import session_dispatch
 
         monkeypatch.setattr(session_dispatch, "_get_toplevel", lambda: None)
         assert session_dispatch.build_auto_plan_guidance_context() == ""
@@ -570,7 +569,7 @@ class TestAutoPlanGuidanceWiring:
     def test_dispatch_emits_briefing_with_auto_plan(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from dev10x.hooks import session_dispatch
+        from dev10x.core.hooks import session_dispatch
 
         toplevel = self._write_session_yaml(
             tmp_path=tmp_path,
@@ -582,7 +581,7 @@ class TestAutoPlanGuidanceWiring:
     def test_dispatch_silent_without_auto_plan(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from dev10x.hooks import session_dispatch
+        from dev10x.core.hooks import session_dispatch
 
         toplevel = self._write_session_yaml(
             tmp_path=tmp_path,
@@ -592,7 +591,7 @@ class TestAutoPlanGuidanceWiring:
         assert session_dispatch.build_auto_plan_guidance_context() == ""
 
     def test_facade_reexports_dispatch(self) -> None:
-        from dev10x.hooks import session
+        from dev10x.core.hooks import session
 
         assert hasattr(session, "build_auto_plan_guidance_context")
 
@@ -609,7 +608,7 @@ class TestModeGuardWiring:
     def test_dispatch_returns_empty_without_toplevel(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from dev10x.hooks import session_dispatch
+        from dev10x.core.hooks import session_dispatch
 
         monkeypatch.setattr(session_dispatch, "_get_toplevel", lambda: None)
         assert session_dispatch.build_mode_guard_context() == ""
@@ -617,7 +616,7 @@ class TestModeGuardWiring:
     def test_dispatch_warns_on_forbidden_overlay(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from dev10x.hooks import session_dispatch
+        from dev10x.core.hooks import session_dispatch
 
         toplevel = self._write_config(
             tmp_path=tmp_path,
@@ -629,7 +628,7 @@ class TestModeGuardWiring:
     def test_dispatch_silent_when_permissive(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from dev10x.hooks import session_dispatch
+        from dev10x.core.hooks import session_dispatch
 
         toplevel = self._write_config(
             tmp_path=tmp_path,
@@ -639,7 +638,7 @@ class TestModeGuardWiring:
         assert session_dispatch.build_mode_guard_context() == ""
 
     def test_facade_reexports_dispatch(self) -> None:
-        from dev10x.hooks import session
+        from dev10x.core.hooks import session
 
         assert hasattr(session, "build_mode_guard_context")
 
@@ -651,7 +650,7 @@ class TestFrictionSetupNudge:
     present but this repo unmatched → nudge (no write); matched → silent."""
 
     def _isolate_config(self, *, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
-        from dev10x.domain.dev10x_paths import Dev10xConfigDir
+        from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
 
         cfg = tmp_path / "config-home"
         monkeypatch.setenv("DEV10X_CONFIG_HOME", str(cfg))
@@ -659,14 +658,14 @@ class TestFrictionSetupNudge:
         return cfg
 
     def test_rule_seeded_text_points_to_skill(self) -> None:
-        from dev10x.domain.session_rules import FrictionSetupNudgeRule, FrictionSetupState
+        from dev10x.core.domain.session_rules import FrictionSetupNudgeRule, FrictionSetupState
 
         text = FrictionSetupNudgeRule(state=FrictionSetupState.SEEDED).apply()
         assert "strict" in text
         assert "/dev10x:friction-setup" in text
 
     def test_rule_unmatched_names_repo(self) -> None:
-        from dev10x.domain.session_rules import FrictionSetupNudgeRule, FrictionSetupState
+        from dev10x.core.domain.session_rules import FrictionSetupNudgeRule, FrictionSetupState
 
         text = FrictionSetupNudgeRule(
             state=FrictionSetupState.UNMATCHED, repo_name="my-repo"
@@ -675,14 +674,14 @@ class TestFrictionSetupNudge:
         assert "/dev10x:friction-setup" in text
 
     def test_rule_matched_is_silent(self) -> None:
-        from dev10x.domain.session_rules import FrictionSetupNudgeRule, FrictionSetupState
+        from dev10x.core.domain.session_rules import FrictionSetupNudgeRule, FrictionSetupState
 
         assert FrictionSetupNudgeRule(state=FrictionSetupState.MATCHED).apply() == ""
 
     def test_dispatch_returns_empty_without_toplevel(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from dev10x.hooks import session_dispatch
+        from dev10x.core.hooks import session_dispatch
 
         monkeypatch.setattr(session_dispatch, "_get_toplevel", lambda: None)
         assert session_dispatch.build_friction_setup_context() == ""
@@ -690,8 +689,8 @@ class TestFrictionSetupNudge:
     def test_seeds_safe_baseline_when_absent(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from dev10x.domain.dev10x_paths import Dev10xConfigDir
-        from dev10x.session.service import SessionService
+        from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
+        from dev10x.core.session.service import SessionService
 
         self._isolate_config(monkeypatch=monkeypatch, tmp_path=tmp_path)
         repo = tmp_path / "repo"
@@ -708,7 +707,7 @@ class TestFrictionSetupNudge:
     def test_unmatched_nudges_without_writing(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from dev10x.session.service import SessionService
+        from dev10x.core.session.service import SessionService
 
         cfg = self._isolate_config(monkeypatch=monkeypatch, tmp_path=tmp_path)
         cfg.mkdir(parents=True)
@@ -718,7 +717,7 @@ class TestFrictionSetupNudge:
         repo = tmp_path / "repo"
         repo.mkdir()
         try:
-            from dev10x.domain.dev10x_paths import Dev10xConfigDir
+            from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
 
             text = SessionService().build_friction_setup_context(toplevel=str(repo))
             assert "/dev10x:friction-setup" in text
@@ -731,8 +730,8 @@ class TestFrictionSetupNudge:
     def test_matched_is_silent(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         import os
 
-        from dev10x.domain.dev10x_paths import Dev10xConfigDir
-        from dev10x.session.service import SessionService
+        from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
+        from dev10x.core.session.service import SessionService
 
         cfg = self._isolate_config(monkeypatch=monkeypatch, tmp_path=tmp_path)
         cfg.mkdir(parents=True)
@@ -756,8 +755,8 @@ class TestFrictionSetupNudge:
         # A repo with a legacy .claude/Dev10x/config.yaml is configured (the
         # resolver honors it above friction.yaml defaults), so it must NOT be
         # nudged as unconfigured (GH-886 one-layer-down guard).
-        from dev10x.domain.dev10x_paths import Dev10xConfigDir
-        from dev10x.session.service import SessionService
+        from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
+        from dev10x.core.session.service import SessionService
 
         cfg = self._isolate_config(monkeypatch=monkeypatch, tmp_path=tmp_path)
         cfg.mkdir(parents=True)
@@ -777,8 +776,8 @@ class TestFrictionSetupNudge:
     ) -> None:
         # A failing seed write must not degrade to a silent "" (GH-886 failure
         # mode, one layer down) — the supervisor still gets the nudge.
-        from dev10x.domain.documents import friction_yaml
-        from dev10x.session.service import SessionService
+        from dev10x.core.domain.documents import friction_yaml
+        from dev10x.core.session.service import SessionService
 
         self._isolate_config(monkeypatch=monkeypatch, tmp_path=tmp_path)
         repo = tmp_path / "repo"
@@ -792,12 +791,12 @@ class TestFrictionSetupNudge:
             text = SessionService().build_friction_setup_context(toplevel=str(repo))
             assert "/dev10x:friction-setup" in text
         finally:
-            from dev10x.domain.dev10x_paths import Dev10xConfigDir
+            from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
 
             Dev10xConfigDir.reset_cache()
 
     def test_facade_reexports_dispatch(self) -> None:
-        from dev10x.hooks import session
+        from dev10x.core.hooks import session
 
         assert hasattr(session, "build_friction_setup_context")
 
@@ -883,7 +882,7 @@ class TestSessionLoadMarker:
     userspace guard can detect a silently-skipped plugin."""
 
     def test_feature_writes_marker(self) -> None:
-        from dev10x.hooks.session_place import session_load_marker
+        from dev10x.core.hooks.session_place import session_load_marker
 
         session_id = f"gh874-{uuid.uuid4()}"
         marker = Path("/tmp/Dev10x/sessions") / session_id
@@ -894,14 +893,14 @@ class TestSessionLoadMarker:
             marker.unlink(missing_ok=True)
 
     def test_feature_noop_without_session_id(self) -> None:
-        from dev10x.hooks.session_place import session_load_marker
+        from dev10x.core.hooks.session_place import session_load_marker
 
         # Empty session_id must return without raising and without
         # creating a named marker file.
         assert session_load_marker(data={"session_id": ""}) is None
 
     def test_feature_reads_stdin_when_no_data(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        from dev10x.hooks.session_place import session_load_marker
+        from dev10x.core.hooks.session_place import session_load_marker
 
         session_id = f"gh874-stdin-{uuid.uuid4()}"
         marker = Path("/tmp/Dev10x/sessions") / session_id
@@ -913,14 +912,14 @@ class TestSessionLoadMarker:
             marker.unlink(missing_ok=True)
 
     def test_feature_exits_on_invalid_stdin(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        from dev10x.hooks.session_place import session_load_marker
+        from dev10x.core.hooks.session_place import session_load_marker
 
         monkeypatch.setattr("sys.stdin", io.StringIO("not json"))
         with pytest.raises(SystemExit):
             session_load_marker()
 
     def test_facade_reexports_marker(self) -> None:
-        from dev10x.hooks import session
+        from dev10x.core.hooks import session
 
         assert hasattr(session, "session_load_marker")
 

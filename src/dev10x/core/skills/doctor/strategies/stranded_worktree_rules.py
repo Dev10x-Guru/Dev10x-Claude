@@ -19,10 +19,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from dev10x.domain.common.allow_rule import AllowRuleLoader
-from dev10x.domain.common.workspace import worktree_roots_in
-from dev10x.skills.doctor.strategy import Context, Finding, Remediation, Strategy
-from dev10x.skills.permission.merge_worktree_permissions import reanchor_worktree_paths
+from dev10x.core.domain.common.allow_rule import AllowRuleLoader
+from dev10x.core.domain.common.workspace import worktree_roots_in
+from dev10x.core.skills.doctor.strategy import Context, Finding, Remediation, Strategy
+from dev10x.core.skills.permission.merge_worktree_permissions import reanchor_worktree_paths
 
 
 @dataclass(frozen=True)

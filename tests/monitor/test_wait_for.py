@@ -17,11 +17,11 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from dev10x.domain.common.result import ErrorResult, SuccessResult, ok
-from dev10x.domain.transport_budget import MAX_TOOL_CALL_SECONDS
 
+from dev10x.core.domain.common.result import ErrorResult, SuccessResult, ok
+from dev10x.core.domain.transport_budget import MAX_TOOL_CALL_SECONDS
+from dev10x.core.subprocess_utils import use_cwd
 from dev10x.mcp import server_cli as cli_server
-from dev10x.subprocess_utils import use_cwd
 from tests.fakers.clock import FakeClock
 from tests.fakers.process import completed as _completed
 

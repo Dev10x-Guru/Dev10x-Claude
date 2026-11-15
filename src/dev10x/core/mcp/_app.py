@@ -32,12 +32,12 @@ from contextlib import asynccontextmanager
 
 from mcp.server.fastmcp import FastMCP
 
-from dev10x import subprocess_utils
-from dev10x.domain.common.result import to_wire
+from dev10x.core import subprocess_utils
+from dev10x.core.domain.common.result import to_wire
+from dev10x.core.subprocess_utils import get_plugin_root
 from dev10x.mcp.resource_watcher import KnowledgeResourceWatcher, wire_watcher_to_server
 from dev10x.mcp.roots_manager import ClientRootsManager, wire_roots_to_server
 from dev10x.mcp.sampling_manager import SamplingManager, wire_sampling_to_server
-from dev10x.subprocess_utils import get_plugin_root
 
 log = logging.getLogger(__name__)
 

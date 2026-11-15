@@ -15,9 +15,9 @@ from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 
-from dev10x.domain.common.result import Result, err, ok
-from dev10x.domain.file_locks import atomic_write_text
-from dev10x.subprocess_utils import run
+from dev10x.core.domain.common.result import Result, err, ok
+from dev10x.core.domain.file_locks import atomic_write_text
+from dev10x.core.subprocess_utils import run
 
 log = logging.getLogger(__name__)
 

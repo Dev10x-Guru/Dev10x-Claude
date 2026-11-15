@@ -17,12 +17,13 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from dev10x.skills.doctor.registry import load_strategies
-from dev10x.skills.doctor.strategies.retired_session_yaml import (
+
+from dev10x.core.skills.doctor.registry import load_strategies
+from dev10x.core.skills.doctor.strategies.retired_session_yaml import (
     STRATEGY,
     detect,
 )
-from dev10x.skills.doctor.strategy import Context
+from dev10x.core.skills.doctor.strategy import Context
 
 _CONTRADICTORY = """\
 friction_level: adaptive

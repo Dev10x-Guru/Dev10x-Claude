@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from dev10x.domain.common.result import Result, err, ok
+from dev10x.core.domain.common.result import Result, err, ok
 from dev10x.tasks.plan.service import (
     PlanServiceError,
     archive_plan,

@@ -13,10 +13,10 @@ import os
 import re
 from pathlib import Path
 
-from dev10x.domain.common.allow_rule import AllowRule
-from dev10x.domain.common.bash_tokens import strip_command_wrappers
-from dev10x.domain.common.exec_capable import exec_flag, is_interpreter
-from dev10x.domain.common.mcp_tool_name import McpToolName, looks_shell_equivalent
+from dev10x.core.domain.common.allow_rule import AllowRule
+from dev10x.core.domain.common.bash_tokens import strip_command_wrappers
+from dev10x.core.domain.common.exec_capable import exec_flag, is_interpreter
+from dev10x.core.domain.common.mcp_tool_name import McpToolName, looks_shell_equivalent
 
 # Executables whose allow rule is an arbitrary-code, privilege, egress or
 # destruction primitive. `Bash(bash:*)` lets `bash -c "rm -rf /"` past a

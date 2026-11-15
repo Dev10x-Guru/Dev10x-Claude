@@ -7,10 +7,10 @@ from typing import Any
 import pytest
 import yaml
 from click.testing import CliRunner
-from dev10x.domain.dev10x_paths import Dev10xConfigDir
 
 from dev10x.commands.hook import hook
-from dev10x.validators import reset_registry
+from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.core.validators import reset_registry
 
 
 @pytest.fixture(autouse=True)

@@ -6,17 +6,16 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
-from dev10x.domain.common.result import err, ok
 
 from dev10x.commands.permission import provenance as provenance_cmd
 from dev10x.commands.permission import seed_worktree as seed_worktree_cmd
+from dev10x.core.domain.common.result import err, ok
 
 
 @pytest.fixture(autouse=True)
 def _config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    from dev10x.skills.permission.catalog_merge import MergedCatalog
-
-    from dev10x.skills.permission import update_paths as paths_mod
+    from dev10x.core.skills.permission import update_paths as paths_mod
+    from dev10x.core.skills.permission.catalog_merge import MergedCatalog
 
     monkeypatch.setattr(paths_mod, "find_config", lambda: ok(tmp_path / "config.yaml"))
     monkeypatch.setattr(paths_mod, "load_config", lambda _path: {"base_permissions": []})
@@ -28,7 +27,7 @@ def _config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
 
 
 def test_provenance_prints_counts(monkeypatch: pytest.MonkeyPatch) -> None:
-    from dev10x.skills.permission import provenance as mod
+    from dev10x.core.skills.permission import provenance as mod
 
     monkeypatch.setattr(
         mod,
@@ -48,7 +47,7 @@ def test_provenance_prints_counts(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_provenance_error_exits_nonzero(monkeypatch: pytest.MonkeyPatch) -> None:
-    from dev10x.skills.permission import provenance as mod
+    from dev10x.core.skills.permission import provenance as mod
 
     monkeypatch.setattr(mod, "build_provenance", lambda **_kw: err("settings file not found"))
     result = CliRunner().invoke(provenance_cmd, ["--path", "/nope.json"])
@@ -57,7 +56,7 @@ def test_provenance_error_exits_nonzero(monkeypatch: pytest.MonkeyPatch) -> None
 
 
 def test_seed_worktree_reports_count(monkeypatch: pytest.MonkeyPatch) -> None:
-    from dev10x.skills.permission import update_paths as paths_mod
+    from dev10x.core.skills.permission import update_paths as paths_mod
 
     monkeypatch.setattr(
         paths_mod,
@@ -70,7 +69,7 @@ def test_seed_worktree_reports_count(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_seed_worktree_dry_run(monkeypatch: pytest.MonkeyPatch) -> None:
-    from dev10x.skills.permission import update_paths as paths_mod
+    from dev10x.core.skills.permission import update_paths as paths_mod
 
     monkeypatch.setattr(
         paths_mod,
@@ -83,7 +82,7 @@ def test_seed_worktree_dry_run(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_seed_worktree_error_exits_nonzero(monkeypatch: pytest.MonkeyPatch) -> None:
-    from dev10x.skills.permission import update_paths as paths_mod
+    from dev10x.core.skills.permission import update_paths as paths_mod
 
     monkeypatch.setattr(paths_mod, "seed_worktree", lambda **_kw: err("cannot create"))
     result = CliRunner().invoke(seed_worktree_cmd, ["/wt"])

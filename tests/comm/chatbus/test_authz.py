@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from dev10x.domain.common.result import Result, err, ok
 
 from dev10x.comm.chatbus import authz
 from dev10x.comm.chatbus.authz import (
@@ -29,6 +28,7 @@ from dev10x.comm.chatbus.events import (
 from dev10x.comm.chatbus.ingest import ingest_events
 from dev10x.comm.skills.notifications import gchat_users
 from dev10x.comm.skills.notifications.gchat_users import BusRole, ChatUser
+from dev10x.core.domain.common.result import Result, err, ok
 from tests.comm.chatbus.factories import NOW, SPACE, expect_error, unwrap
 
 OWNER = "users/1"

@@ -6,13 +6,13 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from dev10x.domain.milestone_prefixes import (
+
+from dev10x.core.domain.milestone_prefixes import (
     REGISTRY_RELPATH,
     parse_registered_prefixes,
     title_prefix,
     unregistered_prefix_error,
 )
-
 from dev10x.core.github import _gateway
 
 _REPO_ROOT = Path(__file__).parents[2]

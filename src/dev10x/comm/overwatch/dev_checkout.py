@@ -13,9 +13,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from dev10x.comm.overwatch import paths
-from dev10x.domain.dev10x_paths import Dev10xConfigDir
-from dev10x.domain.documents.yaml_mapping import YamlMappingError, read_yaml_mapping
-from dev10x.domain.file_locks import locked_yaml_update
+from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.core.domain.documents.yaml_mapping import YamlMappingError, read_yaml_mapping
+from dev10x.core.domain.file_locks import locked_yaml_update
 
 DEV_KEY = "dev"
 PROJECT_NAME = "dev10x"

@@ -22,9 +22,8 @@ test that patches a re-export on this facade while package code looks the
 name up elsewhere.
 
 This module only re-exports: production callers (``coding/mcp/github_tools.py``,
-``core/mcp/gate_query.py``, ``comm/skills/notifications/_gh.py``) keep
-importing from ``dev10x.github``, which is this package under its
-pre-ADR-0034 name (GH-1546).
+``core/mcp/gate_query.py``, ``comm/skills/notifications/_gh.py``) import
+from ``dev10x.coding.github`` directly.
 """
 
 from __future__ import annotations

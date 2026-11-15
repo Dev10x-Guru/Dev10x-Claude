@@ -6,7 +6,8 @@ import json
 from pathlib import Path
 
 import pytest
-from dev10x.domain.plugin_root import (
+
+from dev10x.core.domain.plugin_root import (
     is_plugin_root,
     latest_installed_root,
     resolve_plugin_root,
@@ -97,7 +98,7 @@ class TestResolveWithoutCheckout:
 
     @pytest.fixture(autouse=True)
     def no_checkout(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr("dev10x.domain.plugin_root._checkout_root", lambda: None)
+        monkeypatch.setattr("dev10x.core.domain.plugin_root._checkout_root", lambda: None)
 
     def test_env_root_used(self, tmp_path: Path, cache_dir: Path) -> None:
         env_root = _make_plugin_root(tmp_path / "from-env")

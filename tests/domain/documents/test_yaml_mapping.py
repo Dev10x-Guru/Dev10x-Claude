@@ -5,7 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from dev10x.domain.documents.yaml_mapping import (
+
+from dev10x.core.domain.documents.yaml_mapping import (
     YamlMappingError,
     load_yaml_mapping,
     read_yaml_mapping,

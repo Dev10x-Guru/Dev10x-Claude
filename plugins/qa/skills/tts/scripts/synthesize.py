@@ -312,7 +312,7 @@ def resolve_preference(
 def write_config(config: dict) -> Path:
     """Persist tts.yaml atomically.
 
-    A standalone uv-script cannot import ``dev10x.domain.file_locks``, so
+    A standalone uv-script cannot import ``dev10x.core.domain.file_locks``, so
     the honest equivalent is a temp-file rename: a crash mid-write leaves
     the previous config intact instead of a truncated one.
     """

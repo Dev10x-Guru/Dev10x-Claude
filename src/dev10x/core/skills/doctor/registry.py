@@ -3,8 +3,8 @@
 ``load_strategies`` is a **Plugin loader** (Fowler PoEAA): module
 paths act as configuration and each module is bound late, collecting
 its ``STRATEGY`` constant. It composes the shared
-:class:`dev10x.domain.common.plugin_loader.PluginLoader` — the same
-utility ``dev10x.validators.registry`` uses (#844) — in its *lenient*
+:class:`dev10x.core.domain.common.plugin_loader.PluginLoader` — the same
+utility ``dev10x.core.validators.registry`` uses (#844) — in its *lenient*
 posture: a module missing (or mistyping) ``STRATEGY`` is skipped so a
 misconfigured user strategy cannot break the doctor at import time.
 
@@ -16,26 +16,26 @@ no module-level discovery.
 
 from __future__ import annotations
 
-from dev10x.domain.common.plugin_loader import PluginLoader
-from dev10x.skills.doctor.strategy import StrategyProtocol
+from dev10x.core.domain.common.plugin_loader import PluginLoader
+from dev10x.core.skills.doctor.strategy import StrategyProtocol
 
 DEFAULT_STRATEGY_MODULES: tuple[str, ...] = (
-    "dev10x.skills.doctor.strategies.mcp_vs_script_drift",
-    "dev10x.skills.doctor.strategies.missing_linear_mcp_allow",
-    "dev10x.skills.doctor.strategies.forbidden_token_priming",
-    "dev10x.skills.doctor.strategies.mcp_horizontal_duplicates",
-    "dev10x.skills.doctor.strategies.ask_shadows_allow",
-    "dev10x.skills.doctor.strategies.home_in_additional_directories",
-    "dev10x.skills.doctor.strategies.retired_session_yaml",
-    "dev10x.skills.doctor.strategies.shell_equivalent_mcp_tools",
-    "dev10x.skills.doctor.strategies.read_deny_phantom",
-    "dev10x.skills.doctor.strategies.legacy_plugin_namespace",
-    "dev10x.skills.doctor.strategies.unmatchable_star_prefix",
-    "dev10x.skills.doctor.strategies.tracker_alias_parity",
-    "dev10x.skills.doctor.strategies.stranded_worktree_rules",
-    "dev10x.skills.doctor.strategies.sibling_only_grants",
-    "dev10x.skills.doctor.strategies.satellite_dependencies",
-    "dev10x.skills.doctor.strategies.extracted_skill_rules",
+    "dev10x.core.skills.doctor.strategies.mcp_vs_script_drift",
+    "dev10x.core.skills.doctor.strategies.missing_linear_mcp_allow",
+    "dev10x.core.skills.doctor.strategies.forbidden_token_priming",
+    "dev10x.core.skills.doctor.strategies.mcp_horizontal_duplicates",
+    "dev10x.core.skills.doctor.strategies.ask_shadows_allow",
+    "dev10x.core.skills.doctor.strategies.home_in_additional_directories",
+    "dev10x.core.skills.doctor.strategies.retired_session_yaml",
+    "dev10x.core.skills.doctor.strategies.shell_equivalent_mcp_tools",
+    "dev10x.core.skills.doctor.strategies.read_deny_phantom",
+    "dev10x.core.skills.doctor.strategies.legacy_plugin_namespace",
+    "dev10x.core.skills.doctor.strategies.unmatchable_star_prefix",
+    "dev10x.core.skills.doctor.strategies.tracker_alias_parity",
+    "dev10x.core.skills.doctor.strategies.stranded_worktree_rules",
+    "dev10x.core.skills.doctor.strategies.sibling_only_grants",
+    "dev10x.core.skills.doctor.strategies.satellite_dependencies",
+    "dev10x.core.skills.doctor.strategies.extracted_skill_rules",
 )
 
 _STRATEGY_MARKER = "STRATEGY"

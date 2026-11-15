@@ -15,9 +15,9 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from dev10x.domain.common.result import ErrorResult, Result, err, ok
-from dev10x.domain.dev10x_paths import Dev10xConfigDir
-from dev10x.skills.permission.rule_list_file import RuleListFile
+from dev10x.core.domain.common.result import ErrorResult, Result, err, ok
+from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.core.skills.permission.rule_list_file import RuleListFile
 
 DECLINED_KEY = "declined"
 

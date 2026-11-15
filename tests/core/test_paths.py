@@ -25,7 +25,7 @@ from dev10x.core.paths import (
     version_sort_key,
 )
 from dev10x.core.plugin_map import PluginMap, load_plugin_map
-from dev10x.subprocess_utils import get_plugin_root
+from dev10x.core.subprocess_utils import get_plugin_root
 
 SCRIPT_LITERAL = re.compile(r"^skills/[A-Za-z0-9_-]+/scripts/")
 RESOLVER = Path("core") / "paths.py"

@@ -1,7 +1,7 @@
 """Typed process-level singleton holder.
 
 **Not a Registry.** Per audit finding A3 the name ``Registry`` is
-reserved for static lookup tables (see ``dev10x.platform.registry`` and
+reserved for static lookup tables (see ``dev10x.core.platform.registry`` and
 ``PlatformRepository``'s docstring). This type owns a single *mutable*
 process-level slot — one swappable instance — so modules stop
 reimplementing the ``global _x`` + ``get_x()`` + ``set_x()`` trio

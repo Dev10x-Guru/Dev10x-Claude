@@ -7,7 +7,8 @@ import sys
 from typing import Any
 
 import pytest
-from dev10x.skills.monitor.ci_check_status import SOURCE_GH_CLI, ChecksRead, compute_verdict
+
+from dev10x.coding.skills.monitor.ci_check_status import SOURCE_GH_CLI, ChecksRead, compute_verdict
 
 _impl = sys.modules[compute_verdict.__module__]
 

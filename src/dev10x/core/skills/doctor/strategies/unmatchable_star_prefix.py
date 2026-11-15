@@ -17,8 +17,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from dev10x.skills.doctor.strategy import Context, Finding, Remediation, Severity, Strategy
-from dev10x.skills.permission.star_prefix import StarPrefixFix, repair_star_prefix
+from dev10x.core.skills.doctor.strategy import Context, Finding, Remediation, Severity, Strategy
+from dev10x.core.skills.permission.star_prefix import StarPrefixFix, repair_star_prefix
 
 STRATEGY_ID = "unmatchable-star-prefix"
 

@@ -170,7 +170,7 @@ reaches the tracker). Each file has exactly one writer.
 
 - `dev10x foreman watch` (or `uv run dev10x foreman watch` when the
   bare entry point is not tool-installed — GH-947) tracks the active
-  5h block offline (`dev10x.domain.usage`): cost milestones every
+  5h block offline (`dev10x.core.domain.usage`): cost milestones every
   `--cost-step` USD and block-identity change = `QUOTA RESET`.
   Milestones are muted while `parked` is present and reported as one
   rollup line on release.

@@ -1,7 +1,7 @@
 """Runtime policy-resolution caller (PAP-6, GH-868).
 
 ``resolve_effect(context=...)`` (context-scoped policy resolution) and
-:func:`~dev10x.domain.common.policy_resolution.load_policy_layers` shipped
+:func:`~dev10x.core.domain.common.policy_resolution.load_policy_layers` shipped
 in PAP-1/PAP-5 with full tests but **no production caller** — nothing
 loaded the layered catalog at runtime and nothing carried the active-skill
 name into resolution, so the context-scoped gate never actually ran
@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from dev10x.domain.common.policy_resolution import load_policy_layers, resolve_effect
+from dev10x.core.domain.common.policy_resolution import load_policy_layers, resolve_effect
 
 _NO_MATCH = "none (no matching policy — the harness prompts)"
 

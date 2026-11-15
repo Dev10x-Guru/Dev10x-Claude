@@ -1,7 +1,7 @@
 """``dev10x doctor`` — non-interactive plugin-doctor sweep (GH-1321).
 
 The entry point owns stdout and the exit code; every decision lives in
-:mod:`dev10x.skills.doctor.runner`, per
+:mod:`dev10x.core.skills.doctor.runner`, per
 ``.claude/rules/script-domain-boundaries.md``. Output is JSON on stdout
 in both directions — a verdict and an ``{"error": ...}`` blob alike — so
 a CI consumer parses one channel and never sees empty stdout on failure,
@@ -25,10 +25,10 @@ from pathlib import Path
 
 import click
 
-from dev10x.domain.common.result import SuccessResult
-from dev10x.skills.doctor.acceptance import load_doctor_acceptances
-from dev10x.skills.doctor.context import build_context
-from dev10x.skills.doctor.runner import DEFAULT_THRESHOLD, SEVERITY_ORDER, run_doctor
+from dev10x.core.domain.common.result import SuccessResult
+from dev10x.core.skills.doctor.acceptance import load_doctor_acceptances
+from dev10x.core.skills.doctor.context import build_context
+from dev10x.core.skills.doctor.runner import DEFAULT_THRESHOLD, SEVERITY_ORDER, run_doctor
 
 
 @click.group()

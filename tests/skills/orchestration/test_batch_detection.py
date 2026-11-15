@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import pytest
-from dev10x.skills.orchestration.batch_detection import (
+
+from dev10x.coding.skills.orchestration.batch_detection import (
     MAX_BATCH_SIZE,
     OverlapSignal,
     group_into_batches,

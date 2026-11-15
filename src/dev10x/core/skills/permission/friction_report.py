@@ -39,9 +39,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from dev10x.skills.permission.catalog_gap import existing_rules, rule_family
-from dev10x.skills.permission.catalog_write import render_catalog
-from dev10x.skills.permission.provenance import classify_provenance
+from dev10x.core.skills.permission.catalog_gap import existing_rules, rule_family
+from dev10x.core.skills.permission.catalog_write import render_catalog
+from dev10x.core.skills.permission.provenance import classify_provenance
 
 PERMISSION_DENIED_HOOK = "permission-denied"
 

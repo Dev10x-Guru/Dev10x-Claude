@@ -5,7 +5,7 @@ classifies allow rules into an 8-token security vocabulary
 (``OVERLY_BROAD``, ``CONTRADICTS_POLICY``, ``SKILL_REQUIRED``,
 ``HOOK_ENABLED``, ``DEAD_RULE``, ``WILDCARD_ESCAPE``,
 ``PRIVILEGE_ESCALATION``, ``REDUNDANT``) as prose.
-:func:`~dev10x.skills.permission_investigator.policy_report.auditor_assessment`
+:func:`~dev10x.core.skills.permission_investigator.policy_report.auditor_assessment`
 (PAP-5) is the typed surface for those classifications, but until now it
 had no Python producer — the "auditor emits PolicyAssessment" clause of
 GH-819 was only half-wired.
@@ -27,13 +27,13 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
-from dev10x.domain.common.accepted_findings import AcceptedFinding, find_acceptance
-from dev10x.domain.common.allow_rule import AllowRule, AllowRuleLoader
-from dev10x.domain.common.policy import Policy, PolicyAssessment, PolicySource
-from dev10x.domain.common.policy_resolution import attach_assessments
-from dev10x.skills.permission.accepted_findings import load_accepted_findings
-from dev10x.skills.permission.clean_project_files import HOOK_ENABLED_INNER_PREFIXES
-from dev10x.skills.permission_investigator.policy_report import (
+from dev10x.core.domain.common.accepted_findings import AcceptedFinding, find_acceptance
+from dev10x.core.domain.common.allow_rule import AllowRule, AllowRuleLoader
+from dev10x.core.domain.common.policy import Policy, PolicyAssessment, PolicySource
+from dev10x.core.domain.common.policy_resolution import attach_assessments
+from dev10x.core.skills.permission.accepted_findings import load_accepted_findings
+from dev10x.core.skills.permission.clean_project_files import HOOK_ENABLED_INNER_PREFIXES
+from dev10x.core.skills.permission_investigator.policy_report import (
     auditor_assessment,
     render_policy_report,
 )

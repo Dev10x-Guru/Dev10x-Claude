@@ -25,8 +25,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from dev10x.domain.common.policy import Policy, PolicyCatalog, PolicyEffect
-from dev10x.domain.common.workspace import Workspace
+from dev10x.core.domain.common.policy import Policy, PolicyCatalog, PolicyEffect
+from dev10x.core.domain.common.workspace import Workspace
 
 
 def render_permissions(

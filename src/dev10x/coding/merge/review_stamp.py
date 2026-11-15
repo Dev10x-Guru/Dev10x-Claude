@@ -11,11 +11,11 @@ import logging
 import subprocess
 from datetime import UTC, datetime
 
-from dev10x.domain.common.result import Result, err, ok
-from dev10x.domain.dev10x_paths import Dev10xConfigDir
-from dev10x.domain.file_locks import LockTimeoutError
-from dev10x.domain.git_context import GitContext
-from dev10x.domain.review_stamp import ReviewStamp, ReviewStampStore, repo_slug_from_remote
+from dev10x.core.domain.common.result import Result, err, ok
+from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.core.domain.file_locks import LockTimeoutError
+from dev10x.core.domain.git_context import GitContext
+from dev10x.core.domain.review_stamp import ReviewStamp, ReviewStampStore, repo_slug_from_remote
 
 log = logging.getLogger(__name__)
 

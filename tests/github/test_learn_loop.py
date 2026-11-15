@@ -1,4 +1,4 @@
-"""Unit tests for dev10x.github.learn_loop (GH-353).
+"""Unit tests for dev10x.coding.github.learn_loop (GH-353).
 
 Contract class: mock
   ``render_pr_body`` is a pure function tested without mocks. The
@@ -14,9 +14,10 @@ from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from dev10x.domain.common.result import ErrorResult, SuccessResult, err, ok
 
-ll = pytest.importorskip("dev10x.github.learn_loop", reason="dev10x not installed")
+from dev10x.core.domain.common.result import ErrorResult, SuccessResult, err, ok
+
+ll = pytest.importorskip("dev10x.coding.github.learn_loop", reason="dev10x not installed")
 
 
 def _rule(*, slug: str = "block-chaining") -> dict:
@@ -65,8 +66,8 @@ class TestRenderPrBody:
 
 class TestRunLearningLoopNoPr:
     @pytest.mark.asyncio
-    @patch("dev10x.github.learn_loop.async_run", new_callable=AsyncMock)
-    @patch("dev10x.github.rule_authoring.author_reference_rules", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.learn_loop.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.rule_authoring.author_reference_rules", new_callable=AsyncMock)
     async def test_no_rules_opens_no_pr(
         self,
         mock_author: AsyncMock,
@@ -84,7 +85,7 @@ class TestRunLearningLoopNoPr:
         mock_run.assert_not_awaited()
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.rule_authoring.author_reference_rules", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.rule_authoring.author_reference_rules", new_callable=AsyncMock)
     async def test_propagates_author_error(self, mock_author: AsyncMock, tmp_path: Path) -> None:
         mock_author.return_value = err("no repository specified")
 
@@ -94,8 +95,8 @@ class TestRunLearningLoopNoPr:
         assert result.error == "no repository specified"
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.learn_loop.async_run", new_callable=AsyncMock)
-    @patch("dev10x.github.rule_authoring.author_reference_rules", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.learn_loop.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.rule_authoring.author_reference_rules", new_callable=AsyncMock)
     async def test_no_changes_reports_up_to_date(
         self,
         mock_author: AsyncMock,
@@ -116,8 +117,8 @@ class TestRunLearningLoopNoPr:
 
 class TestRunLearningLoopHappyPath:
     @pytest.mark.asyncio
-    @patch("dev10x.github.learn_loop.async_run", new_callable=AsyncMock)
-    @patch("dev10x.github.rule_authoring.author_reference_rules", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.learn_loop.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.rule_authoring.author_reference_rules", new_callable=AsyncMock)
     async def test_opens_pr_and_writes_docs(
         self,
         mock_author: AsyncMock,
@@ -146,8 +147,8 @@ class TestRunLearningLoopHappyPath:
         assert written.read_text(encoding="utf-8").startswith("# Block chaining")
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.learn_loop.async_run", new_callable=AsyncMock)
-    @patch("dev10x.github.rule_authoring.author_reference_rules", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.learn_loop.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.rule_authoring.author_reference_rules", new_callable=AsyncMock)
     async def test_commit_env_merges_os_environ(
         self,
         mock_author: AsyncMock,
@@ -179,8 +180,8 @@ class TestRunLearningLoopHappyPath:
         assert "PATH" in env
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.learn_loop.async_run", new_callable=AsyncMock)
-    @patch("dev10x.github.rule_authoring.author_reference_rules", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.learn_loop.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.rule_authoring.author_reference_rules", new_callable=AsyncMock)
     async def test_base_branch_passed_to_pr_create(
         self,
         mock_author: AsyncMock,
@@ -207,8 +208,8 @@ class TestRunLearningLoopHappyPath:
         assert "develop" in create_args
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.learn_loop.async_run", new_callable=AsyncMock)
-    @patch("dev10x.github.rule_authoring.author_reference_rules", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.learn_loop.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.rule_authoring.author_reference_rules", new_callable=AsyncMock)
     async def test_recovers_existing_pr_url_on_create_failure(
         self,
         mock_author: AsyncMock,
@@ -233,8 +234,8 @@ class TestRunLearningLoopHappyPath:
         assert result.value["pr_url"] == "https://github.com/o/r/pull/4"
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.learn_loop.async_run", new_callable=AsyncMock)
-    @patch("dev10x.github.rule_authoring.author_reference_rules", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.learn_loop.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.rule_authoring.author_reference_rules", new_callable=AsyncMock)
     async def test_push_failure_propagates(
         self,
         mock_author: AsyncMock,
@@ -256,8 +257,8 @@ class TestRunLearningLoopHappyPath:
         assert "remote rejected" in result.error
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.learn_loop.async_run", new_callable=AsyncMock)
-    @patch("dev10x.github.rule_authoring.author_reference_rules", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.learn_loop.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.rule_authoring.author_reference_rules", new_callable=AsyncMock)
     async def test_create_failure_without_existing_pr_errors(
         self,
         mock_author: AsyncMock,
@@ -281,8 +282,8 @@ class TestRunLearningLoopHappyPath:
         assert "validation failed" in result.error
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.learn_loop.async_run", new_callable=AsyncMock)
-    @patch("dev10x.github.rule_authoring.author_reference_rules", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.learn_loop.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.rule_authoring.author_reference_rules", new_callable=AsyncMock)
     async def test_branch_creation_failure_propagates(
         self,
         mock_author: AsyncMock,
@@ -298,8 +299,8 @@ class TestRunLearningLoopHappyPath:
         assert "cannot create branch" in result.error
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.learn_loop.async_run", new_callable=AsyncMock)
-    @patch("dev10x.github.rule_authoring.author_reference_rules", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.learn_loop.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.rule_authoring.author_reference_rules", new_callable=AsyncMock)
     async def test_git_add_failure_propagates(
         self,
         mock_author: AsyncMock,
@@ -315,8 +316,8 @@ class TestRunLearningLoopHappyPath:
         assert "add failed" in result.error
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.learn_loop.async_run", new_callable=AsyncMock)
-    @patch("dev10x.github.rule_authoring.author_reference_rules", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.learn_loop.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.rule_authoring.author_reference_rules", new_callable=AsyncMock)
     async def test_commit_failure_propagates(
         self,
         mock_author: AsyncMock,

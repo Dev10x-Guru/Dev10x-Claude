@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from dev10x.skills.notifications import gchat_cards as mod
+from dev10x.comm.skills.notifications import gchat_cards as mod
 
 
 class TestMdToCardHtml:

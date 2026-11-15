@@ -26,7 +26,7 @@ import ast
 
 import pytest
 
-from dev10x.subprocess_utils import get_plugin_root
+from dev10x.core.subprocess_utils import get_plugin_root
 
 _SRC = get_plugin_root() / "src" / "dev10x"
 

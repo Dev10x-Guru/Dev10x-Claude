@@ -20,7 +20,7 @@ def runner() -> CliRunner:
 
 class TestSessionPersist:
     def test_creates_state_file(self, runner: CliRunner, tmp_path: Path) -> None:
-        import dev10x.hooks.session_dispatch as mod
+        import dev10x.core.hooks.session_dispatch as mod
 
         def fake_toplevel() -> str:
             return str(tmp_path / "myproject")
@@ -50,7 +50,7 @@ class TestSessionPersist:
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        import dev10x.hooks.session_dispatch as mod
+        import dev10x.core.hooks.session_dispatch as mod
 
         project_dir = tmp_path / "myproject"
         project_dir.mkdir(parents=True)
@@ -91,7 +91,7 @@ class TestSessionPersist:
         assert result.output == ""
 
     def test_exits_silently_on_invalid_json(self) -> None:
-        from dev10x.hooks.session import session_persist
+        from dev10x.core.hooks.session import session_persist
 
         original_stdin = sys.stdin
         sys.stdin = io.StringIO("{not valid json}")
@@ -109,7 +109,7 @@ class TestSessionPersist:
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        import dev10x.hooks.session_dispatch as mod
+        import dev10x.core.hooks.session_dispatch as mod
 
         project_dir = tmp_path / "myproject"
         project_dir.mkdir(parents=True)
@@ -131,7 +131,7 @@ class TestSessionPersist:
 
 class TestRunGitSafe:
     def test_returns_git_output(self) -> None:
-        import dev10x.hooks.session_dispatch as mod
+        import dev10x.core.hooks.session_dispatch as mod
 
         class FakeGit:
             def run(self, *args: str) -> str:
@@ -142,7 +142,7 @@ class TestRunGitSafe:
     def test_swallows_called_process_error(self) -> None:
         import subprocess
 
-        import dev10x.hooks.session_dispatch as mod
+        import dev10x.core.hooks.session_dispatch as mod
 
         class FailGit:
             def run(self, *args: str) -> str:
@@ -151,7 +151,7 @@ class TestRunGitSafe:
         assert mod._run_git_safe(FailGit(), "status") == ""
 
     def test_swallows_missing_git(self) -> None:
-        import dev10x.hooks.session_dispatch as mod
+        import dev10x.core.hooks.session_dispatch as mod
 
         class NoGit:
             def run(self, *args: str) -> str:
@@ -193,7 +193,7 @@ class TestSessionGoodbye:
         assert "claude --resume" not in result.output
 
     def test_handles_invalid_json_gracefully(self) -> None:
-        from dev10x.hooks.session import session_goodbye
+        from dev10x.core.hooks.session import session_goodbye
 
         captured = io.StringIO()
         original_stdin = sys.stdin

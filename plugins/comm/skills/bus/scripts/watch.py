@@ -2,7 +2,7 @@
 # /// script
 # requires-python = ">=3.12"
 # ///
-"""Thin shim — delegates to dev10x.skills.bus.watch."""
+"""Thin shim — delegates to dev10x.comm.skills.bus.watch."""
 
 import sys
 from pathlib import Path
@@ -13,7 +13,7 @@ from core_src import add_core_src  # noqa: E402
 
 add_core_src(script=Path(__file__))
 
-from dev10x.skills.bus.watch import main  # noqa: E402
+from dev10x.comm.skills.bus.watch import main  # noqa: E402
 
 if __name__ == "__main__":
     sys.exit(main())

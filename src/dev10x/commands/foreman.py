@@ -83,7 +83,7 @@ def retire(*, scratchpad: Path, chunk: str) -> None:
     (GH-1577).
     """
     from dev10x.coding.skills.foreman import watch as watch_skill
-    from dev10x.domain.common.result import ErrorResult
+    from dev10x.core.domain.common.result import ErrorResult
 
     result = watch_skill.retire_chunk(scratchpad=scratchpad, chunk=chunk)
     if isinstance(result, ErrorResult):
@@ -113,7 +113,7 @@ def escalate(*, scratchpad: Path, role: str, line: str) -> None:
     older ones; this always writes the line last, as one atomic append.
     """
     from dev10x.coding.skills.foreman import watch as watch_skill
-    from dev10x.domain.common.result import ErrorResult
+    from dev10x.core.domain.common.result import ErrorResult
 
     result = watch_skill.append_escalation(scratchpad=scratchpad, role=role, line=line)
     if isinstance(result, ErrorResult):

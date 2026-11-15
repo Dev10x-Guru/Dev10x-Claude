@@ -175,7 +175,7 @@ scoping continue as before.
    project uses SPDD specs at all.
 3. **Drift** — only when step 2 found the file, call
    `detect_drift(spec_path=..., project_root=...)` from
-   `dev10x.spec` and branch on `report.has_behavioural`:
+   `dev10x.core.spec` and branch on `report.has_behavioural`:
    behavioural drift fails closed (below); structural drift warns.
 
 Do NOT probe for the spec with `ls docs/specs/` or `python3 -c
@@ -219,7 +219,7 @@ Steps sections describe a different code shape. Consider running
 from this spec gets the right file layout.
 ```
 
-This precondition uses the shared `dev10x.spec.drift_detector`
+This precondition uses the shared `dev10x.core.spec.drift_detector`
 module so `gh-pr-respond` and `git-groom` agree byte-for-byte
 on what counts as drift.
 

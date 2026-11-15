@@ -64,16 +64,16 @@ from functools import cache, partial
 from pathlib import Path, PurePosixPath
 from typing import Any, ClassVar
 
-from dev10x.domain import HookInput, HookResult
-from dev10x.domain.common.bash_tokens import (
+from dev10x.core.domain import HookInput, HookResult
+from dev10x.core.domain.common.bash_tokens import (
     UntokenizableCommandError,
     command_segments,
     command_units,
     split_tokens,
 )
-from dev10x.domain.documents.friction_yaml import load_checkout_prefs
-from dev10x.domain.profile_tier import ProfileTier
-from dev10x.validators.base import ValidatorBase
+from dev10x.core.domain.documents.friction_yaml import load_checkout_prefs
+from dev10x.core.domain.profile_tier import ProfileTier
+from dev10x.core.validators.base import ValidatorBase
 
 #: Text/source extensions this validator guards (GH-1455). Everything NOT
 #: on this list — every binary format (PDF, image, archive, font, office

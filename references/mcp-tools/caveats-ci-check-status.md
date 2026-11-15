@@ -70,7 +70,7 @@ Behavioural caveats for the only sanctioned CI-wait path, moved out of
   (GH-1288). The cap used to be summed inline as `initial_wait +
   poll_interval * max_polls + 60` with nothing bounding it: the default
   came to 1320s — above both deaths GH-1288 reports at ~1137s — and
-  `max_polls=500` bought a four-hour one. `dev10x.monitor` now asks
+  `max_polls=500` bought a four-hour one. `dev10x.coding.monitor` now asks
   `polls_within_budget` what `MAX_TOOL_CALL_SECONDS` affords and passes
   that down, so the default 40 is served as 32 (990s of polling under a
   1080s cap). **A slow PR is covered by calling twice, not by asking for

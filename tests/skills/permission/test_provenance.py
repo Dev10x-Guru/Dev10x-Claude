@@ -6,8 +6,9 @@ import json
 from pathlib import Path
 
 import pytest
-from dev10x.domain.common.result import ErrorResult, SuccessResult
-from dev10x.skills.permission.provenance import (
+
+from dev10x.core.domain.common.result import ErrorResult, SuccessResult
+from dev10x.core.skills.permission.provenance import (
     RuleProvenance,
     build_provenance,
     classify_provenance,
@@ -63,7 +64,7 @@ class TestBuildProvenance:
 
     def test_reads_global_when_not_injected(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         monkeypatch.setattr(
-            "dev10x.skills.permission.provenance._load_global_allow_rules",
+            "dev10x.core.skills.permission.provenance._load_global_allow_rules",
             lambda: ({"User(x)"}, []),
         )
         result = build_provenance(

@@ -11,16 +11,16 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from dev10x.domain.common.result import err, ok
-from dev10x.domain.transport_budget import MAX_TOOL_CALL_SECONDS
 
+from dev10x.core.domain.common.result import err, ok
+from dev10x.core.domain.transport_budget import MAX_TOOL_CALL_SECONDS
 from dev10x.mcp import server_cli as cli_server
 
 
 class TestBackgroundPreamble:
     @pytest.mark.asyncio
     @patch(
-        "dev10x.session.service.SessionService.build_background_preamble_context",
+        "dev10x.core.session.service.SessionService.build_background_preamble_context",
         return_value="# Background Friction Preamble\nNo cd && chaining.",
     )
     async def test_returns_preamble_text(self, _mock_fn: MagicMock) -> None:
@@ -31,7 +31,7 @@ class TestBackgroundPreamble:
 
     @pytest.mark.asyncio
     @patch(
-        "dev10x.session.service.SessionService.build_background_preamble_context",
+        "dev10x.core.session.service.SessionService.build_background_preamble_context",
         return_value="",
     )
     async def test_returns_error_when_document_missing(self, _mock_fn: MagicMock) -> None:
@@ -43,7 +43,7 @@ class TestBackgroundPreamble:
 
 class TestMktmp:
     @pytest.mark.asyncio
-    @patch("dev10x.utilities.mktmp", new_callable=AsyncMock)
+    @patch("dev10x.core.utilities.mktmp", new_callable=AsyncMock)
     async def test_delegates_to_utilities_module(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = ok({"path": "/tmp/Dev10x/git/msg-abc.txt"})
 
@@ -55,7 +55,7 @@ class TestMktmp:
         assert mock_fn.call_args.kwargs["ext"] == ".txt"
 
     @pytest.mark.asyncio
-    @patch("dev10x.utilities.mktmp", new_callable=AsyncMock)
+    @patch("dev10x.core.utilities.mktmp", new_callable=AsyncMock)
     async def test_forwards_directory_and_create_flags(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = ok({"path": "/tmp/Dev10x/fanout/wave-01/"})
 
@@ -70,7 +70,7 @@ class TestMktmp:
         assert mock_fn.call_args.kwargs["create"] is True
 
     @pytest.mark.asyncio
-    @patch("dev10x.utilities.mktmp", new_callable=AsyncMock)
+    @patch("dev10x.core.utilities.mktmp", new_callable=AsyncMock)
     async def test_returns_error_on_failure(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = err("cannot create temp dir")
 
@@ -79,11 +79,11 @@ class TestMktmp:
         assert "error" in result
 
     @pytest.mark.asyncio
-    @patch("dev10x.utilities.mktmp", new_callable=AsyncMock)
+    @patch("dev10x.core.utilities.mktmp", new_callable=AsyncMock)
     async def test_forwards_cwd(self, mock_fn: AsyncMock, tmp_path) -> None:
         mock_fn.return_value = ok({"path": "/tmp/Dev10x/git/msg.txt"})
 
-        with patch("dev10x.subprocess_utils.use_cwd") as mock_use_cwd:
+        with patch("dev10x.core.subprocess_utils.use_cwd") as mock_use_cwd:
             await cli_server.mktmp(
                 namespace="git",
                 prefix="msg",
@@ -95,7 +95,7 @@ class TestMktmp:
 
 class TestSlackThreadIsForward:
     @pytest.mark.asyncio
-    @patch("dev10x.utilities.slack.slack_thread_is_forward", new_callable=AsyncMock)
+    @patch("dev10x.core.utilities.slack.slack_thread_is_forward", new_callable=AsyncMock)
     async def test_delegates_to_slack_helper(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = ok(
             {
@@ -119,7 +119,7 @@ class TestSlackThreadIsForward:
         }
 
     @pytest.mark.asyncio
-    @patch("dev10x.utilities.slack.slack_thread_is_forward", new_callable=AsyncMock)
+    @patch("dev10x.core.utilities.slack.slack_thread_is_forward", new_callable=AsyncMock)
     async def test_returns_error_on_failure(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = err("analysis failed")
 
@@ -133,7 +133,7 @@ class TestSlackThreadIsForward:
 
 class TestUpdatePaths:
     @pytest.mark.asyncio
-    @patch("dev10x.permission.update_paths", new_callable=AsyncMock)
+    @patch("dev10x.core.permission.update_paths", new_callable=AsyncMock)
     async def test_delegates_to_permission_module(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = ok({"success": True, "output": "3 paths updated"})
 
@@ -143,7 +143,7 @@ class TestUpdatePaths:
         mock_fn.assert_awaited_once()
 
     @pytest.mark.asyncio
-    @patch("dev10x.permission.update_paths", new_callable=AsyncMock)
+    @patch("dev10x.core.permission.update_paths", new_callable=AsyncMock)
     async def test_forwards_all_flags(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = ok({"success": True, "output": ""})
 
@@ -169,7 +169,7 @@ class TestUpdatePaths:
         assert kw["quiet"] is True
 
     @pytest.mark.asyncio
-    @patch("dev10x.permission.update_paths", new_callable=AsyncMock)
+    @patch("dev10x.core.permission.update_paths", new_callable=AsyncMock)
     async def test_returns_error_on_failure(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = err("settings.json not found")
 
@@ -180,7 +180,7 @@ class TestUpdatePaths:
 
 class TestGenerateSkillIndex:
     @pytest.mark.asyncio
-    @patch("dev10x.skill_index.generate_all", new_callable=AsyncMock)
+    @patch("dev10x.teach.skill_index.generate_all", new_callable=AsyncMock)
     async def test_delegates_to_skill_index_module(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = ok({"success": True, "output": "SKILLS.md updated"})
 
@@ -190,7 +190,7 @@ class TestGenerateSkillIndex:
         assert mock_fn.call_args.kwargs["force"] is False
 
     @pytest.mark.asyncio
-    @patch("dev10x.skill_index.generate_all", new_callable=AsyncMock)
+    @patch("dev10x.teach.skill_index.generate_all", new_callable=AsyncMock)
     async def test_forwards_force_flag(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = ok({"success": True, "output": ""})
 
@@ -199,7 +199,7 @@ class TestGenerateSkillIndex:
         assert mock_fn.call_args.kwargs["force"] is True
 
     @pytest.mark.asyncio
-    @patch("dev10x.skill_index.generate_all", new_callable=AsyncMock)
+    @patch("dev10x.teach.skill_index.generate_all", new_callable=AsyncMock)
     async def test_returns_error_on_failure(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = err("skills directory not found")
 
@@ -209,7 +209,7 @@ class TestGenerateSkillIndex:
 
 
 class TestRecordUpgrade:
-    @patch("dev10x.domain.install_version.record_upgrade")
+    @patch("dev10x.core.domain.install_version.record_upgrade")
     def test_delegates_to_install_version_module(self, mock_fn: MagicMock) -> None:
         mock_fn.return_value = ok({"version": "1.2.3", "path": "/home/user/.config/dev10x"})
 
@@ -220,7 +220,7 @@ class TestRecordUpgrade:
         assert result == {"version": "1.2.3", "path": "/home/user/.config/dev10x"}
         assert mock_fn.call_args.kwargs["version"] == "1.2.3"
 
-    @patch("dev10x.domain.install_version.record_upgrade")
+    @patch("dev10x.core.domain.install_version.record_upgrade")
     def test_forwards_none_version(self, mock_fn: MagicMock) -> None:
         mock_fn.return_value = ok({"version": "0.99.0", "path": "/home/user/.config/dev10x"})
 
@@ -230,7 +230,7 @@ class TestRecordUpgrade:
 
         assert mock_fn.call_args.kwargs["version"] is None
 
-    @patch("dev10x.domain.install_version.record_upgrade")
+    @patch("dev10x.core.domain.install_version.record_upgrade")
     def test_returns_error_on_failure(self, mock_fn: MagicMock) -> None:
         mock_fn.return_value = err("plugin.json not found")
 
@@ -243,7 +243,7 @@ class TestRecordUpgrade:
 
 class TestRunTests:
     @pytest.mark.asyncio
-    @patch("dev10x.runner.run_tests", new_callable=AsyncMock)
+    @patch("dev10x.coding.runner.run_tests", new_callable=AsyncMock)
     async def test_delegates_to_runner_module(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = ok(
             {
@@ -272,7 +272,7 @@ class TestRunTests:
         assert mock_fn.call_args.kwargs["timeout"] == MAX_TOOL_CALL_SECONDS
 
     @pytest.mark.asyncio
-    @patch("dev10x.runner.run_tests", new_callable=AsyncMock)
+    @patch("dev10x.coding.runner.run_tests", new_callable=AsyncMock)
     async def test_forwards_args_and_flags(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = ok(
             {
@@ -301,7 +301,7 @@ class TestRunTests:
         assert mock_fn.call_args.kwargs["timeout"] == 120
 
     @pytest.mark.asyncio
-    @patch("dev10x.runner.run_tests", new_callable=AsyncMock)
+    @patch("dev10x.coding.runner.run_tests", new_callable=AsyncMock)
     async def test_returns_error_on_failure(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = err("pytest not found")
 
@@ -310,7 +310,7 @@ class TestRunTests:
         assert "error" in result
 
     @pytest.mark.asyncio
-    @patch("dev10x.runner.run_tests", new_callable=AsyncMock)
+    @patch("dev10x.coding.runner.run_tests", new_callable=AsyncMock)
     async def test_forwards_cwd(self, mock_fn: AsyncMock, tmp_path) -> None:
         mock_fn.return_value = ok(
             {
@@ -328,7 +328,7 @@ class TestRunTests:
             }
         )
 
-        with patch("dev10x.subprocess_utils.use_cwd") as mock_use_cwd:
+        with patch("dev10x.core.subprocess_utils.use_cwd") as mock_use_cwd:
             await cli_server.run_tests(cwd=str(tmp_path))
 
         mock_use_cwd.assert_called_once_with(str(tmp_path))
@@ -353,7 +353,7 @@ def _node_ok(**overrides: object) -> object:
 
 class TestRunNodeTests:
     @pytest.mark.asyncio
-    @patch("dev10x.runner.run_node_tests", new_callable=AsyncMock)
+    @patch("dev10x.coding.runner.run_node_tests", new_callable=AsyncMock)
     async def test_delegates_to_runner_module(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = _node_ok()
 
@@ -365,7 +365,7 @@ class TestRunNodeTests:
         assert mock_fn.call_args.kwargs["coverage"] is True
 
     @pytest.mark.asyncio
-    @patch("dev10x.runner.run_node_tests", new_callable=AsyncMock)
+    @patch("dev10x.coding.runner.run_node_tests", new_callable=AsyncMock)
     async def test_forwards_runner_args_and_flags(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = _node_ok(runner="yarn")
 
@@ -382,7 +382,7 @@ class TestRunNodeTests:
         assert mock_fn.call_args.kwargs["timeout"] == 120
 
     @pytest.mark.asyncio
-    @patch("dev10x.runner.run_node_tests", new_callable=AsyncMock)
+    @patch("dev10x.coding.runner.run_node_tests", new_callable=AsyncMock)
     async def test_defaults_to_the_test_script(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = _node_ok()
 
@@ -392,7 +392,7 @@ class TestRunNodeTests:
         assert mock_fn.call_args.kwargs["env"] is None
 
     @pytest.mark.asyncio
-    @patch("dev10x.runner.run_node_tests", new_callable=AsyncMock)
+    @patch("dev10x.coding.runner.run_node_tests", new_callable=AsyncMock)
     async def test_forwards_script_and_env(self, mock_fn: AsyncMock) -> None:
         """GH-1029: a non-test check reaches the wrapper with its pinned env."""
         mock_fn.return_value = _node_ok(runner="npm")
@@ -407,7 +407,7 @@ class TestRunNodeTests:
         assert mock_fn.call_args.kwargs["env"] == {"TZ": "America/New_York"}
 
     @pytest.mark.asyncio
-    @patch("dev10x.runner.run_node_tests", new_callable=AsyncMock)
+    @patch("dev10x.coding.runner.run_node_tests", new_callable=AsyncMock)
     async def test_returns_error_on_failure(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = err("Unknown node test runner 'mocha'.")
 
@@ -416,7 +416,7 @@ class TestRunNodeTests:
         assert "error" in result
 
     @pytest.mark.asyncio
-    @patch("dev10x.runner.run_node_tests", new_callable=AsyncMock)
+    @patch("dev10x.coding.runner.run_node_tests", new_callable=AsyncMock)
     async def test_reports_progress_when_ctx_present(self, mock_fn: AsyncMock) -> None:
         mock_fn.return_value = _node_ok(failed=2)
         ctx = MagicMock()
@@ -430,11 +430,11 @@ class TestRunNodeTests:
         ctx.log.assert_awaited_once()
 
     @pytest.mark.asyncio
-    @patch("dev10x.runner.run_node_tests", new_callable=AsyncMock)
+    @patch("dev10x.coding.runner.run_node_tests", new_callable=AsyncMock)
     async def test_forwards_cwd(self, mock_fn: AsyncMock, tmp_path) -> None:
         mock_fn.return_value = _node_ok()
 
-        with patch("dev10x.subprocess_utils.use_cwd") as mock_use_cwd:
+        with patch("dev10x.core.subprocess_utils.use_cwd") as mock_use_cwd:
             await cli_server.run_node_tests(cwd=str(tmp_path))
 
         mock_use_cwd.assert_called_once_with(str(tmp_path))

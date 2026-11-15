@@ -20,10 +20,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from dev10x.domain.common.config_io import ConfigIOError, load_yaml
-from dev10x.domain.common.result import Result, SuccessResult, err, ok
-from dev10x.domain.dev10x_paths import Dev10xConfigDir
-from dev10x.domain.project_match import MatchScheme, ProjectsStatus, evaluate_projects
+from dev10x.core.domain.common.config_io import ConfigIOError, load_yaml
+from dev10x.core.domain.common.result import Result, SuccessResult, err, ok
+from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.core.domain.project_match import MatchScheme, ProjectsStatus, evaluate_projects
 
 DEFAULT_INDEX_NOTE = "index.md"
 DEFAULT_LOG_NOTE = "log.md"

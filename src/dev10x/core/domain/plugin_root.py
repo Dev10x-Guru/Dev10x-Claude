@@ -27,8 +27,8 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from dev10x.domain.claude_paths import ClaudeDir
-from dev10x.domain.common.plugin_version import PluginVersion
+from dev10x.core.domain.claude_paths import ClaudeDir
+from dev10x.core.domain.common.plugin_version import PluginVersion
 
 PLUGIN_MANIFEST_RELPATH = Path(".claude-plugin") / "plugin.json"
 

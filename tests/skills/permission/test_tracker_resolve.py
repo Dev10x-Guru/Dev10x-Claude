@@ -6,20 +6,21 @@ from pathlib import Path
 
 import pytest
 import yaml
-from dev10x.domain.common.tracker_choice import (
+
+from dev10x.core.domain.common.tracker_choice import (
     Tracker,
     apply_tracker_selection,
     tracker_inventory,
 )
-from dev10x.skills.permission.catalog_paths import load_catalog_document
-from dev10x.skills.permission.tracker_resolve import resolve_tracker, tracker_source
+from dev10x.core.skills.permission.catalog_paths import load_catalog_document
+from dev10x.core.skills.permission.tracker_resolve import resolve_tracker, tracker_source
 
 
 @pytest.fixture
 def friction(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     path = tmp_path / "friction.yaml"
     monkeypatch.setattr(
-        "dev10x.domain.documents.friction_yaml.Dev10xConfigDir.friction_yaml",
+        "dev10x.core.domain.documents.friction_yaml.Dev10xConfigDir.friction_yaml",
         classmethod(lambda cls: path),
     )
     return path

@@ -11,10 +11,10 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from click.testing import CliRunner
-from dev10x.domain.common.result import err, ok
 
 from dev10x.cli import cli
 from dev10x.commands.github import _render_digest
+from dev10x.core.domain.common.result import err, ok
 
 
 @pytest.fixture()
@@ -64,7 +64,7 @@ class TestRenderDigest:
 
 class TestReviewRulesCommand:
     @patch(
-        "dev10x.github.rule_authoring.author_reference_rules",
+        "dev10x.coding.github.rule_authoring.author_reference_rules",
         new_callable=AsyncMock,
     )
     def test_happy_path_prints_digest(
@@ -90,7 +90,7 @@ class TestReviewRulesCommand:
         assert mock_author.await_args.kwargs["repos"] == ["o/r"]
 
     @patch(
-        "dev10x.github.rule_authoring.author_reference_rules",
+        "dev10x.coding.github.rule_authoring.author_reference_rules",
         new_callable=AsyncMock,
     )
     def test_no_repo_passes_none(
@@ -107,7 +107,7 @@ class TestReviewRulesCommand:
         assert mock_author.await_args.kwargs["repos"] is None
 
     @patch(
-        "dev10x.github.rule_authoring.author_reference_rules",
+        "dev10x.coding.github.rule_authoring.author_reference_rules",
         new_callable=AsyncMock,
     )
     def test_mining_error_exits_nonzero(

@@ -1,7 +1,7 @@
 """Detection and pre-flight capability (ADR-0027).
 
 Dependencies are reached through ``_gateway.<name>`` (ADR-0027 D2), so a
-test patches ``dev10x.github._gateway.<name>`` and intercepts every caller.
+test patches ``dev10x.core.github._gateway.<name>`` and intercepts every caller.
 """
 
 from __future__ import annotations
@@ -9,10 +9,10 @@ from __future__ import annotations
 from typing import Any
 
 from dev10x.coding.coding_script import coding_script
+from dev10x.core.domain.common.result import Result, err, ok
 from dev10x.core.github import _gateway
 from dev10x.core.paths import skill_script
-from dev10x.domain.common.result import Result, err, ok
-from dev10x.subprocess_utils import parse_key_value_output
+from dev10x.core.subprocess_utils import parse_key_value_output
 
 
 async def detect_tracker(*, ticket_id: str) -> Result[dict[str, Any]]:

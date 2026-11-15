@@ -8,9 +8,9 @@ from __future__ import annotations
 # `from __future__ import annotations`.
 from mcp.server.fastmcp import Context  # noqa: F401
 
-from dev10x import github as gh
-from dev10x.domain.common.result import Result, err, to_wire
-from dev10x.mcp._app import mcp_tool, server
+from dev10x.coding import github as gh
+from dev10x.core.domain.common.result import Result, err, to_wire
+from dev10x.core.mcp._app import mcp_tool, server
 
 #: Historical name for this module's original decorator, generalized to
 #: ``mcp_tool`` (GH-1426) and migrated onto it here so the two names stay
@@ -723,7 +723,7 @@ async def create_pr(
     Returns:
         Dictionary with keys: pr_number (int), url (str)
     """
-    from dev10x.subprocess_utils import use_cwd
+    from dev10x.core.subprocess_utils import use_cwd
 
     if ctx is not None:
         await ctx.report_progress(progress=0, total=100, message=f"Creating PR: {title}")

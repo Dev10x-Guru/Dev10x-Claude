@@ -1,7 +1,7 @@
 """Find core's ``src/`` from a skill-audit script, wherever dev10x-teach sits
 (GH-1568).
 
-The skill-audit scripts are thin shims over ``dev10x.skills.audit``, which
+The skill-audit scripts are thin shims over ``dev10x.teach.skills.audit``, which
 ships with core. Before ADR-0034 B5 they lived under core's own root, so
 ``<root>/src`` was always beside them. In ``dev10x-teach`` they can run from
 three layouts, tried in order:

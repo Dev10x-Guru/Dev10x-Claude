@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from dev10x.skills.notifications import gchat_review_request as mod
+from dev10x.comm.skills.notifications import gchat_review_request as mod
 
 
 class TestLoadYaml:

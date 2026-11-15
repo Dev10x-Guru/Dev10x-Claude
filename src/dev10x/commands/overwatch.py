@@ -36,8 +36,8 @@ from dev10x.comm.overwatch.rearm import RELAY_AGENT, RelayRearm, run_rearm
 from dev10x.comm.overwatch.server import HOST, OverwatchApp, make_server, run_collector
 from dev10x.comm.overwatch.settings import SettingsStore
 from dev10x.comm.skills.bus.maildir import BUS_ROOT
-from dev10x.domain.common.result import ErrorResult, SuccessResult
-from dev10x.domain.file_locks import atomic_write_text
+from dev10x.core.domain.common.result import ErrorResult, SuccessResult
+from dev10x.core.domain.file_locks import atomic_write_text
 
 UNIT_TEMPLATE = """\
 [Unit]

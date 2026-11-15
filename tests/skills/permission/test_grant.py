@@ -7,12 +7,12 @@ from pathlib import Path
 
 import pytest
 import yaml
-from dev10x.domain.common.result import ErrorResult, SuccessResult
-from dev10x.domain.rules.validation_rule import Compensation, MatchingRule
-from dev10x.skills.permission.grant import Verdict
 
-from dev10x.skills.permission import catalog_write
-from dev10x.skills.permission import grant as mod
+from dev10x.core.domain.common.result import ErrorResult, SuccessResult
+from dev10x.core.domain.rules.validation_rule import Compensation, MatchingRule
+from dev10x.core.skills.permission import catalog_write
+from dev10x.core.skills.permission import grant as mod
+from dev10x.core.skills.permission.grant import Verdict
 
 
 @pytest.fixture(autouse=True)

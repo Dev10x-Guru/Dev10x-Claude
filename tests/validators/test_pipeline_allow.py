@@ -7,9 +7,9 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from dev10x.validators.pipeline_allow import PipelineAllowValidator
 
-from dev10x.domain import HookAllow
+from dev10x.core.domain import HookAllow
+from dev10x.core.validators.pipeline_allow import PipelineAllowValidator
 from tests.fakers import BashHookInputFaker
 
 
@@ -35,7 +35,7 @@ def fake_allow_patterns() -> Iterator[None]:
         "rg",
     ]
     with patch(
-        "dev10x.validators.pipeline_allow._load_all_allow_patterns",
+        "dev10x.core.validators.pipeline_allow._load_all_allow_patterns",
         return_value=patterns,
     ):
         yield
@@ -185,7 +185,7 @@ class TestNoAllowRules:
         self, validator: PipelineAllowValidator, tmp_path: Path
     ) -> None:
         with patch(
-            "dev10x.validators.pipeline_allow._load_all_allow_patterns",
+            "dev10x.core.validators.pipeline_allow._load_all_allow_patterns",
             return_value=[],
         ):
             cmd = "git log | tail"

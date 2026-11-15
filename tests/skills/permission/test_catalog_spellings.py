@@ -11,11 +11,11 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from dev10x.domain.common.baseline_catalog import load_baseline_dict
-from dev10x.domain.common.command_spellings import SPELLINGS_KEY, expand_spellings
-from dev10x.skills.permission.catalog_paths import CATALOG_RELPATH, load_catalog_document
 
-import dev10x.skills.permission as permission_pkg
+import dev10x.core.skills.permission as permission_pkg
+from dev10x.core.domain.common.baseline_catalog import load_baseline_dict
+from dev10x.core.domain.common.command_spellings import SPELLINGS_KEY, expand_spellings
+from dev10x.core.skills.permission.catalog_paths import CATALOG_RELPATH, load_catalog_document
 
 PERMISSION_DIR = Path(permission_pkg.__file__).resolve().parent
 REPO_ROOT = PERMISSION_DIR.parents[4]

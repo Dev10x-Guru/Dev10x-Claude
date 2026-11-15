@@ -13,17 +13,17 @@ import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from dev10x.domain.documents.session_state import PlanSummary, SessionState
-from dev10x.domain.documents.session_yaml import SessionYamlDocument
-from dev10x.domain.friction_level import FrictionLevel
-from dev10x.domain.git_context import GitContext
-from dev10x.domain.session_document import (
+from dev10x.core.domain.documents.session_state import PlanSummary, SessionState
+from dev10x.core.domain.documents.session_yaml import SessionYamlDocument
+from dev10x.core.domain.friction_level import FrictionLevel
+from dev10x.core.domain.git_context import GitContext
+from dev10x.core.domain.session_document import (
     claim_state_file,
     plan_path_for_toplevel,
     read_plan_summary,
     state_path_for_toplevel,
 )
-from dev10x.domain.session_rules import DecisionGuidanceRule
+from dev10x.core.domain.session_rules import DecisionGuidanceRule
 
 
 def _run_git_safe(git: GitContext, *args: str) -> str:

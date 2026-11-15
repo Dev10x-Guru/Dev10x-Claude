@@ -1,12 +1,14 @@
-"""Tests for ``dev10x.skills.playbook.discovery`` (GH-192, GH-546)."""
+"""Tests for ``dev10x.core.skills.playbook.discovery`` (GH-192, GH-546)."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
 import pytest
-from dev10x.domain.dev10x_paths import Dev10xConfigDir
-from dev10x.skills.playbook.discovery import (
+
+from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.core.skills.playbook import discovery
+from dev10x.core.skills.playbook.discovery import (
     default_path_in,
     find_user_playbooks,
     installed_plugin_roots,
@@ -14,8 +16,6 @@ from dev10x.skills.playbook.discovery import (
     plugin_default_path,
     shared_fragment_directories,
 )
-
-from dev10x.skills.playbook import discovery
 
 
 class TestFindUserPlaybooks:
@@ -252,7 +252,7 @@ class TestInstalledPluginRoots:
         ]
 
     def test_repository_roots_find_the_coding_plays(self) -> None:
-        from dev10x.subprocess_utils import get_plugin_root
+        from dev10x.core.subprocess_utils import get_plugin_root
 
         roots = installed_plugin_roots(core_root=get_plugin_root())
 

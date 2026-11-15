@@ -3,7 +3,7 @@
 The shipped presets and overlays live as data in ``presets/friction/``
 (``<name>.yaml`` presets, ``overlays/<name>.yaml`` overlays). This module
 reads them and returns the same dict structures the pure-domain resolver
-(:mod:`dev10x.domain.gate_policy`) consumes — keeping file I/O out of the
+(:mod:`dev10x.core.domain.gate_policy`) consumes — keeping file I/O out of the
 domain per ADR-0007 D3. The MCP boundary injects the hydrated maps into
 ``resolve_gate``; a drift-guard test asserts the YAML stays identical to
 the domain default constants.
@@ -20,7 +20,7 @@ from typing import Any
 
 import yaml
 
-from dev10x.subprocess_utils import get_plugin_root
+from dev10x.core.subprocess_utils import get_plugin_root
 
 _PRESET_SUBDIR = Path("presets") / "friction"
 _OVERLAY_SUBDIR = _PRESET_SUBDIR / "overlays"

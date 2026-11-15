@@ -1,5 +1,6 @@
 import pytest
-from dev10x.domain.common.result import (
+
+from dev10x.core.domain.common.result import (
     ErrorResult,
     ResultProtocol,
     SuccessResult,

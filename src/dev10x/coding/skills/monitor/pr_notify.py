@@ -40,9 +40,9 @@ from functools import partial
 from pathlib import Path
 from typing import Any, Protocol
 
+from dev10x.core.domain.common.repository_ref import RepositoryRef
+from dev10x.core.domain.common.result import ErrorResult, Result
 from dev10x.core.skills.common.jtbd import extract_jtbd, md_to_slack_bold
-from dev10x.domain.common.repository_ref import RepositoryRef
-from dev10x.domain.common.result import ErrorResult, Result
 
 
 class SlackSender(Protocol):

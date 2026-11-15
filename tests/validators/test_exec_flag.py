@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import pytest
-from dev10x.validators.exec_flag import ExecFlagValidator
 
-from dev10x.domain import HookAsk
+from dev10x.core.domain import HookAsk
+from dev10x.core.validators.exec_flag import ExecFlagValidator
 from tests.fakers import BashHookInputFaker
 
 

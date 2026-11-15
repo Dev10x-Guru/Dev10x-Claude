@@ -7,9 +7,9 @@ from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from dev10x.domain.common.repository_ref import RepositoryRef
-from dev10x.domain.common.result import ErrorResult, SuccessResult
 
+from dev10x.core.domain.common.repository_ref import RepositoryRef
+from dev10x.core.domain.common.result import ErrorResult, SuccessResult
 from dev10x.core.github import _gateway
 from tests.fakers.process import completed as _completed
 

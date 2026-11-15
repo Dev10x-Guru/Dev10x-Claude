@@ -40,8 +40,8 @@ from typing import Any
 
 import yaml
 
-from dev10x.domain.common.result import ErrorResult, Result, err, ok
-from dev10x.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.core.domain.common.result import ErrorResult, Result, err, ok
+from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
 
 REQUIRED_VALUE = "disable"
 SAFETY_KEYS: tuple[str, str] = ("disableAutoMode", "disableBypassPermissionsMode")
@@ -219,8 +219,8 @@ def write_safety_keys_to_file(
         return 0, []
 
     if not dry_run:
-        from dev10x.skills.permission.backup import create_backup
-        from dev10x.skills.permission.file_lock import locked_json_update
+        from dev10x.core.skills.permission.backup import create_backup
+        from dev10x.core.skills.permission.file_lock import locked_json_update
 
         create_backup(path)
         with locked_json_update(path=path) as live_data:
@@ -265,7 +265,7 @@ def ensure_safety_keys(
     its `settings.local.json` sibling instead, same as `ensure_workspace`.
     ``policy`` defaults to ``safety-keys.yaml`` (GH-1856).
     """
-    from dev10x.skills.permission.catalog_write import partition_writable
+    from dev10x.core.skills.permission.catalog_write import partition_writable
 
     active = policy or load_safety_key_policy()
     messages: list[str] = active.messages()

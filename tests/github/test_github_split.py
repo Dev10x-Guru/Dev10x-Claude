@@ -1,10 +1,10 @@
-"""dev10x.github splits by capability behind one seam (ADR-0027, GH-1478).
+"""dev10x.coding.github splits by capability behind one seam (ADR-0027, GH-1478).
 
 Two guards, both landed before any capability moved (ADR-0027 D4):
 
 * the split shape — the facade still answers every pre-split name, and
   capability modules never import the facade back;
-* the patch-target guard — a test that patches ``dev10x.github.<name>``
+* the patch-target guard — a test that patches ``dev10x.coding.github.<name>``
   when the package's own code looks ``<name>`` up somewhere else is
   patching a copy nobody calls. It still "succeeds", so without this
   guard the test goes quietly false-green.
@@ -17,12 +17,14 @@ from pathlib import Path
 
 import pytest
 
-gh = pytest.importorskip("dev10x.github", reason="dev10x not installed")
+gh = pytest.importorskip("dev10x.coding.github", reason="dev10x not installed")
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PACKAGE_DIR = REPO_ROOT / "src" / "dev10x" / "coding" / "github"
-FACADE_MODULES = frozenset({"dev10x", "dev10x.github", "dev10x.coding", "dev10x.coding.github"})
-CAPABILITY_PREFIXES = ("dev10x.github.", "dev10x.coding.github.")
+FACADE_MODULES = frozenset(
+    {"dev10x", "dev10x.coding.github", "dev10x.coding", "dev10x.coding.github"}
+)
+CAPABILITY_PREFIXES = ("dev10x.coding.github.", "dev10x.coding.github.")
 TESTS_DIR = REPO_ROOT / "tests"
 
 CAPABILITY_MODULES = (
@@ -188,7 +190,7 @@ def _facade_aliases(*, tree: ast.Module) -> set[str]:
             aliases.update(
                 alias.asname
                 for alias in node.names
-                if alias.name == "dev10x.github" and alias.asname
+                if alias.name == "dev10x.coding.github" and alias.asname
             )
         elif isinstance(node, ast.ImportFrom) and node.module == "dev10x":
             aliases.update(
@@ -201,7 +203,7 @@ def _facade_aliases(*, tree: ast.Module) -> set[str]:
             and node.value.func.attr == "importorskip"
             and node.value.args
             and isinstance(node.value.args[0], ast.Constant)
-            and node.value.args[0].value == "dev10x.github"
+            and node.value.args[0].value == "dev10x.coding.github"
         ):
             aliases.update(t.id for t in node.targets if isinstance(t, ast.Name))
     return aliases
@@ -229,8 +231,11 @@ def facade_patch_targets(*, tree: ast.Module) -> list[tuple[int, str]]:
         first = node.args[0]
         if _is_patch(func=node.func) and isinstance(first, ast.Constant):
             dotted = str(first.value)
-            if dotted.startswith("dev10x.github.") and "." not in dotted[len("dev10x.github.") :]:
-                targets.append((node.lineno, dotted[len("dev10x.github.") :]))
+            if (
+                dotted.startswith("dev10x.coding.github.")
+                and "." not in dotted[len("dev10x.coding.github.") :]
+            ):
+                targets.append((node.lineno, dotted[len("dev10x.coding.github.") :]))
         elif (
             _is_object_patch(func=node.func)
             and isinstance(first, ast.Name)
@@ -258,7 +263,7 @@ def facade_patch_violations(
         elsewhere = sorted(set(lookups.get(name, [])))
         if elsewhere:
             violations.append(
-                f"{relative_path}:{line} patches dev10x.github.{name}, but "
+                f"{relative_path}:{line} patches dev10x.coding.github.{name}, but "
                 f"{', '.join(elsewhere)} resolve it elsewhere — patch the defining "
                 f"module instead"
             )
@@ -294,7 +299,8 @@ class TestFacadeShape:
             node.lineno
             for node in ast.walk(tree)
             if (
-                isinstance(node, ast.Import) and any(a.name == "dev10x.github" for a in node.names)
+                isinstance(node, ast.Import)
+                and any(a.name == "dev10x.coding.github" for a in node.names)
             )
             or (
                 isinstance(node, ast.ImportFrom)
@@ -325,10 +331,13 @@ class TestPatchTargetGuard:
     @pytest.mark.parametrize(
         ("source", "expected"),
         [
-            ('patch("dev10x.github._gh_api_raw")', [(1, "_gh_api_raw")]),
-            ('patch("dev10x.github._gateway._gh_api_raw")', []),
-            ('import dev10x.github as g\npatch.object(g, "_detect_repo")', [(2, "_detect_repo")]),
-            ('import dev10x.github as g\npatch.object(g._gateway, "_detect_repo")', []),
+            ('patch("dev10x.coding.github._gh_api_raw")', [(1, "_gh_api_raw")]),
+            ('patch("dev10x.core.github._gateway._gh_api_raw")', []),
+            (
+                'import dev10x.coding.github as g\npatch.object(g, "_detect_repo")',
+                [(2, "_detect_repo")],
+            ),
+            ('import dev10x.coding.github as g\npatch.object(g._gateway, "_detect_repo")', []),
             (
                 'from dev10x import github\nmonkeypatch.setattr(github, "async_run", f)',
                 [(2, "async_run")],
@@ -344,7 +353,7 @@ class TestPatchTargetGuard:
         self, lookups: dict[str, list[str]]
     ) -> None:
         violations = facade_patch_violations(
-            tree=ast.parse('patch("dev10x.github._gh_api_raw")'),
+            tree=ast.parse('patch("dev10x.coding.github._gh_api_raw")'),
             relative_path="tests/example.py",
             lookups=lookups,
         )

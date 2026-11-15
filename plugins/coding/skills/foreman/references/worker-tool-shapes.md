@@ -176,7 +176,7 @@ already been decided.
 
 That duration is the tell. The default poll budget is
 `initial_wait 60 + poll_interval 30 × 39` = 1230s (~20.5 min), and
-`dev10x.monitor` caps the subprocess at 1320s (22 min). A 50-minute
+`dev10x.coding.monitor` caps the subprocess at 1320s (22 min). A 50-minute
 hang exceeds both ceilings, so it did not come from the poll loop —
 it points at the subagent MCP connection death tracked in GH-1072.
 Bounding the call cannot fix that, but it shortens the single

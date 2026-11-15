@@ -6,10 +6,10 @@ from pathlib import Path
 
 import pytest
 import pytest_asyncio
-from dev10x.domain.dev10x_paths import Dev10xConfigDir
 
 from dev10x.comm.mcp import gchat_tools
 from dev10x.comm.skills.notifications import gchat_notify
+from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
 
 THREAD = "spaces/AAAA/threads/BBBB"
 

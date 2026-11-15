@@ -42,14 +42,14 @@ from typing import Any
 
 import yaml
 
-from dev10x.domain.common.allow_rule import AllowRule
-from dev10x.domain.common.baseline_catalog import load_baseline_dict
-from dev10x.domain.common.policy import Policy, PolicyAssessment, PolicyCatalog, PolicySource
-from dev10x.domain.git_context import GitContext
-from dev10x.skills.permission.backup import backed_up_write
-from dev10x.skills.permission.catalog_paths import shipped_projects_catalog
-from dev10x.skills.permission.config import parse_config
-from dev10x.skills.permission_investigator.policy_report import render_policy_report
+from dev10x.core.domain.common.allow_rule import AllowRule
+from dev10x.core.domain.common.baseline_catalog import load_baseline_dict
+from dev10x.core.domain.common.policy import Policy, PolicyAssessment, PolicyCatalog, PolicySource
+from dev10x.core.domain.git_context import GitContext
+from dev10x.core.skills.permission.backup import backed_up_write
+from dev10x.core.skills.permission.catalog_paths import shipped_projects_catalog
+from dev10x.core.skills.permission.config import parse_config
+from dev10x.core.skills.permission_investigator.policy_report import render_policy_report
 
 log = logging.getLogger(__name__)
 
@@ -928,7 +928,7 @@ def anchor_worktree_roots(
     Returns a :class:`WorktreeAnchorResult` summarising changes made (or that
     would be made on ``dry_run=True``).
     """
-    from dev10x.skills.permission.catalog_write import ensure_workspace_directories
+    from dev10x.core.skills.permission.catalog_write import ensure_workspace_directories
 
     worktrees_parents = discover_worktrees_parents(roots)
     parent_strs = [str(p) for p in worktrees_parents]

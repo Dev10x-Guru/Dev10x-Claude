@@ -10,12 +10,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from dev10x.config.friction_presets import (
+from dev10x.core.config.friction_presets import (
     load_shipped_overlays,
     load_shipped_presets,
     load_user_presets,
 )
-from dev10x.domain.gate_policy import SHIPPED_OVERLAYS, SHIPPED_PRESETS
+from dev10x.core.domain.gate_policy import SHIPPED_OVERLAYS, SHIPPED_PRESETS
 
 
 class TestDriftGuard:

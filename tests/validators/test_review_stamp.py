@@ -8,16 +8,16 @@ from unittest.mock import patch
 
 import pytest
 import yaml
-from dev10x.domain.dev10x_paths import Dev10xConfigDir
-from dev10x.domain.profile_tier import ProfileTier
-from dev10x.domain.review_stamp import ReviewStamp, ReviewStampStore
-from dev10x.validators.review_stamp import ReviewStampValidator
 
-from dev10x.domain import HookInput, HookResult
-from dev10x.validators import get_registry, reset_registry
+from dev10x.core.domain import HookInput, HookResult
+from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.core.domain.profile_tier import ProfileTier
+from dev10x.core.domain.review_stamp import ReviewStamp, ReviewStampStore
+from dev10x.core.validators import get_registry, reset_registry
+from dev10x.core.validators.review_stamp import ReviewStampValidator
 from tests.fakers.process import completed as _completed
 
-_RUN = "dev10x.validators.review_stamp.subprocess_utils.run"
+_RUN = "dev10x.core.validators.review_stamp.subprocess_utils.run"
 MERGE = "mcp__plugin_dev10x_cli__merge_pr"
 READY = "mcp__plugin_dev10x_cli__pr_ready"
 REVIEW = "mcp__plugin_dev10x_cli__request_review"
@@ -257,7 +257,7 @@ class TestVerdicts:
         self, validator: ReviewStampValidator, checkout: Path
     ) -> None:
         with patch(
-            "dev10x.validators.review_stamp.ReviewStampStore.read",
+            "dev10x.core.validators.review_stamp.ReviewStampStore.read",
             side_effect=RuntimeError("boom"),
         ):
             with patch(_RUN, side_effect=_run_with(gh_stdout=_gh_payload())):

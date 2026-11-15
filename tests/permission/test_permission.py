@@ -4,14 +4,15 @@ from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from dev10x.domain.common.result import ErrorResult, SuccessResult, ok
 
-perm_mod = pytest.importorskip("dev10x.permission", reason="dev10x not installed")
+from dev10x.core.domain.common.result import ErrorResult, SuccessResult, ok
 
-MOD_PATH = "dev10x.skills.permission.update_paths"
+perm_mod = pytest.importorskip("dev10x.core.permission", reason="dev10x not installed")
+
+MOD_PATH = "dev10x.core.skills.permission.update_paths"
 # load_effective_config resolves load_config inside catalog_load (GH-1432).
-LOAD_PATH = "dev10x.skills.permission.catalog_load"
-GUARD_PATH = "dev10x.skills.permission.catalog_write"
+LOAD_PATH = "dev10x.core.skills.permission.catalog_load"
+GUARD_PATH = "dev10x.core.skills.permission.catalog_write"
 
 
 class TestUpdatePathsInProcessRoute:
@@ -108,7 +109,7 @@ class TestUpdatePathsInProcessRoute:
 
 class TestUpdatePathsSubCommandRoute:
     @pytest.mark.asyncio
-    @patch("dev10x.permission._run_sub_command")
+    @patch("dev10x.core.permission._run_sub_command")
     async def test_ensure_base_routes_to_sub_command(
         self,
         mock_sub: AsyncMock,
@@ -128,7 +129,7 @@ class TestUpdatePathsSubCommandRoute:
         )
 
     @pytest.mark.asyncio
-    @patch("dev10x.permission._run_sub_command")
+    @patch("dev10x.core.permission._run_sub_command")
     async def test_generalize_routes_to_sub_command(
         self,
         mock_sub: AsyncMock,
@@ -148,7 +149,7 @@ class TestUpdatePathsSubCommandRoute:
         )
 
     @pytest.mark.asyncio
-    @patch("dev10x.permission._run_sub_command")
+    @patch("dev10x.core.permission._run_sub_command")
     async def test_ensure_scripts_routes_to_sub_command(
         self,
         mock_sub: AsyncMock,
@@ -168,7 +169,7 @@ class TestUpdatePathsSubCommandRoute:
         )
 
     @pytest.mark.asyncio
-    @patch("dev10x.permission._run_sub_command")
+    @patch("dev10x.core.permission._run_sub_command")
     async def test_ensure_reads_routes_to_sub_command(
         self,
         mock_sub: AsyncMock,
@@ -188,8 +189,8 @@ class TestUpdatePathsSubCommandRoute:
         )
 
     @pytest.mark.asyncio
-    @patch("dev10x.permission._run_update_paths")
-    @patch("dev10x.permission._run_sub_command")
+    @patch("dev10x.core.permission._run_update_paths")
+    @patch("dev10x.core.permission._run_sub_command")
     async def test_sub_command_flags_skip_version_bump(
         self,
         mock_sub: AsyncMock,

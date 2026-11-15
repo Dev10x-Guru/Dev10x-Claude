@@ -8,10 +8,10 @@ from pathlib import Path
 import pytest
 import yaml
 from click.testing import CliRunner
-from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR
-from dev10x.domain.dev10x_paths import CONFIG_HOME_ENV_VAR, Dev10xConfigDir
 
 from dev10x.commands.permission import record_upgrade
+from dev10x.core.domain.claude_paths import CLAUDE_HOME_ENV_VAR
+from dev10x.core.domain.dev10x_paths import CONFIG_HOME_ENV_VAR, Dev10xConfigDir
 
 
 @pytest.fixture
@@ -59,7 +59,7 @@ def test_errors_when_no_version_resolvable(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, claude_home: Path
 ) -> None:
     monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
-    import dev10x.domain.install_version as iv_mod
+    import dev10x.core.domain.install_version as iv_mod
 
     monkeypatch.setattr(iv_mod, "_default_plugin_root", lambda: None)
 

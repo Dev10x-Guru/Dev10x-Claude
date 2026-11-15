@@ -7,14 +7,14 @@ from collections.abc import Callable
 from pathlib import Path
 
 import pytest
-from dev10x.skills.permission.satellite_paths import (
+
+from dev10x.core.plugin_map import PluginMap, load_plugin_map
+from dev10x.core.skills.permission.satellite_paths import (
     RuleMove,
     SatelliteRelocator,
     relocate_file,
     relocate_rule,
 )
-
-from dev10x.core.plugin_map import PluginMap, load_plugin_map
 
 CACHE = "~/.claude/plugins/cache/Dev10x-Guru"
 MARKET = "~/.claude/plugins/marketplaces/Dev10x-Guru"

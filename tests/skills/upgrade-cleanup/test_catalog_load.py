@@ -5,14 +5,14 @@ from pathlib import Path
 
 import pytest
 import yaml
-from dev10x.skills.permission.catalog_load import (
+
+from dev10x.core.skills.permission import catalog_load
+from dev10x.core.skills.permission.catalog_load import (
     extract_cache_plugin_dir,
     extract_cache_publisher,
     find_settings_files,
     init_userspace_config,
 )
-
-from dev10x.skills.permission import catalog_load
 
 
 class TestExtractCachePublisher:
@@ -246,7 +246,7 @@ class TestInitUserspaceConfig:
             memory.write_text("roots: [/work/winner]\n")
             yield
 
-        monkeypatch.setattr("dev10x.domain.file_locks.file_lock", racing_lock)
+        monkeypatch.setattr("dev10x.core.domain.file_locks.file_lock", racing_lock)
 
         result = init_userspace_config()
 

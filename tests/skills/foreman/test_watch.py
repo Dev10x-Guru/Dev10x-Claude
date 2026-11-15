@@ -8,9 +8,8 @@ from collections.abc import Callable
 from pathlib import Path
 
 import pytest
-from dev10x.domain.common.result import err, ok
 
-from dev10x.skills.foreman import (
+from dev10x.coding.skills.foreman import (
     WatchState,
     active_quota_block,
     append_escalation,
@@ -33,7 +32,8 @@ from dev10x.skills.foreman import (
     retire_chunk,
     retired_heartbeats,
 )
-from dev10x.skills.foreman import watch as watch_module
+from dev10x.coding.skills.foreman import watch as watch_module
+from dev10x.core.domain.common.result import err, ok
 
 NOW = 1_000_000_000.0
 

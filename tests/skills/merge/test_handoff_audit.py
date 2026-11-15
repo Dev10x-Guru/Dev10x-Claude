@@ -13,7 +13,8 @@ import json
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from dev10x.skills.merge.handoff_audit import (
+
+from dev10x.coding.skills.merge.handoff_audit import (
     ACCEPT,
     ALREADY_MERGED,
     REJECT,
@@ -202,7 +203,7 @@ class TestRejection:
         assert "measured_at is not an ISO-8601 timestamp" in audit.reasons
 
     def test_summary_falls_back_when_a_rejection_carries_no_reason(self):
-        from dev10x.skills.merge.handoff_audit import HandoffAudit
+        from dev10x.coding.skills.merge.handoff_audit import HandoffAudit
 
         assert HandoffAudit(verdict=REJECT).summary() == "report rejected"
 

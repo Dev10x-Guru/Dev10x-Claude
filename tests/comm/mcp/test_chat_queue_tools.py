@@ -8,8 +8,6 @@ from typing import Any
 
 import pytest
 import pytest_asyncio
-from dev10x.domain.common.result import Result, ok
-from dev10x.domain.dev10x_paths import Dev10xConfigDir
 
 from dev10x.comm.chatbus import session_queue
 from dev10x.comm.chatbus.events import MESSAGE_CREATED, ChatEvent, EventSource
@@ -19,7 +17,9 @@ from dev10x.comm.chatbus.store import open_store
 from dev10x.comm.chatbus.worklist import BotPoster
 from dev10x.comm.mcp import chat_queue_tools
 from dev10x.comm.skills.notifications.gchat_notify import PostedMessage
-from dev10x.subprocess_utils import RelativeCwdError
+from dev10x.core.domain.common.result import Result, ok
+from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.core.subprocess_utils import RelativeCwdError
 from tests.comm.chatbus.factories import NOW, SPACE, unwrap
 
 CWD = "/work/checkout"

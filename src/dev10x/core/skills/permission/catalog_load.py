@@ -22,16 +22,16 @@ from pathlib import Path
 
 import yaml
 
+from dev10x.core.domain.claude_paths import ClaudeDir
+from dev10x.core.domain.common.result import Result
+from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
 from dev10x.core.paths import latest_version
-from dev10x.domain.claude_paths import ClaudeDir
-from dev10x.domain.common.result import Result
-from dev10x.domain.dev10x_paths import Dev10xConfigDir
-from dev10x.skills.permission.catalog_merge import MergedCatalog, merge_catalogs
-from dev10x.skills.permission.catalog_paths import catalog_text, shipped_projects_catalog
-from dev10x.skills.permission.catalog_result import _result
-from dev10x.skills.permission.config import parse_config, resolve_config
-from dev10x.skills.permission.granted_catalog import load_granted_rules, with_granted_rules
-from dev10x.skills.permission.settings_discovery import VENDORED_DIRS, discover_settings
+from dev10x.core.skills.permission.catalog_merge import MergedCatalog, merge_catalogs
+from dev10x.core.skills.permission.catalog_paths import catalog_text, shipped_projects_catalog
+from dev10x.core.skills.permission.catalog_result import _result
+from dev10x.core.skills.permission.config import parse_config, resolve_config
+from dev10x.core.skills.permission.granted_catalog import load_granted_rules, with_granted_rules
+from dev10x.core.skills.permission.settings_discovery import VENDORED_DIRS, discover_settings
 
 MEMORY_CONFIG = Dev10xConfigDir.projects_yaml()
 USERSPACE_CONFIG = Dev10xConfigDir.upgrade_cleanup_projects_yaml()
@@ -173,7 +173,7 @@ def init_userspace_config() -> dict[str, object]:
     for downgrade safety; ``upgrade-cleanup``/``plugin-doctor`` remove
     it once parity is confirmed. Returns a result dict.
     """
-    from dev10x.domain.file_locks import atomic_write_text, file_lock
+    from dev10x.core.domain.file_locks import atomic_write_text, file_lock
 
     messages: list[str] = []
     errors: list[str] = []

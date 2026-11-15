@@ -1,7 +1,7 @@
 """GH-1293: a crafted PR body must not stall release-notes collection.
 
 `extract_jtbd_structured` runs over the body of every merged PR when
-release notes are collected (`dev10x.skills.release.collect_prs`), and on
+release notes are collected (`dev10x.coding.skills.release.collect_prs`), and on
 a repo that takes outside contributions those bodies are written by
 strangers. A body offering many failing `**When**` start positions used
 to cost ~8x per doubling — 6.8s at 18KB, minutes at GitHub's 65536-char
@@ -17,7 +17,8 @@ from __future__ import annotations
 import time
 
 import pytest
-from dev10x.skills.common.jtbd import extract_jtbd_structured
+
+from dev10x.core.skills.common.jtbd import extract_jtbd_structured
 
 # GitHub's own PR-body ceiling, so the guard covers the worst a body can be.
 _MAX_BODY = 65536

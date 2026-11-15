@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import pytest
-from dev10x.domain.common.branch_name import BranchName
+
+from dev10x.core.domain.common.branch_name import BranchName
 
 
 class TestParseConvention:

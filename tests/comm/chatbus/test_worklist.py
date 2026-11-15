@@ -6,7 +6,6 @@ from datetime import timedelta
 from typing import Any
 
 import pytest
-from dev10x.domain.common.result import Result, err, ok
 
 from dev10x.comm.chatbus import worklist
 from dev10x.comm.chatbus.events import (
@@ -29,6 +28,7 @@ from dev10x.comm.chatbus.worklist import (
 )
 from dev10x.comm.skills.notifications import gchat_notify
 from dev10x.comm.skills.notifications.gchat_notify import PostedMessage
+from dev10x.core.domain.common.result import Result, err, ok
 from tests.comm.chatbus.factories import NOW, SPACE, expect_error, unwrap
 
 LEASE = timedelta(minutes=5)

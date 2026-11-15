@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import pytest
-from dev10x.validators.inline_linter import INLINE_LINTER_MSG, InlineLinterValidator
 
+from dev10x.core.validators.inline_linter import INLINE_LINTER_MSG, InlineLinterValidator
 from tests.fakers import BashHookInputFaker
 
 
@@ -256,7 +256,7 @@ class TestEdgeCases:
 
 class TestMetadata:
     def test_rule_id_and_profile(self, validator: InlineLinterValidator) -> None:
-        from dev10x.domain.profile_tier import ProfileTier
+        from dev10x.core.domain.profile_tier import ProfileTier
 
         assert validator.rule_id == "DX016"
         assert validator.profile is ProfileTier.STANDARD

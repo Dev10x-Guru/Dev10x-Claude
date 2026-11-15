@@ -3,7 +3,7 @@
 # requires-python = ">=3.11"
 # dependencies = ["msgpack>=1.0,<2", "pyyaml>=6.0,<7"]
 # ///
-"""PreToolUse hook: thin shim delegating to dev10x.hooks.edit_validator.
+"""PreToolUse hook: thin shim delegating to dev10x.core.hooks.edit_validator.
 
 Kept for backward compatibility with plugin.json hook config.
 All logic lives in src/dev10x/core/hooks/edit_validator.py.
@@ -13,12 +13,12 @@ import json
 import sys
 
 try:
-    from dev10x.hooks.edit_validator import validate_edit_write
+    from dev10x.core.hooks.edit_validator import validate_edit_write
 except ImportError:
     from pathlib import Path
 
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "src"))
-    from dev10x.hooks.edit_validator import validate_edit_write
+    from dev10x.core.hooks.edit_validator import validate_edit_write
 
 try:
     data = json.load(sys.stdin)

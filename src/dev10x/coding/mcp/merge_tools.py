@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from dev10x.domain.common.result import Result
-from dev10x.mcp._app import mcp_tool
+from dev10x.core.domain.common.result import Result
+from dev10x.core.mcp._app import mcp_tool
 
 
 @mcp_tool

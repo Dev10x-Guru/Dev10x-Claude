@@ -21,8 +21,8 @@ import copy
 from dataclasses import dataclass
 from typing import Any
 
-from dev10x.domain.common.allow_rule import AllowRule
-from dev10x.skills.permission.legacy_namespace import RULE_LISTS, RuleList
+from dev10x.core.domain.common.allow_rule import AllowRule
+from dev10x.core.skills.permission.legacy_namespace import RULE_LISTS, RuleList
 
 
 def is_unmatchable(rule: str) -> bool:

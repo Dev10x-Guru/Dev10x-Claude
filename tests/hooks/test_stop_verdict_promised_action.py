@@ -16,7 +16,8 @@ from pathlib import Path
 
 import pytest
 import yaml
-from dev10x.hooks.stop_verdict import (
+
+from dev10x.core.hooks.stop_verdict import (
     INTENT_PATTERNS_PATH,
     IntentPatterns,
     StopSignal,

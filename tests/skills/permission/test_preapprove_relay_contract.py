@@ -13,7 +13,8 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from dev10x.skills.permission.grant import Verdict, triage
+
+from dev10x.core.skills.permission.grant import Verdict, triage
 
 _BRIEF = (
     Path(__file__).resolve().parents[3] / "plugins/comm/skills/overwatch/references/preapprove.md"

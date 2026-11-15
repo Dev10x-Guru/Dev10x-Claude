@@ -42,7 +42,7 @@ DEV10X_MCP_DAEMON_PATH
 DEV10X_MCP_TRANSPORT
     When set to any value *other than* ``"auto"`` (or when absent),
     ``select_transport_with_daemon_fallback()`` delegates to the plain
-    :func:`~dev10x.mcp.transport.select_transport` function so that
+    :func:`~dev10x.core.mcp.transport.select_transport` function so that
     explicit overrides are always honoured.  Set to ``"auto"`` to
     enable automatic daemon detection.
 
@@ -51,7 +51,7 @@ Usage example
 In ``server_cli.py``::
 
     def main() -> None:
-        from dev10x.mcp.wiring import select_transport_with_daemon_fallback
+        from dev10x.core.mcp.wiring import select_transport_with_daemon_fallback
         server.run(transport=select_transport_with_daemon_fallback())
 """
 
@@ -133,7 +133,7 @@ def select_transport_with_daemon_fallback() -> str:
     Raises:
         ValueError: When ``DEV10X_MCP_TRANSPORT`` is set to an
             unrecognised non-``"auto"`` value (delegated from
-            :func:`~dev10x.mcp.transport.select_transport`).
+            :func:`~dev10x.core.mcp.transport.select_transport`).
     """
     raw = os.environ.get("DEV10X_MCP_TRANSPORT", "").strip().lower()
 

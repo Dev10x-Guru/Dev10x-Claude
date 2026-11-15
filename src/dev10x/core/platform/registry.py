@@ -7,9 +7,9 @@ from pathlib import Path
 
 import yaml
 
-from dev10x.domain.common.config_io import load_yaml
-from dev10x.domain.dev10x_paths import Dev10xConfigDir
-from dev10x.domain.file_locks import atomic_write_text, file_lock  # noqa: F401
+from dev10x.core.domain.common.config_io import load_yaml
+from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.core.domain.file_locks import atomic_write_text, file_lock  # noqa: F401
 
 REGISTRY_FILE = Dev10xConfigDir.platforms_yaml()
 

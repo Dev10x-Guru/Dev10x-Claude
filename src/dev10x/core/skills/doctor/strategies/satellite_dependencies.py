@@ -23,7 +23,7 @@ from typing import Any
 
 from dev10x.core.plugin_enablement import ENABLED_PLUGINS_KEY, plugin_ids
 from dev10x.core.plugin_map import CORE_KEY, PluginMap, load_plugin_map
-from dev10x.skills.doctor.strategy import Context, Finding, Remediation, Severity, Strategy
+from dev10x.core.skills.doctor.strategy import Context, Finding, Remediation, Severity, Strategy
 
 STRATEGY_ID = "satellite-dependencies"
 

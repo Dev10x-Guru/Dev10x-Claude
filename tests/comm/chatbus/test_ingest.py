@@ -4,7 +4,6 @@ import json
 import sqlite3
 
 import pytest
-from dev10x.domain.common.result import ErrorResult
 
 from dev10x.comm.chatbus.events import (
     REACTION_CREATED,
@@ -13,6 +12,7 @@ from dev10x.comm.chatbus.events import (
     EventSource,
 )
 from dev10x.comm.chatbus.ingest import Cursor, IngestReport, get_cursor, ingest_events
+from dev10x.core.domain.common.result import ErrorResult
 from tests.comm.chatbus.factories import NOW, SPACE, expect_error, message_event, unwrap
 
 

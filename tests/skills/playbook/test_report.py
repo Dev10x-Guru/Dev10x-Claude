@@ -1,9 +1,9 @@
-"""Tests for ``dev10x.skills.playbook.report`` (GH-192)."""
+"""Tests for ``dev10x.core.skills.playbook.report`` (GH-192)."""
 
 from __future__ import annotations
 
-from dev10x.skills.playbook.compare import compare_playbooks
-from dev10x.skills.playbook.report import render_markdown_report
+from dev10x.core.skills.playbook.compare import compare_playbooks
+from dev10x.core.skills.playbook.report import render_markdown_report
 
 
 def _diff(default_doc: dict, user_doc: dict):

@@ -28,7 +28,6 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Protocol
 
-from dev10x import subprocess_utils
 from dev10x.comm.skills.bus.maildir import (
     BUS_ROOT,
     Envelope,
@@ -40,10 +39,11 @@ from dev10x.comm.skills.bus.maildir import (
 )
 from dev10x.comm.skills.bus.routing import Hello, read_registry, route_message
 from dev10x.comm.skills.notifications import gchat_notify
-from dev10x.domain.common.result import ErrorResult, Result, err, ok
-from dev10x.domain.dead_letter import record_undelivered
-from dev10x.domain.dev10x_paths import Dev10xConfigDir
-from dev10x.domain.file_locks import locked_json_update
+from dev10x.core import subprocess_utils
+from dev10x.core.domain.common.result import ErrorResult, Result, err, ok
+from dev10x.core.domain.dead_letter import record_undelivered
+from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.core.domain.file_locks import locked_json_update
 
 log = logging.getLogger(__name__)
 

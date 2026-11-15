@@ -18,8 +18,9 @@ these tests rather than a user's machine.
 from __future__ import annotations
 
 import pytest
-from dev10x.domain.common.mcp_tool_name import looks_shell_equivalent
-from dev10x.skills.permission.catalog_paths import (
+
+from dev10x.core.domain.common.mcp_tool_name import looks_shell_equivalent
+from dev10x.core.skills.permission.catalog_paths import (
     load_catalog_document,
     shipped_projects_catalog,
 )

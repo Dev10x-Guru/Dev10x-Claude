@@ -7,7 +7,7 @@ import pytest
 
 from dev10x.core.paths import SATELLITES_DIR
 from dev10x.core.plugin_map import CORE_KEY, PluginMap, load_plugin_map, parse_plugin_map
-from dev10x.subprocess_utils import get_plugin_root
+from dev10x.core.subprocess_utils import get_plugin_root
 
 MANIFEST = Path(".claude-plugin") / "plugin.json"
 

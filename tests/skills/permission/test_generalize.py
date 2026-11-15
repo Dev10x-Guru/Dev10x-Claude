@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import pytest
-from dev10x.skills.permission.generalize import generalize_rule_shape
+
+from dev10x.core.skills.permission.generalize import generalize_rule_shape
 
 
 class TestOverBroad:

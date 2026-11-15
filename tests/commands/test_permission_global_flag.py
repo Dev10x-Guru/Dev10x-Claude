@@ -7,10 +7,10 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner, Result
-from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR
-from dev10x.domain.common.result import ok
 
 from dev10x.commands.permission import clean, update_paths
+from dev10x.core.domain.claude_paths import CLAUDE_HOME_ENV_VAR
+from dev10x.core.domain.common.result import ok
 
 
 @pytest.fixture
@@ -54,17 +54,17 @@ def update_paths_env(
         f"plugin_cache: {cache}\nroots: []\ninclude_user_settings: true\nbase_permissions: []\n"
     )
     monkeypatch.setattr(
-        "dev10x.skills.permission.update_paths.find_config", lambda: ok(config_path)
+        "dev10x.core.skills.permission.update_paths.find_config", lambda: ok(config_path)
     )
     monkeypatch.setattr(
-        "dev10x.skills.permission.update_paths.detect_latest_version", lambda _cache: "0.20.0"
+        "dev10x.core.skills.permission.update_paths.detect_latest_version", lambda _cache: "0.20.0"
     )
     monkeypatch.setattr(
-        "dev10x.skills.permission.update_paths.find_settings_files",
+        "dev10x.core.skills.permission.update_paths.find_settings_files",
         lambda **_kw: [global_settings],
     )
     monkeypatch.setattr(
-        "dev10x.skills.permission.catalog_write._is_git_tracked",
+        "dev10x.core.skills.permission.catalog_write._is_git_tracked",
         lambda path: path in tracked_paths,
     )
 
@@ -124,16 +124,16 @@ def clean_env(
     config_path = tmp_path / "projects.yaml"
     config_path.write_text(f"plugin_cache: {claude_home}/plugins/cache/x/y\nroots: []\n")
     monkeypatch.setattr(
-        "dev10x.skills.permission.clean_project_files.find_config", lambda: ok(config_path)
+        "dev10x.core.skills.permission.clean_project_files.find_config", lambda: ok(config_path)
     )
     monkeypatch.setattr(
-        "dev10x.skills.permission.clean_project_files.GLOBAL_SETTINGS", global_file
+        "dev10x.core.skills.permission.clean_project_files.GLOBAL_SETTINGS", global_file
     )
     monkeypatch.setattr(
-        "dev10x.skills.permission.clean_project_files.find_settings_files", lambda **_kw: []
+        "dev10x.core.skills.permission.clean_project_files.find_settings_files", lambda **_kw: []
     )
     monkeypatch.setattr(
-        "dev10x.skills.permission.clean_project_files.detect_current_version",
+        "dev10x.core.skills.permission.clean_project_files.detect_current_version",
         lambda _cache: None,
     )
     return global_file

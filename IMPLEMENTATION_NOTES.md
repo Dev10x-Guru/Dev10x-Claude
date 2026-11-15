@@ -65,7 +65,7 @@ Replace the section starting at line 45 (`## Reviewer checklist`) through line 5
 
 ### Exception: Config Loaders at Critical Path
 
-Some config loaders (e.g., `dev10x.skills.permission.config::resolve_config`)
+Some config loaders (e.g., `dev10x.core.skills.permission.config::resolve_config`)
 call `sys.exit(1)` on missing configuration. This is acceptable when:
 
 1. The function has exactly one call chain: CLI command → domain module

@@ -28,8 +28,8 @@ import sys
 from collections.abc import Callable
 from pathlib import Path
 
-from dev10x.domain.claude_paths import ClaudeDir
-from dev10x.domain.file_locks import atomic_write_text, file_lock
+from dev10x.core.domain.claude_paths import ClaudeDir
+from dev10x.core.domain.file_locks import atomic_write_text, file_lock
 
 CONFIG_HOME_ENV_VAR = "DEV10X_CONFIG_HOME"
 XDG_CONFIG_HOME_ENV_VAR = "XDG_CONFIG_HOME"
@@ -166,7 +166,7 @@ class Dev10xConfigDir:
         every writer reached it with the Write/Edit tool, which trips Claude
         Code's self-settings gate on each session regardless of allow rules
         (RC-A). Here it is outside every repo, so the gate cannot fire, and
-        the MCP tools over :mod:`dev10x.session.task_index` are the only
+        the MCP tools over :mod:`dev10x.tasks.session.task_index` are the only
         writers.
 
         Keyed by the repo stem from the git **common dir**, so every worktree

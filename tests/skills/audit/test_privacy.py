@@ -8,14 +8,14 @@ from pathlib import Path
 
 import pytest
 
-from dev10x.skills.audit import privacy
+from dev10x.teach.skills.audit import privacy
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 _IMPORT_PROBE = (
     "import sys\n"
     f"sys.path.insert(0, {str(REPO_ROOT / 'src')!r})\n"
     "before = 'yaml' in sys.modules\n"
-    "from dev10x.skills.audit import privacy\n"
+    "from dev10x.teach.skills.audit import privacy\n"
     "print(before, 'yaml' in sys.modules)\n"
 )
 

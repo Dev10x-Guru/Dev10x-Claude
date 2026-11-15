@@ -4,11 +4,11 @@ The original ``hooks/session.py`` mixed Event dispatch, Document
 persistence, Rule/Policy, and Place provisioning. It has been split
 into archetype-aligned modules:
 
-* :mod:`dev10x.hooks.session_dispatch` — event routing.
-* :mod:`dev10x.domain.session_document` — Document I/O.
-* :mod:`dev10x.hooks.session_policy` — named Rule objects.
-* :mod:`dev10x.hooks.session_place` — Place provisioning.
-* :mod:`dev10x.domain.documents.session_context` — aggregated SessionContextQuery.
+* :mod:`dev10x.core.hooks.session_dispatch` — event routing.
+* :mod:`dev10x.core.domain.session_document` — Document I/O.
+* :mod:`dev10x.core.hooks.session_policy` — named Rule objects.
+* :mod:`dev10x.core.hooks.session_place` — Place provisioning.
+* :mod:`dev10x.core.domain.documents.session_context` — aggregated SessionContextQuery.
 
 This module re-exports the public surface that
 ``hooks/scripts/session-*.py``, ``commands/hook.py``, and the test
@@ -17,13 +17,13 @@ suite import. Prefer importing from the new modules in new code.
 
 from __future__ import annotations
 
-from dev10x.domain.session_document import (
+from dev10x.core.domain.session_document import (
     claim_state_file as _claim_state_file,
 )
-from dev10x.domain.session_document import (
+from dev10x.core.domain.session_document import (
     read_json as _read_json,
 )
-from dev10x.hooks.session_dispatch import (
+from dev10x.core.hooks.session_dispatch import (
     build_auto_plan_guidance_context,  # noqa: F401 — re-exported via __all__
     build_autonomy_reassurance_context,  # noqa: F401 — re-exported via __all__
     build_compaction_context,  # noqa: F401 — re-exported via __all__
@@ -43,12 +43,12 @@ from dev10x.hooks.session_dispatch import (
     session_persist,  # noqa: F401 — re-exported via __all__
     session_reload,  # noqa: F401 — re-exported via __all__
 )
-from dev10x.hooks.session_place import (
+from dev10x.core.hooks.session_place import (
     session_git_aliases,
     session_load_marker,
     session_tmpdir,
 )
-from dev10x.hooks.session_policy import (
+from dev10x.core.hooks.session_policy import (
     DecisionGuidanceRule,
     _build_migration_replacements,
 )
@@ -56,28 +56,28 @@ from dev10x.hooks.session_policy import (
 
 def _format_session_state(*, state):
     """Compatibility shim — prefer ``SessionState.from_dict(...).format_for_display()``."""
-    from dev10x.domain.documents.session_state import SessionState
+    from dev10x.core.domain.documents.session_state import SessionState
 
     return SessionState.from_dict(data=state).format_for_display()
 
 
 def _format_plan_summary(*, plan):
     """Compatibility shim — prefer ``PlanSummary.from_dict(...).format_for_display()``."""
-    from dev10x.domain.documents.session_state import PlanSummary
+    from dev10x.core.domain.documents.session_state import PlanSummary
 
     return PlanSummary.from_dict(data=plan).format_for_display()
 
 
 def _read_friction_level(*, toplevel: str):
     """Compatibility shim — prefer ``SessionYamlDocument(toplevel=...).read_friction_level()``."""
-    from dev10x.domain.documents.session_yaml import SessionYamlDocument
+    from dev10x.core.domain.documents.session_yaml import SessionYamlDocument
 
     return SessionYamlDocument(toplevel=toplevel).read_friction_level()
 
 
 def _format_decision_guidance(*, plan, friction_level):
     """Compatibility shim — prefer ``DecisionGuidanceRule(...).apply()``."""
-    from dev10x.domain.documents.session_state import PlanSummary
+    from dev10x.core.domain.documents.session_state import PlanSummary
 
     return DecisionGuidanceRule(
         plan=PlanSummary.from_dict(data=plan), friction_level=friction_level

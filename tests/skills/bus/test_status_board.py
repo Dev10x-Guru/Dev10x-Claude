@@ -8,7 +8,9 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
-from dev10x.skills.bus.maildir import (
+
+from dev10x.comm.skills.bus import board, status
+from dev10x.comm.skills.bus.maildir import (
     INVALID_MESSAGE_EXIT,
     InvalidMessageError,
     SessionStatus,
@@ -16,8 +18,6 @@ from dev10x.skills.bus.maildir import (
     status_files,
     write_status,
 )
-
-from dev10x.skills.bus import board, status
 from tests.skills.bus.conftest import Run
 
 RunMain = Callable[[Callable[..., int], list[str]], Run]

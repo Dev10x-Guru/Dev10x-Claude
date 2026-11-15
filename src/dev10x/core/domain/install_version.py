@@ -23,11 +23,11 @@ from typing import Any
 
 import yaml
 
-from dev10x.domain.common.config_io import load_json, load_yaml
-from dev10x.domain.common.plugin_version import PluginVersion
-from dev10x.domain.common.result import Result, err, ok
-from dev10x.domain.dev10x_paths import Dev10xConfigDir
-from dev10x.domain.file_locks import atomic_write_text
+from dev10x.core.domain.common.config_io import load_json, load_yaml
+from dev10x.core.domain.common.plugin_version import PluginVersion
+from dev10x.core.domain.common.result import Result, err, ok
+from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.core.domain.file_locks import atomic_write_text
 
 
 def read_plugin_version(*, plugin_root: Path | None = None) -> str | None:
@@ -104,7 +104,7 @@ def read_latest_installed_version(
     when the directory is absent or empty (e.g., ``--plugin-dir`` installs
     that bypass the cache).
     """
-    from dev10x.domain.claude_paths import ClaudeDir
+    from dev10x.core.domain.claude_paths import ClaudeDir
 
     root = cache_dir or (ClaudeDir.plugins_cache_dir() / publisher / plugin_slug)
     if not root.is_dir():

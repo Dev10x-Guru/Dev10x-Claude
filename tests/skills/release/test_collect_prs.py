@@ -7,7 +7,8 @@ import json
 from unittest.mock import patch
 
 import pytest
-from dev10x.skills.release.collect_prs import (
+
+from dev10x.coding.skills.release.collect_prs import (
     MERGED_PR_FETCH_LIMIT,
     Commit,
     collect_ticket_groups,
@@ -16,7 +17,7 @@ from dev10x.skills.release.collect_prs import (
     find_reverted_shas,
 )
 
-_RUN = "dev10x.skills.release.collect_prs.run"
+_RUN = "dev10x.coding.skills.release.collect_prs.run"
 
 
 class TestFetchMergedPrs:

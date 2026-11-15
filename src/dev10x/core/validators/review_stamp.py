@@ -5,7 +5,7 @@ or compacted session can skip them: a field-tested workflow recorded a PR
 merged with no review because the session forgot. This validator moves
 the one check that matters most into a hook. ``merge_pr``, ``pr_ready``
 and ``request_review`` are denied unless a clean ``dev10x-coding:review`` round
-stamped the PR's current head (see ``dev10x.domain.review_stamp``).
+stamped the PR's current head (see ``dev10x.core.domain.review_stamp``).
 
 Scope:
 
@@ -41,17 +41,17 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, ClassVar
 
-from dev10x import subprocess_utils
-from dev10x.domain import HookInput, HookResult
-from dev10x.domain.dev10x_paths import Dev10xConfigDir
-from dev10x.domain.documents.friction_yaml import load_checkout_prefs
-from dev10x.domain.profile_tier import ProfileTier
-from dev10x.domain.review_stamp import (
+from dev10x.core import subprocess_utils
+from dev10x.core.domain import HookInput, HookResult
+from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.core.domain.documents.friction_yaml import load_checkout_prefs
+from dev10x.core.domain.profile_tier import ProfileTier
+from dev10x.core.domain.review_stamp import (
     ReviewStampStore,
     evaluate_stamp,
     repo_slug_from_pr_url,
 )
-from dev10x.validators.base import ValidatorBase
+from dev10x.core.validators.base import ValidatorBase
 
 log = logging.getLogger(__name__)
 

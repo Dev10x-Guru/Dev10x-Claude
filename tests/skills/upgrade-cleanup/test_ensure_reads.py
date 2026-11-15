@@ -12,7 +12,8 @@ from collections.abc import Callable
 from pathlib import Path
 
 import pytest
-from dev10x.skills.permission.update_paths import (
+
+from dev10x.core.skills.permission.update_paths import (
     READ_TOP_LEVEL_DIRS,
     build_marketplaces_read_rules,
     build_read_allow_rules,

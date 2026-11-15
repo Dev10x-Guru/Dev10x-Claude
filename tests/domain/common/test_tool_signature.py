@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import pytest
-from dev10x.domain.common.tool_signature import ACTION_TYPE_BY_TOOL, ToolSignature
+
+from dev10x.core.domain.common.tool_signature import ACTION_TYPE_BY_TOOL, ToolSignature
 
 
 class TestStr:

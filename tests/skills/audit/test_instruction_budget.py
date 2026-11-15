@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from dev10x.skills.audit import instruction_budget as mod
+from dev10x.teach.skills.audit import instruction_budget as mod
 
 
 class TestIsActionable:

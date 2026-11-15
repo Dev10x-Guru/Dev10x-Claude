@@ -1,4 +1,4 @@
-"""Direct unit tests for ``dev10x.domain.session_rules`` (GH-833).
+"""Direct unit tests for ``dev10x.core.domain.session_rules`` (GH-833).
 
 The session-policy rules here were previously exercised only end-to-end
 through the SessionStart orchestrator, which masks wrong-branch bugs in
@@ -21,9 +21,10 @@ directly:
 from __future__ import annotations
 
 import pytest
-from dev10x.domain.documents.session_state import PlanSummary
-from dev10x.domain.friction_level import FrictionLevel
-from dev10x.domain.session_rules import (
+
+from dev10x.core.domain.documents.session_state import PlanSummary
+from dev10x.core.domain.friction_level import FrictionLevel
+from dev10x.core.domain.session_rules import (
     BuildAutonomyReassuranceRule,
     BuildAutoPlanGuidanceRule,
     CompletionRecommendation,

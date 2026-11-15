@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from dev10x.skills.notifications import _gh
+from dev10x.comm.skills.notifications import _gh
 
 
 def _fake_run(recorder: dict[str, Any], *, returncode: int, stdout: str, stderr: str):

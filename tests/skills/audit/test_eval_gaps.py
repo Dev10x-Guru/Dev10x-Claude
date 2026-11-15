@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from dev10x.skills.audit import eval_gaps as mod
+from dev10x.teach.skills.audit import eval_gaps as mod
 
 GATED_SKILL_MD = """---
 name: dev10x:demo

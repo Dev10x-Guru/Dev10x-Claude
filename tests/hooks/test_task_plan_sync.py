@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from dev10x.hooks.task_plan_sync import _tool_outcome
+from dev10x.tasks.hooks.task_plan_sync import _tool_outcome
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 HOOK = _REPO_ROOT / "hooks" / "scripts" / "task-plan-sync.py"

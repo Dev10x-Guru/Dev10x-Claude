@@ -28,22 +28,22 @@ from pathlib import Path
 from typing import Any
 
 from dev10x.core import validators as _validators
-from dev10x.domain.common.allow_rule import AllowRule
-from dev10x.domain.common.bash_tokens import (
+from dev10x.core.domain.common.allow_rule import AllowRule
+from dev10x.core.domain.common.bash_tokens import (
     ANY_CASE_ENV_VAR_RE,
     split_tokens,
     strip_quoted_spans,
 )
-from dev10x.domain.common.exec_capable import exec_flag, is_interpreter
-from dev10x.domain.common.mcp_tool_name import McpToolName
-from dev10x.domain.common.result import ErrorResult, Result, err, ok
-from dev10x.domain.rules.validation_rule import Compensation, MatchingRule
-from dev10x.domain.sensitivity import SensitivityClassifier, name_is_sensitive, operand_tokens
-from dev10x.skills.permission.backup import backed_up_write
-from dev10x.skills.permission.catalog_write import partition_writable
-from dev10x.skills.permission.generalize import generalize_rule_shape
-from dev10x.skills.permission.granted_catalog import granted_path, remember_granted_rule
-from dev10x.skills.permission.rule_risk import (
+from dev10x.core.domain.common.exec_capable import exec_flag, is_interpreter
+from dev10x.core.domain.common.mcp_tool_name import McpToolName
+from dev10x.core.domain.common.result import ErrorResult, Result, err, ok
+from dev10x.core.domain.rules.validation_rule import Compensation, MatchingRule
+from dev10x.core.domain.sensitivity import SensitivityClassifier, name_is_sensitive, operand_tokens
+from dev10x.core.skills.permission.backup import backed_up_write
+from dev10x.core.skills.permission.catalog_write import partition_writable
+from dev10x.core.skills.permission.generalize import generalize_rule_shape
+from dev10x.core.skills.permission.granted_catalog import granted_path, remember_granted_rule
+from dev10x.core.skills.permission.rule_risk import (
     RULE_WILDCARD_SUFFIX_RE,
     SENSITIVE_ROOT_RE,
     UNGRANTABLE_EXECUTABLES,
@@ -298,7 +298,7 @@ def load_skill_map_rules(*, yaml_path: Path = SKILL_MAP_PATH) -> list[MatchingRu
     The hook only loads ``hook_block`` rules, but an advisory route is
     still an alternative worth taking before granting a raw command.
     """
-    from dev10x.config.loader import load_config
+    from dev10x.core.config.loader import load_config
 
     return [rule for rule in load_config(yaml_path=yaml_path).rules if rule.matcher == "Bash"]
 

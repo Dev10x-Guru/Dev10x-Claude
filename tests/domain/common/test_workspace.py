@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import pytest
-from dev10x.domain.common.workspace import Workspace
+
+from dev10x.core.domain.common.workspace import Workspace
 
 
 class TestWorkspace:

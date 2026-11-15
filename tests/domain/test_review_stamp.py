@@ -4,7 +4,8 @@ import json
 from pathlib import Path
 
 import pytest
-from dev10x.domain.review_stamp import (
+
+from dev10x.core.domain.review_stamp import (
     CorruptStampStoreError,
     ReviewStamp,
     ReviewStampStore,

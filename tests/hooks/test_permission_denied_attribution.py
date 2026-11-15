@@ -12,10 +12,10 @@ import logging
 from typing import Never
 
 import pytest
-from dev10x.hooks.permission_diagnostics import DiagnosticResult
 
 from dev10x.commands.hook import _record_denied_tool, _run_permission_diagnostics
-from dev10x.hooks import audit_emit
+from dev10x.core.hooks import audit_emit
+from dev10x.core.hooks.permission_diagnostics import DiagnosticResult
 
 
 def _raise_boom(*args: object, **kwargs: object) -> Never:
@@ -88,7 +88,7 @@ class TestDiagnosticsFailureLeavesATrace:
         """Every test here needs the same non-debug, raising baseline."""
         monkeypatch.delenv("HOOK_DEBUG", raising=False)
         monkeypatch.setattr(
-            "dev10x.hooks.permission_diagnostics.diagnose",
+            "dev10x.core.hooks.permission_diagnostics.diagnose",
             _raise_boom,
         )
 
@@ -115,7 +115,7 @@ class TestDiagnosticsFailureLeavesATrace:
         would propagate into the hook's own exit path."""
         monkeypatch.delenv("HOOK_DEBUG", raising=False)
         monkeypatch.setattr(
-            "dev10x.hooks.permission_diagnostics.diagnose",
+            "dev10x.core.hooks.permission_diagnostics.diagnose",
             _raise_boom,
         )
         monkeypatch.setattr(

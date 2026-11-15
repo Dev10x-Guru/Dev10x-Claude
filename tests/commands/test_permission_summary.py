@@ -7,10 +7,10 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
-from dev10x.domain.claude_paths import CLAUDE_HOME_ENV_VAR
-from dev10x.domain.common.result import ok
 
 from dev10x.commands.permission import clean, update_paths
+from dev10x.core.domain.claude_paths import CLAUDE_HOME_ENV_VAR
+from dev10x.core.domain.common.result import ok
 
 
 @pytest.fixture
@@ -47,19 +47,19 @@ def project_with_settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Pa
 
     fake_home = tmp_path
     monkeypatch.setattr(
-        "dev10x.skills.permission.catalog_write.Path.home",
+        "dev10x.core.skills.permission.catalog_write.Path.home",
         classmethod(lambda cls: fake_home),
     )
     monkeypatch.setattr(
-        "dev10x.skills.permission.update_paths.find_config",
+        "dev10x.core.skills.permission.update_paths.find_config",
         lambda: ok(config_path),
     )
     monkeypatch.setattr(
-        "dev10x.skills.permission.update_paths.detect_latest_version",
+        "dev10x.core.skills.permission.update_paths.detect_latest_version",
         lambda _cache: "0.20.0",
     )
     monkeypatch.setattr(
-        "dev10x.skills.permission.update_paths.find_settings_files",
+        "dev10x.core.skills.permission.update_paths.find_settings_files",
         lambda **_kw: [user_settings],
     )
     return tmp_path
@@ -138,19 +138,19 @@ def project_with_clean_targets(
     )
 
     monkeypatch.setattr(
-        "dev10x.skills.permission.clean_project_files.find_config",
+        "dev10x.core.skills.permission.clean_project_files.find_config",
         lambda: ok(config_path),
     )
     monkeypatch.setattr(
-        "dev10x.skills.permission.clean_project_files.GLOBAL_SETTINGS",
+        "dev10x.core.skills.permission.clean_project_files.GLOBAL_SETTINGS",
         global_settings,
     )
     monkeypatch.setattr(
-        "dev10x.skills.permission.clean_project_files.find_settings_files",
+        "dev10x.core.skills.permission.clean_project_files.find_settings_files",
         lambda **_kw: [proj_settings],
     )
     monkeypatch.setattr(
-        "dev10x.skills.permission.clean_project_files.detect_current_version",
+        "dev10x.core.skills.permission.clean_project_files.detect_current_version",
         lambda _cache: None,
     )
     # GH-1501: clean now also migrates the user-scope layers, so keep them

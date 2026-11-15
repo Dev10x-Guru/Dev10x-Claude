@@ -6,9 +6,10 @@ import json
 from pathlib import Path
 
 import pytest
-from dev10x.skills.doctor.registry import DEFAULT_STRATEGY_MODULES
-from dev10x.skills.doctor.strategies.shell_equivalent_mcp_tools import STRATEGY, detect
-from dev10x.skills.doctor.strategy import Context
+
+from dev10x.core.skills.doctor.registry import DEFAULT_STRATEGY_MODULES
+from dev10x.core.skills.doctor.strategies.shell_equivalent_mcp_tools import STRATEGY, detect
+from dev10x.core.skills.doctor.strategy import Context
 
 
 def _settings(path: Path, *, allow: list[str]) -> Path:
@@ -90,4 +91,7 @@ class TestDetect:
 
 def test_the_strategy_is_registered():
     # A strategy the registry does not load is a check nobody runs.
-    assert "dev10x.skills.doctor.strategies.shell_equivalent_mcp_tools" in DEFAULT_STRATEGY_MODULES
+    assert (
+        "dev10x.core.skills.doctor.strategies.shell_equivalent_mcp_tools"
+        in DEFAULT_STRATEGY_MODULES
+    )

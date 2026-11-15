@@ -1,6 +1,6 @@
 """Lint test: every uv-script subprocess call declares a timeout (GH-1414).
 
-See `dev10x.subprocess_timeouts` for the rationale and the shared
+See `dev10x.core.subprocess_timeouts` for the rationale and the shared
 detector used here and by `bin/check-subprocess-timeouts.py` (wired into
 `.pre-commit-config.yaml`). Mirrors `tests/test_dependency_pins.py`, the
 guard built for the same class of drift.
@@ -10,12 +10,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from dev10x.subprocess_timeouts import (
+from dev10x.core.subprocess_timeouts import (
     find_unbounded_calls,
     is_pep723_script,
     scan_repository,
 )
-from dev10x.subprocess_utils import get_plugin_root
+from dev10x.core.subprocess_utils import get_plugin_root
 
 _PEP723_HEADER = "#!/usr/bin/env -S uv run --script\n# /// script\n# ///\n"
 
@@ -31,7 +31,7 @@ def test_every_uv_script_subprocess_call_is_bounded() -> None:
     offenders = scan_repository(root)
 
     assert not offenders, (
-        "A PEP 723 script cannot import dev10x.subprocess_utils, so an "
+        "A PEP 723 script cannot import dev10x.core.subprocess_utils, so an "
         "unbounded subprocess call hangs forever on a stalled `gh` or a "
         "keyring daemon with no TTY — in an unattended night run, until "
         "morning (GH-1414). Declare a local _SUBPROCESS_TIMEOUT_SECONDS "

@@ -7,11 +7,11 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
-from dev10x.domain.common.result import ok
-from dev10x.permission.service import PermissionContext
 
 from dev10x.commands import permission as cmd
 from dev10x.commands.permission import permission
+from dev10x.core.domain.common.result import ok
+from dev10x.core.permission.service import PermissionContext
 
 
 @pytest.fixture
@@ -66,7 +66,7 @@ class TestPermissionResolve:
         layer = tmp_path / "projects.yaml"
         layer.write_text("base_permissions:\n  - Bash(git status:*)\n")
         monkeypatch.setattr(
-            "dev10x.domain.dev10x_paths.Dev10xConfigDir.projects_yaml",
+            "dev10x.core.domain.dev10x_paths.Dev10xConfigDir.projects_yaml",
             classmethod(lambda cls: layer),
         )
 
@@ -80,7 +80,7 @@ class TestPermissionResolve:
         layer = tmp_path / "projects.yaml"
         layer.write_text("base_permissions:\n  - Bash(git status:*)\n")
         monkeypatch.setattr(
-            "dev10x.domain.dev10x_paths.Dev10xConfigDir.projects_yaml",
+            "dev10x.core.domain.dev10x_paths.Dev10xConfigDir.projects_yaml",
             classmethod(lambda cls: layer),
         )
 

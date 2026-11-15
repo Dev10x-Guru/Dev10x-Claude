@@ -17,7 +17,7 @@ session so a later tool call can issue a ``sampling/createMessage`` request.
 
 ``request_sampling`` is the backing domain function for the
 ``request_sampling`` MCP tool.  It returns a
-:class:`~dev10x.domain.common.result.Result` so the handler unwraps it via
+:class:`~dev10x.core.domain.common.result.Result` so the handler unwraps it via
 ``to_wire()`` at the MCP boundary like every other tool (ADR-0009).
 
 Environment variables
@@ -34,8 +34,8 @@ import logging
 import os
 from typing import TYPE_CHECKING, Any
 
-from dev10x.domain.common.result import Result, err, ok
-from dev10x.domain.common.singleton_holder import SingletonHolder
+from dev10x.core.domain.common.result import Result, err, ok
+from dev10x.core.domain.common.singleton_holder import SingletonHolder
 
 if TYPE_CHECKING:  # pragma: no cover
     from mcp.server.session import ServerSession

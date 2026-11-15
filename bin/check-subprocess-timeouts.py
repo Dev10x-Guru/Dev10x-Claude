@@ -9,7 +9,7 @@ Usage:
 
 Scans every PEP 723 uv-script (`# /// script` header) under the plugin
 root for `subprocess.run` / `check_output` / `check_call` calls that pass
-no `timeout=`. See `dev10x.subprocess_timeouts` for the detection logic
+no `timeout=`. See `dev10x.core.subprocess_timeouts` for the detection logic
 and the scope rationale, and `tests/test_subprocess_timeouts.py` for the
 pytest-side unit coverage of the same detector.
 
@@ -29,7 +29,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from dev10x.subprocess_timeouts import scan_repository  # noqa: E402
+from dev10x.core.subprocess_timeouts import scan_repository  # noqa: E402
 
 
 def main() -> int:
@@ -38,7 +38,7 @@ def main() -> int:
         return 0
 
     print(
-        "A PEP 723 script cannot import dev10x.subprocess_utils, so an "
+        "A PEP 723 script cannot import dev10x.core.subprocess_utils, so an "
         "unbounded subprocess call hangs forever on a stalled `gh` or a "
         "keyring daemon with no TTY — in an unattended run, until morning "
         "(GH-1414). Declare a local _SUBPROCESS_TIMEOUT_SECONDS and pass "

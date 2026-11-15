@@ -10,7 +10,7 @@ from typing import Any
 
 from dev10x.comm.overwatch.probes import send_keys, submit_prompt
 from dev10x.comm.skills.bus.maildir import Envelope, send
-from dev10x.domain.file_locks import atomic_append_line
+from dev10x.core.domain.file_locks import atomic_append_line
 
 log = logging.getLogger(__name__)
 

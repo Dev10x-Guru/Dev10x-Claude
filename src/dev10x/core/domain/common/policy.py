@@ -26,8 +26,8 @@ the missing/malformed-input tolerance of :class:`AllowRuleLoader`.
 
 Archetype: **Catalog Entry** (ADR-0030, amending ADR-0007) — queried
 and listed, never ``apply()``'d. ``Policy`` is not a
-:class:`~dev10x.domain.rules.policy_rule.PolicyRule`; the decision over
-a set of entries is :func:`dev10x.domain.common.policy_resolution.resolve_effect`.
+:class:`~dev10x.core.domain.rules.policy_rule.PolicyRule`; the decision over
+a set of entries is :func:`dev10x.core.domain.common.policy_resolution.resolve_effect`.
 """
 
 from __future__ import annotations
@@ -36,8 +36,8 @@ from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 
-from dev10x.domain.common.allow_rule import AllowRule
-from dev10x.domain.common.baseline_catalog import load_baseline_dict
+from dev10x.core.domain.common.allow_rule import AllowRule
+from dev10x.core.domain.common.baseline_catalog import load_baseline_dict
 
 
 class PolicyEffect(StrEnum):

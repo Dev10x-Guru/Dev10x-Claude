@@ -5,7 +5,7 @@ Skills call ``resolve_gate`` at each decision gate instead of reading
 tool loads the session policy, hydrates the shipped presets from
 ``presets/friction/*.yaml`` (ADR-0016 D-1), applies the
 preset/overlay/override/floor pipeline in
-:mod:`dev10x.domain.gate_policy`, and returns the resolved effect for the
+:mod:`dev10x.core.domain.gate_policy`, and returns the resolved effect for the
 concrete gate instance. Auto-advances surface a visible D-7 record that is
 also appended to the audit log and the configured ``doubt_sink`` (#754).
 """
@@ -17,27 +17,27 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from dev10x.core.domain.common.result import ErrorResult, Result, err, ok
+from dev10x.core.domain.documents.friction_yaml import PinScope
+from dev10x.core.domain.file_locks import atomic_append_line
+from dev10x.core.domain.gate_policy import MIGRATOR_COMMAND
 from dev10x.core.mcp._app import mcp_tool
 
 # Read/compute half of gate resolution (GH-840). Re-exported here so the
 # ``.dev10x/gate-policy.yaml`` constants and ``_project_overrides`` stay
-# importable from ``dev10x.mcp.gate_tools`` for existing callers/tests.
+# importable from ``dev10x.core.mcp.gate_tools`` for existing callers/tests.
 from dev10x.core.mcp.gate_query import (
     LEGACY_PROJECT_POLICY_RELPATH,
     PROJECT_POLICY_RELPATH,
     GateResolutionQuery,
 )
-from dev10x.domain.common.result import ErrorResult, Result, err, ok
-from dev10x.domain.documents.friction_yaml import PinScope
-from dev10x.domain.file_locks import atomic_append_line
-from dev10x.domain.gate_policy import MIGRATOR_COMMAND
 
 log = logging.getLogger(__name__)
 
 _RETIRED_REVIEW_KEY = "human_review"
 
 if TYPE_CHECKING:  # pragma: no cover
-    from dev10x.domain.gate_policy import GateResolution
+    from dev10x.core.domain.gate_policy import GateResolution
 
 __all__ = [
     "LEGACY_PROJECT_POLICY_RELPATH",
@@ -72,7 +72,7 @@ def _emit_auto_advance(*, resolution: GateResolution, toplevel: str) -> str | No
     record = resolution.visible_record()
     if record is None:
         return None
-    from dev10x.hooks.audit_emit import append_gate_record
+    from dev10x.core.hooks.audit_emit import append_gate_record
 
     append_gate_record(
         gate=resolution.gate,
@@ -96,7 +96,7 @@ async def resolve_gate_for_toplevel(
 ) -> Result[dict[str, Any]]:
     """Resolve one gate against the session + project policy at ``toplevel``.
 
-    Thin adapter over :class:`~dev10x.mcp.gate_query.GateResolutionQuery`
+    Thin adapter over :class:`~dev10x.core.mcp.gate_query.GateResolutionQuery`
     (GH-840): the query owns the read + compute; this function routes the
     D-7 side effects (audit log + doubt sink) and builds the wire payload.
     """
@@ -143,7 +143,7 @@ async def resolve_gate(
         `undetermined` is reported, never silently defaulted.
         `{"error": ...}` on unknown gate, context field, or preset.
     """
-    from dev10x.domain.git_context import GitContext
+    from dev10x.core.domain.git_context import GitContext
 
     toplevel = await asyncio.to_thread(lambda: GitContext().toplevel)
     if toplevel is None:
@@ -172,7 +172,7 @@ async def preset_pin_status(cwd: str | None = None) -> Result[dict]:
         entry's durable keys, or {}), suggested_match (the globs a `repo`
         scoped pin would write). `{"error": ...}` outside a git repo.
     """
-    from dev10x.session import preset_pin
+    from dev10x.core.session import preset_pin
 
     return await asyncio.to_thread(preset_pin.preset_pin_status, cwd=cwd)
 
@@ -182,10 +182,10 @@ def _read_supervisor_review() -> Result[dict[str, Any]]:
 
     Callers bind the effective CWD (GH-979) before invoking this.
     """
+    from dev10x.core.domain.documents.friction_yaml import FrictionYamlDocument
+    from dev10x.core.domain.documents.session_yaml import SessionYamlDocument
+    from dev10x.core.domain.git_context import GitContext
     from dev10x.core.mcp.gate_query import _policy_toplevel
-    from dev10x.domain.documents.friction_yaml import FrictionYamlDocument
-    from dev10x.domain.documents.session_yaml import SessionYamlDocument
-    from dev10x.domain.git_context import GitContext
 
     toplevel = GitContext().toplevel
     if toplevel is None:
@@ -287,7 +287,7 @@ async def pin_gate_preset(
         Dictionary with keys: path, match, repo_name, repo_root, scope,
         prefs. `{"error": ...}` on an unknown scope or outside a git repo.
     """
-    from dev10x.session import preset_pin
+    from dev10x.core.session import preset_pin
 
     return await asyncio.to_thread(
         preset_pin.pin_preset,

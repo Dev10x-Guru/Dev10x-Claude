@@ -26,8 +26,8 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from dev10x.domain.common.allow_rule import AllowRule
-from dev10x.skills.doctor.strategy import (
+from dev10x.core.domain.common.allow_rule import AllowRule
+from dev10x.core.skills.doctor.strategy import (
     Context,
     Finding,
     Remediation,

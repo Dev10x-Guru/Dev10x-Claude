@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import pytest
-from dev10x.domain.common.doctor_acceptance import AcceptedDoctorFinding
-from dev10x.domain.common.result import ErrorResult, SuccessResult
-from dev10x.skills.doctor.runner import run_doctor
-from dev10x.skills.doctor.strategy import Context, Finding, Remediation, Strategy
+
+from dev10x.core.domain.common.doctor_acceptance import AcceptedDoctorFinding
+from dev10x.core.domain.common.result import ErrorResult, SuccessResult
+from dev10x.core.skills.doctor.runner import run_doctor
+from dev10x.core.skills.doctor.strategy import Context, Finding, Remediation, Strategy
 
 
 def finding(*, strategy_id: str = "s1", severity: str = "drift", location: str = "/a") -> Finding:

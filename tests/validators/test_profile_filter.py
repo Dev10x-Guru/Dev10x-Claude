@@ -7,9 +7,9 @@ DEV10X_HOOK_EXPERIMENTAL env vars control which validators run.
 from __future__ import annotations
 
 import pytest
-from dev10x.domain.profile_tier import ProfileTier
 
-from dev10x.validators import (
+from dev10x.core.domain.profile_tier import ProfileTier
+from dev10x.core.validators import (
     _load_profile_config,
     get_validators,
     reset_registry,

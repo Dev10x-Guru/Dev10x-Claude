@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from dev10x.skills.permission.backup import backed_up_write
+from dev10x.core.skills.permission.backup import backed_up_write
 
 PERMISSION_LISTS: tuple[str, ...] = ("allow", "ask", "deny")
 

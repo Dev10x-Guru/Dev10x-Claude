@@ -20,9 +20,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import ClassVar
 
-from dev10x.core.name_boundary import name_pattern
-from dev10x.domain import HookAsk, HookInput
-from dev10x.domain.common.bash_tokens import (
+from dev10x.core.domain import HookAsk, HookInput
+from dev10x.core.domain.common.bash_tokens import (
     UntokenizableCommandError,
     command_segments,
     command_units,
@@ -30,9 +29,10 @@ from dev10x.domain.common.bash_tokens import (
     strip_command_wrappers,
     strip_line_continuations,
 )
-from dev10x.domain.common.exec_capable import EXEC_FLAGS, exec_flag
-from dev10x.domain.profile_tier import ProfileTier
-from dev10x.validators.base import ValidatorBase
+from dev10x.core.domain.common.exec_capable import EXEC_FLAGS, exec_flag
+from dev10x.core.domain.profile_tier import ProfileTier
+from dev10x.core.name_boundary import name_pattern
+from dev10x.core.validators.base import ValidatorBase
 
 # Fallback split for a unit the shared segmenter cannot tokenize
 # (unbalanced quote): asking on a guess beats skipping the check.

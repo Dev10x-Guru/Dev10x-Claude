@@ -31,7 +31,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from dev10x.skills.audit import privacy  # noqa: E402
+from dev10x.teach.skills.audit import privacy  # noqa: E402
 
 DEFAULT_SCAN_ROOTS: tuple[Path, ...] = (
     REPO_ROOT / "src",

@@ -21,7 +21,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from dev10x.hooks.stop_verdict import StopSignal, TaskSignal, auto_advances, decide
+from dev10x.core.hooks.stop_verdict import StopSignal, TaskSignal, auto_advances, decide
 
 from .conftest import DEPLETED_PLAN, PENDING_PLAN
 from .test_stop_verdict import _assistant, _text

@@ -177,7 +177,7 @@ def glob_shape_warnings(pattern: str, *, scheme: MatchScheme) -> tuple[str, ...]
 def matches(pattern: str, *, target: str, scheme: MatchScheme) -> bool:
     """Test one glob against ``target`` under ``scheme``.
 
-    Path matching calls :func:`dev10x.domain.documents.session_yaml.
+    Path matching calls :func:`dev10x.core.domain.documents.session_yaml.
     match_globs` directly (GH-1450) rather than maintaining a second,
     hand-mirrored implementation of its semantics — each pattern is
     tried against the full path and against the final segment, so
@@ -189,7 +189,7 @@ def matches(pattern: str, *, target: str, scheme: MatchScheme) -> bool:
     """
     if scheme is MatchScheme.REPO:
         return fnmatch.fnmatch(target, pattern)
-    from dev10x.domain.documents.friction_yaml import match_globs
+    from dev10x.core.domain.documents.friction_yaml import match_globs
 
     return match_globs(target, [pattern])
 

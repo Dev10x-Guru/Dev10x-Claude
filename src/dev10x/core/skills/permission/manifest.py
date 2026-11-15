@@ -16,7 +16,7 @@ behind what the plugin actually exposes. A CI drift-check
 manifest entry, extending GH-595's ``dev10x-cli`` check to every surface.
 
 The read/write axis reuses GH-593's camelCase-aware tokenizer via
-:func:`dev10x.skills.permission.promote.classify_tokens`, so a write
+:func:`dev10x.core.skills.permission.promote.classify_tokens`, so a write
 tool can never be misclassified as a promotable read.
 """
 
@@ -29,11 +29,11 @@ from pathlib import Path
 
 import yaml
 
-from dev10x.skills.permission.cli_catalog import (
+from dev10x.core.skills.permission.cli_catalog import (
     INTERNAL_GROUPS,
     enumerate_leaf_commands,
 )
-from dev10x.skills.permission.promote import classify_tokens, is_sensitivity_flagged
+from dev10x.core.skills.permission.promote import classify_tokens, is_sensitivity_flagged
 
 
 class Surface(StrEnum):

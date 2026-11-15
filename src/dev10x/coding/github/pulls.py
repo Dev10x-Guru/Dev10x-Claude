@@ -2,7 +2,7 @@
 
 Dependencies are reached through ``_gateway.<name>`` and sibling
 capabilities through ``<module>.<name>`` (ADR-0027 D2), so a test patches
-``dev10x.github._gateway.<name>`` / ``dev10x.github.pulls.pr_get`` and
+``dev10x.core.github._gateway.<name>`` / ``dev10x.coding.github.pulls.pr_get`` and
 intercepts every caller — including ``merge``'s read-back.
 """
 
@@ -14,17 +14,17 @@ from typing import Any
 
 from dev10x.coding.coding_script import coding_script
 from dev10x.coding.github import milestones
-from dev10x.core.github import _gateway
-from dev10x.core.paths import skill_script
-from dev10x.domain.common.result import ErrorResult, Result, err, ok
-from dev10x.domain.pr_body import (
+from dev10x.core.domain.common.result import ErrorResult, Result, err, ok
+from dev10x.core.domain.pr_body import (
     built_trailer_error,
     fixes_references,
     fixes_trailer_error,
     job_story_error,
     normalize_pr_body,
 )
-from dev10x.subprocess_utils import parse_key_value_output
+from dev10x.core.github import _gateway
+from dev10x.core.paths import skill_script
+from dev10x.core.subprocess_utils import parse_key_value_output
 
 # Branch names that are never a legitimate PR head — HEAD on one of these
 # when opening a PR signals a wrong/unbound working directory (GH-873 F1).
@@ -109,7 +109,7 @@ async def create_pr(
     # cause instead of silently pushing the wrong branch. GitContext resolves
     # through the effective-CWD seam, so an explicit `cwd=` (bound by the MCP
     # wrapper's use_cwd) is honoured here.
-    from dev10x.domain.git_context import GitContext
+    from dev10x.core.domain.git_context import GitContext
 
     # The Job Story markers are checked on whatever text actually
     # becomes the PR body (GH-1073): with `body=` the caller supplies

@@ -24,7 +24,7 @@ def _isolated_registry(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     the CLI tests never touch the real ~/.config/Dev10x/platforms.yaml.
     """
     registry_path = tmp_path / "platforms.yaml"
-    monkeypatch.setattr("dev10x.platform.registry.REGISTRY_FILE", registry_path)
+    monkeypatch.setattr("dev10x.core.platform.registry.REGISTRY_FILE", registry_path)
     return registry_path
 
 

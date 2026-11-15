@@ -12,7 +12,8 @@ import json
 import subprocess
 
 import pytest
-from dev10x.skills.merge.fixes_scope import (
+
+from dev10x.coding.skills.merge.fixes_scope import (
     commit_ticket_ids,
     fixes_links,
     main,
@@ -137,7 +138,7 @@ class TestCli:
 
     def test_exits_non_zero_and_names_the_unbacked_link(self, tmp_path, capsys, monkeypatch):
         monkeypatch.setattr(
-            "dev10x.skills.merge.fixes_scope.read_commit_messages",
+            "dev10x.coding.skills.merge.fixes_scope.read_commit_messages",
             lambda **kwargs: PR_1228_COMMITS,
         )
         body = self._write_body(tmp_path, PR_1228_BODY)
@@ -150,7 +151,7 @@ class TestCli:
 
     def test_exits_zero_when_every_link_is_backed(self, tmp_path, capsys, monkeypatch):
         monkeypatch.setattr(
-            "dev10x.skills.merge.fixes_scope.read_commit_messages",
+            "dev10x.coding.skills.merge.fixes_scope.read_commit_messages",
             lambda **kwargs: ["GH-1 done"],
         )
         body = self._write_body(tmp_path, "Fixes: GH-1\n")
@@ -162,7 +163,7 @@ class TestCli:
 
     def test_acknowledge_flag_waives_a_link(self, tmp_path, capsys, monkeypatch):
         monkeypatch.setattr(
-            "dev10x.skills.merge.fixes_scope.read_commit_messages",
+            "dev10x.coding.skills.merge.fixes_scope.read_commit_messages",
             lambda **kwargs: PR_1228_COMMITS,
         )
         body = self._write_body(tmp_path, PR_1228_BODY)
@@ -189,7 +190,7 @@ class TestCli:
             seen.update(kwargs)
             return ["GH-1 done"]
 
-        monkeypatch.setattr("dev10x.skills.merge.fixes_scope.read_commit_messages", _read)
+        monkeypatch.setattr("dev10x.coding.skills.merge.fixes_scope.read_commit_messages", _read)
         body = self._write_body(tmp_path, "Fixes: GH-1\n")
 
         main(["--body-file", str(body), "--base", "origin/develop", "--repo-dir", "/wt"])
@@ -200,7 +201,7 @@ class TestCli:
         # GH-1464: read from the main checkout, a worktree PR's range is
         # empty and every link looks unbacked. The verdict must say why.
         monkeypatch.setattr(
-            "dev10x.skills.merge.fixes_scope.read_commit_messages",
+            "dev10x.coding.skills.merge.fixes_scope.read_commit_messages",
             lambda **kwargs: [],
         )
         body = self._write_body(tmp_path, "Fixes: GH-2\n")
@@ -214,7 +215,7 @@ class TestCli:
 
     def test_a_non_empty_range_carries_no_hint(self, tmp_path, capsys, monkeypatch):
         monkeypatch.setattr(
-            "dev10x.skills.merge.fixes_scope.read_commit_messages",
+            "dev10x.coding.skills.merge.fixes_scope.read_commit_messages",
             lambda **kwargs: PR_1228_COMMITS,
         )
         body = self._write_body(tmp_path, PR_1228_BODY)
@@ -233,7 +234,7 @@ class _Result:
 
 class TestReadCommitMessages:
     def test_surfaces_a_git_failure(self, monkeypatch):
-        from dev10x.skills.merge import fixes_scope
+        from dev10x.coding.skills.merge import fixes_scope
 
         failed = _Result(returncode=128, stdout="", stderr="fatal: bad revision")
         monkeypatch.setattr(fixes_scope.subprocess, "run", lambda *a, **k: failed)
@@ -241,7 +242,7 @@ class TestReadCommitMessages:
             fixes_scope.read_commit_messages(base="origin/nope")
 
     def test_splits_commits_on_the_null_separator(self, monkeypatch):
-        from dev10x.skills.merge import fixes_scope
+        from dev10x.coding.skills.merge import fixes_scope
 
         read = _Result(returncode=0, stdout="GH-1 one\n\0GH-2 two\n\0", stderr="")
         monkeypatch.setattr(fixes_scope.subprocess, "run", lambda *a, **k: read)

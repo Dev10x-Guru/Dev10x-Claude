@@ -14,7 +14,8 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from dev10x.domain.claude_paths import ClaudeDir
+
+from dev10x.core.domain.claude_paths import ClaudeDir
 
 
 @pytest.fixture(autouse=True)

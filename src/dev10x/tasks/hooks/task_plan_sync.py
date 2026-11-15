@@ -16,8 +16,8 @@ import sys
 from collections.abc import Callable
 from typing import Any
 
-from dev10x.domain.documents.plan import Plan, get_plan_path, get_toplevel
-from dev10x.domain.file_locks import file_lock
+from dev10x.core.domain.documents.plan import Plan, get_plan_path, get_toplevel
+from dev10x.core.domain.file_locks import file_lock
 from dev10x.tasks.plan.service import (
     PlanServiceError,
     archive_plan,

@@ -12,8 +12,8 @@ from datetime import UTC, datetime, timedelta
 
 from dev10x.comm.chatbus import session_queue as chat_queue
 from dev10x.comm.chatbus.worklist import BotPoster, ChatPoster
-from dev10x.domain.common.result import Result
-from dev10x.mcp._app import mcp_tool
+from dev10x.core.domain.common.result import Result
+from dev10x.core.mcp._app import mcp_tool
 
 DEFAULT_LEASE_SECONDS = 900
 MAX_LEASE_SECONDS = 4 * 60 * 60

@@ -6,14 +6,14 @@ import subprocess
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from dev10x.domain.common.result import err, ok
 
+from dev10x.core.domain.common.result import err, ok
 from dev10x.mcp import server_cli as cli_server
 
 
 class TestCiCheckStatusMcp:
     @pytest.mark.asyncio
-    @patch("dev10x.monitor.ci_check_status", new_callable=AsyncMock)
+    @patch("dev10x.coding.monitor.ci_check_status", new_callable=AsyncMock)
     async def test_delegates_to_monitor_module(
         self,
         mock_fn: AsyncMock,
@@ -40,7 +40,7 @@ class TestCiCheckStatusMcp:
         }
 
     @pytest.mark.asyncio
-    @patch("dev10x.monitor.ci_check_status", new_callable=AsyncMock)
+    @patch("dev10x.coding.monitor.ci_check_status", new_callable=AsyncMock)
     async def test_forwards_wait_for_and_wait_out_pending(
         self,
         mock_fn: AsyncMock,
@@ -59,7 +59,7 @@ class TestCiCheckStatusMcp:
         assert mock_fn.call_args.kwargs["wait_for"] == ["claude-review"]
 
     @pytest.mark.asyncio
-    @patch("dev10x.monitor.ci_check_status", new_callable=AsyncMock)
+    @patch("dev10x.coding.monitor.ci_check_status", new_callable=AsyncMock)
     async def test_returns_error_on_failure(
         self,
         mock_fn: AsyncMock,
@@ -71,7 +71,7 @@ class TestCiCheckStatusMcp:
         assert "error" in result
 
     @pytest.mark.asyncio
-    @patch("dev10x.monitor.async_run", new_callable=AsyncMock)
+    @patch("dev10x.coding.monitor.async_run", new_callable=AsyncMock)
     async def test_subprocess_cap_is_distinct_from_the_poll_budget(
         self,
         mock_run: AsyncMock,
@@ -89,7 +89,7 @@ class TestCiCheckStatusMcp:
         ~1137s. The ×40 request is now served as ×32 — 990s of polling
         (the loop skips the sleep after the final poll) under a 1080s cap.
         """
-        import dev10x.monitor as monitor
+        import dev10x.coding.monitor as monitor
 
         mock_run.return_value = subprocess.CompletedProcess(
             args=[], returncode=0, stdout="{}", stderr=""
@@ -107,7 +107,7 @@ class TestCiCheckStatusMcp:
 
     @pytest.mark.asyncio
     async def test_use_cwd_activates_when_cwd_passed(self, tmp_path) -> None:
-        with patch("dev10x.subprocess_utils.use_cwd") as mock_use_cwd:
+        with patch("dev10x.core.subprocess_utils.use_cwd") as mock_use_cwd:
             try:
                 await cli_server.ci_check_status(pr_number=1, repo="o/r", cwd=str(tmp_path))
             except Exception:

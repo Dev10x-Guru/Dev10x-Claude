@@ -5,7 +5,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from dev10x.skills.permission.backup import (
+
+from dev10x.core.skills.permission.backup import (
     backed_up_write,
     create_backup,
     find_backups,
@@ -37,7 +38,7 @@ class TestCreateBackup:
         assert result is None
 
     def test_backup_name_contains_timestamp(self, settings_file: Path) -> None:
-        with patch("dev10x.skills.permission.backup.datetime") as mock_dt:
+        with patch("dev10x.core.skills.permission.backup.datetime") as mock_dt:
             mock_dt.now.return_value.strftime.return_value = "20260414T120000Z"
             result = create_backup(settings_file)
 
@@ -45,7 +46,7 @@ class TestCreateBackup:
         assert result.name == "settings.local.json.bak.20260414T120000Z"
 
     def test_multiple_backups_have_different_names(self, settings_file: Path) -> None:
-        with patch("dev10x.skills.permission.backup.datetime") as mock_dt:
+        with patch("dev10x.core.skills.permission.backup.datetime") as mock_dt:
             mock_dt.now.return_value.strftime.return_value = "20260414T120000Z"
             first = create_backup(settings_file)
             mock_dt.now.return_value.strftime.return_value = "20260414T120001Z"

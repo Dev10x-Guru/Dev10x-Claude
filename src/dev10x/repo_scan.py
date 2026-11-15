@@ -1,6 +1,6 @@
 """Shared repo-wide file walker for the lint-style detectors (GH-1460).
 
-`dev10x.subprocess_timeouts` (GH-1414) and `dev10x.dependency_pins`
+`dev10x.core.subprocess_timeouts` (GH-1414) and `dev10x.dependency_pins`
 (GH-916) each scan the whole repository tree for a different offense,
 but the walk itself — which directories to skip, which files count,
 how symlinks are handled — was byte-identical in both modules. The

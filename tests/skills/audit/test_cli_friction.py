@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from dev10x.skills.audit import cli_friction as mod
+from dev10x.teach.skills.audit import cli_friction as mod
 
 
 def _write(path: Path, body: str) -> Path:
@@ -296,7 +296,9 @@ class TestRetiredDurablePrefPath:
         back in alongside it.
         """
         repo_root = Path(__file__).resolve().parents[3]
-        violations = mod.scan_file(repo_root / "plugins" / "coding" / "skills" / "verify-acc-dod" / "SKILL.md")
+        violations = mod.scan_file(
+            repo_root / "plugins" / "coding" / "skills" / "verify-acc-dod" / "SKILL.md"
+        )
         assert [v.rule.rule_id for v in violations] == []
 
 

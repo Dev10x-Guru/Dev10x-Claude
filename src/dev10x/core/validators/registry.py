@@ -22,13 +22,13 @@ import logging
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Protocol
 
-from dev10x.domain.common.plugin_loader import PluginLoader
-from dev10x.domain.common.rule_id import RuleId
-from dev10x.domain.profile_tier import ProfileTier
+from dev10x.core.domain.common.plugin_loader import PluginLoader
+from dev10x.core.domain.common.rule_id import RuleId
+from dev10x.core.domain.profile_tier import ProfileTier
 
 if TYPE_CHECKING:
-    from dev10x.domain import HookInput, HookResult, HookRetry
-    from dev10x.validators.base import ValidateResult, Validator
+    from dev10x.core.domain import HookInput, HookResult, HookRetry
+    from dev10x.core.validators.base import ValidateResult, Validator
 
 log = logging.getLogger(__name__)
 
@@ -174,7 +174,7 @@ class ValidatorRegistry:
 
     @staticmethod
     def _instantiate(spec: ValidatorSpec) -> Validator:
-        from dev10x.validators.base import Validator as V
+        from dev10x.core.validators.base import Validator as V
 
         # Strict Plugin load (#844): a spec naming a missing class or a
         # non-Validator raises at load time; _assert_metadata_matches then
@@ -277,7 +277,7 @@ class ValidatorChain:
 
     def correct(self, inp: HookInput) -> HookRetry | None:
         """Invoke ``correct()`` on capable validators; first hit wins."""
-        from dev10x.validators.base import Corrector
+        from dev10x.core.validators.base import Corrector
 
         for validator in self.registry.active():
             if not isinstance(validator, Corrector):
@@ -311,7 +311,7 @@ def _stamp_rule_id(
     deferred-import pattern :func:`_safety_fail_closed` uses — so the
     module keeps its ``TYPE_CHECKING``-only import boundary.
     """
-    from dev10x.domain import HookAllow, HookAsk, HookHint, HookResult
+    from dev10x.core.domain import HookAllow, HookAsk, HookHint, HookResult
 
     if not isinstance(result, HookResult | HookAsk | HookHint | HookAllow):
         return result
@@ -350,7 +350,7 @@ def _safety_fail_closed(*, validator: Validator) -> HookResult | None:
     """
     if getattr(validator, "profile", None) is not ProfileTier.MINIMAL:
         return None
-    from dev10x.domain import HookResult
+    from dev10x.core.domain import HookResult
 
     rule_id = getattr(validator, "rule_id", "?")
     name = getattr(validator, "name", "?")

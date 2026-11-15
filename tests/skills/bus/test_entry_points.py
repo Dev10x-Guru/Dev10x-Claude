@@ -7,9 +7,9 @@ from collections.abc import Callable
 from pathlib import Path
 
 import pytest
-from dev10x.skills.bus.maildir import INVALID_MESSAGE_EXIT
 
-from dev10x.skills.bus import done, maildir, send, watch
+from dev10x.comm.skills.bus import done, maildir, send, watch
+from dev10x.comm.skills.bus.maildir import INVALID_MESSAGE_EXIT
 from tests.skills.bus.conftest import Run
 
 RunMain = Callable[[Callable[..., int], list[str]], Run]

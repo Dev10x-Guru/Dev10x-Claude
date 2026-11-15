@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import pytest
-from dev10x.domain.common.bash_tokens import (
+
+from dev10x.core.domain.common.bash_tokens import (
     ANY_CASE_ENV_VAR_RE,
     ENV_VAR_RE,
     GIT_C_DIR_RE,

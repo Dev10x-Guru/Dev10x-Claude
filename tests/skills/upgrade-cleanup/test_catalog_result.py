@@ -5,7 +5,7 @@ Previously untested directly — every `ensure_*`/`generalize`/`init`
 caller exercised the shape incidentally through its own return value,
 never pinning the shape itself."""
 
-from dev10x.skills.permission.catalog_result import _result
+from dev10x.core.skills.permission.catalog_result import _result
 
 
 class TestResult:

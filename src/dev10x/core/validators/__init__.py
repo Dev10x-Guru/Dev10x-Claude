@@ -3,7 +3,7 @@
 Single-dispatcher architecture: one Python process validates all Bash
 commands by iterating a :class:`ValidatorRegistry`. Each validator
 declares its profile tier and rule_id as class attributes (see
-:mod:`dev10x.validators.base`); correction support is detected
+:mod:`dev10x.core.validators.base`); correction support is detected
 structurally via the :class:`Corrector` protocol.
 
 Ordering matters: allow-validators run before deny-validators so safe
@@ -28,8 +28,8 @@ import functools
 import os
 from typing import TYPE_CHECKING
 
-from dev10x.domain.profile_tier import ProfileTier
-from dev10x.validators.registry import (
+from dev10x.core.domain.profile_tier import ProfileTier
+from dev10x.core.validators.registry import (
     DisableListFilter,
     ExperimentalFilter,
     ProfileFilter,
@@ -39,127 +39,127 @@ from dev10x.validators.registry import (
 )
 
 if TYPE_CHECKING:
-    from dev10x.validators.base import Validator
+    from dev10x.core.validators.base import Validator
 
 _SPECS: list[ValidatorSpec] = [
     ValidatorSpec(
-        module_path="dev10x.validators.safe_subshell",
+        module_path="dev10x.core.validators.safe_subshell",
         class_name="SafeSubshellValidator",
         rule_id="DX001",
         profile=ProfileTier.MINIMAL,
     ),
     ValidatorSpec(
-        module_path="dev10x.validators.command_substitution",
+        module_path="dev10x.core.validators.command_substitution",
         class_name="CommandSubstitutionValidator",
         rule_id="DX002",
         profile=ProfileTier.MINIMAL,
     ),
     ValidatorSpec(
-        module_path="dev10x.validators.execution_safety",
+        module_path="dev10x.core.validators.execution_safety",
         class_name="ExecutionSafetyValidator",
         rule_id="DX003",
         profile=ProfileTier.MINIMAL,
     ),
     ValidatorSpec(
-        module_path="dev10x.validators.sql_safety",
+        module_path="dev10x.core.validators.sql_safety",
         class_name="SqlSafetyValidator",
         rule_id="DX004",
         profile=ProfileTier.MINIMAL,
     ),
     ValidatorSpec(
-        module_path="dev10x.validators.pr_base",
+        module_path="dev10x.core.validators.pr_base",
         class_name="PrBaseValidator",
         rule_id="DX005",
         profile=ProfileTier.MINIMAL,
     ),
     ValidatorSpec(
-        module_path="dev10x.validators.pipeline_allow",
+        module_path="dev10x.core.validators.pipeline_allow",
         class_name="PipelineAllowValidator",
         rule_id="DX011",
         profile=ProfileTier.STANDARD,
     ),
     ValidatorSpec(
-        module_path="dev10x.validators.skill_redirect",
+        module_path="dev10x.core.validators.skill_redirect",
         class_name="SkillRedirectValidator",
         rule_id="DX006",
         profile=ProfileTier.STANDARD,
     ),
     ValidatorSpec(
-        module_path="dev10x.validators.prefix_friction",
+        module_path="dev10x.core.validators.prefix_friction",
         class_name="PrefixFrictionValidator",
         rule_id="DX007",
         profile=ProfileTier.STANDARD,
     ),
     ValidatorSpec(
-        module_path="dev10x.validators.mcp_prefix",
+        module_path="dev10x.core.validators.mcp_prefix",
         class_name="McpPrefixValidator",
         rule_id="DX013",
         profile=ProfileTier.STANDARD,
     ),
     ValidatorSpec(
-        module_path="dev10x.validators.commit_jtbd",
+        module_path="dev10x.core.validators.commit_jtbd",
         class_name="CommitJtbdValidator",
         rule_id="DX008",
         profile=ProfileTier.STRICT,
     ),
     ValidatorSpec(
-        module_path="dev10x.validators.redundant_fetch",
+        module_path="dev10x.core.validators.redundant_fetch",
         class_name="RedundantFetchValidator",
         rule_id="DX009",
         profile=ProfileTier.STANDARD,
         experimental=True,
     ),
     ValidatorSpec(
-        module_path="dev10x.validators.bash_aggregation",
+        module_path="dev10x.core.validators.bash_aggregation",
         class_name="BashAggregationValidator",
         rule_id="DX010",
         profile=ProfileTier.STANDARD,
     ),
     ValidatorSpec(
-        module_path="dev10x.validators.safe_expansion",
+        module_path="dev10x.core.validators.safe_expansion",
         class_name="SafeExpansionValidator",
         rule_id="DX012",
         profile=ProfileTier.MINIMAL,
     ),
     ValidatorSpec(
-        module_path="dev10x.validators.sensitivity_target",
+        module_path="dev10x.core.validators.sensitivity_target",
         class_name="SensitivityTargetValidator",
         rule_id="DX014",
         profile=ProfileTier.STANDARD,
     ),
     ValidatorSpec(
-        module_path="dev10x.validators.spec_drift",
+        module_path="dev10x.core.validators.spec_drift",
         class_name="SpecDriftValidator",
         rule_id="DX015",
         profile=ProfileTier.STANDARD,
         experimental=True,
     ),
     ValidatorSpec(
-        module_path="dev10x.validators.inline_linter",
+        module_path="dev10x.core.validators.inline_linter",
         class_name="InlineLinterValidator",
         rule_id="DX016",
         profile=ProfileTier.STANDARD,
     ),
     ValidatorSpec(
-        module_path="dev10x.validators.write_destination",
+        module_path="dev10x.core.validators.write_destination",
         class_name="WriteDestinationValidator",
         rule_id="DX017",
         profile=ProfileTier.STANDARD,
     ),
     ValidatorSpec(
-        module_path="dev10x.validators.exec_flag",
+        module_path="dev10x.core.validators.exec_flag",
         class_name="ExecFlagValidator",
         rule_id="DX018",
         profile=ProfileTier.STANDARD,
     ),
     ValidatorSpec(
-        module_path="dev10x.validators.review_stamp",
+        module_path="dev10x.core.validators.review_stamp",
         class_name="ReviewStampValidator",
         rule_id="DX019",
         profile=ProfileTier.STANDARD,
     ),
     ValidatorSpec(
-        module_path="dev10x.validators.agent_brief",
+        module_path="dev10x.core.validators.agent_brief",
         class_name="AgentBriefValidator",
         rule_id="DX020",
         profile=ProfileTier.STANDARD,

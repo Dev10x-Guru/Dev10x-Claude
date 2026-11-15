@@ -19,10 +19,10 @@ from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from dev10x.domain.common.result import ErrorResult, SuccessResult
 
 from dev10x.coding.git import worktree_prune as wp
-from dev10x.subprocess_utils import use_cwd
+from dev10x.core.domain.common.result import ErrorResult, SuccessResult
+from dev10x.core.subprocess_utils import use_cwd
 from tests.fakers.process import completed
 
 _TIMEOUT_SECONDS = 30

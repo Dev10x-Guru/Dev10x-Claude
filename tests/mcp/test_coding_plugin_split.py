@@ -33,9 +33,9 @@ from dev10x.coding.mcp.registration import TOOL_MODULES as CODING_TOOL_MODULES
 from dev10x.core.paths import PLUGIN_MANIFEST, satellite_script, skill_script
 from dev10x.core.plugin_map import load_plugin_map
 from dev10x.core.skills.playbook.discovery import installed_plugin_roots
+from dev10x.core.subprocess_utils import get_plugin_root
+from dev10x.db.mcp.server_db import server as db_server
 from dev10x.mcp.server_cli import server as cli_server
-from dev10x.mcp.server_db import server as db_server
-from dev10x.subprocess_utils import get_plugin_root
 
 PRE_MOVE_NAMES = Path(__file__).parents[1] / "fixtures" / "mcp_tool_names_pre_b9.json"
 CORE_VERSION = "0.116.0"

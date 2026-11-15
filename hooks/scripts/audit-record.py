@@ -15,12 +15,12 @@ Usage: audit-record.py <hook> <span_id> <total_ms> <exit_code> [argv...]
 import sys
 
 try:
-    from dev10x.hooks.audit_emit import cli_wrap_record
+    from dev10x.core.hooks.audit_emit import cli_wrap_record
 except ImportError:
     from pathlib import Path
 
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "src"))
-    from dev10x.hooks.audit_emit import cli_wrap_record
+    from dev10x.core.hooks.audit_emit import cli_wrap_record
 
 if __name__ == "__main__":
     cli_wrap_record()

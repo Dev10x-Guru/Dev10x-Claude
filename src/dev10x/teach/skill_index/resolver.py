@@ -1,7 +1,7 @@
 """Canonical skill-script path resolution (GH-611).
 
 Maps a skill *invocation name* to its on-disk directory using a scanned
-:class:`~dev10x.skill_index.catalog.SkillCatalog` as the source of truth,
+:class:`~dev10x.teach.skill_index.catalog.SkillCatalog` as the source of truth,
 instead of constructing a path from the name. Path construction is the
 documented failure mode (GH-488 evidence #7/#11): plugin skills strip the
 namespace prefix from their directory (``dev10x-coding:git-commit`` lives at

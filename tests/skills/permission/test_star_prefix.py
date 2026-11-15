@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import pytest
-from dev10x.skills.permission.star_prefix import (
+
+from dev10x.core.skills.permission.star_prefix import (
     is_unmatchable,
     repair_star_prefix,
     space_form,

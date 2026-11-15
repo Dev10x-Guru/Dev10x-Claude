@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from dev10x.subprocess_utils import get_plugin_root
+from dev10x.core.subprocess_utils import get_plugin_root
 
 
 def _server_cli_tool_paths() -> list[Path]:
@@ -98,7 +98,7 @@ def test_server_cli_handlers_with_cwd_bind_it() -> None:
 
 @pytest.mark.asyncio
 async def test_requires_cwd_binds_effective_cwd(tmp_path: Path) -> None:
-    from dev10x.subprocess_utils import effective_cwd, requires_cwd
+    from dev10x.core.subprocess_utils import effective_cwd, requires_cwd
 
     captured: dict[str, str | None] = {}
 
@@ -113,7 +113,7 @@ async def test_requires_cwd_binds_effective_cwd(tmp_path: Path) -> None:
 
 @pytest.mark.asyncio
 async def test_requires_cwd_passes_through_when_cwd_none() -> None:
-    from dev10x.subprocess_utils import effective_cwd, requires_cwd
+    from dev10x.core.subprocess_utils import effective_cwd, requires_cwd
 
     captured: dict[str, str | None] = {}
 

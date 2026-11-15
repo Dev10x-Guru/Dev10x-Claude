@@ -1,4 +1,4 @@
-"""Unit tests for dev10x.github.candidate_rules (GH-347).
+"""Unit tests for dev10x.coding.github.candidate_rules (GH-347).
 
 Contract class: mock
   Rendering is a pure function tested without mocks. The orchestrator
@@ -11,9 +11,10 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from dev10x.domain.common.result import ErrorResult, SuccessResult, err, ok
 
-cr = pytest.importorskip("dev10x.github.candidate_rules", reason="dev10x not installed")
+from dev10x.core.domain.common.result import ErrorResult, SuccessResult, err, ok
+
+cr = pytest.importorskip("dev10x.coding.github.candidate_rules", reason="dev10x not installed")
 
 
 def _summary(
@@ -115,7 +116,7 @@ class TestRenderReport:
 
 class TestCandidateRulesReport:
     @pytest.mark.asyncio
-    @patch("dev10x.github.review_patterns.cluster_review_comments", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.review_patterns.cluster_review_comments", new_callable=AsyncMock)
     async def test_happy_path_renders_and_passes_through(self, mock_cluster: AsyncMock) -> None:
         patterns = [_pattern()]
         summary = _summary()
@@ -129,7 +130,7 @@ class TestCandidateRulesReport:
         assert result.value["report"].startswith("# Candidate Rules Report")
 
     @pytest.mark.asyncio
-    @patch("dev10x.github.review_patterns.cluster_review_comments", new_callable=AsyncMock)
+    @patch("dev10x.coding.github.review_patterns.cluster_review_comments", new_callable=AsyncMock)
     async def test_propagates_mining_error(self, mock_cluster: AsyncMock) -> None:
         mock_cluster.return_value = err("no repository specified")
 

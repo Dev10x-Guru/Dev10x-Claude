@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from dev10x.domain.common.mcp_tool_name import McpToolName
+from dev10x.core.domain.common.mcp_tool_name import McpToolName
 
 _PATH_TOOLS = frozenset({"Write", "Read", "Edit"})
 

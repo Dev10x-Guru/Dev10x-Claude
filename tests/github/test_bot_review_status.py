@@ -9,10 +9,10 @@ from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from dev10x.domain.common.result import ErrorResult, SuccessResult, err
 
 from dev10x.coding.github import bot_reviews
 from dev10x.coding.github.bot_review_config import normalize_login, resolve_blocking_bots
+from dev10x.core.domain.common.result import ErrorResult, SuccessResult, err
 from dev10x.core.github import _gateway
 from dev10x.mcp import server_cli as cli_server
 from tests.github.graphql_doubles import completed, write_merge_settings

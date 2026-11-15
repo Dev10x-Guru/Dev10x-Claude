@@ -15,14 +15,14 @@ from pathlib import Path
 
 import pytest
 
-from dev10x.subprocess_utils import use_cwd
+from dev10x.core.subprocess_utils import use_cwd
 
 
 class TestHookInputCwd:
     """hooks/hook_transport.py:read_hook_input — H6 (moved from domain in GH-511)."""
 
     def test_read_hook_input_honors_bound_cwd(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        from dev10x.hooks.hook_transport import read_hook_input
+        from dev10x.core.hooks.hook_transport import read_hook_input
 
         payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": "ls"}})
         monkeypatch.setattr(sys, "stdin", io.StringIO(payload))
@@ -37,7 +37,7 @@ class TestHookInputCwd:
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        from dev10x.hooks.hook_transport import read_hook_input
+        from dev10x.core.hooks.hook_transport import read_hook_input
 
         monkeypatch.chdir(tmp_path)
         monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps({})))
@@ -59,10 +59,10 @@ class TestPermissionDiagnosticsCwd:
 
     @pytest.fixture(autouse=True)
     def _relative_settings(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        from dev10x.hooks.permission_diagnostics import SettingsFile
+        from dev10x.core.hooks.permission_diagnostics import SettingsFile
 
         monkeypatch.setattr(
-            "dev10x.hooks.permission_diagnostics.SETTINGS_PRECEDENCE",
+            "dev10x.core.hooks.permission_diagnostics.SETTINGS_PRECEDENCE",
             [
                 SettingsFile(
                     label="project local",
@@ -73,7 +73,7 @@ class TestPermissionDiagnosticsCwd:
         )
 
     def test_diagnose_uses_bound_cwd_when_cwd_omitted(self, write_raw: dict) -> None:
-        from dev10x.hooks.permission_diagnostics import diagnose
+        from dev10x.core.hooks.permission_diagnostics import diagnose
 
         with use_cwd("/bound/worktree"):
             result = diagnose(raw=write_raw)
@@ -87,7 +87,7 @@ class TestPermissionDiagnosticsCwd:
         write_raw: dict,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        from dev10x.hooks.permission_diagnostics import diagnose
+        from dev10x.core.hooks.permission_diagnostics import diagnose
 
         monkeypatch.chdir(tmp_path)
         result = diagnose(raw=write_raw)
@@ -111,7 +111,7 @@ class TestBuildAuditReportCwd:
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        from dev10x.audit import analyze
+        from dev10x.teach.audit import analyze
 
         captured: dict[str, str | None] = {}
 
@@ -139,7 +139,7 @@ class TestBuildAuditReportCwd:
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        from dev10x.audit import analyze
+        from dev10x.teach.audit import analyze
 
         captured: dict[str, str | None] = {}
 

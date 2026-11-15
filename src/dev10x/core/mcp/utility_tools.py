@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from dev10x.domain.common.result import err, ok, to_wire
-from dev10x.mcp._app import server
+from dev10x.core.domain.common.result import err, ok, to_wire
+from dev10x.core.mcp._app import server
 
 
 @server.tool()
@@ -24,7 +24,7 @@ async def background_preamble() -> dict:
         Returns ``{"error": ...}`` when the canonical document or either
         marker is missing.
     """
-    from dev10x.session.service import SessionService
+    from dev10x.core.session.service import SessionService
 
     text = SessionService().build_background_preamble_context()
     if not text:
@@ -63,8 +63,8 @@ async def mktmp(
     Returns:
         Dictionary with key: path (str) — the temp file/directory path
     """
-    from dev10x import utilities as util
-    from dev10x.subprocess_utils import use_cwd
+    from dev10x.core import utilities as util
+    from dev10x.core.subprocess_utils import use_cwd
 
     with use_cwd(cwd):
         return to_wire(
@@ -105,7 +105,7 @@ async def update_paths(
     Returns:
         Dictionary with keys: success (bool), output (str)
     """
-    from dev10x import permission as perm
+    from dev10x.core import permission as perm
 
     return to_wire(
         await perm.update_paths(
@@ -142,7 +142,7 @@ async def permission_catalog_gap(
         settings files of worktrees found through git outside every
         configured root (GH-1626)
     """
-    from dev10x import permission as perm
+    from dev10x.core import permission as perm
 
     return to_wire(await perm.catalog_gap(verbose=verbose))
 
@@ -177,8 +177,8 @@ async def permission_triage(
         Dictionary with keys: target, verdict, rule, reason, advice
         (list[str]), files_missing (list[str])
     """
-    from dev10x import permission as perm
-    from dev10x.subprocess_utils import use_cwd
+    from dev10x.core import permission as perm
+    from dev10x.core.subprocess_utils import use_cwd
 
     with use_cwd(cwd):
         return to_wire(await perm.triage(target=target, working_dirs=working_dirs))
@@ -222,8 +222,8 @@ async def permission_grant(
         when triage recommends a different fix, the rule differs, any
         file failed to write, or the rule could not be remembered.
     """
-    from dev10x import permission as perm
-    from dev10x.subprocess_utils import use_cwd
+    from dev10x.core import permission as perm
+    from dev10x.core.subprocess_utils import use_cwd
 
     with use_cwd(cwd):
         return to_wire(
@@ -252,6 +252,6 @@ async def record_upgrade(version: str | None = None) -> dict:
         Dictionary with keys: version (str), path (str). Returns
         ``{"error": ...}`` when no version can be resolved.
     """
-    from dev10x.domain.install_version import record_upgrade as _record_upgrade
+    from dev10x.core.domain.install_version import record_upgrade as _record_upgrade
 
     return to_wire(_record_upgrade(version=version))

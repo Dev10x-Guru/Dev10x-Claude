@@ -4,7 +4,7 @@ skill_tmpdir: Creates /tmp/Dev10x/<skill-name>/ scratch directory.
 skill_metrics: Appends JSONL metric entry; prunes files older than 30 days.
 ruff_format: Auto-formats Python files with ruff after Edit/Write.
 
-Each hook is an :class:`~dev10x.hooks.base.AbstractHook` whose ``run()``
+Each hook is an :class:`~dev10x.core.hooks.base.AbstractHook` whose ``run()``
 Template Method resolves input (passed ``data`` or stdin) before
 dispatching to ``handle`` (audit finding A11). The module-level
 functions are thin shims so existing entry scripts and CLI wrappers
@@ -20,12 +20,12 @@ import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from dev10x import subprocess_utils
-from dev10x.domain.claude_paths import ClaudeDir
-from dev10x.domain.common.skill_name import SkillName
-from dev10x.domain.git_context import GitContext
-from dev10x.hooks.base import AbstractHook
-from dev10x.hooks.format_scope import (
+from dev10x.core import subprocess_utils
+from dev10x.core.domain.claude_paths import ClaudeDir
+from dev10x.core.domain.common.skill_name import SkillName
+from dev10x.core.domain.git_context import GitContext
+from dev10x.core.hooks.base import AbstractHook
+from dev10x.core.hooks.format_scope import (
     FormatPlan,
     LineRange,
     describe_changes,
@@ -125,7 +125,7 @@ class RuffFormatHook(AbstractHook):
     is what deleted a still-referenced import mid-revert and collapsed
     branch logic in methods the session never touched. Lint fixes need
     whole-file intent and a review; a post-`Edit` pass has neither.
-    See `dev10x.hooks.format_scope` for the full argument.
+    See `dev10x.core.hooks.format_scope` for the full argument.
     """
 
     def handle(self, *, data: dict) -> None:

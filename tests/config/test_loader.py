@@ -1,4 +1,4 @@
-"""Tests for dev10x.config.loader — YAML config loading with msgpack cache."""
+"""Tests for dev10x.core.config.loader — YAML config loading with msgpack cache."""
 
 from __future__ import annotations
 
@@ -10,7 +10,8 @@ from pathlib import Path
 import msgpack
 import pytest
 import yaml
-from dev10x.config.loader import (
+
+from dev10x.core.config.loader import (
     _dict_to_config,
     _parse_yaml,
     _read_cache,

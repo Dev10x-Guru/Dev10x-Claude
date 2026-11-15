@@ -7,7 +7,6 @@ from collections.abc import Callable
 from typing import Any
 
 import pytest
-from dev10x.domain.common.result import err, ok
 
 from dev10x.comm.overwatch import owner as owner_module
 from dev10x.comm.overwatch.owner import (
@@ -18,6 +17,7 @@ from dev10x.comm.overwatch.owner import (
 )
 from dev10x.comm.overwatch.probes import ProbeError
 from dev10x.comm.overwatch.sessions import ClaudeSession
+from dev10x.core.domain.common.result import err, ok
 
 SESSIONS = [
     ClaudeSession(

@@ -6,10 +6,8 @@ from pathlib import Path
 
 import pytest
 import yaml
-from dev10x.skills.permission.catalog_paths import shipped_projects_catalog
-from dev10x.skills.permission.config import parse_config
 
-from dev10x.skills.permission import (
+from dev10x.core.skills.permission import (
     catalog_load,
     catalog_paths,
     clean_project_files,
@@ -17,6 +15,8 @@ from dev10x.skills.permission import (
     merge_worktree_permissions,
     update_paths,
 )
+from dev10x.core.skills.permission.catalog_paths import shipped_projects_catalog
+from dev10x.core.skills.permission.config import parse_config
 
 
 class TestShippedProjectsCatalog:

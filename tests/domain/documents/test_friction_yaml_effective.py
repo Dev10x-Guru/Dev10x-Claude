@@ -5,8 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from dev10x.domain.dev10x_paths import Dev10xConfigDir
-from dev10x.domain.documents.friction_yaml import FrictionYamlDocument, load_checkout_prefs
+
+from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.core.domain.documents.friction_yaml import FrictionYamlDocument, load_checkout_prefs
 
 FRICTION_YAML = (
     "defaults:\n"

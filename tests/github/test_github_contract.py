@@ -1,4 +1,4 @@
-"""Live GitHub API contract tests for dev10x.github (GH-398).
+"""Live GitHub API contract tests for dev10x.coding.github (GH-398).
 
 Contract class: contract
   These tests call the real GitHub API against a known fixture PR and assert
@@ -31,7 +31,7 @@ pytestmark = pytest.mark.skipif(
     reason="GITHUB_TOKEN not set — live contract tests skipped",
 )
 
-gh = pytest.importorskip("dev10x.github", reason="dev10x not installed")
+gh = pytest.importorskip("dev10x.coding.github", reason="dev10x not installed")
 
 # ---------------------------------------------------------------------------
 # Fixture constants — stable merged PR in this repo (GH-386 Parts 2 & 3).
@@ -55,7 +55,7 @@ class TestPrGetContract:
             number=_FIXTURE_PR_NUMBER,
             repo=_FIXTURE_REPO,
         )
-        from dev10x.domain.common.result import SuccessResult
+        from dev10x.core.domain.common.result import SuccessResult
 
         assert isinstance(result, SuccessResult), (
             f"pr_get({_FIXTURE_PR_NUMBER!r}, repo={_FIXTURE_REPO!r}) returned an error: {result}"
@@ -68,7 +68,7 @@ class TestPrGetContract:
             number=_FIXTURE_PR_NUMBER,
             repo=_FIXTURE_REPO,
         )
-        from dev10x.domain.common.result import SuccessResult
+        from dev10x.core.domain.common.result import SuccessResult
 
         assert isinstance(result, SuccessResult)
         payload = result.value
@@ -96,7 +96,7 @@ class TestPrGetContract:
             number=_FIXTURE_PR_NUMBER,
             repo=_FIXTURE_REPO,
         )
-        from dev10x.domain.common.result import SuccessResult
+        from dev10x.core.domain.common.result import SuccessResult
 
         assert isinstance(result, SuccessResult)
         payload = result.value
@@ -120,7 +120,7 @@ class TestPrGetContract:
             number=_FIXTURE_PR_NUMBER,
             repo=_FIXTURE_REPO,
         )
-        from dev10x.domain.common.result import SuccessResult
+        from dev10x.core.domain.common.result import SuccessResult
 
         assert isinstance(result, SuccessResult)
         payload = result.value
@@ -141,7 +141,7 @@ class TestPrGetContract:
             number=_FIXTURE_PR_NUMBER,
             repo=_FIXTURE_REPO,
         )
-        from dev10x.domain.common.result import SuccessResult
+        from dev10x.core.domain.common.result import SuccessResult
 
         assert isinstance(result, SuccessResult)
         payload = result.value
@@ -164,7 +164,7 @@ class TestPrGetContract:
             number=_FIXTURE_PR_NUMBER,
             repo=_FIXTURE_REPO,
         )
-        from dev10x.domain.common.result import SuccessResult
+        from dev10x.core.domain.common.result import SuccessResult
 
         assert isinstance(result, SuccessResult), (
             "pr_get returned an error. If the error message mentions 'merged' "
@@ -187,7 +187,7 @@ class TestPrCommentsContract:
             pr_number=_FIXTURE_PR_NUMBER,
             repo=_FIXTURE_REPO,
         )
-        from dev10x.domain.common.result import SuccessResult
+        from dev10x.core.domain.common.result import SuccessResult
 
         assert isinstance(result, SuccessResult), (
             f"pr_comments(action='list', pr_number={_FIXTURE_PR_NUMBER!r}) "
@@ -206,7 +206,7 @@ class TestPrCommentsContract:
             pr_number=_FIXTURE_PR_NUMBER,
             repo=_FIXTURE_REPO,
         )
-        from dev10x.domain.common.result import SuccessResult
+        from dev10x.core.domain.common.result import SuccessResult
 
         assert isinstance(result, SuccessResult)
         payload = result.value
@@ -231,7 +231,7 @@ class TestPrCommentsContract:
             pr_number=_FIXTURE_PR_NUMBER,
             repo=_FIXTURE_REPO,
         )
-        from dev10x.domain.common.result import SuccessResult
+        from dev10x.core.domain.common.result import SuccessResult
 
         assert isinstance(result, SuccessResult)
         comments = result.value.get("value", [])
@@ -262,7 +262,7 @@ class TestPrCommentsContract:
             unresolved_only=True,
             repo=_FIXTURE_REPO,
         )
-        from dev10x.domain.common.result import SuccessResult
+        from dev10x.core.domain.common.result import SuccessResult
 
         assert isinstance(result, SuccessResult), (
             f"pr_comments(action='list', unresolved_only=True) returned an error: {result}. "
@@ -282,7 +282,7 @@ class TestPrCommentsContract:
             unresolved_only=True,
             repo=_FIXTURE_REPO,
         )
-        from dev10x.domain.common.result import SuccessResult
+        from dev10x.core.domain.common.result import SuccessResult
 
         assert isinstance(result, SuccessResult)
         payload = result.value

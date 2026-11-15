@@ -23,7 +23,7 @@ from dev10x.core.skill_references import (
     scanned_paths,
     unknown_references,
 )
-from dev10x.subprocess_utils import get_plugin_root
+from dev10x.core.subprocess_utils import get_plugin_root
 
 INVENTORY_PATH = Path(__file__).parents[1] / "fixtures" / "skill_reference_inventory.json"
 

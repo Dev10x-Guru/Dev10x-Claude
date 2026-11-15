@@ -159,12 +159,12 @@ scope-with-reasons → adr (if architectural)
   Steps / Code References sections.
 - **Drift check only (no edits)?** `dev10x-scoping:spec-sync
   --check-only <ticket-id>` returns the `DriftReport` from the
-  shared `dev10x.spec.drift_detector` module without touching
+  shared `dev10x.core.spec.drift_detector` module without touching
   the spec.
 
 **Pipeline guarantees.**
 
-- One canonical drift detector (`dev10x.spec.drift_detector`)
+- One canonical drift detector (`dev10x.core.spec.drift_detector`)
   is shared between `dev10x-scoping:spec-update`, `dev10x-scoping:spec-sync`,
   `dev10x-coding:gh-pr-respond`, and `dev10x-coding:git-groom` — all four
   agree byte-for-byte on what counts as drift.

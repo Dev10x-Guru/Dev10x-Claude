@@ -6,9 +6,10 @@ from pathlib import Path
 
 import pytest
 import yaml
-from dev10x.domain.common.ide_choice import Ide, apply_ide_selection, ide_inventory
-from dev10x.skills.permission.catalog_paths import load_catalog_document
-from dev10x.skills.permission.ide_resolve import ide_source, resolve_ide
+
+from dev10x.core.domain.common.ide_choice import Ide, apply_ide_selection, ide_inventory
+from dev10x.core.skills.permission.catalog_paths import load_catalog_document
+from dev10x.core.skills.permission.ide_resolve import ide_source, resolve_ide
 
 
 def _write(path: Path, payload: dict) -> None:
@@ -19,7 +20,7 @@ def _write(path: Path, payload: dict) -> None:
 def friction(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     path = tmp_path / "friction.yaml"
     monkeypatch.setattr(
-        "dev10x.domain.documents.friction_yaml.Dev10xConfigDir.friction_yaml",
+        "dev10x.core.domain.documents.friction_yaml.Dev10xConfigDir.friction_yaml",
         classmethod(lambda cls: path),
     )
     return path

@@ -10,7 +10,7 @@ Verifies that each of the three MCP tools:
 - Serializes concurrent-write / archive-race failures correctly.
 
 The plan service layer has its own tests (tests/plan/test_service.py);
-these tests mock at the ``dev10x.plan.service.*`` boundary and focus on
+these tests mock at the ``dev10x.tasks.plan.service.*`` boundary and focus on
 the MCP adapter contract.
 """
 
@@ -20,11 +20,11 @@ from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from dev10x.domain.common.result import err
 
+from dev10x.core.domain.common.result import err
 from dev10x.mcp import server_cli as cli_server
 
-SERVICE = "dev10x.plan.service"
+SERVICE = "dev10x.tasks.plan.service"
 
 
 # ── plan_sync_set_context ────────────────────────────────────────────────────
@@ -62,7 +62,7 @@ class TestPlanSyncSetContextErrorContract:
     ) -> None:
         with (
             patch(f"{SERVICE}.get_toplevel", return_value=str(tmp_path)),
-            patch("dev10x.domain.documents.plan._get_branch", return_value="feature/x"),
+            patch("dev10x.core.domain.documents.plan._get_branch", return_value="feature/x"),
         ):
             result = await cli_server.plan_sync_set_context(
                 args=["work_type=feature", "tickets=[GH-1]"],
@@ -77,7 +77,7 @@ class TestPlanSyncSetContextErrorContract:
     async def test_service_error_propagated_to_wire(self) -> None:
         """Domain layer returning err() → wire has 'error'."""
         with patch(
-            "dev10x.plan.set_context",
+            "dev10x.tasks.plan.set_context",
             new=AsyncMock(return_value=err("custom service failure")),
         ):
             result = await cli_server.plan_sync_set_context(args=["k=v"])
@@ -93,7 +93,7 @@ class TestPlanSyncSetContextErrorContract:
         """Duplicate keys in args — last value wins (set_plan_context semantics)."""
         with (
             patch(f"{SERVICE}.get_toplevel", return_value=str(tmp_path)),
-            patch("dev10x.domain.documents.plan._get_branch", return_value="b"),
+            patch("dev10x.core.domain.documents.plan._get_branch", return_value="b"),
         ):
             result = await cli_server.plan_sync_set_context(
                 args=["work_type=feature", "work_type=bugfix"],
@@ -139,10 +139,10 @@ class TestPlanSyncJsonSummaryErrorContract:
     ) -> None:
         with (
             patch(f"{SERVICE}.get_toplevel", return_value=str(tmp_path)),
-            patch("dev10x.domain.documents.plan._get_branch", return_value="feature/x"),
+            patch("dev10x.core.domain.documents.plan._get_branch", return_value="feature/x"),
         ):
             # Create a plan first so the summary is non-empty
-            from dev10x.plan.service import set_plan_context
+            from dev10x.tasks.plan.service import set_plan_context
 
             set_plan_context(args=["work_type=feature"])
             result = await cli_server.plan_sync_json_summary()
@@ -153,7 +153,7 @@ class TestPlanSyncJsonSummaryErrorContract:
     @pytest.mark.asyncio
     async def test_service_error_propagated_to_wire(self) -> None:
         with patch(
-            "dev10x.plan.json_summary",
+            "dev10x.tasks.plan.json_summary",
             new=AsyncMock(return_value=err("summary failure")),
         ):
             result = await cli_server.plan_sync_json_summary()
@@ -197,9 +197,9 @@ class TestPlanSyncArchiveErrorContract:
     ) -> None:
         with (
             patch(f"{SERVICE}.get_toplevel", return_value=str(tmp_path)),
-            patch("dev10x.domain.documents.plan._get_branch", return_value="feature/x"),
+            patch("dev10x.core.domain.documents.plan._get_branch", return_value="feature/x"),
         ):
-            from dev10x.plan.service import set_plan_context
+            from dev10x.tasks.plan.service import set_plan_context
 
             set_plan_context(args=["work_type=feature"])
             result = await cli_server.plan_sync_archive()
@@ -212,7 +212,7 @@ class TestPlanSyncArchiveErrorContract:
     @pytest.mark.asyncio
     async def test_service_error_propagated_to_wire(self) -> None:
         with patch(
-            "dev10x.plan.archive",
+            "dev10x.tasks.plan.archive",
             new=AsyncMock(return_value=err("archive failure")),
         ):
             result = await cli_server.plan_sync_archive()
@@ -230,9 +230,9 @@ class TestPlanSyncArchiveErrorContract:
         archive_name (the 'archived: False' path)."""
         with (
             patch(f"{SERVICE}.get_toplevel", return_value=str(tmp_path)),
-            patch("dev10x.domain.documents.plan._get_branch", return_value="main"),
+            patch("dev10x.core.domain.documents.plan._get_branch", return_value="main"),
         ):
-            from dev10x.plan.service import set_plan_context
+            from dev10x.tasks.plan.service import set_plan_context
 
             set_plan_context(args=["work_type=feature"])
             # First archive — should succeed
@@ -262,12 +262,12 @@ class TestPlanToolsCwdActivation:
         captured: list[object] = []
 
         async def _spy_set_context(*, args: list[str]) -> object:
-            from dev10x.subprocess_utils import effective_cwd
+            from dev10x.core.subprocess_utils import effective_cwd
 
             captured.append(effective_cwd())
             return err("stop")
 
-        with patch("dev10x.plan.set_context", side_effect=_spy_set_context):
+        with patch("dev10x.tasks.plan.set_context", side_effect=_spy_set_context):
             await cli_server.plan_sync_set_context(
                 args=["k=v"],
                 cwd=str(tmp_path),
@@ -280,12 +280,12 @@ class TestPlanToolsCwdActivation:
         captured: list[object] = []
 
         async def _spy_json_summary() -> object:
-            from dev10x.subprocess_utils import effective_cwd
+            from dev10x.core.subprocess_utils import effective_cwd
 
             captured.append(effective_cwd())
             return err("stop")
 
-        with patch("dev10x.plan.json_summary", side_effect=_spy_json_summary):
+        with patch("dev10x.tasks.plan.json_summary", side_effect=_spy_json_summary):
             await cli_server.plan_sync_json_summary(cwd=str(tmp_path))
 
         assert captured == [str(tmp_path)]
@@ -295,12 +295,12 @@ class TestPlanToolsCwdActivation:
         captured: list[object] = []
 
         async def _spy_archive() -> object:
-            from dev10x.subprocess_utils import effective_cwd
+            from dev10x.core.subprocess_utils import effective_cwd
 
             captured.append(effective_cwd())
             return err("stop")
 
-        with patch("dev10x.plan.archive", side_effect=_spy_archive):
+        with patch("dev10x.tasks.plan.archive", side_effect=_spy_archive):
             await cli_server.plan_sync_archive(cwd=str(tmp_path))
 
         assert captured == [str(tmp_path)]

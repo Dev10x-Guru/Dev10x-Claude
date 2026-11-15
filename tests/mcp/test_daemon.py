@@ -28,7 +28,7 @@ from unittest.mock import patch
 
 import pytest
 
-from dev10x.mcp.daemon import (
+from dev10x.core.mcp.daemon import (
     DaemonLifecycle,
     HealthServer,
     _health_timeout,
@@ -349,9 +349,9 @@ class TestShutdownDaemon:
     def test_raises_when_force_false_and_timeout(self, tmp_pid_dir: Path) -> None:
         write_pid_file(pid=12345, pid_dir=tmp_pid_dir)
         with (
-            patch("dev10x.mcp.daemon.is_pid_alive", return_value=True),
-            patch("dev10x.mcp.daemon.request_shutdown", return_value=True),
-            patch("dev10x.mcp.daemon.wait_for_shutdown", return_value=False),
+            patch("dev10x.core.mcp.daemon.is_pid_alive", return_value=True),
+            patch("dev10x.core.mcp.daemon.request_shutdown", return_value=True),
+            patch("dev10x.core.mcp.daemon.wait_for_shutdown", return_value=False),
             pytest.raises(RuntimeError, match="did not exit"),
         ):
             shutdown_daemon(tmp_pid_dir, timeout=0.2, force=False)
@@ -361,9 +361,9 @@ class TestShutdownDaemon:
         write_pid_file(pid=12345, pid_dir=tmp_pid_dir)
 
         with (
-            patch("dev10x.mcp.daemon.is_pid_alive", return_value=True),
-            patch("dev10x.mcp.daemon.request_shutdown", return_value=True),
-            patch("dev10x.mcp.daemon.wait_for_shutdown", return_value=False),
+            patch("dev10x.core.mcp.daemon.is_pid_alive", return_value=True),
+            patch("dev10x.core.mcp.daemon.request_shutdown", return_value=True),
+            patch("dev10x.core.mcp.daemon.wait_for_shutdown", return_value=False),
             patch("os.kill") as mock_kill,
         ):
             result = shutdown_daemon(tmp_pid_dir, timeout=0.1, force=True)

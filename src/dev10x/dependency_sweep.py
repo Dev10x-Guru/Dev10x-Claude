@@ -29,8 +29,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from dev10x.core.domain.common.result import Result, SuccessResult, err, ok
 from dev10x.dependency_pins import PinnedRequirement, collect_pinned_requirements
-from dev10x.domain.common.result import Result, SuccessResult, err, ok
 
 _logger = logging.getLogger(__name__)
 

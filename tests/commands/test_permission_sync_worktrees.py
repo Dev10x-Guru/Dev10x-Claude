@@ -6,13 +6,13 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
-from dev10x.domain.common.result import ok
-from dev10x.permission.service import PermissionContext
-from dev10x.skills.permission.declined_catalog import declined_path
 
 from dev10x.commands import permission as commands
 from dev10x.commands.permission import sync_worktrees
-from dev10x.skills.permission import merge_worktree_permissions as mod
+from dev10x.core.domain.common.result import ok
+from dev10x.core.permission.service import PermissionContext
+from dev10x.core.skills.permission import merge_worktree_permissions as mod
+from dev10x.core.skills.permission.declined_catalog import declined_path
 
 MAIN = Path("/work/proj")
 WORKTREE = Path("/work/.herdr/worktrees/proj/wt-1")

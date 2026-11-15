@@ -94,7 +94,7 @@ was denied as a `gh pr edit` call. The search-tool exemption bailed out
 on the `|` characters — regex alternation, read as a pipeline — so the
 pattern's own text was evaluated as a command. Auditing a brief for the
 shapes it bans is precisely what a supervisor should be doing. Fixed in
-`dev10x.domain.rules.validation_rule._is_search_command`, which now
+`dev10x.core.domain.rules.validation_rule._is_search_command`, which now
 tests the *unquoted* command for a pipeline.
 
 **Bulk worktree cleanup.**

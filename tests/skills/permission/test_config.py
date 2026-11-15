@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from dev10x.domain.common.result import ErrorResult, SuccessResult
-from dev10x.skills.permission.config import parse_config, resolve_config
+from dev10x.core.domain.common.result import ErrorResult, SuccessResult
+from dev10x.core.skills.permission.config import parse_config, resolve_config
 
 
 class TestResolveConfig:
@@ -35,7 +35,7 @@ class TestResolveConfig:
         assert str(plugin) in result.error
 
     def test_logs_error_when_none_found(self, tmp_path: Path, caplog):
-        with caplog.at_level("ERROR", logger="dev10x.skills.permission.config"):
+        with caplog.at_level("ERROR", logger="dev10x.core.skills.permission.config"):
             resolve_config(candidates=[tmp_path / "nope.yaml"])
         assert "No config found." in caplog.text
 

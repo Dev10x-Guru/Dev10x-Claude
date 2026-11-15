@@ -29,7 +29,7 @@ from dev10x.core.import_boundary import (
     unmapped_top_level,
 )
 from dev10x.core.plugin_map import load_plugin_map
-from dev10x.subprocess_utils import get_plugin_root
+from dev10x.core.subprocess_utils import get_plugin_root
 
 MILESTONE_PREFIX = "PLG-M"
 

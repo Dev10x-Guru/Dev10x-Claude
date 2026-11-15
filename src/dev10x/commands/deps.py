@@ -6,7 +6,7 @@ from pathlib import Path
 
 import click
 
-from dev10x.domain.common.result import ErrorResult
+from dev10x.core.domain.common.result import ErrorResult
 
 
 @click.group()
@@ -54,7 +54,7 @@ def sweep(
     from functools import partial
 
     from dev10x import dependency_sweep
-    from dev10x.subprocess_utils import effective_cwd
+    from dev10x.core.subprocess_utils import effective_cwd
 
     scan_root = root if root is not None else Path(effective_cwd() or Path.cwd())
     fetch = partial(

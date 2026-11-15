@@ -31,10 +31,10 @@ import re
 from dataclasses import dataclass
 from typing import ClassVar
 
-from dev10x.domain import HookAllow, HookInput, HookResult
-from dev10x.domain.profile_tier import ProfileTier
-from dev10x.validators._quote_strip import quote_strip
-from dev10x.validators.base import ValidatorBase
+from dev10x.core.domain import HookAllow, HookInput, HookResult
+from dev10x.core.domain.profile_tier import ProfileTier
+from dev10x.core.validators._quote_strip import quote_strip
+from dev10x.core.validators.base import ValidatorBase
 
 SAFE_ENV_VARS = frozenset(
     [

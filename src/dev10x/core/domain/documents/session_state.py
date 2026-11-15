@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from dev10x.domain.documents.task import Task, TaskStatus
+from dev10x.core.domain.documents.task import Task, TaskStatus
 
 
 @dataclass(frozen=True)

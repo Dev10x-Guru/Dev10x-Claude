@@ -23,7 +23,7 @@ dist/
 # Benchmark run artefacts (CI caches these; local runs produce them)
 .benchmarks/
 
-# Regenerable config caches (GH-1075). dev10x.config.loader derives these
+# Regenerable config caches (GH-1075). dev10x.core.config.loader derives these
 # from the sibling YAML and rewrites them whenever they are missing or
 # stale, so a test run or hook invocation would otherwise dirty the tree.
 # GH-1671

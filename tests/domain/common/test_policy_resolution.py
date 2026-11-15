@@ -14,14 +14,15 @@ from pathlib import Path
 
 import pytest
 import yaml
-from dev10x.domain.common.policy import (
+
+from dev10x.core.domain.common.policy import (
     Policy,
     PolicyEffect,
     PolicyLifecycle,
     PolicySensitivity,
     PolicySource,
 )
-from dev10x.domain.common.policy_resolution import (
+from dev10x.core.domain.common.policy_resolution import (
     PRECEDENCE,
     load_policy_layers,
     resolve_effect,

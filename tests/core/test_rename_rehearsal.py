@@ -35,7 +35,7 @@ from dev10x.core.skills.upgrade_cleanup.skill_names import (
     migrate_user_configs,
     resolve_skill_alias,
 )
-from dev10x.subprocess_utils import get_plugin_root
+from dev10x.core.subprocess_utils import get_plugin_root
 
 INVENTORY_PATH = Path(__file__).parents[1] / "fixtures" / "skill_reference_inventory.json"
 SUBJECT = "onboarding"

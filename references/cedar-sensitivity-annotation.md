@@ -147,7 +147,7 @@ as `_DEFAULT_PATTERNS`.
 To extend it per project, inject a custom `SensitivityClassifier`:
 
 ```python
-from dev10x.domain.sensitivity import SensitivityClassifier, SensitivityLabel, SensitivityPattern
+from dev10x.core.domain.sensitivity import SensitivityClassifier, SensitivityLabel, SensitivityPattern
 import re
 
 my_classifier = SensitivityClassifier(
@@ -165,7 +165,7 @@ my_classifier = SensitivityClassifier(
 For the validator, pass it at construction time:
 
 ```python
-from dev10x.validators.sensitivity_target import SensitivityTargetValidator
+from dev10x.core.validators.sensitivity_target import SensitivityTargetValidator
 
 v = SensitivityTargetValidator(classifier=my_classifier)
 # or use the factory:

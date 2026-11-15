@@ -9,10 +9,10 @@ from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from dev10x.domain.common.repository_ref import RepositoryRef
-from dev10x.domain.common.result import ErrorResult, SuccessResult, err, ok
-from dev10x.domain.transport_budget import tool_call_room
 
+from dev10x.core.domain.common.repository_ref import RepositoryRef
+from dev10x.core.domain.common.result import ErrorResult, SuccessResult, err, ok
+from dev10x.core.domain.transport_budget import tool_call_room
 from dev10x.core.github import _gateway
 from dev10x.mcp import server_cli as cli_server
 from tests.fakers.clock import FakeClock

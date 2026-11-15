@@ -14,7 +14,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from dev10x.domain.git_context import GitContext
+from dev10x.core.domain.git_context import GitContext
 
 BASE_BRANCH_ALIASES: tuple[str, ...] = (
     "nopager",
