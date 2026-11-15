@@ -37,6 +37,17 @@ claude plugin marketplace add Dev10x-Guru/dev10x-claude
 claude plugin install dev10x@Dev10x-Guru
 ```
 
+`dev10x` is the core every other Dev10x plugin depends on.
+It ships both MCP servers (`cli` and `db`), the safety hooks, and the
+setup, permission, friction and playbook skills (`afk`, `ask`,
+`onboarding`, `friction-setup`, `upgrade-cleanup`, `plugin-doctor`,
+`plugin-maintenance`, `playbook` and the rest).
+The coding skills (commits, PRs, branch hygiene, code review) also
+ship inside it for now, until they move to their own plugin.
+`/dev10x:plugin-doctor` reports a satellite enabled while `dev10x` is
+turned off, and permission rules that still name a moved skill by its
+old `dev10x:` name.
+
 The self-QA walkthrough skills (`qa-self`, `playwright`, `qa-publish`,
 `tts`, `yt-upload`, `review-pack`) ship as a separate plugin. Install it
 where you record walkthroughs; it brings `dev10x` with it:
