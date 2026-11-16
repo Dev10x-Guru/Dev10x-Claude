@@ -1,7 +1,7 @@
 {
   "name": "dev10x-comm",
-  "description": "v0.116.0.dev0 — 7 skills for team and session messaging: Slack and Google Chat notifications, the gog Workspace CLI, the local session bus, Overwatch, and voice supervision.",
-  "version": "0.116.0.dev0",
+  "description": "v0.116.0 — 7 skills for team and session messaging: Slack and Google Chat notifications, the gog Workspace CLI, the local session bus, Overwatch, and voice supervision.",
+  "version": "0.116.0",
   "author": {
     "name": "Janusz Skonieczny",
     "email": "Dev10xAI@WooYek.com"
