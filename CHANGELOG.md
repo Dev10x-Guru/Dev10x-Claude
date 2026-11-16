@@ -5,16 +5,338 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
+## 0.116.0 — Split Into Satellite Plugins
+
+Released 2026-11-16
+
+### Breaking / upgrade notes
+
+- **Five more skill areas ship as their own plugins** — a user who
+  never posts to Chat, authors skills, parks work or files tickets no
+  longer loads those skills in every repo, and `dev10x` itself is now
+  the core every satellite builds on: setup, permissions, friction,
+  playbooks, both MCP servers and the safety hooks, with 17 skills of
+  its own (ADR-0034 Stage B, B4–B9). Install the satellites you need
+  next to `dev10x`:
+  - `dev10x-comm` — `bus`, `gchat`, `gog`, `overwatch`, `slack`,
+    `slack-setup`, `voice-channel`
+    ([GH-1567](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1567));
+  - `dev10x-teach` — `skill-create`, `skill-audit`,
+    `skill-audit-queue`, `audit-file`, `skill-index`, `context-audit`,
+    `memory-maintenance`
+    ([GH-1568](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1568));
+  - `dev10x-tasks` — `session-tasks`, `session-wrap-up`, `plan-sync`,
+    `park`, `park-discover`, `park-todo`, `park-remind`, `reflect`
+    ([GH-1569](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1569));
+  - `dev10x-scoping` — nineteen ticket, scoping, ADR, DDD, diagram and
+    `artifact` skills, plus the `architect-*` and `adr-reviewer` agents
+    ([GH-1570](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1570));
+  - `dev10x-coding` — forty commit, PR, review, test and orchestration
+    skills, including `work-on`, `fanout` and `foreman`. It declares
+    `dev10x` and `dev10x-tasks` as dependencies, so install both
+    ([GH-1572](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1572)).
+
+  Each moved skill is now invoked as `dev10x-<key>:<skill>`, e.g.
+  `dev10x-coding:git-commit`. Install with
+  `claude plugin install dev10x-<key>@Dev10x-Guru`; the B8 core
+  finalization is tracked in
+  [GH-1571](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1571).
+- **Old skill names stop working; run upgrade-cleanup and update your
+  own references** — a moved skill is only reachable as
+  `dev10x-<key>:<skill>`. `/dev10x:git-commit` or
+  `Skill(dev10x:work-on)` no longer resolves, because Claude Code finds a
+  skill only under its plugin's name. Run `/dev10x:upgrade-cleanup` after
+  upgrading: `dev10x config migrate-skill-names` uses the
+  `SKILL_NAME_ALIASES` table (all 81 moved skills, kept until 0.118.0)
+  to rewrite the old names in `friction.yaml`,
+  `dod-acceptance-criteria.yaml` and your playbook overrides, and it
+  names any satellite you still need without installing it. Names in
+  your own `CLAUDE.md`, memory files, prompts and scripts are not
+  migrated: search them for `dev10x:` and update the moved skills by
+  hand
+  ([GH-1567](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1567))
+- **The 0.114.0 QA, infra and db aliases are gone** — the
+  `dev10x:<skill>` rows for `dev10x-qa`, `dev10x-infra` and `dev10x-db`
+  were retired as announced, so `migrate-skill-names` no longer
+  rewrites them. A config that still names `dev10x:qa-self`,
+  `dev10x:k8s` or `dev10x:db` must be edited by hand
+  ([GH-1865](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1865))
+- **MCP tool names did not change** — core's `cli` server keeps
+  registering every coding tool, so no `mcp__plugin_dev10x_cli__*`
+  name or permission rule moves. A core-only install lists the git and
+  GitHub tools without the skills that drive them, and the tools that
+  run a coding script need `dev10x-coding` installed to find it
+  ([GH-1563](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1563),
+  [GH-1572](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1572))
+- **Some core features now need a satellite** — core's skill-audit and
+  `generate_skill_index` MCP tools resolve their scripts from
+  `dev10x-teach`
+  ([GH-1568](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1568)).
+  Overwatch's relay re-arm sends `/dev10x-comm:overwatch relay`, so it
+  needs `dev10x-comm`
+  ([GH-1567](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1567)).
+  The Reflect and Wrap up buttons send `/dev10x-tasks:reflect` and
+  `/dev10x-tasks:session-wrap-up`, so they need `dev10x-tasks`
+  ([GH-1569](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1569))
+- **The Stage A `dev10x.<old>` module paths are removed** — the 60
+  re-export shims (`dev10x.domain`, `dev10x.github`, `dev10x.config`,
+  `dev10x.hooks`, `dev10x.session` and the rest) are deleted, so code
+  that imports them breaks. Import from `dev10x.core.*`,
+  `dev10x.coding.*`, `dev10x.tasks.*` and the other plugin namespaces
+  instead (NS-33,
+  [GH-1573](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1573))
+- **Stale `Skill(dev10x:<skill>)` permission rules are flagged** —
+  `Skill(dev10x-<key>:*)` allows join the seeded baseline, and the new
+  `plugin-doctor` checks `extracted-skill-rules` (a hand-written rule
+  for a moved skill grants or guards nothing; a stale deny or ask is
+  critical) and `satellite-dependencies` (a satellite enabled while
+  `dev10x` or a hard dependency is disabled) tell you what to fix
+  ([GH-1571](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1571))
+
 ### Features
 
+- **Ask your machine for work from Google Chat** — the local Chat bus
+  goes live (ADR-0035). Polling and Pub/Sub pull feed it, and
+  Workspace Events subscriptions renew themselves. Events missed
+  during a restart or sleep are backfilled from per-space cursors,
+  and Google's batched reaction events are expanded instead of dropped.
+  Only allowlisted users (one `owner`, any `trusted`) can trigger work,
+  and trusted requests wait for the owner's approval in a bot DM.
+  Approved work is handed to a matching session or a new herdr
+  worktree agent. Sessions claim, answer and ack items through the new
+  `chat_queue_list` / `_claim` / `_reply` / `_ack` MCP tools, and a
+  claim carries the thread's earlier posts as untrusted context.
+  `dev10x chatbus run | status | install-unit` runs the bus as a
+  systemd user service, and Overwatch shows its queue, verdicts and
+  gaps read-only at `#/bus`
+  ([GH-1839](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1839),
+  [GH-1840](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1840),
+  [GH-1841](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1841),
+  [GH-1842](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1842),
+  [GH-1843](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1843),
+  [GH-1844](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1844),
+  [GH-1845](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1845),
+  [GH-1932](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1932),
+  [GH-1948](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1948),
+  [GH-1950](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1950))
+- **Answer a session's decision page where you read it** — a session
+  can publish a `dev10x.artifact/v1` page to the local Overwatch server
+  with `dev10x overwatch artifact put`. The supervisor's button, choice
+  and form presses go back to the owning session by herdr prompt or the
+  relay, and a new revision refreshes the page live. Sharing goes
+  through publishers configured in `overwatch.yaml`, with claude.ai
+  kept as the export. `dev10x-scoping:artifact` now targets this page
+  by default (ADR-0036)
+  ([GH-1938](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1938))
+- **No review request for a PR that is not ready** — a readiness check
+  (draft, CI, unresolved threads, bots at head) runs before
+  `request-review` and `gh-pr-request-review` ask anyone. Unattended
+  callers refuse, and attended runs recommend fixing it first. The new
+  `review_readiness_audit` MCP tool classifies open PRs as
+  SENT-NOT-READY, WENT-RED-AFTER, READY or UNKNOWN
+  ([GH-1834](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1834))
+- **Callees know whether anyone is watching** — every `resolve_gate`
+  payload now carries a `run_mode` (unattended, attended or
+  undetermined, with its basis), derived from the afk overlay and the
+  plan mirror. The review-request skills end with a structured
+  `review_request_result` line that `gh-pr-monitor` branches on
+  instead of matching prose. `gh-pr-monitor`'s instructions also now
+  fit in one read
+  ([GH-1921](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1921),
+  [GH-1922](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1922))
+- **Clear merged worktrees behind one approval** — the new
+  `git-worktree-prune` skill and the read-only
+  `worktree_prune_candidates` MCP tool sort every worktree into
+  remove, ask or keep in one call. They count squash merges, ignore
+  generated mirrors and see open herdr workspaces. Anything whose
+  state is unknown is kept, and each path is re-read right before
+  removal
+  ([GH-1930](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1930),
+  [GH-1942](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1942))
+- **Prune stale permission rules by class or pattern** —
+  `permission clean` reports globbed Read rules on the old uppercase
+  `Dev10x/` cache and direct-script allows for scripts a tool now
+  wraps. `permission remove --pattern <glob>` deletes the rest with a
+  backup, a git-tracked guard and a locked write, and it prompts on
+  every run on purpose
+  ([GH-1925](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1925))
+- **Decide audit findings one rule at a time** — `permission-audit-apply`
+  gates each rule a finding covers and can defer a rule to the end of
+  the session. `clean` and `update-paths` take `--global` for a
+  dotfiles-tracked user settings file. The auditor proposes `ask`, not
+  `deny`, for recoverable operations, and the maintenance skills say
+  what to do when auto mode denies a step
+  ([GH-1868](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1868))
 - **Satellite plugin scripts get their allow rules seeded** —
   `dev10x permission ensure-scripts` and `ensure-reads` now scan every
-  installed satellite plugin (`dev10x-qa`, `dev10x-infra`, `dev10x-db`)
-  beside core, emitting the versioned cache rules and the marketplace
-  twins under `plugins/<key>/`. Before, only a user who already held
+  installed satellite beside core. Before, only a user who already held
   the old core rules kept running a moved skill's scripts without a
-  prompt (GH-1793 relocated those); a fresh install got no rule at
-  all. A satellite that is not installed is skipped. (GH-1807)
+  prompt; a fresh install got no rule at all. A satellite is located
+  at its own newest installed version, so one that lags core by a
+  release still gets its grants
+  ([GH-1807](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1807),
+  [GH-1886](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1886))
+- **Subagent briefs that bypass the owning skill are flagged** — the
+  new DX020 validator reads an Agent prompt and flags a job a skill
+  already owns when the brief names neither the skill nor an accepted
+  alias. It is advisory unless `dx020.mode: deny`, and
+  `dev10x-ok: <reason>` is the auditable escape. Briefs now say a
+  hook-denied command means the sanctioned tool or a stop, never a
+  workaround
+  ([GH-1835](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1835),
+  [GH-1874](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1874))
+- **The overseer hears about a blocked crew worker at once** —
+  `dev10x foreman watch` reports a `BLOCKED` heartbeat immediately
+  instead of after the 25-minute stall alarm, and hook denials are no
+  longer routed to a main-session re-run
+  ([GH-1874](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1874))
+- **No review pack with a video older than the UI** —
+  `video-freshness.py` refuses a pack whose recording predates the
+  newest UI commit, and the shipping continuation re-records the
+  self-QA video when review fixes change the UI
+  ([GH-1828](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1828),
+  [GH-1848](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1848))
+- **Walk-away self-QA no longer stalls on its own gates** — the
+  `qa-self` evidence gate and the pack-only `review-pack` pre-send gate
+  resolve through `resolve_gate(gate="artifact_preview")`. Footage that
+  may hold non-staging data still asks, and the gaps a pack hands on
+  reach the Request review step and the Verify-AC summary
+  ([GH-1847](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1847),
+  [GH-1878](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1878),
+  [GH-1899](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1899),
+  [GH-1912](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1912))
+- **Waits that can never succeed stop early** — `wait_for` reports
+  `unreachable: true` for a missing `pgrep`, a rejected pattern or an
+  unreadable file instead of sitting out the timeout. `pr_wait` and
+  `wait_for` now share one deadline-bounded poll loop, and GitHub
+  listings page through one Gateway policy
+  ([GH-1852](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1852))
+- **One answer to "did a bot review the head"** —
+  `pr_wait(until="bot_at_head")` now uses the same definition as
+  `bot_review_status`. Comment-only bots are judged against the time
+  the head was pushed, so a pre-rebase comment no longer passes as a
+  review. `bot_review_status` reports `config_found` and notes when no
+  bot blocks only because the config is missing
+  ([GH-1857](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1857))
+- **Rollout watchers run on the read-only kubectl wrapper** —
+  `rollout status` and `rollout history` pass through `kubectl.sh`.
+  `undo`, `restart`, `pause` and `resume` stay denied
+  ([GH-1821](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1821))
+- **The promise guard reads clauses, not sentences** — the Stop hook
+  now tells a supervisor's gate ("Once you approve, I'll merge it")
+  apart from a hedge ("Let me know if you'd like, I'll run the tests
+  now"). It also catches a promise hidden behind a conditional
+  sentence, and it skips the work on turns that promise nothing
+  ([GH-1854](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1854),
+  [GH-1869](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1869),
+  [GH-1894](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1894))
+
+### Security
+
+- **`wait_for` HTTP probes stay off cloud metadata** — link-local
+  targets are refused, including names that resolve to one, and a 3xx
+  is reported instead of followed
+  ([GH-1885](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1885))
+- **Writes hidden behind a group, loop or substitution are judged** —
+  DX003 now sees the redirect in `{ echo hi; } > f`,
+  ``echo `date` > f`` and `while …; done > f`, so these commands can
+  prompt or be denied where they used to pass
+  ([GH-1816](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1816),
+  [GH-1876](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1876))
+- **Sensitive rules are held, not widened** — `generalize` no longer
+  turns an env-prefixed or secret-handling script rule into
+  `<script>:*`, and plugin-maintenance gates the apply on the dry run
+  ([GH-1868](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1868))
+- **Humans with bot-like logins stay in the supervisor's loop** — a
+  review thread counts as bot-authored by its GraphQL account type, not
+  a login regex, so an AFK session cannot resolve a person's comment
+  ([GH-1857](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1857))
+
+### Fixes
+
+- **Only a `Fixes:`-style reference closes an issue** — `Refs: <url>`
+  and URLs in prose stay open on merge, and references hidden in HTML
+  comments or code fences, or written with non-ASCII digits, close
+  nothing. `create_pr` refuses a missing, hidden, unreadable, bare
+  `Fixes: none` or multi-reference trailer before the PR opens, not at
+  merge. A `Fixes: none — <reason>` partial delivery stays green after
+  merge
+  ([GH-1927](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1927),
+  [GH-1896](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1896),
+  [GH-1935](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1935),
+  [GH-1936](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1936),
+  [GH-1873](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1873),
+  [GH-1819](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1819))
+- **Overwatch delivers once and to the right pane** — the relay re-arm
+  goes only to a pane that looks like the relay, never twice, and
+  backs off when no relay is present. A failed action log no longer
+  makes any delivery path re-send. Dev-page answers to held questions
+  go back through the release page, and the dev page's crash backoff
+  is capped at 60 s. The Reflect and Wrap up buttons and their toasts
+  name the plugin commands
+  ([GH-1805](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1805),
+  [GH-1889](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1889),
+  [GH-1770](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1770),
+  [GH-1824](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1824),
+  [GH-1967](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1967))
+- **An unattended PR monitor raises no widgets** — `gh-pr-monitor`
+  passes `--unattended` on to `request-review` and treats an `ask`
+  notification as a skip, so a crew nobody watches does not stop on
+  a question
+  ([GH-1890](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1890),
+  [GH-1911](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1911))
+- **GitHub errors are reported, not read as empty** — a rejected
+  GraphQL query no longer looks like "no unresolved threads" or "could
+  not find thread", a partial resolve batch names the threads it
+  resolved, and a truncated bot or check-suite read says so
+  ([GH-1857](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1857),
+  [GH-1885](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1885),
+  [GH-1913](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1913))
+- **Background subagents get only the preamble block** — not the
+  maintainer prose around it
+  ([GH-1874](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1874))
+- **An empty or undecodable config is reported as what it is** —
+  instead of "not a mapping" or a raw `UnicodeDecodeError`
+  ([GH-1825](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1825))
+- **Vault notes stay inside the vault and in the owner's style** —
+  `reflect` refuses symlinked notes, reuses the note's list marker and
+  exits 0 when no vault is configured
+  ([GH-1826](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1826))
+- **`gh-pr-merge` reports all twelve checks it runs**
+  ([GH-1857](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1857));
+  **a review loop's re-review and unstamped paths are explicit**
+  ([GH-1863](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1863))
+
+### Docs
+
+- **Project rules follow the split** — rules name the satellite
+  prefixes, load for `plugins/*/skills/**` edits too, and point at the
+  post-NS-33 `dev10x.core.*` module paths
+  ([GH-1969](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1969),
+  [GH-1973](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1973),
+  [GH-1976](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1976))
+- **One answer when an MCP-backed write is blocked** — writes wait,
+  attended agents reconnect with `/mcp`, and no block message offers
+  the skip flag as an outage path
+  ([GH-1916](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1916),
+  [GH-1905](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1905))
+- **Rule files load only where they apply** — the hook rules split
+  into dispatch and validator-profile files, `INDEX.md` shows when
+  `hook-input-patterns.md` loads, a drift test catches dead rule paths
+  and globs, and a gate keeps one recommended option when its resolver
+  errors
+  ([GH-1867](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1867),
+  [GH-1915](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1915),
+  [GH-1906](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1906),
+  [GH-1920](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1920))
+- ADR-0035 cites Google's published subscription and retention limits,
+  and the `chat_queue_*` parameter shapes join the MCP tool rule
+  ([GH-1947](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1947),
+  [GH-1945](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1945));
+  the subagent status protocol and `upgrade-cleanup` move detail into
+  references to stay inside their budgets
+  ([GH-1892](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1892),
+  [GH-1888](https://github.com/Dev10x-Guru/Dev10x-Claude/issues/1888))
 
 ## 0.115.0 — Keep Auto Mode On
 
