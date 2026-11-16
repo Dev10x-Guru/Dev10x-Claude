@@ -1,7 +1,7 @@
 {
   "name": "dev10x-coding",
-  "description": "v0.116.0 — 40 skills for coding: structured commits, PR lifecycle, branch hygiene, code review, test runs, and the work-on, fanout and foreman orchestrators.",
-  "version": "0.116.0",
+  "description": "v0.117.0.dev0 — 40 skills for coding: structured commits, PR lifecycle, branch hygiene, code review, test runs, and the work-on, fanout and foreman orchestrators.",
+  "version": "0.117.0.dev0",
   "author": {
     "name": "Janusz Skonieczny",
     "email": "Dev10xAI@WooYek.com"

@@ -1,7 +1,7 @@
 {
   "name": "dev10x-scoping",
-  "description": "v0.116.0 — 19 skills for tickets and scoping: create and scope tickets on GitHub, Linear or JIRA, draft Job Stories, estimate, record and evaluate ADRs, keep specs in sync, and draw diagrams.",
-  "version": "0.116.0",
+  "description": "v0.117.0.dev0 — 19 skills for tickets and scoping: create and scope tickets on GitHub, Linear or JIRA, draft Job Stories, estimate, record and evaluate ADRs, keep specs in sync, and draw diagrams.",
+  "version": "0.117.0.dev0",
   "author": {
     "name": "Janusz Skonieczny",
     "email": "Dev10xAI@WooYek.com"
