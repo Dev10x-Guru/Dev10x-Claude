@@ -29,6 +29,7 @@
     "gchat_watch_list",
     "generate_commit_list",
     "generate_skill_index",
+    "herdr_roster",
     "ide_status",
     "issue_close",
     "issue_comment",

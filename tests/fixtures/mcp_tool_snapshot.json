@@ -1205,6 +1205,36 @@
       "title": "generate_skill_indexArguments",
       "type": "object"
     },
+    "herdr_roster": {
+      "properties": {
+        "cwd": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cwd"
+        },
+        "repo_root": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repo Root"
+        }
+      },
+      "title": "herdr_rosterArguments",
+      "type": "object"
+    },
     "ide_status": {
       "properties": {
         "cwd": {

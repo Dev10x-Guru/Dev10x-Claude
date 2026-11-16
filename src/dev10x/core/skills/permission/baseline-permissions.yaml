@@ -233,6 +233,7 @@ groups:
       - Skill(dev10x-infra:*)
       - Skill(dev10x-db:*)
       - Skill(dev10x-comm:*)
+      - Skill(dev10x-herdr:*)
       - Skill(dev10x-teach:*)
       - Skill(dev10x-tasks:*)
       - Skill(dev10x-scoping:*)
