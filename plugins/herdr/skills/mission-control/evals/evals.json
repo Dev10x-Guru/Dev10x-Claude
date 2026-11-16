@@ -1,0 +1,127 @@
+{
+  "skill_name": "dev10x-herdr:mission-control",
+  "eval_dimensions": [
+    {
+      "id": "hierarchy",
+      "name": "Coordinators Only",
+      "description": "Global mode prompts only each repository's coordinator; repo mode prompts only its own repository's worktree sessions."
+    },
+    {
+      "id": "never-type-over",
+      "name": "Never Type Over Someone",
+      "description": "Every prompt follows a herdr agent get + read check; working, blocked or typed-into panes are never prompted, and no clearing keys are sent."
+    },
+    {
+      "id": "file-delivery",
+      "name": "Brief and Status Files",
+      "description": "Briefs are written to files in the round directory and the prompt only points at them; replies are read from status files ending in a status token."
+    },
+    {
+      "id": "no-coordinator-gate",
+      "name": "No-Coordinator Gate",
+      "description": "A repository with worktree sessions but no main session triggers AskUserQuestion with exactly one Recommended option, first, computed from the sessions' states."
+    },
+    {
+      "id": "status-only",
+      "name": "Status Only",
+      "description": "A blocked session's question is reported, never answered or relayed."
+    }
+  ],
+  "evals": [
+    {
+      "id": "outside-herdr-stops",
+      "name": "Outside Herdr the skill stops",
+      "description": "printenv HERDR_ENV prints nothing.",
+      "input": "/dev10x-herdr:mission-control status",
+      "assertions": [
+        {
+          "dimension": "hierarchy",
+          "check": "behavioral",
+          "signal": "The skill says it is not running inside Herdr and makes no herdr_roster or herdr agent call"
+        }
+      ]
+    },
+    {
+      "id": "global-round-prompts-coordinators",
+      "name": "Global round reaches repositories through their main sessions",
+      "description": "Caller role is outside. herdr_roster lists tt-pos with coordinator wX:p1 (idle) and two worktree sessions, and tt-dvi with coordinator wQ:p1 (done) and one worktree session.",
+      "input": "/dev10x-herdr:mission-control status",
+      "assertions": [
+        {
+          "dimension": "hierarchy",
+          "check": "tool_parameters",
+          "tool": "Bash",
+          "signal": "herdr agent prompt is sent to wX:p1 and wQ:p1 only, each as a run_in_background call"
+        },
+        {
+          "dimension": "file-delivery",
+          "check": "tool_called",
+          "tool": "Write",
+          "signal": "brief-tt-pos.md and brief-tt-dvi.md are written before the prompts, each naming a status file and /dev10x-herdr:mission-control in repo mode"
+        },
+        {
+          "dimension": "never-type-over",
+          "check": "tool_parameters",
+          "tool": "Bash",
+          "signal": "herdr agent get and herdr agent read --source visible run for each coordinator before its prompt"
+        }
+      ]
+    },
+    {
+      "id": "repo-round-skips-busy-panes",
+      "name": "Repo round reads busy worktrees instead of prompting them",
+      "description": "Caller role is main for tt-pos. Worktree sessions: wB8:p1 working, w3Q:p1 blocked on an approval, wC5:p1 done.",
+      "input": "/dev10x-herdr:mission-control what is left before your PR merges?",
+      "assertions": [
+        {
+          "dimension": "hierarchy",
+          "check": "tool_parameters",
+          "tool": "Bash",
+          "signal": "herdr agent prompt is sent only to wC5:p1"
+        },
+        {
+          "dimension": "never-type-over",
+          "check": "behavioral",
+          "signal": "wB8:p1 is summarised from herdr agent read output; no keys are sent to any pane"
+        },
+        {
+          "dimension": "status-only",
+          "check": "behavioral",
+          "signal": "w3Q:p1 is reported as waiting on the supervisor with its visible question; the skill does not answer it"
+        }
+      ]
+    },
+    {
+      "id": "no-coordinator-gate-fires",
+      "name": "Repository without a main session asks the supervisor",
+      "description": "Global mode. tt-k8s has worktree sessions w5M:p1 (idle) and wAZ:p1 (working) and no coordinator.",
+      "input": "/dev10x-herdr:mission-control status",
+      "assertions": [
+        {
+          "dimension": "no-coordinator-gate",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "AskUserQuestion names tt-k8s and its sessions; 'Ask worktrees directly (Recommended)' is the first option because w5M:p1 is idle"
+        },
+        {
+          "dimension": "hierarchy",
+          "check": "behavioral",
+          "signal": "No tt-k8s session is prompted before the supervisor answers the gate"
+        }
+      ]
+    },
+    {
+      "id": "missing-status-line",
+      "name": "A reply without a status token is not treated as done",
+      "description": "The wait for wX:p1 exits with state done, but status-tt-pos.md is missing.",
+      "input": "background prompt for wX:p1 exits",
+      "assertions": [
+        {
+          "dimension": "file-delivery",
+          "check": "behavioral",
+          "signal": "The report marks tt-pos NEEDS_CONTEXT, reads the pane, and resends at most once"
+        }
+      ]
+    }
+  ]
+}

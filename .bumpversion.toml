@@ -65,6 +65,16 @@ search = "\"v{current_version} —"
 replace = "\"v{new_version} —"
 
 [[tool.bumpversion.files]]
+filename = "plugins/herdr/.claude-plugin/plugin.json"
+search = "\"version\": \"{current_version}\""
+replace = "\"version\": \"{new_version}\""
+
+[[tool.bumpversion.files]]
+filename = "plugins/herdr/.claude-plugin/plugin.json"
+search = "\"v{current_version} —"
+replace = "\"v{new_version} —"
+
+[[tool.bumpversion.files]]
 filename = "plugins/teach/.claude-plugin/plugin.json"
 search = "\"version\": \"{current_version}\""
 replace = "\"version\": \"{new_version}\""

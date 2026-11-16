@@ -88,6 +88,18 @@ notification needs both plugins:
 claude plugin install dev10x-comm@Dev10x-Guru
 ```
 
+The Herdr skill (`mission-control`) ships as `dev10x-herdr`.
+Install it where you run several Claude sessions inside
+[Herdr](https://herdr.dev) and want one status round across them; it also
+brings `dev10x` with it.
+The round reaches each repository through the session in its main
+checkout, which asks its own worktree sessions.
+Its `herdr_roster` MCP tool stays in `dev10x`.
+
+```bash
+claude plugin install dev10x-herdr@Dev10x-Guru
+```
+
 The skill management skills (`skill-create`, `skill-audit`,
 `skill-audit-queue`, `audit-file`, `skill-index`, `context-audit`,
 `memory-maintenance`) ship as `dev10x-teach`.

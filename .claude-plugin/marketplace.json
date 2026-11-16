@@ -47,6 +47,13 @@
       "keywords": ["slack", "google-chat", "gog", "bus", "notifications"]
     },
     {
+      "name": "dev10x-herdr",
+      "source": "./plugins/herdr",
+      "description": "v0.117.0.dev0 — 1 skill for Herdr: mission control that coordinates worktree sessions through each repository's main-checkout session.",
+      "version": "0.117.0.dev0",
+      "keywords": ["herdr", "mission-control", "sessions", "worktrees", "orchestration"]
+    },
+    {
       "name": "dev10x-teach",
       "source": "./plugins/teach",
       "description": "v0.117.0.dev0 — 7 skills for skill management: create, audit and index skills, file audit findings upstream, and keep context and memory lean.",

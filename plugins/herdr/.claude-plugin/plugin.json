@@ -1,0 +1,14 @@
+{
+  "name": "dev10x-herdr",
+  "description": "v0.117.0.dev0 — 1 skill for Herdr: mission control that coordinates worktree sessions through each repository's main-checkout session.",
+  "version": "0.117.0.dev0",
+  "author": {
+    "name": "Janusz Skonieczny",
+    "email": "Dev10xAI@WooYek.com"
+  },
+  "homepage": "https://www.skool.com/Dev10x-1892",
+  "repository": "https://github.com/Dev10x-Guru/dev10x-claude",
+  "license": "MIT",
+  "keywords": ["herdr", "mission-control", "sessions", "worktrees", "orchestration"],
+  "dependencies": ["dev10x"]
+}
