@@ -54,7 +54,7 @@ class TestNamespaceRegister:
 
 class TestServerCli:
     def test_namespaces_list_the_tool_owning_plugins(self) -> None:
-        assert server_cli.CLI_NAMESPACES == ("core", "coding", "comm", "tasks", "teach")
+        assert server_cli.CLI_NAMESPACES == ("core", "coding", "comm", "herdr", "tasks", "teach")
 
     def test_register_namespaces_collects_every_namespace_module(self) -> None:
         expected: list[ModuleType] = []
@@ -73,6 +73,7 @@ class TestServerCli:
             ("pr_get", "dev10x.coding.mcp.github_tools"),
             ("run_tests", "dev10x.coding.mcp.runner_tools"),
             ("slack_thread_is_forward", "dev10x.comm.mcp.slack_tools"),
+            ("herdr_roster", "dev10x.herdr.mcp.roster_tools"),
             ("generate_skill_index", "dev10x.teach.mcp.skill_index_tools"),
         ],
     )

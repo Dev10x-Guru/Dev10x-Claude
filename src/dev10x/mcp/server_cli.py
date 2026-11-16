@@ -8,6 +8,7 @@ Tool handlers live in each plugin namespace's ``mcp/`` package
               knowledge resources/prompts, roots, sampling, usage
   - coding  — git, GitHub, monitor, release, test-runner handlers
   - comm    — Slack thread heuristics
+  - herdr   — Herdr session roster
   - tasks   — plan-sync and task-index handlers
   - teach   — session audit and skill-index handlers
 
@@ -29,7 +30,7 @@ from mcp.server.fastmcp import FastMCP
 from dev10x.core.mcp._app import server
 from dev10x.core.mcp.strict_args import enforce_strict_arguments
 
-CLI_NAMESPACES: tuple[str, ...] = ("core", "coding", "comm", "tasks", "teach")
+CLI_NAMESPACES: tuple[str, ...] = ("core", "coding", "comm", "herdr", "tasks", "teach")
 
 
 def register_namespaces(
