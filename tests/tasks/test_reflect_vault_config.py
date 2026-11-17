@@ -8,8 +8,8 @@ import pytest
 
 from dev10x.core.domain.common.result import ErrorResult, SuccessResult
 from dev10x.core.domain.dev10x_paths import Dev10xConfigDir
+from dev10x.core.domain.knowledge_vault import DEFAULT_FOLDERS
 from dev10x.tasks.reflect import VaultConfig, confine, resolve_vault_config
-from dev10x.tasks.reflect.vault_config import DEFAULT_FOLDERS
 
 
 @pytest.fixture
