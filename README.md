@@ -249,6 +249,7 @@ claude plugin install dev10x-teach@Dev10x-Guru   # optional: skill authoring, au
 claude plugin install dev10x-tasks@Dev10x-Guru   # optional: park, wrap-up, reflect
 claude plugin install dev10x-scoping@Dev10x-Guru # optional: tickets, scoping, ADRs, diagrams
 claude plugin install dev10x-coding@Dev10x-Guru  # commits, PRs, review, work-on (needs dev10x-tasks)
+claude plugin install dev10x-kb@Dev10x-Guru      # optional: lessons from videos, articles, podcasts (needs Obsidian)
 ```
 
 Run these in your shell, not inside a Claude Code session — the

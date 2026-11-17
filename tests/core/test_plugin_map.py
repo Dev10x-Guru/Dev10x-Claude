@@ -24,6 +24,7 @@ ADR_0034_COUNTS = {
     "scoping": 19,
     "core": 17,
     "coding": 40,
+    "kb": 1,
 }
 
 

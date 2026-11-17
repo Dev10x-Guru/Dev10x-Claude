@@ -1,0 +1,8 @@
+# Skill-index fragment for the kb plugin (GH-1985). Merged into
+# ../families.yaml by scripts/lib-families.sh.
+
+families:
+  - label: Knowledge
+    description: "Harvest lessons from videos, articles and podcasts"
+    skills:
+      - dev10x-kb:lesson-harvest

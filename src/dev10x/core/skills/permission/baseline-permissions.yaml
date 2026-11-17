@@ -237,6 +237,7 @@ groups:
       - Skill(dev10x-tasks:*)
       - Skill(dev10x-scoping:*)
       - Skill(dev10x-coding:*)
+      - Skill(dev10x-kb:*)
       # A path rule's leading `//` anchors at the filesystem root; a
       # single `/` anchors at the settings source instead (GH-1325).
       # Edit(path) covers all file-editing tools (Write, Edit,
@@ -313,6 +314,9 @@ groups:
       # GH-1822 — writes one line into a vault note under a lock; refuses
       # any path outside the configured vault
       - Bash(uvx dev10x skill reflect:*)
+      # GH-1985 — fetch writes only the temp work dir; persist and index
+      # write inside the configured vault and refuse any path outside it
+      - Bash(uvx dev10x skill kb:*)
       # GH-1692 — binds 127.0.0.1 only; `unit` prints and installs nothing
       - Bash(uvx dev10x overwatch serve:*)
       - Bash(uvx dev10x overwatch unit:*)

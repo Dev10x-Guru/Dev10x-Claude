@@ -30,6 +30,7 @@ extracted:
   - tasks
   - scoping
   - coding
+  - kb
 dependencies:
   coding:
     - tasks
@@ -50,6 +51,7 @@ plugin_names:
   scoping: dev10x-scoping
   core: dev10x
   coding: dev10x-coding
+  kb: dev10x-kb
 plugins:
   qa:
     - playwright
@@ -169,3 +171,5 @@ plugins:
     - ticket-branch
     - verify-acc-dod
     - work-on
+  kb:
+    - lesson-harvest

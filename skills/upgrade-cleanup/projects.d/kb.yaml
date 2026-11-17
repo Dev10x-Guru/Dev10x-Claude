@@ -1,0 +1,15 @@
+# Permission-catalog fragment for the kb plugin (GH-1985). Merged into
+# ../projects.yaml by dev10x.core.skills.permission.catalog_paths; see
+# the base file's header for the catalog itself.
+
+# dev10x-kb:lesson-harvest: `config` and `link` only read; `fetch` writes
+# the temp work directory; `persist` and `index` write inside the
+# configured vault, under a lock, and refuse any path outside it.
+command_spellings:
+  - prefixes: ["", "uvx ", "uv run "]
+    commands:
+      - dev10x skill kb
+
+base_permissions:
+  # --- dev10x-kb skills (GH-1985) ---
+  - "Skill(dev10x-kb:*)"
