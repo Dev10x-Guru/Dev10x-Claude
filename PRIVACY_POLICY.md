@@ -85,6 +85,7 @@ with credentials you supply:
 | Postgres (databases via `dev10x-db:db-psql`) | Connection strings from `databases.yaml` (env or keyring) | Read-only SQL queries you submit; results returned locally |
 | Anthropic API (Claude review CI) | Repository `ANTHROPIC_API_KEY` secret | PR diffs, commit metadata, and review comments processed by GitHub-hosted Claude actions |
 | PyPI (release CI only) | Trusted-publisher OIDC | Plugin distribution artifacts |
+| Lesson sources (`dev10x-kb:lesson-harvest`) | None (anonymous GETs) | For each link you paste: YouTube metadata and captions read by your local `yt-dlp`; web pages read by your local `defuddle`; for a Spotify episode, its public page at `open.spotify.com`, the show title sent as a search query to `itunes.apple.com/search`, then up to ten public RSS feeds that search names and the episode audio, fetched from the hosts those feeds name. `whisper-ctranslate2` transcribes the audio on your machine and downloads its speech model from its model host on first use. Claims the skill fact-checks are sent as search queries through your assistant's own web search tool. Transcripts, articles and audio stay on your machine and in your vault |
 | PyPI JSON API (`dev10x deps sweep`) | None (anonymous, read-only) | Names of pinned distributions from this repo's dependency declarations, sent to `pypi.org/pypi/<name>/json` to read the current stable version when you (or the scheduled workflow) run the sweep |
 
 Each integration is governed by the upstream vendor's own

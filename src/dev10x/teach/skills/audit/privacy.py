@@ -187,6 +187,12 @@ _NET_IMPORT_EXEMPT_PATHS: tuple[str, ...] = (
     # the status code. Caller-invoked, no fixed destination, no data sent.
     # Covered by the wait_for bullet in PRIVACY_POLICY.md (GH-1833).
     "src/dev10x/coding/monitor/wait_for.py",
+    # Lesson harvest: `dev10x skill kb fetch` reads the public Spotify
+    # episode page, the iTunes Search API, the public RSS feeds it names
+    # and the audio enclosure for a link the user pasted. Anonymous
+    # http(s) GETs only; the show title is the one value sent as a query.
+    # Covered by the lesson-harvest row in PRIVACY_POLICY.md (GH-1985).
+    "src/dev10x/kb/http.py",
 )
 
 # Files exempt from service detection. The scanner defines the
