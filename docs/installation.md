@@ -161,6 +161,23 @@ and carried its `dev10x:` prefix: install each `dev10x-*` plugin whose
 skills you used, then run `/dev10x:upgrade-cleanup` to rewrite the old
 names in your configs.
 
+The knowledge-harvest skill, `dev10x-kb:lesson-harvest`, is new and
+ships as `dev10x-kb`; it was never part of `dev10x`.
+It turns YouTube videos, web articles and Spotify podcast episodes
+into fact-checked lessons filed in an Obsidian vault.
+Install it where you keep an Obsidian vault; it brings `dev10x` with
+it and reads the vault from the same `knowledge-vault.yaml` as
+`dev10x-tasks:reflect`.
+It needs Obsidian with its command line interface enabled, plus
+`yt-dlp` for YouTube, `defuddle` for web pages and
+`whisper-ctranslate2` for podcast audio.
+With a readable `knowledge-vault.yaml`, `uvx dev10x skill kb config`
+reports which of them are missing:
+
+```bash
+claude plugin install dev10x-kb@Dev10x-Guru
+```
+
 Update to the latest version:
 
 ```bash

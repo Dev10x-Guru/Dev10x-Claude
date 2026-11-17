@@ -73,6 +73,13 @@
       "description": "v0.117.0.dev0 — 40 skills for coding: structured commits, PR lifecycle, branch hygiene, code review, test runs, and the work-on, fanout and foreman orchestrators.",
       "version": "0.117.0.dev0",
       "keywords": ["git", "commits", "pull-requests", "code-review", "work-on"]
+    },
+    {
+      "name": "dev10x-kb",
+      "source": "./plugins/kb",
+      "description": "v0.117.0.dev0 — 1 skill for knowledge harvesting: turn YouTube videos, web articles and Spotify episodes into fact-checked lessons filed in an Obsidian vault.",
+      "version": "0.117.0.dev0",
+      "keywords": ["knowledge", "obsidian", "youtube", "podcast", "lessons"]
     }
   ]
 }

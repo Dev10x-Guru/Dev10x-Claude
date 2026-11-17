@@ -164,6 +164,7 @@ EXPECTED_FAMILIES = {
     "Testing": "coding",
     "Ops": "coding",
     "Reports": "coding",
+    "Knowledge": "kb",
 }
 
 DEV10X_PLUGIN_NAMES = frozenset(load_plugin_map().known_plugin_names())

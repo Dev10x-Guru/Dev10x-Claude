@@ -1,0 +1,138 @@
+{
+  "skill_name": "dev10x-kb:lesson-harvest",
+  "eval_dimensions": [
+    {
+      "id": "task-tracking",
+      "name": "Task Tracking",
+      "description": "Creates the seven phase tasks at startup and completes each as its phase ends"
+    },
+    {
+      "id": "prerequisites",
+      "name": "Prerequisites",
+      "description": "Runs `dev10x skill kb config` first; stops when Obsidian is missing and drops links whose tool is missing, printing the install command"
+    },
+    {
+      "id": "model-tiers",
+      "name": "Model Tiers",
+      "description": "Fetch agents run on haiku in waves of at most 5; insight agents run on opus; the main session never reads transcripts"
+    },
+    {
+      "id": "bounded-verification",
+      "name": "Bounded Verification",
+      "description": "Checkable claims are verified with at most 3 waves of at most 2 WebSearch queries, each verdict cited"
+    },
+    {
+      "id": "vault-writes",
+      "name": "Vault Writes",
+      "description": "Persists and indexes through the kb CLI, appends to the daily note with Read+Edit, and skips steps whose place is unset"
+    },
+    {
+      "id": "decision-gates",
+      "name": "Decision Gates",
+      "description": "A lesson contradicting a topic page's Current guidance fires AskUserQuestion whose recommended option follows the page status"
+    }
+  ],
+  "evals": [
+    {
+      "id": "missing-obsidian-stops",
+      "name": "Missing Obsidian stops before any fetch",
+      "description": "The config report shows tools.obsidian.path null.",
+      "input": "harvest lessons from https://youtu.be/abc",
+      "setup": {"tools": {"obsidian": {"path": null}}},
+      "assertions": [
+        {"dimension": "prerequisites", "check": "tool_parameters", "tool": "Bash", "value": "dev10x skill kb config", "signal": "A Bash command contains 'dev10x skill kb config'"},
+        {"dimension": "prerequisites", "check": "output_contains", "value": "command line interface", "signal": "Prints the Obsidian install text"},
+        {"dimension": "prerequisites", "check": "behavioral", "value": "no-fetch", "signal": "No 'dev10x skill kb fetch' call follows"}
+      ]
+    },
+    {
+      "id": "missing-tool-drops-its-links",
+      "name": "A missing source tool drops only its links",
+      "description": "defuddle is not installed; the batch mixes a YouTube link and a web article.",
+      "input": "lessons from https://youtu.be/abc123 and https://example.com/post",
+      "setup": {"tools": {"obsidian": {"path": "/bin/obsidian"}, "yt-dlp": {"path": "/bin/yt-dlp"}, "defuddle": {"path": null}}},
+      "assertions": [
+        {"dimension": "prerequisites", "check": "tool_called_before", "signals": ["dev10x skill kb config", "dev10x skill kb fetch"], "signal": "Config is read before the first fetch"},
+        {"dimension": "prerequisites", "check": "output_contains", "value": "npm install -g defuddle", "signal": "Prints the defuddle install command"},
+        {"dimension": "prerequisites", "check": "behavioral", "value": "web-link-dropped", "signal": "No fetch call carries https://example.com/post; the YouTube link is still fetched"}
+      ]
+    },
+    {
+      "id": "mixed-batch-fans-out",
+      "name": "A mixed batch fans out by model tier",
+      "description": "Seven links: four YouTube, two web articles and one Spotify episode, with a configured vault.",
+      "input": "lessons from these: <4 youtube urls> <2 article urls> <1 spotify episode url>",
+      "setup": {"knowledge_vault_yaml": "vault: /tmp/vault\nkb:\n  hub: Hub.md\n"},
+      "assertions": [
+        {"dimension": "task-tracking", "check": "tool_called_before", "signals": ["TaskList", "TaskCreate(subject=\"Fetch sources\""], "signal": "TaskList runs before the phase tasks are created, so a play's tasks are reused"},
+        {"dimension": "task-tracking", "check": "tool_parameters", "tool": "TaskCreate", "value": "Apply the strategy lens", "signal": "All seven phase tasks are created, 'Fetch sources' through 'Apply the strategy lens'"},
+        {"dimension": "task-tracking", "check": "task_exists", "value": "Verify acceptance criteria", "signal": "A standalone run leaves Verify acceptance criteria open when the harvest tasks close"},
+        {"dimension": "model-tiers", "check": "behavioral", "value": "haiku-waves", "signal": "Fetch agents use model haiku and no message dispatches more than 5"},
+        {"dimension": "model-tiers", "check": "behavioral", "value": "opus-insight", "signal": "Insight agents use model opus"},
+        {"dimension": "model-tiers", "check": "behavioral", "value": "no-main-transcript-read", "signal": "The main session never Reads a <id>.txt file"},
+        {"dimension": "vault-writes", "check": "tool_parameters", "tool": "Bash", "value": "dev10x skill kb index", "signal": "A Bash command contains 'dev10x skill kb index' once per source"}
+      ]
+    },
+    {
+      "id": "verification-is-capped",
+      "name": "Claim checks stay within three waves",
+      "description": "Insight returns contain nine checkable claims.",
+      "input": "harvest and fact-check these talks",
+      "setup": {"checkable_claims": 9},
+      "assertions": [
+        {"dimension": "bounded-verification", "check": "behavioral", "value": "max-six-searches", "signal": "At most 6 WebSearch calls, at most 2 per message"},
+        {"dimension": "bounded-verification", "check": "output_contains", "value": "unchecked", "signal": "Claims beyond the cap are listed as unchecked"}
+      ]
+    },
+    {
+      "id": "unset-places-skip",
+      "name": "Unset places turn their phases off",
+      "description": "The vault is configured with no kb section.",
+      "input": "save today's videos to my daily note",
+      "setup": {"knowledge_vault_yaml": "vault: /tmp/vault\n"},
+      "assertions": [
+        {"dimension": "vault-writes", "check": "tool_parameters", "tool": "Bash", "value": "dev10x skill kb persist", "signal": "A Bash command contains 'dev10x skill kb persist' for each source"},
+        {"dimension": "vault-writes", "check": "output_contains", "value": "Skipped Index: kb.hub not configured", "signal": "Each unset place prints its one-line skip"},
+        {"dimension": "vault-writes", "check": "behavioral", "value": "no-people-or-topics", "signal": "No person or topic note is written"},
+        {"dimension": "vault-writes", "check": "behavioral", "value": "read-before-edit", "signal": "The daily note is Read before an Edit appends the section; no Write targets it"}
+      ]
+    },
+    {
+      "id": "contradiction-gate",
+      "name": "A contradicting lesson asks first",
+      "description": "Attended run; a new lesson contradicts an existing topic page's Current guidance.",
+      "input": "/dev10x-kb:lesson-harvest <url>",
+      "setup": {"knowledge_vault_yaml": "vault: /tmp/vault\nkb:\n  topics: Sources/Topics\n", "existing_notes": ["Sources/Topics/Hooks.md"], "topic_status": "verified", "attended": true},
+      "assertions": [
+        {"dimension": "decision-gates", "check": "tool_called", "tool": "AskUserQuestion", "assertion": "gate1_uses_tool", "signal": "AskUserQuestion fires when the lesson contradicts Hooks.md's Current guidance"},
+        {"dimension": "decision-gates", "check": "tool_parameters", "tool": "AskUserQuestion", "assertion": "gate1_correct_options", "signal": "Options are ['Record under Contradictions (Recommended)', 'Rewrite the guidance', 'Skip this lesson for the topic page'], recommended first because Hooks.md is verified"},
+        {"dimension": "decision-gates", "check": "plain_text", "assertion": "gate1_no_plain_text", "signal": "No inline 'Should I rewrite the guidance?' before the tool call"},
+        {"dimension": "decision-gates", "check": "behavioral", "value": "no-auto-resolve", "signal": "Hooks.md is not edited before the user answers"}
+      ]
+    },
+    {
+      "id": "contradiction-gate-draft",
+      "name": "Draft guidance recommends a rewrite",
+      "description": "Attended run; the contradicted topic page has status: draft in its frontmatter.",
+      "input": "/dev10x-kb:lesson-harvest <url>",
+      "setup": {"knowledge_vault_yaml": "vault: /tmp/vault\nkb:\n  topics: Sources/Topics\n", "existing_notes": ["Sources/Topics/Hooks.md"], "topic_status": "draft", "attended": true},
+      "assertions": [
+        {"dimension": "decision-gates", "check": "tool_called", "tool": "AskUserQuestion", "assertion": "gate1_draft_uses_tool", "signal": "AskUserQuestion fires for the contradicted draft page"},
+        {"dimension": "decision-gates", "check": "tool_parameters", "tool": "AskUserQuestion", "assertion": "gate1_draft_options", "signal": "Options are ['Rewrite the guidance (Recommended)', 'Record under Contradictions', 'Skip this lesson for the topic page'], recommended first because Hooks.md is draft"}
+      ]
+    }
+  ],
+  "trigger_evals": {
+    "description": "Queries that should/should-not trigger dev10x-kb:lesson-harvest",
+    "should_trigger": [
+      {"query": "https://youtu.be/abc https://youtu.be/def lessons please", "rationale": "Batch of video links"},
+      {"query": "what are the takeaways from this article https://example.com/post", "rationale": "Web article lessons"},
+      {"query": "summarize this podcast episode https://open.spotify.com/episode/7ywcdUyAXA3dNFKU4xjFeY", "rationale": "Spotify episode"},
+      {"query": "what do my saved videos say about hooks?", "rationale": "Corpus question answered from topic pages"}
+    ],
+    "should_not_trigger": [
+      {"query": "reflect on this session", "rationale": "Session lessons — use dev10x-tasks:reflect"},
+      {"query": "upload this QA video to YouTube", "rationale": "Publishing — use dev10x-qa:yt-upload"}
+    ]
+  }
+}

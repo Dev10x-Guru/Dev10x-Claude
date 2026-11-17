@@ -17,6 +17,7 @@ namespaces:
   dev10x.dependency_pins: core
   dev10x.dependency_sweep: core
   dev10x.infra: infra
+  dev10x.kb: kb
   dev10x.mcp: core
   dev10x.qa: qa
   dev10x.repo_scan: core

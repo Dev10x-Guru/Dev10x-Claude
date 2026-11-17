@@ -140,8 +140,8 @@ PLUGIN_KEYS = sorted(load_plugin_map().plugins)
 
 
 class TestTargetPackages:
-    def test_there_are_nine_target_namespaces(self) -> None:
-        assert len(PLUGIN_KEYS) == 9
+    def test_there_are_ten_target_namespaces(self) -> None:
+        assert len(PLUGIN_KEYS) == 10
 
     @pytest.mark.parametrize("key", PLUGIN_KEYS)
     def test_target_package_imports(self, key: str) -> None:
