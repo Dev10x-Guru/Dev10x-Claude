@@ -147,7 +147,7 @@ class TestWriteRecord:
             "has_transcript": True,
         }
 
-    def test_marks_missing_transcript(self, record: SourceRecord, tmp_path: Path) -> None:
+    def test_marks_missing_transcript(self, tmp_path: Path) -> None:
         bare = SourceRecord(id="web-x", kind=SourceKind.WEB, url="https://e.com", title="T")
 
         result = write_record(record=bare, directory=tmp_path)
@@ -164,6 +164,7 @@ class TestWriteRecord:
         result = write_record(record=bad, directory=tmp_path)
 
         assert isinstance(result, ErrorResult)
+        assert result.error == "unsafe source id '../x'"
 
     def test_reports_unwritable_directory(self, record: SourceRecord, tmp_path: Path) -> None:
         blocker = tmp_path / "file"
@@ -182,7 +183,8 @@ class TestWriteRecord:
         result = write_record(record=record)
 
         assert isinstance(result, SuccessResult)
-        assert result.value.text.parent == tmp_path / "Dev10x" / "kb" == workdir()
+        assert result.value.text.parent == tmp_path / "Dev10x" / "kb"
+        assert workdir() == tmp_path / "Dev10x" / "kb"
 
 
 @pytest.mark.parametrize(
@@ -274,8 +276,20 @@ class TestReadMeta:
         assert isinstance(result, SuccessResult)
         assert result.value == {"title": "T"}
 
-    @pytest.mark.parametrize("source_id", ["missing", "../escape"])
-    def test_rejects_missing_or_unsafe(self, source_id: str, tmp_path: Path) -> None:
+    @pytest.mark.parametrize(
+        ("source_id", "message"),
+        [("missing", "run `dev10x skill kb fetch` first"), ("../escape", "unsafe source id")],
+    )
+    def test_rejects_missing_or_unsafe(self, source_id: str, message: str, tmp_path: Path) -> None:
         result = read_meta(source_id=source_id, directory=tmp_path)
 
         assert isinstance(result, ErrorResult)
+        assert message in result.error
+
+    def test_rejects_empty_meta(self, tmp_path: Path) -> None:
+        (tmp_path / "web-a.meta.txt").write_text("")
+
+        result = read_meta(source_id="web-a", directory=tmp_path)
+
+        assert isinstance(result, ErrorResult)
+        assert "missing or empty" in result.error
