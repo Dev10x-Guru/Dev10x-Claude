@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import subprocess
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -42,43 +41,52 @@ hello there
 a &gt; b &amp; c
 """
 
-Runner = Callable[..., subprocess.CompletedProcess[str]]
+pytestmark = pytest.mark.usefixtures("tools_installed")
+
+Install = Callable[..., None]
 
 
-def _completed(*, returncode: int = 0, stdout: str = "", stderr: str = "") -> Any:
-    return subprocess.CompletedProcess(
-        args=[], returncode=returncode, stdout=stdout, stderr=stderr
-    )
+@pytest.fixture
+def yt_dlp(monkeypatch: pytest.MonkeyPatch, completed: Any) -> Install:
+    """Fake yt-dlp: the metadata call and the caption call, dispatched by flag."""
+
+    def install(
+        *,
+        metadata: Any,
+        captions: dict[str, str],
+        caption_outcome: Any = None,
+        overrides: dict[str, Callable[[list[str]], Any]] | None = None,
+    ) -> None:
+        caption_result = caption_outcome or completed()
+
+        def write_captions(args: list[str]) -> Any:
+            target = Path(args[args.index("-o") + 1]).parent
+            for name, text in captions.items():
+                (target / name).write_text(text)
+            return caption_result
+
+        handlers = {
+            "--dump-single-json": lambda args: metadata,
+            "--skip-download": write_captions,
+            **(overrides or {}),
+        }
+        monkeypatch.setattr(subprocess_utils, "run", lambda args, **_: handlers[args[1]](args))
+
+    return install
 
 
-@pytest.fixture(autouse=True)
-def installed(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("shutil.which", lambda name: f"/bin/{name}")
-
-
-def _runner(*, metadata: Any, captions: dict[str, str], caption_exit: Any = None) -> Runner:
-    def run(args: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
-        if "--dump-single-json" in args:
-            return metadata
-        target = Path(args[args.index("-o") + 1]).parent
-        for name, text in captions.items():
-            (target / name).write_text(text)
-        return caption_exit or _completed()
-
-    return run
+@pytest.fixture
+def meta_ok(completed: Any) -> Any:
+    return completed(stdout=json.dumps(META))
 
 
 def test_clean_vtt_drops_headers_timings_tags_and_repeats() -> None:
     assert youtube.clean_vtt(VTT) == "hello there\na > b & c"
 
 
-def test_unsafe_metadata_id_falls_back_to_the_link_id(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_unsafe_metadata_id_falls_back_to_the_link_id(yt_dlp: Install, completed: Any) -> None:
     hostile = {**META, "id": "../../etc/x*"}
-    monkeypatch.setattr(
-        subprocess_utils,
-        "run",
-        _runner(metadata=_completed(stdout=json.dumps(hostile)), captions={"vid1.en.vtt": VTT}),
-    )
+    yt_dlp(metadata=completed(stdout=json.dumps(hostile)), captions={"vid1.en.vtt": VTT})
 
     result = youtube.fetch_youtube(REF)
 
@@ -90,36 +98,24 @@ def test_unsafe_metadata_id_falls_back_to_the_link_id(monkeypatch: pytest.Monkey
 
 
 def test_failed_caption_download_is_logged(
-    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    yt_dlp: Install, meta_ok: Any, completed: Any, caplog: pytest.LogCaptureFixture
 ) -> None:
-    monkeypatch.setattr(
-        subprocess_utils,
-        "run",
-        _runner(
-            metadata=_completed(stdout=json.dumps(META)),
-            captions={},
-            caption_exit=_completed(returncode=1, stderr="HTTP Error 429"),
-        ),
+    yt_dlp(
+        metadata=meta_ok,
+        captions={},
+        caption_outcome=completed(returncode=1, stderr="HTTP Error 429"),
     )
 
     result = youtube.fetch_youtube(REF)
 
     assert isinstance(result, SuccessResult)
-    assert (result.value.transcript, caplog.records[-1].getMessage()) == (
-        "",
-        "caption download failed",
-    )
+    assert result.value.transcript == ""
+    assert caplog.records[-1].getMessage() == "caption download failed"
 
 
 class TestFetchYoutube:
-    def test_builds_record_with_metrics_and_captions(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.setattr(
-            subprocess_utils,
-            "run",
-            _runner(metadata=_completed(stdout=json.dumps(META)), captions={"vid1.en.vtt": VTT}),
-        )
+    def test_builds_record_with_metrics_and_captions(self, yt_dlp: Install, meta_ok: Any) -> None:
+        yt_dlp(metadata=meta_ok, captions={"vid1.en.vtt": VTT})
 
         result = youtube.fetch_youtube(REF)
 
@@ -138,55 +134,34 @@ class TestFetchYoutube:
             "channel_subs": "2000",
         }
 
-    def test_prefers_english_over_other_original_captions(
-        self, monkeypatch: pytest.MonkeyPatch
+    @pytest.mark.parametrize(
+        ("captions", "transcript"),
+        [
+            ({"vid1.en.vtt": "WEBVTT\n\nenglish", "vid1.pl-orig.vtt": "WEBVTT\n\npl"}, "english"),
+            ({"vid1.en-orig.vtt": "WEBVTT\n\norig", "vid1.en.vtt": "WEBVTT\n\nen"}, "orig"),
+            ({"vid1.en-orig.vtt": "", "vid1.de.vtt": "WEBVTT\n\ndeutsch"}, "deutsch"),
+            ({}, ""),
+        ],
+        ids=["english-over-other-original", "original-english-first", "skips-empty", "none"],
+    )
+    def test_picks_captions_by_preference(
+        self, captions: dict[str, str], transcript: str, yt_dlp: Install, meta_ok: Any
     ) -> None:
-        captions = {"vid1.en.vtt": "WEBVTT\n\nenglish", "vid1.pl-orig.vtt": "WEBVTT\n\npolski"}
-        monkeypatch.setattr(
-            subprocess_utils,
-            "run",
-            _runner(metadata=_completed(stdout=json.dumps(META)), captions=captions),
-        )
+        yt_dlp(metadata=meta_ok, captions=captions)
 
         result = youtube.fetch_youtube(REF)
 
         assert isinstance(result, SuccessResult)
-        assert result.value.transcript == "english"
-
-    def test_skips_empty_caption_files(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        captions = {"vid1.en-orig.vtt": "", "vid1.de.vtt": "WEBVTT\n\ndeutsch"}
-        monkeypatch.setattr(
-            subprocess_utils,
-            "run",
-            _runner(metadata=_completed(stdout=json.dumps(META)), captions=captions),
-        )
-
-        result = youtube.fetch_youtube(REF)
-
-        assert isinstance(result, SuccessResult)
-        assert result.value.transcript == "deutsch"
-
-    def test_no_captions_leaves_transcript_empty(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr(
-            subprocess_utils,
-            "run",
-            _runner(metadata=_completed(stdout=json.dumps(META)), captions={}),
-        )
-
-        result = youtube.fetch_youtube(REF)
-
-        assert isinstance(result, SuccessResult)
-        assert result.value.transcript == ""
+        assert result.value.transcript == transcript
 
     def test_caption_timeout_leaves_transcript_empty(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, yt_dlp: Install, meta_ok: Any, timeout_run: Callable[..., Any]
     ) -> None:
-        def run(args: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
-            if "--dump-single-json" in args:
-                return _completed(stdout=json.dumps(META))
-            raise subprocess.TimeoutExpired(cmd=args, timeout=1)
-
-        monkeypatch.setattr(subprocess_utils, "run", run)
+        yt_dlp(
+            metadata=meta_ok,
+            captions={},
+            overrides={"--skip-download": lambda args: timeout_run(args)},
+        )
 
         result = youtube.fetch_youtube(REF)
 
@@ -194,33 +169,32 @@ class TestFetchYoutube:
         assert result.value.transcript == ""
 
     @pytest.mark.parametrize(
-        ("metadata", "message"),
+        ("outcome", "message"),
         [
-            (_completed(returncode=1, stderr="ERROR: private video"), "private video"),
-            (_completed(stdout="not json"), "unreadable metadata"),
-            (_completed(stdout="[]"), "unexpected metadata"),
+            ({"returncode": 1, "stderr": "ERROR: private video"}, "private video"),
+            ({"stdout": "not json"}, "unreadable metadata"),
+            ({"stdout": "[]"}, "unexpected metadata"),
         ],
     )
     def test_reports_metadata_failures(
-        self, metadata: Any, message: str, monkeypatch: pytest.MonkeyPatch
+        self, outcome: dict[str, Any], message: str, yt_dlp: Install, completed: Any
     ) -> None:
-        monkeypatch.setattr(subprocess_utils, "run", _runner(metadata=metadata, captions={}))
+        yt_dlp(metadata=completed(**outcome), captions={})
 
         result = youtube.fetch_youtube(REF)
 
         assert isinstance(result, ErrorResult)
         assert message in result.error
 
-    def test_reports_metadata_timeout(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        def run(args: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
-            raise subprocess.TimeoutExpired(cmd=args, timeout=1)
-
-        monkeypatch.setattr(subprocess_utils, "run", run)
+    def test_reports_metadata_timeout(
+        self, monkeypatch: pytest.MonkeyPatch, timeout_run: Callable[..., Any]
+    ) -> None:
+        monkeypatch.setattr(subprocess_utils, "run", timeout_run)
 
         result = youtube.fetch_youtube(REF)
 
         assert isinstance(result, ErrorResult)
-        assert "Please try again" in result.error
+        assert result.error == f"yt-dlp timed out reading {REF.url}. Please try again."
 
     def test_missing_yt_dlp_names_install_command(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr("shutil.which", lambda name: None)

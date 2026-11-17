@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -46,28 +45,24 @@ REAL_FEED = f"""<rss {ITUNES}><channel><itunes:author>Host</itunes:author>
 <enclosure url="https://cdn/504.mp3"/><itunes:author>Guest Host</itunes:author></item>
 </channel></rss>""".encode()
 IMPOSTOR_FEED = b"<rss><channel><item><title>Something else</title></item></channel></rss>"
+SEARCH_URL = spotify.ITUNES_SEARCH.format(term="Example%20Podcast")
 
-
-def _completed(*, returncode: int = 0, stderr: str = "") -> Any:
-    return subprocess.CompletedProcess(args=[], returncode=returncode, stdout="", stderr=stderr)
-
-
-@pytest.fixture(autouse=True)
-def installed(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("shutil.which", lambda name: f"/bin/{name}")
+pytestmark = pytest.mark.usefixtures("tools_installed")
 
 
 @pytest.fixture
 def web(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
+    """Every URL the adapter may request; an unexpected one raises KeyError."""
     pages: dict[str, Any] = {
         REF.url: ok(PAGE.encode()),
+        SEARCH_URL: ok(SEARCH),
         "https://impostor/feed": ok(IMPOSTOR_FEED),
         "https://real/feed": ok(REAL_FEED),
         "https://other/feed": err("unreachable"),
     }
 
     def fetch(*, url: str, **_: Any) -> Any:
-        return pages.get(url, ok(SEARCH))
+        return pages[url]
 
     def download(*, url: str, destination: Path, **_: Any) -> Any:
         destination.write_bytes(url.encode())
@@ -79,14 +74,14 @@ def web(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
 
 
 @pytest.fixture
-def whisper(monkeypatch: pytest.MonkeyPatch) -> list[list[str]]:
+def whisper(monkeypatch: pytest.MonkeyPatch, completed: Any) -> list[list[str]]:
     calls: list[list[str]] = []
 
     def run(args: list[str], **_: Any) -> Any:
         calls.append(args)
         out = Path(args[args.index("--output_dir") + 1])
         (out / "episode.txt").write_text("spoken words\n")
-        return _completed()
+        return completed()
 
     monkeypatch.setattr(subprocess_utils, "run", run)
     return calls
@@ -198,32 +193,36 @@ class TestTranscribe:
         )
 
     @pytest.mark.parametrize(
-        ("completed", "message"),
+        ("outcome", "message"),
         [
-            (_completed(returncode=1, stderr="CUDA error"), "CUDA error"),
-            (_completed(), "no transcript"),
+            ({"returncode": 1, "stderr": "CUDA error"}, "whisper-ctranslate2 failed: CUDA error"),
+            ({}, "whisper-ctranslate2 produced no transcript"),
         ],
     )
     def test_reports_failures(
-        self, completed: Any, message: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+        self,
+        outcome: dict[str, Any],
+        message: str,
+        monkeypatch: pytest.MonkeyPatch,
+        completed: Any,
+        tmp_path: Path,
     ) -> None:
-        monkeypatch.setattr(subprocess_utils, "run", lambda args, **_: completed)
+        monkeypatch.setattr(subprocess_utils, "run", lambda args, **_: completed(**outcome))
 
         result = spotify.transcribe(binary="w", audio=tmp_path / "a", model="small")
 
         assert isinstance(result, ErrorResult)
-        assert message in result.error
+        assert result.error == message
 
-    def test_reports_timeout(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-        def run(args: list[str], **_: Any) -> Any:
-            raise subprocess.TimeoutExpired(cmd=args, timeout=1)
-
-        monkeypatch.setattr(subprocess_utils, "run", run)
+    def test_reports_timeout(
+        self, monkeypatch: pytest.MonkeyPatch, timeout_run: Any, tmp_path: Path
+    ) -> None:
+        monkeypatch.setattr(subprocess_utils, "run", timeout_run)
 
         result = spotify.transcribe(binary="w", audio=tmp_path / "a", model="small")
 
         assert isinstance(result, ErrorResult)
-        assert "Please try again" in result.error
+        assert result.error == "transcribing a timed out. Please try again."
 
 
 class TestFetchSpotify:
@@ -280,34 +279,30 @@ class TestFetchSpotify:
 
         monkeypatch.setattr(http, "fetch_bytes", recording)
         web[REF.url] = ok(PAGE.replace("Example Podcast ·", "AC/DC Talk ·").encode())
+        web[spotify.ITUNES_SEARCH.format(term="AC%2FDC%20Talk")] = ok(SEARCH)
 
         spotify.fetch_spotify(REF)
 
         assert seen[1].endswith("term=AC%2FDC%20Talk")
 
-    @pytest.mark.parametrize(
-        "broken",
-        [REF.url, "search"],
-    )
+    @pytest.mark.parametrize("broken", [REF.url, SEARCH_URL], ids=["episode-page", "search"])
     def test_reports_unreachable_pages(
-        self,
-        broken: str,
-        web: dict[str, Any],
-        whisper: list[list[str]],
-        monkeypatch: pytest.MonkeyPatch,
+        self, broken: str, web: dict[str, Any], whisper: list[list[str]]
     ) -> None:
-        def fetch(*, url: str, **_: Any) -> Any:
-            hit = url == broken or (broken == "search" and "itunes" in url)
-            return err("down") if hit else web.get(url, ok(SEARCH))
+        web[broken] = err("down")
 
-        monkeypatch.setattr(http, "fetch_bytes", fetch)
+        result = spotify.fetch_spotify(REF)
 
-        assert isinstance(spotify.fetch_spotify(REF), ErrorResult)
+        assert isinstance(result, ErrorResult)
+        assert result.error == "down"
 
     def test_reports_non_episode_page(self, web: dict[str, Any], whisper: list[list[str]]) -> None:
         web[REF.url] = ok(b"<html></html>")
 
-        assert isinstance(spotify.fetch_spotify(REF), ErrorResult)
+        result = spotify.fetch_spotify(REF)
+
+        assert isinstance(result, ErrorResult)
+        assert result.error == "the Spotify page carries no episode title and show name"
 
     def test_reports_failed_download(
         self, web: dict[str, Any], whisper: list[list[str]], monkeypatch: pytest.MonkeyPatch
@@ -320,11 +315,14 @@ class TestFetchSpotify:
         assert "cannot download" in result.error
 
     def test_reports_failed_transcription(
-        self, web: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+        self, web: dict[str, Any], monkeypatch: pytest.MonkeyPatch, completed: Any
     ) -> None:
-        monkeypatch.setattr(subprocess_utils, "run", lambda args, **_: _completed(returncode=1))
+        monkeypatch.setattr(subprocess_utils, "run", lambda args, **_: completed(returncode=1))
 
-        assert isinstance(spotify.fetch_spotify(REF), ErrorResult)
+        result = spotify.fetch_spotify(REF)
+
+        assert isinstance(result, ErrorResult)
+        assert result.error.startswith("whisper-ctranslate2 failed")
 
     def test_missing_whisper_names_install_command(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr("shutil.which", lambda name: None)

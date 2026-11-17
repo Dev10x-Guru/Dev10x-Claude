@@ -343,6 +343,11 @@ class Dev10xConfigDir:
         """Lock sidecars for vault notes, kept out of the vault (GH-1822)."""
         return cls._resolve("locks", "reflect")
 
+    @classmethod
+    def kb_locks_dir(cls) -> Path:
+        """Lock sidecars for the lesson-harvest hub note, kept out of the vault (GH-1985)."""
+        return cls._resolve("locks", "kb")
+
 
 def _with_lazy_migration(current: Path, legacy_provider: Callable[[], Path]) -> Path:
     migrate_path(legacy=legacy_provider(), current=current)

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-import subprocess
+from collections.abc import Callable
 from typing import Any
 
 import pytest
@@ -15,23 +15,14 @@ from dev10x.kb.web import fetch_web
 
 REF = SourceRef(kind=SourceKind.WEB, id="web-abc", url="https://example.com/post")
 
-
-def _completed(*, returncode: int = 0, stdout: str = "", stderr: str = "") -> Any:
-    return subprocess.CompletedProcess(
-        args=[], returncode=returncode, stdout=stdout, stderr=stderr
-    )
+pytestmark = pytest.mark.usefixtures("tools_installed")
 
 
-@pytest.fixture(autouse=True)
-def installed(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("shutil.which", lambda name: f"/bin/{name}")
+def _returns(monkeypatch: pytest.MonkeyPatch, outcome: Any) -> None:
+    monkeypatch.setattr(subprocess_utils, "run", lambda args, **_: outcome)
 
 
-def _returns(monkeypatch: pytest.MonkeyPatch, completed: Any) -> None:
-    monkeypatch.setattr(subprocess_utils, "run", lambda args, **_: completed)
-
-
-def test_maps_defuddle_fields(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_maps_defuddle_fields(monkeypatch: pytest.MonkeyPatch, completed: Any) -> None:
     page = {
         "title": "Post",
         "author": "",
@@ -41,7 +32,7 @@ def test_maps_defuddle_fields(monkeypatch: pytest.MonkeyPatch) -> None:
         "contentMarkdown": "# Body",
         "wordCount": 2,
     }
-    _returns(monkeypatch, _completed(stdout=json.dumps(page)))
+    _returns(monkeypatch, completed(stdout=json.dumps(page)))
 
     result = fetch_web(REF)
 
@@ -55,8 +46,8 @@ def test_maps_defuddle_fields(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
-def test_falls_back_to_url_and_domain(monkeypatch: pytest.MonkeyPatch) -> None:
-    _returns(monkeypatch, _completed(stdout=json.dumps({"domain": "example.com", "title": None})))
+def test_falls_back_to_url_and_domain(monkeypatch: pytest.MonkeyPatch, completed: Any) -> None:
+    _returns(monkeypatch, completed(stdout=json.dumps({"domain": "example.com", "title": None})))
 
     result = fetch_web(REF)
 
@@ -65,17 +56,17 @@ def test_falls_back_to_url_and_domain(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.mark.parametrize(
-    ("completed", "message"),
+    ("outcome", "message"),
     [
-        (_completed(returncode=1, stderr="fetch failed"), "fetch failed"),
-        (_completed(stdout="<html>"), "unreadable output"),
-        (_completed(stdout="[1]"), "unexpected output"),
+        ({"returncode": 1, "stderr": "fetch failed"}, "fetch failed"),
+        ({"stdout": "<html>"}, "unreadable output"),
+        ({"stdout": "[1]"}, "unexpected output"),
     ],
 )
 def test_reports_defuddle_failures(
-    completed: Any, message: str, monkeypatch: pytest.MonkeyPatch
+    outcome: dict[str, Any], message: str, monkeypatch: pytest.MonkeyPatch, completed: Any
 ) -> None:
-    _returns(monkeypatch, completed)
+    _returns(monkeypatch, completed(**outcome))
 
     result = fetch_web(REF)
 
@@ -83,16 +74,13 @@ def test_reports_defuddle_failures(
     assert message in result.error
 
 
-def test_reports_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
-    def run(args: list[str], **_: Any) -> Any:
-        raise subprocess.TimeoutExpired(cmd=args, timeout=1)
-
-    monkeypatch.setattr(subprocess_utils, "run", run)
+def test_reports_timeout(monkeypatch: pytest.MonkeyPatch, timeout_run: Callable[..., Any]) -> None:
+    monkeypatch.setattr(subprocess_utils, "run", timeout_run)
 
     result = fetch_web(REF)
 
     assert isinstance(result, ErrorResult)
-    assert "Please try again" in result.error
+    assert result.error == f"defuddle timed out reading {REF.url}. Please try again."
 
 
 def test_missing_defuddle_names_install_command(monkeypatch: pytest.MonkeyPatch) -> None:

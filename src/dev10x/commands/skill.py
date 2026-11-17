@@ -13,12 +13,13 @@ if TYPE_CHECKING:  # pragma: no cover
 
     from dev10x.comm.skills.notifications.gchat_notify import PostedMessage
     from dev10x.comm.skills.notifications.gchat_watch import Watch
+    from dev10x.kb.config import KbConfig
     from dev10x.tasks.reflect import VaultConfig
 
 
 @click.group()
 def skill() -> None:
-    """Skill script commands (audit, notify, permission, reflect, release-notes, rename)."""
+    """Skill script commands (audit, kb, notify, permission, reflect, release-notes, rename)."""
     from dev10x.core.diagnostic_log import configure_diagnostic_log
 
     configure_diagnostic_log(component="skill")
@@ -716,6 +717,132 @@ def reflect_log_add(*, folder: str, entry: str, day: datetime | None, create: bo
     if isinstance(result, ErrorResult):
         fail_json(error=result)
     click.echo(json.dumps(result.value.to_dict()))
+
+
+@skill.group()
+def kb() -> None:
+    """Lesson sources for dev10x-kb:lesson-harvest (GH-1985).
+
+    Every command prints one JSON object. `fetch` turns YouTube, web and
+    Spotify links into normalized records; `persist` and `index` write
+    them into the knowledge vault configured for `reflect`; `link` prints
+    the relative Markdown link between two notes.
+    """
+
+
+def _kb_config_or_fail() -> KbConfig:
+    from dev10x.commands.json_output import fail_json
+    from dev10x.core.session.repo_address import resolve_name_with_owner
+    from dev10x.kb.config import resolve_kb_config
+
+    address = resolve_name_with_owner()
+    if isinstance(address, ErrorResult):
+        resolved = resolve_kb_config(repo=None, repo_reason=address.error)
+    else:
+        resolved = resolve_kb_config(repo=address.value)
+    if isinstance(resolved, ErrorResult):
+        fail_json(error=resolved)
+    return resolved.value
+
+
+@kb.command(name="config")
+def kb_config() -> None:
+    """Print the resolved vault places and which external tools are installed."""
+    import json
+
+    from dev10x.kb.prerequisites import report
+
+    payload = {**_kb_config_or_fail().to_dict(), "tools": report()}
+    click.echo(json.dumps(payload, indent=2))
+
+
+@kb.command(name="fetch")
+@click.argument("urls", nargs=-1, required=True)
+@click.option("--model", default=None, help="Whisper model for podcast audio (default: config)")
+def kb_fetch(*, urls: tuple[str, ...], model: str | None) -> None:
+    """Fetch each link into <id>.txt and <id>.meta.txt in the work directory."""
+    import json
+
+    from dev10x.kb import fetch_source
+
+    chosen = model or _kb_config_or_fail().transcribe_model
+    records: list[dict[str, object]] = []
+    errors: list[dict[str, object]] = []
+    for url in urls:
+        result = fetch_source(url=url, model=chosen)
+        if isinstance(result, ErrorResult):
+            errors.append({"url": url, **result.to_dict()})
+        else:
+            records.append({"url": url, **result.value.to_dict()})
+    click.echo(json.dumps({"records": records, "errors": errors}, indent=2))
+    if not records:
+        sys.exit(1)
+
+
+@kb.command(name="persist")
+@click.option("--id", "source_id", required=True, help="Source id printed by `fetch`")
+@click.option(
+    "--dest",
+    required=True,
+    type=click.Path(path_type=Path),
+    help="Absolute attachment folder inside the vault",
+)
+@click.option("--name", required=True, help="'Speaker - Title' attachment name")
+def kb_persist(*, source_id: str, dest: Path, name: str) -> None:
+    """Copy a fetched record into the vault under a readable name."""
+    import json
+
+    from dev10x.commands.json_output import fail_json
+    from dev10x.kb.persist import persist_record
+
+    result = persist_record(
+        config=_kb_config_or_fail(), source_id=source_id, attachments=dest, name=name
+    )
+    if isinstance(result, ErrorResult):
+        fail_json(error=result)
+    click.echo(json.dumps(result.value.to_dict()))
+
+
+@kb.command(name="index")
+@click.option("--id", "source_id", required=True, help="Source id printed by `fetch`")
+@click.option("--name", required=True, help="Same 'Speaker - Title' passed to `persist`")
+@click.option("--structure", required=True, help="Beat chain, e.g. 'hook->mechanism->out'")
+@click.option(
+    "--note",
+    required=True,
+    type=click.Path(path_type=Path),
+    help="Absolute path of the note that cites the source",
+)
+def kb_index(*, source_id: str, name: str, structure: str, note: Path) -> None:
+    """Add or refresh the source's row in the hub note (locked, URL-keyed)."""
+    import json
+
+    from dev10x.commands.json_output import fail_json
+    from dev10x.kb.hub import upsert_hub_row
+
+    result = upsert_hub_row(
+        config=_kb_config_or_fail(),
+        source_id=source_id,
+        name=name,
+        structure=structure,
+        note=note,
+    )
+    if isinstance(result, ErrorResult):
+        fail_json(error=result)
+    click.echo(json.dumps(result.value.to_dict()))
+
+
+@kb.command(name="link")
+@click.argument("source", type=click.Path(path_type=Path))
+@click.argument("target", type=click.Path(path_type=Path))
+@click.argument("text", required=False)
+def kb_link(*, source: Path, target: Path, text: str | None) -> None:
+    """Print a percent-encoded relative Markdown link from SOURCE to TARGET."""
+    import json
+
+    from dev10x.kb.links import relative_link
+
+    click.echo(json.dumps({"link": relative_link(source=source, target=target, text=text)}))
 
 
 @skill.command(name="rename")
