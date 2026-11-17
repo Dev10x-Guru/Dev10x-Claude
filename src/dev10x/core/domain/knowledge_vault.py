@@ -1,4 +1,7 @@
-"""Resolve which knowledge vault `dev10x-tasks:reflect` writes into (GH-1822).
+"""Resolve the knowledge vault that reflection and harvesting write into.
+
+Shared by `dev10x-tasks:reflect` (GH-1822) and `dev10x-kb:lesson-harvest`
+(GH-1985), so it lives in core: one namespace may not import another.
 
 The vault is user configuration, never a path baked into the plugin: one
 person files lessons into an Obsidian vault on a synced drive, another
