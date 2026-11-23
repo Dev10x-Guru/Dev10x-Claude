@@ -327,7 +327,10 @@ _ROUTING_AND_CORE: list[str] = [
 _SHARED_RULES: list[tuple[str, str]] = [
     *[
         (document, _COVERAGE_FIRST)
-        for document in [*_ROUTING_AND_CORE, "plugins/coding/skills/review/references/domain-dispatch.md"]
+        for document in [
+            *_ROUTING_AND_CORE,
+            "plugins/coding/skills/review/references/domain-dispatch.md",
+        ]
     ],
     *[
         (document, rule)

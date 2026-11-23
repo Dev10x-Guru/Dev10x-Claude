@@ -139,7 +139,8 @@ class TestUpgradeFromVersionOne:
         raw.execute("PRAGMA user_version = 1")
         raw.execute(
             "INSERT INTO events (event_key, type, space, resource_name, sender, event_time,"
-            " received_at, source, payload) VALUES ('k', 't', 's', 'r', 'u', 'x', 'x', 'poll', '{}')"
+            " received_at, source, payload)"
+            " VALUES ('k', 't', 's', 'r', 'u', 'x', 'x', 'poll', '{}')"
         )
         raw.execute(
             "INSERT INTO commands (event_id, actor, verb, authorized, reason, created_at)"
