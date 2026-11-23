@@ -310,9 +310,7 @@ class TestDocumentedBlockedReasonsMatchTheScript:
         assert '"blocked_reason":"base_fetch_failed"' in source
 
     def test_the_skill_documents_the_new_reason(self) -> None:
-        skill = (_CODING_SKILLS / "git" / "SKILL.md").read_text(
-            encoding="utf-8"
-        )
+        skill = (_CODING_SKILLS / "git" / "SKILL.md").read_text(encoding="utf-8")
 
         assert "base_behind_remote" in skill
 

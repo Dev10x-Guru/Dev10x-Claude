@@ -85,17 +85,17 @@ Test that the orchestrator detects `SendMessage` errors and respawns:
 def test_session_death_triggers_respawn(mock_session_death, agent_spawn):
     """SendMessage failure triggers respawn, not resume."""
     orchestrator = MockOrchestrator(agents_to_spawn=1)
-    
+
     # Spawn first agent
     agent_1 = orchestrator.spawn_agent("Analyze PR")
-    
+
     # Session dies; SendMessage fails
     with pytest.raises(Exception, match="No transcript found"):
         orchestrator.send_message(to=agent_1.id, msg="continue")
-    
+
     # Orchestrator detects failure and respawns
     agent_2 = orchestrator.spawn_agent("Analyze PR")
-    
+
     # Verify respawn, not resume
     assert agent_1.id != agent_2.id
     assert agent_spawn.call_count == 2
@@ -122,12 +122,12 @@ def test_resumed_orchestrator_reads_handover(mock_issue_get):
     # Prior run posted handover to issue comment
     comments = mock_issue_get["comments"]
     assert "Handover:" in comments[0]["body"]
-    
+
     # Resumed orchestrator reads it
     handover = parse_handover_comments(comments)
     assert handover["pr_number"] == 123
     assert handover["status"] == "ready for review"
-    
+
     # Orchestrator acts on handover, not run directory
     assert "run_directory" not in input_to_orchestrator
 ```
@@ -145,10 +145,10 @@ Test that the orchestrator handles failures at each phase:
 def test_session_death_at_each_phase(failure_phase, mock_session_death):
     """Orchestrator recovers from session death at any phase."""
     orchestrator = MockOrchestrator()
-    
+
     # Spawn agent
     agent = orchestrator.spawn_agent("Work on PR")
-    
+
     if failure_phase == "after_agent_spawn":
         # Session dies immediately
         kill_session()
@@ -160,7 +160,7 @@ def test_session_death_at_each_phase(failure_phase, mock_session_death):
         # Agent posts PR comment, then session dies
         agent.post_comment_to_issue("PR ready at #123")
         kill_session()
-    
+
     # Resumed orchestrator recovers
     assert can_read_handover_comments()
     assert respawned_agent_count >= 1
