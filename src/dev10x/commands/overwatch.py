@@ -44,6 +44,7 @@ UNIT_TEMPLATE = """\
 Description=Dev10x session Overwatch page
 
 [Service]
+Environment=PATH={path}
 ExecStart={exec_start} overwatch serve --port {port} --uv {uv}
 Restart=always
 RestartSec=5
@@ -51,6 +52,15 @@ RestartSec=5
 [Install]
 WantedBy=default.target
 """
+
+SYSTEM_PATH_DIRS = (
+    "/usr/local/sbin",
+    "/usr/local/bin",
+    "/usr/sbin",
+    "/usr/bin",
+    "/sbin",
+    "/bin",
+)
 
 LIVE_NOTE = "a running `dev10x overwatch serve` picks this up within one poll, no restart"
 
@@ -194,6 +204,12 @@ def _uv_path() -> str:
     return shutil.which("uv") or "uv"
 
 
+def unit_path(*, executables: list[str]) -> str:
+    resolved = [str(Path(executable).parent) for executable in executables if "/" in executable]
+    ordered = [*resolved, str(Path.home() / ".local" / "bin"), *SYSTEM_PATH_DIRS]
+    return ":".join(dict.fromkeys(ordered))
+
+
 @click.group()
 def overwatch() -> None:
     """Watch every local Claude Code session from one localhost page."""
@@ -310,7 +326,15 @@ def unit(*, port: int) -> None:
     checkout is pinned with `dev pin`.
     """
     exec_start = shutil.which("dev10x") or "dev10x"
-    click.echo(UNIT_TEMPLATE.format(exec_start=exec_start, port=port, uv=_uv_path()))
+    uv = _uv_path()
+    click.echo(
+        UNIT_TEMPLATE.format(
+            exec_start=exec_start,
+            port=port,
+            uv=uv,
+            path=unit_path(executables=[exec_start, uv]),
+        )
+    )
 
 
 @overwatch.group(name="dev")

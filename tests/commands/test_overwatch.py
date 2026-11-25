@@ -34,6 +34,35 @@ def test_unit_prints_execstart(
     ) == (True, True, True)
 
 
+SYSTEM_DIRS = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+
+@pytest.mark.parametrize(
+    ("which", "expected"),
+    [
+        (
+            {"dev10x": "/home/u/.local/bin/dev10x", "uv": "/home/u/.local/bin/uv"},
+            f"/home/u/.local/bin:{SYSTEM_DIRS}",
+        ),
+        (
+            {"dev10x": "/opt/tools/dev10x", "uv": "/usr/bin/uv"},
+            f"/opt/tools:/usr/bin:/home/u/.local/bin:{SYSTEM_DIRS.replace('/usr/bin:', '')}",
+        ),
+        ({}, f"/home/u/.local/bin:{SYSTEM_DIRS}"),
+    ],
+    ids=["local-bin-deduplicated", "custom-dirs-first", "unresolved"],
+)
+def test_unit_pins_a_boot_safe_path(
+    monkeypatch: pytest.MonkeyPatch, which: dict[str, str], expected: str
+) -> None:
+    monkeypatch.setenv("HOME", "/home/u")
+    monkeypatch.setattr(command.shutil, "which", lambda name: which.get(name))
+
+    result = CliRunner().invoke(cli, ["overwatch", "unit"])
+
+    assert f"Environment=PATH={expected}\n" in result.output
+
+
 def test_there_is_no_dev_unit(config_home: Path) -> None:
     result = CliRunner().invoke(cli, ["overwatch", "unit", "--dev"])
 
