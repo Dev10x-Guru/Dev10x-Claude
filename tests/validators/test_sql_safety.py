@@ -486,18 +486,59 @@ class TestPsqlCommandPosition:
     @pytest.mark.parametrize(
         "command",
         [
-            "rg psql src",
-            "echo psql",
+            "bash <<'EOF'\npsql -c \"DROP TABLE x\"\nEOF",
+            "bash <<< psql",
+            "source <(echo psql -c 'DROP TABLE x')",
+            "eval $(echo psql -c x)",
+            "git submodule foreach psql -c x",
+            "git rebase -x psql",
+            "git bisect run psql",
+            "git difftool -x psql",
+            "git filter-branch --tree-filter psql",
+            'rlwrap -m psql -c "DROP TABLE x"',
+            "strace --output git psql",
+            "systemd-run --working-directory git psql",
+            "./git psql",
+            "/tmp/x/cat psql",
+        ],
+    )
+    def test_blocks_review_bypasses(self, validator: SqlSafetyValidator, command: str) -> None:
+        """PR #1999 review: develop blocks each of these, so the branch must too."""
+        result = validator.validate(inp=_make_input(command=command))
+
+        assert result is not None
+        assert "Direct psql calls" in result.message
+
+    @pytest.mark.parametrize(
+        "command",
+        [
             "git log --grep psql",
             "which psql",
             "man psql",
             "command -v psql",
-            "type psql",
             "ls /usr/bin/psql",
             "rg --pre-glob '*.gz' psql src",
+            "rg psql src; > out.txt",
+        ],
+    )
+    def test_word_rule_still_blocks_what_develop_blocks(
+        self, validator: SqlSafetyValidator, command: str
+    ) -> None:
+        """The walk only adds blocks; the word rule keeps develop's verdicts."""
+        result = validator.validate(inp=_make_input(command=command))
+
+        assert result is not None
+        assert "Direct psql calls" in result.message
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "rg psql src",
+            "echo psql",
+            "/usr/bin/rg psql src",
+            "/bin/echo psql",
             'rg psql "src',
             "echo $(echo psql) $(echo psql) $( )",
-            "rg psql src; > out.txt",
         ],
     )
     def test_allows_psql_as_an_operand(self, validator: SqlSafetyValidator, command: str) -> None:

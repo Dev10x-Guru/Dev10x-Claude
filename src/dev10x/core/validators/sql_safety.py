@@ -160,29 +160,59 @@ _PSQL_PROBE = ProgramProbe.for_program(program="psql")
 _PSQL_COMMAND_POSITION_RE = command_position_re(program="psql")
 
 
-# Programs that only search, print or look up their operands, so a bare
-# `psql` word after one of them names text, not a process (GH-1790). Any
-# other program handed a bare `psql` word may run it, through an option
-# or an unrecognised runner, so it fails closed (GH-1998). A program in
-# this set that can run one (`rg --pre`, `man -P`) nests it as a runner
-# body, judged on its own.
-_INSPECTION_PROGRAMS = frozenset(
+# Programs that only search or print their operands, so a `psql` token after
+# one of them is a pattern or text: `rg -n 'psql' projects.yaml` (GH-1790).
+_TEXT_ONLY_EXECUTABLES = frozenset(
     {"ack", "ag", "cat", "echo", "egrep", "fgrep", "grep", "head", "printf", "rg", "tail", "wc"}
-    | {"which", "whereis", "type", "man", "apropos", "whatis", "git", "ls", "file", "stat"}
 )
+# A text tool counts only by bare name or from a system bin directory:
+# `./cat psql` or `/tmp/x/cat psql` runs whatever that file is.
+_SYSTEM_BIN_DIRS = frozenset({"/bin", "/usr/bin", "/usr/local/bin"})
+# A segment that chains, substitutes, opens a subshell or process
+# substitution (`cat <( psql … )`), backgrounds, or spans a heredoc line
+# may run psql after the search tool; `rg --pre`, `rg --hostname-bin` and
+# `ag/ack --pager` run a program of their own. None of these is exempt.
+_EXEMPTION_BREAKERS_RE = re.compile(r"&|;|\n|`|[()]|--pre|--pager|--hostname-bin")
+
+
+def _is_text_only_program(word: str) -> bool:
+    directory, _, name = word.rpartition("/")
+    return name in _TEXT_ONLY_EXECUTABLES and (not directory or directory in _SYSTEM_BIN_DIRS)
+
+
+def _psql_is_an_operand(*, segment: str, parts: list[str]) -> bool:
+    if _EXEMPTION_BREAKERS_RE.search(segment):
+        return False
+    words = strip_command_wrappers(parts=parts)
+    return bool(words) and _is_text_only_program(words[0])
+
+
+def _psql_word_anywhere(*, command: str) -> bool:
+    """The fail-closed word rule: any bare ``psql`` word blocks (GH-1809).
+
+    Only a plain segment headed by a text tool is exempt, and a
+    ``docker exec`` / ``op run`` segment is left to the wrapped-write
+    check. The command-position walk adds blocks on top of this rule and
+    never removes one, so nothing this rule blocks can pass.
+    """
+    for segment in _split_pipe_segments(command):
+        segment = segment.strip()
+        try:
+            parts = shlex.split(segment)
+        except ValueError:
+            parts = []
+        if _is_exempt_psql_wrapper(parts):
+            continue
+        if any(_is_psql_binary(token) for token in parts) and not _psql_is_an_operand(
+            segment=segment, parts=parts
+        ):
+            return True
+    return False
 
 
 def _runs_psql(parts: list[str]) -> bool:
-    if _is_command_probe(parts=parts):
-        return False
     words = strip_command_wrappers(parts=parts)
-    if not words:
-        return False
-    if _is_psql_binary(words[0]):
-        return True
-    if Path(words[0]).name in _INSPECTION_PROGRAMS:
-        return False
-    return any(_is_psql_binary(word) for word in words[1:])
+    return bool(words) and _is_psql_binary(words[0])
 
 
 def _psql_units(*, command: str) -> Iterator[tuple[str, tuple[CommandSegment, ...] | None]]:
@@ -739,8 +769,11 @@ class SqlSafetyValidator(ValidatorBase):
     def _check_direct_psql(self, *, command: str) -> HookResult | None:
         """Block psql in command position, past wrappers and runners (GH-1809).
 
-        A ``psql`` word anywhere else is an operand (``rg psql src``,
-        ``echo psql``) and passes. An untokenizable unit fails closed on a
+        Two layers, each only adding blocks: the command-position walk
+        sees psql that runners, substitutions and chains launch, and the
+        word rule (:func:`_psql_word_anywhere`) still blocks any bare
+        ``psql`` word outside a plain text-tool segment (``rg psql src``,
+        ``echo psql``). An untokenizable unit fails closed on a
         command-position match.
         """
         if not _PSQL_PROBE.found_in(command=command):
@@ -759,6 +792,8 @@ class SqlSafetyValidator(ValidatorBase):
                     continue
                 if _runs_psql(parts):
                     return HookResult(message=DIRECT_PSQL_MSG)
+        if _psql_word_anywhere(command=command):
+            return HookResult(message=DIRECT_PSQL_MSG)
         return None
 
     def _check_sql_content(self, *, command: str) -> HookResult | None:
