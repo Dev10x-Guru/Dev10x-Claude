@@ -32,9 +32,6 @@ base_permissions:
   # --- dev10x-coding skills (GH-1572) ---
   - "Skill(dev10x-coding:*)"
   # --- Dev10x MCP tools: cli server (GH-878) ---
-  # GH-1572: gh-pr-create reads a ticket's comments through this tool
-  # now that core's gh-context scripts sit outside the satellite's root.
-  - "mcp__plugin_dev10x_cli__issue_comments"
   - "mcp__plugin_dev10x_cli__pr_comment_reply"
   - "mcp__plugin_dev10x_cli__pr_review_comment_edit"
   - "mcp__plugin_dev10x_cli__request_review"

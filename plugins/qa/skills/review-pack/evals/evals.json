@@ -236,6 +236,34 @@
       ]
     },
     {
+      "id": "no-ticket-video-gets-pr-comment",
+      "name": "An exploratory video with no QA ticket still ends as a PR QA comment with the poster",
+      "description": "yt-upload returned thumbnail_may_404: true and no QA ticket exists (GH-1991)",
+      "input": "/dev10x-qa:review-pack build the pack for the redirect-after-save PR; the video is uploaded, there is no QA ticket",
+      "assertions": [
+        {
+          "dimension": "delegation",
+          "check": "tool_called",
+          "tool": "mcp__plugin_dev10x_cli__pr_issue_comment",
+          "assertion": "qa_comment_posted_without_ticket",
+          "signal": "A PR comment with the linked poster frame, verdict and caveat is posted even though no ticket exists"
+        },
+        {
+          "dimension": "delegation",
+          "check": "behavioral",
+          "assertion": "poster_kept_on_404",
+          "signal": "The poster embed is kept: the thumbnail is re-probed after a wait and the comment is never downgraded to a plain text link"
+        },
+        {
+          "dimension": "gate-enforcement",
+          "check": "tool_called",
+          "tool": "mcp__plugin_dev10x_cli__issue_comments",
+          "assertion": "presend_verifies_qa_comment",
+          "signal": "The pre-send gate reads the PR comments and confirms the QA comment carries the poster before review is requested"
+        }
+      ]
+    },
+    {
       "id": "pack-has-five-sections",
       "name": "The pack follows the template",
       "description": "A UI change with configured evidence repo",

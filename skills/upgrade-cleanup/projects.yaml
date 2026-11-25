@@ -181,6 +181,9 @@ base_permissions:
   - "mcp__plugin_dev10x_cli__detect_tracker"
   - "mcp__plugin_dev10x_cli__pr_detect"
   - "mcp__plugin_dev10x_cli__issue_get"
+  # GH-1572 / GH-1991: read by gh-pr-create and review-pack, so several
+  # plugins declare it and it lives in core.
+  - "mcp__plugin_dev10x_cli__issue_comments"
   - "mcp__plugin_dev10x_cli__issue_comment_edit"
   - "mcp__plugin_dev10x_cli__issue_comment_delete"
   - "mcp__plugin_dev10x_cli__issue_create"

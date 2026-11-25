@@ -127,7 +127,7 @@ most of it — to `skills/foreman/references/` and leave a pointer.
   `references/spec-gate.md` and `references/domain-dispatch.md`.
   Split plan: move § Step 5's confidence-threshold destination note and
   § Design Note (`--post-to-pr`) to `references/` first
-- `review-pack` (~266 lines, GH-1878, GH-1899, GH-1912, GH-1828) — the
+- `review-pack` (~274 lines, GH-1878, GH-1899, GH-1912, GH-1828, GH-1991) — the
   pre-send gate, its pack-only resolver branch and the stale-video
   refusal are execution-gating and stay inline; the freshness check's
   flags and verdicts live in

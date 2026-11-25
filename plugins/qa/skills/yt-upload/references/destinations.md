@@ -74,10 +74,13 @@ timer. `upload` therefore returns `thumbnail_may_404: true`.
 come up together. Any advice of the form "fall back to hqdefault, which
 always exists" is wrong during this window.
 
-Probe the thumbnail before committing to a poster. If it is not ready, post
-the comment with a plain link and edit the poster in afterwards — a broken
-image is worse than a link, because it reads as a mistake rather than as a
-pending asset.
+Probe the thumbnail before posting the poster. If it is not ready, **wait and
+probe again** — the poster embed stays; never downgrade it to a plain text
+link (GH-1991: a text link shipped, and both posters returned 200 minutes
+later). Post the comment once the probe answers 200, or post it with the
+embed and leave it: the 404 resolves itself. The PR QA comment is the
+destination for every self-QA video, with or without a ticket; see
+`review-pack/references/publishing.md`.
 
 ## The image hosts do not cross over
 
