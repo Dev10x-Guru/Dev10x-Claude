@@ -725,6 +725,99 @@ class TestReasonNamesWinningLayer:
         assert via_overlay.effect is GateEffect.AUTO_ADVANCE
 
 
+class TestBaseRedMergeFact:
+    # GH-1891: a red CI leg the base branch already carries hands the merge
+    # override to the project's merge posture. The fact never loosens a
+    # posture, a pin or a floor — it only reaches the merge gate's record.
+
+    SOLO = ["solo-maintainer"]
+
+    @pytest.mark.parametrize(
+        ("overlays", "project_overrides", "session_overrides", "expected"),
+        [
+            (SOLO, {}, {}, GateEffect.AUTO_ADVANCE),
+            ([], {}, {}, GateEffect.AUTO_ADVANCE),
+            (SOLO, {"merge": "ask"}, {}, GateEffect.ASK),
+            ([], {"merge": "ask"}, {}, GateEffect.ASK),
+            (SOLO, {}, {"merge": "ask"}, GateEffect.ASK),
+            (SOLO, {"merge": AUTO_ADVANCE}, {"merge": "ask"}, GateEffect.ASK),
+        ],
+    )
+    def test_base_red_resolves_by_the_merge_posture(
+        self,
+        overlays: list[str],
+        project_overrides: dict[str, str | int | bool],
+        session_overrides: dict[str, str | int | bool],
+        expected: GateEffect,
+    ) -> None:
+        resolution = resolve_gate(
+            gate="merge",
+            context=GateContext(supervisor_review=SUPERVISOR_REVIEW_NONE, base_red=True),
+            preset=BASELINE_PRESET,
+            overlays=overlays,
+            project_overrides=project_overrides,
+            session_overrides=session_overrides,
+        )
+        assert resolution.effect is expected
+        assert resolution.reason.endswith(" base_red=true")
+
+    @pytest.mark.parametrize(
+        "context",
+        [
+            GateContext(base_red=True),
+            GateContext(base_red=True, secret_access=True, supervisor_cleared=True),
+            GateContext(base_red=True, blocking=True, supervisor_review=SUPERVISOR_REVIEW_NONE),
+        ],
+    )
+    def test_base_red_never_lifts_a_floor(self, context: GateContext) -> None:
+        resolution = resolve_gate(
+            gate="merge", context=context, preset=BASELINE_PRESET, overlays=self.SOLO
+        )
+        assert resolution.effect is GateEffect.ASK
+        assert resolution.floors_applied
+        assert " base_red=true" in resolution.reason
+
+    @pytest.mark.parametrize("value", [False, "true", "yes", 1, None])
+    @pytest.mark.parametrize(
+        ("overlays", "project_overrides"),
+        [
+            (SOLO, {}),
+            ([], {}),
+            (SOLO, {"merge": "ask"}),
+        ],
+    )
+    def test_anything_but_true_matches_an_omitted_fact(
+        self,
+        value: object,
+        overlays: list[str],
+        project_overrides: dict[str, str | int | bool],
+    ) -> None:
+        def resolve(context: GateContext) -> GateResolution:
+            return resolve_gate(
+                gate="merge",
+                context=context,
+                preset=BASELINE_PRESET,
+                overlays=overlays,
+                project_overrides=project_overrides,
+            )
+
+        omitted = resolve(GateContext(supervisor_review=SUPERVISOR_REVIEW_NONE))
+        malformed: dict[str, object] = {"base_red": value}
+        supplied = resolve(
+            GateContext(supervisor_review=SUPERVISOR_REVIEW_NONE, **malformed)  # type: ignore[arg-type]
+        )
+        assert supplied.to_payload() == omitted.to_payload()
+
+    def test_base_red_is_inert_outside_the_merge_gate(self) -> None:
+        without = resolve_gate(
+            gate="branch_cleanup", context=GateContext(), preset=BASELINE_PRESET
+        )
+        with_fact = resolve_gate(
+            gate="branch_cleanup", context=GateContext(base_red=True), preset=BASELINE_PRESET
+        )
+        assert with_fact.to_payload() == without.to_payload()
+
+
 class TestVisibleRecord:
     # ADR-0016 #754 / D-7: auto-advances carry a one-line transcript record.
 

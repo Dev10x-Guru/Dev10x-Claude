@@ -45,6 +45,11 @@
       "id": "bot-review-block",
       "name": "Blocking Review Bot Block",
       "description": "Check 1e calls bot_review_status and refuses merge while ready is false — a blocking bot missing, not at the head, or with open inline comments. A stale bot after a force-push goes back to gh-pr-monitor, never an override (GH-1832, GH-1857)."
+    },
+    {
+      "id": "base-red-gate",
+      "name": "Base-Branch Red Gate",
+      "description": "Check 2 compares every red leg with origin/<base>. When all of them fail the same way on the base tip (or an open issue says so), it records the evidence and routes through resolve_gate(gate=\"merge\", context={\"base_red\": true}). Any leg the base does not carry keeps the ALWAYS_ASK widget (GH-1891)."
     }
   ],
   "evals": [
@@ -238,6 +243,30 @@
           "dimension": "merge-tool",
           "check": "behavioral",
           "signal": "mcp__plugin_dev10x_cli__merge_pr is NOT called while bot_review_status reports ready: false"
+        }
+      ]
+    },
+    {
+      "id": "base-red-leg-routes-through-merge-gate",
+      "name": "Red leg the base branch carries routes through resolve_gate",
+      "description": "Check 2: the only failing leg fails on the same test at the origin/develop tip (develop's latest run is red on it). The skill must record the base-red evidence in task metadata and the PR body, then call resolve_gate(gate=\"merge\", context={\"base_red\": true}) instead of firing the ALWAYS_ASK widget, and act on the returned effect (GH-1891).",
+      "input": "/dev10x-coding:gh-pr-merge",
+      "assertions": [
+        {
+          "dimension": "base-red-gate",
+          "check": "tool_called",
+          "tool": "mcp__plugin_dev10x_cli__resolve_gate",
+          "signal": "Check 2 calls resolve_gate with gate=merge and context base_red=true for the base-red leg"
+        },
+        {
+          "dimension": "base-red-gate",
+          "check": "behavioral",
+          "signal": "The base-red evidence (check, test ids, base SHA, run or issue link) is recorded as merge_override_reason in task metadata and in the PR body before the gate resolves"
+        },
+        {
+          "dimension": "base-red-gate",
+          "check": "behavioral",
+          "signal": "AskUserQuestion is NOT called for the base-red leg when resolve_gate returns auto-advance; a red leg develop does not carry still fires the ALWAYS_ASK widget"
         }
       ]
     }

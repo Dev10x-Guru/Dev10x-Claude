@@ -90,3 +90,15 @@ Parameter Shapes (GH-1606).
   A caller's own `--unattended` flag wins over this field.
   Treat `undetermined` as attended and say so in the output — never
   report it as a settled `attended`.
+- `context={"base_red": true}` on `gate="merge"` (GH-1891) is the
+  fact `dev10x-coding:gh-pr-merge` Check 2 passes when every red CI
+  leg fails the same way on the base branch tip.
+  It sends the red-CI override to the project's merge posture instead
+  of the unconditional `ALWAYS_ASK` widget, and the `reason` ends in
+  `base_red=true`.
+  It never loosens anything on its own: a pin or override of
+  `merge: ask` still asks, every floor still forces `ask`, and only
+  the literal `true` counts.
+  `false`, a string such as `"true"`, or an omitted key resolve
+  exactly as if the fact were absent.
+  The fact has no effect on any other gate.

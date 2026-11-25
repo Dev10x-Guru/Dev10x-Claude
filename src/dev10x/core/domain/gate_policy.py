@@ -238,6 +238,10 @@ class GateContext:
     # D-5) and read by the infra tier; ``False`` — the safe pole — keeps the
     # floor standing when the label cannot be read at all.
     supervisor_cleared: bool = False
+    # merge: every red CI leg fails the same way on the base branch tip
+    # (GH-1891). Only the literal ``True`` counts — it hands the red-CI
+    # override to the merge posture, it never lifts a floor.
+    base_red: bool = False
 
 
 @dataclass(frozen=True)
@@ -485,6 +489,13 @@ def _weight_conditions(
     return GateEffect.AUTO_ADVANCE, f"{gate}={AUTO_ADVANCE}"
 
 
+def _base_red_fact(*, gate: str, context: GateContext) -> str:
+    """The reason-string suffix recording a base-red merge override (GH-1891)."""
+    if gate == "merge" and context.base_red is True:
+        return " base_red=true"
+    return ""
+
+
 def _reason_prefix(*, preset: str, overlays: list[str], source: str) -> str:
     """Render the layer-provenance prefix of a reason string (GH-1252).
 
@@ -552,8 +563,9 @@ def resolve_gate(
     # reading as team-shaped, which floors `request_review` instead of
     # `merge` — strictly the safer of the two effect points.
     floors = _floors(gate=gate, context=context, solo_repo=SOLO_OVERLAY in active_overlays)
+    base_red = _base_red_fact(gate=gate, context=context)
     if floors:
-        reason = f"floor:{'+'.join(floors)} overrides preset:{preset}"
+        reason = f"floor:{'+'.join(floors)} overrides preset:{preset}{base_red}"
         remedies = [_FLOOR_REMEDIES[name] for name in floors if name in _FLOOR_REMEDIES]
         return GateResolution(
             gate=gate,
@@ -577,7 +589,7 @@ def resolve_gate(
         effect=effect,
         resolved_option="Recommended" if effect is GateEffect.AUTO_ADVANCE else None,
         log_to=log_to,
-        reason=f"{prefix} {reason}",
+        reason=f"{prefix} {reason}{base_red}",
         floors_applied=[],
         anchor_recommendations=anchor,
     )

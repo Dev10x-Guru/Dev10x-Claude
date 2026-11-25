@@ -514,6 +514,27 @@ Only escalate to `AskUserQuestion` when:
    (non-code cause — user judgement required to decide
    whether to merge despite the infra outage).
 
+**Base-branch red override (GH-1891):** Before escalating, compare
+every failing leg with `origin/<base>`. Do this whenever any leg is
+still red after the PR's own failures are fixed. If **every** red leg
+fails on the same test(s) at the base tip (the base's latest CI run,
+read with `gh run list --branch <base>` and
+`gh run view <id> --log-failed`), or an open issue says the base is
+red on that test, the leg is `base_red`:
+
+1. Record the evidence in task metadata AND the PR body before
+   anything else (`merge_override_reason`, as below).
+2. Call `mcp__plugin_dev10x_cli__resolve_gate(gate="merge",
+   context={"base_red": true})` instead of firing the widget.
+   `auto-advance` clears Check 2 as base-red; `ask` / `error` fires
+   the widget below with the evidence in the question; `skip` hands
+   the merge to a human.
+
+A single red leg that the base does not carry keeps the whole PR on
+the `ALWAYS_ASK` path. The evidence rules, commands and
+gate-effect table are in
+[`references/base-red-override.md`](references/base-red-override.md).
+
 **Infrastructure failure override (GH-730, ALWAYS_ASK):**
 When a check fails with a clear infrastructure cause — the
 failure is not the PR's fault and no fixup will resolve it —
@@ -566,7 +587,9 @@ prematurely).
 
 The gate fires regardless of session policy — an autonomous
 posture governs pacing between skills, it does NOT authorize
-silent merges past unresolved CI signal. The narrow scope (only after auto-fix
+silent merges past unresolved CI signal. The one exception is
+a leg proven `base_red` above: its evidence is recorded and the
+merge posture decides it. The narrow scope (only after auto-fix
 is exhausted or the failure is clearly infra) keeps the
 user out of the loop for routine code fixes while still
 requiring human judgement for cases where the agent cannot
@@ -983,7 +1006,10 @@ auto-fix loop is exhausted. See `references/friction-levels.md`
   only fires when the auto-fix loop is exhausted or the
   failure is clearly infrastructure-related. All
   "Merge anyway" overrides require explicit user
-  confirmation via `AskUserQuestion` with a recorded reason.
+  confirmation via `AskUserQuestion` with a recorded reason,
+  except a red leg proven `base_red` (GH-1891), which
+  `resolve_gate(gate="merge", context={"base_red": true})`
+  decides — its reason is still recorded.
 - The solo-maintainer override only skips Check 7 (approval),
   not the other 11 checks
 - This skill must NOT be called from background agents
