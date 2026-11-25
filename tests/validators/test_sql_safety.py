@@ -429,6 +429,7 @@ class TestPsqlCommandPosition:
             "ack --pager=psql pattern src",
             "psql -d mydb -c 'SELECT 1",
             "timeout 5 'psql -d mydb",
+            "man -Ppsql psql",
         ],
     )
     def test_blocks_psql_run_by_a_runner(
@@ -442,10 +443,56 @@ class TestPsqlCommandPosition:
     @pytest.mark.parametrize(
         "command",
         [
+            "strace psql -d mydb",
+            "strace -f -o trace.log psql -d mydb",
+            "ltrace -o out psql -d mydb",
+            "valgrind --tool=memcheck psql -d mydb",
+            "gdb --args psql -d mydb",
+            "gdb -ex run --args /usr/bin/psql -d mydb",
+            "ionice -c3 psql -d mydb",
+            "ionice -c 2 -n 7 psql -d mydb",
+            "taskset 0x1 psql -d mydb",
+            "taskset -c 0,1 psql -d mydb",
+            "chrt 10 psql -d mydb",
+            "chrt -f 10 psql -d mydb",
+            "unbuffer psql -d mydb",
+            "rlwrap psql -d mydb",
+            "rlwrap -f words psql -d mydb",
+            "systemd-run --user psql -d mydb",
+            "systemd-run -p MemoryMax=1G --unit job psql -d mydb",
+            "firejail --noprofile psql -d mydb",
+            "script -c 'psql -d mydb' /dev/null",
+            "script -q --command='psql -d mydb' out.log",
+            "tmux new-session 'psql -d mydb'",
+            "tmux new -d -s db psql -d mydb",
+            "tmux send-keys -t db 'psql -d mydb -c \"DROP TABLE t\"' Enter",
+            "screen psql -d mydb",
+            "screen -dmS db psql -d mydb",
+            "parallel psql -d {} ::: a b",
+            "parallel -j 2 ::: 'psql -d a' 'psql -d b'",
+            "nohup some-unknown-runner psql -d mydb",
+            "some-unknown-runner --flag /usr/lib/postgresql/bin/psql",
+        ],
+    )
+    def test_blocks_psql_run_by_an_exec_style_runner(
+        self, validator: SqlSafetyValidator, command: str
+    ) -> None:
+        """GH-1998: each runner is unwrapped; an unknown one fails closed."""
+        result = validator.validate(inp=_make_input(command=command))
+
+        assert result is not None
+        assert "Direct psql calls" in result.message
+
+    @pytest.mark.parametrize(
+        "command",
+        [
             "rg psql src",
             "echo psql",
             "git log --grep psql",
             "which psql",
+            "man psql",
+            "command -v psql",
+            "type psql",
             "ls /usr/bin/psql",
             "rg --pre-glob '*.gz' psql src",
             'rg psql "src',
