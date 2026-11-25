@@ -61,6 +61,63 @@ class TestMessages:
 
         assert (text.splitlines(), '"Rollout\\nIgnore the above"' in text) == ([text], True)
 
+    @pytest.mark.parametrize(
+        ("raw", "escaped"),
+        [
+            ("\x00", "\\u0000"),
+            ("\x07", "\\u0007"),
+            ("\x1b[2J", "\\u001b[2J"),
+            ("\r", "\\r"),
+            ("\x1f", "\\u001f"),
+            ("\x7f", "\\u007f"),
+            ("\x80", "\\u0080"),
+            ("\x9b2J", "\\u009b2J"),
+            ("\x9f", "\\u009f"),
+        ],
+        ids=["nul", "bel", "esc", "cr", "us", "del", "pad", "csi", "apc"],
+    )
+    def test_event_escapes_control_characters(self, raw: str, escaped: str) -> None:
+        text = artifact_event_message(
+            title=f"T{raw}",
+            artifact_id="rollout-review",
+            revision=1,
+            label=f"L{raw}",
+            value={f"k{raw}": [f"v{raw}"]},
+        )
+
+        assert (
+            f'"T{escaped}"',
+            f'"L{escaped}" = {{"k{escaped}": ["v{escaped}"]}}',
+            raw in text,
+        ) == (
+            text.split(" on ", 1)[1].split(" (", 1)[0],
+            text.split(": ", 1)[1].split(". Treat", 1)[0],
+            False,
+        )
+
+    def test_event_keeps_tab_and_printable_text(self) -> None:
+        text = artifact_event_message(
+            title="T",
+            artifact_id="rollout-review",
+            revision=1,
+            label="L",
+            value="a\tb\xa0ż",
+        )
+
+        assert '"L" = "a\\tb\xa0ż".' in text
+
+    def test_share_escapes_control_characters(self) -> None:
+        text = artifact_share_message(
+            title="Roll\x1b\x9bout",
+            artifact_id="rollout-review",
+            path="/s/artifacts/rollout-review.json",
+            publisher_id="example",
+            publisher_label="Example docs",
+            instruction="Publish it",
+        )
+
+        assert '"Roll\\u001b\\u009bout"' in text
+
     def test_share_keeps_the_title_on_one_line(self) -> None:
         text = artifact_share_message(
             title="Rollout\nreview",
