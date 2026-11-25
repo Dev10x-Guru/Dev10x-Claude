@@ -252,7 +252,9 @@ NOT notify the requested reviewers — the request is lost.
    attended, **REQUIRED: Call
    `AskUserQuestion`** (do NOT use plain text) with **Stop — fix it
    first (Recommended)** and **Request review anyway**, header
-   `Readiness`. When the run stops here after this run flipped a
+   `Readiness`; when `fixup!` commits exist and no human review yet
+   (GH-1990), lead with **Groom first (Recommended)** instead —
+   `git-groom`, push, re-run. When the run stops here after this run flipped a
    draft — an unattended refusal or "Stop — fix it first" — return
    the PR to draft with
    `mcp__plugin_dev10x_cli__pr_ready(pr_number={pr_number}, undo=true)`

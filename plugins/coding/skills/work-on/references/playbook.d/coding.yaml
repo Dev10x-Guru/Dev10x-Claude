@@ -95,13 +95,15 @@ fragments:
       prompt: >
         Squash fixups, reorder for logical flow, ensure each
         commit message follows gitmoji + JTBD conventions.
-        Mid-review guard (GH-1609 F2): when
-        mcp__plugin_dev10x_cli__supervisor_review_status is
-        `required`, OR the PR is published and any non-bot review
-        or reply references a fixup SHA, defer grooming until the
-        PR is approved — keep the fixups so reviewers can follow
-        them, and leave this step pending. Solo / `none` posture
-        grooms as before.
+        Mid-review guard (GH-1609 F2, GH-1990): defer grooming
+        only when the PR is published and a human (non-bot) review
+        or reply already exists on it, or any such reply references
+        a fixup SHA — keep the fixups so reviewers can follow
+        them, and leave this step pending until the PR is
+        approved. Posture alone never defers: with
+        mcp__plugin_dev10x_cli__supervisor_review_status `required`
+        but no human review yet, groom before the first review
+        request.
       skills: [dev10x-coding:git-groom]
     - subject: Update PR description
       type: detailed
@@ -343,12 +345,14 @@ fragments:
         Squash fixups into their parent commits. Choose the best
         grooming option and auto-advance. No strategy gate —
         select fixup autosquash if fixup commits exist, mass
-        rewrite otherwise. Mid-review guard (GH-1609 F2): when
-        mcp__plugin_dev10x_cli__supervisor_review_status is
-        `required`, OR the PR is published and any non-bot review
-        or reply references a fixup SHA, defer grooming until the
-        PR is approved — keep the fixups and leave this step
-        pending. Solo / `none` posture grooms as before.
+        rewrite otherwise. Mid-review guard (GH-1609 F2, GH-1990):
+        defer grooming only when the PR is published and a human
+        (non-bot) review or reply already exists on it, or any
+        such reply references a fixup SHA — keep the fixups and
+        leave this step pending until approval. Posture alone
+        never defers: with `supervisor_review_status` `required`
+        but no human review yet, groom before the first review
+        request.
       skills: [dev10x-coding:git-groom]
     - subject: Update PR description
       type: detailed
