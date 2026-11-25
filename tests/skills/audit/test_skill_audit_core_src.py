@@ -13,7 +13,12 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 TEACH_CORE_SRC = REPO_ROOT / "plugins" / "teach" / "skills" / "skill-audit" / "lib" / "core_src.py"
 COMM_CORE_SRC = REPO_ROOT / "plugins" / "comm" / "skills" / "bus" / "lib" / "core_src.py"
 SCRIPT_PARTS = ("skills", "skill-audit", "scripts", "extract-session.py")
-SHIMS = ("extract-session.py", "analyze-actions.py", "analyze-permissions.py")
+SHIMS = (
+    "extract-session.py",
+    "analyze-actions.py",
+    "analyze-permissions.py",
+    "check-skill-eval-gaps.py",
+)
 
 
 def _load() -> ModuleType:

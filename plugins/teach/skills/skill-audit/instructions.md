@@ -622,7 +622,7 @@ so it runs identically in lightweight and forensic strategies.
 **Command:**
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/bin/check-skill-eval-gaps.py --all
+${CLAUDE_PLUGIN_ROOT}/skills/skill-audit/scripts/check-skill-eval-gaps.py --all
 ```
 
 Exit code 0 means no gaps. Exit code 1 prints one line per gated
