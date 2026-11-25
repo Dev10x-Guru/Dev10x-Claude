@@ -726,6 +726,43 @@
           ]
         }
       ]
+    },
+    {
+      "id": 19,
+      "name": "fixups-before-first-review-lead-with-groom-first",
+      "prompt": "/dev10x-coding:request-review --pr 42 --repo org/repo",
+      "description": "GH-1990: the PR is green but its branch carries self-review fixup! commits and no human has reviewed it. supervisor_review is required, but posture alone never defers grooming, so the readiness gate leads with Groom first.",
+      "setup": {
+        "ci_verdict": "failing",
+        "unresolved_threads": 0,
+        "bots_ready": true,
+        "is_draft": false,
+        "fixup_commits": 3,
+        "human_reviews": 0,
+        "supervisor_review": "required"
+      },
+      "dimensions": [
+        "readiness-gate"
+      ],
+      "assertions": [
+        {
+          "id": "groom-gate-uses-the-tool",
+          "text": "Fires AskUserQuestion rather than a plain-text question",
+          "check": "tool_called",
+          "signals": [
+            "AskUserQuestion"
+          ]
+        },
+        {
+          "id": "groom-first-leads",
+          "text": "The widget leads with 'Groom first (Recommended)' and still offers 'Request review anyway'",
+          "check": "output_contains",
+          "signals": [
+            "Groom first (Recommended)",
+            "Request review anyway"
+          ]
+        }
+      ]
     }
   ],
   "trigger_evals": {

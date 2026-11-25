@@ -35,9 +35,8 @@ This skill follows `references/task-orchestration.md` patterns.
 
 1. `TaskCreate(subject="Request PR review", activeForm="Requesting review")`
 
-Mark completed when done: `TaskUpdate(taskId, status="completed")`
-
-**Auto-advance:** Complete each step, immediately start the next — no checkpoints the resolver did not ask for.
+Mark completed when done: `TaskUpdate(taskId, status="completed")`.
+**Auto-advance:** each step starts the next — no unrequested checkpoints.
 
 ## Flow
 
@@ -97,10 +96,8 @@ Run the four conditions in
 [`references/review-readiness.md`](../../references/review-readiness.md)
 — draft, CI, unresolved threads, bots at head. A draft fails like the
 rest; never mark it ready here. `--force` does not skip this step.
-
-When any condition fails or cannot be read, resolve the run mode as
-that file's § "When the PR is not ready" orders it: `--unattended`,
-else `run_mode.mode` of `mcp__plugin_dev10x_cli__resolve_gate(gate=
+When any condition fails or cannot be read, resolve the run mode per
+that file's § "When the PR is not ready": `--unattended`, else `run_mode.mode` of `mcp__plugin_dev10x_cli__resolve_gate(gate=
 "external_notify", context={})` (read only `run_mode`). `undetermined`
 or an error is attended, printed as `Run mode: undetermined ({basis})
 — treated as attended`.
@@ -113,6 +110,9 @@ or an error is attended, printed as `Run mode: undetermined ({basis})
     reasons. Nothing is assigned or posted.
   - **Request review anyway** — continue to Step 2; Step 3.5 and the
     Step 4 summary carry the reasons.
+  - **Groom first** (GH-1990) — when `fixup!` commits exist and no
+    human review yet, it leads as `(Recommended)`: `git-groom`,
+    push, re-run this step.
 
 A stop here goes straight to Step 4 with `status: "stopped"`.
 
