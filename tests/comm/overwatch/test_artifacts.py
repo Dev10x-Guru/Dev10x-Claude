@@ -387,6 +387,60 @@ class TestIndex:
         assert store.index() == []
 
 
+class TestIndexCache:
+    @pytest.fixture
+    def reads(
+        self, store: ArtifactStore, stored: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+    ) -> list[str]:
+        seen: list[str] = []
+        original = store.get
+
+        def counting_get(*, artifact_id: str) -> dict[str, Any] | None:
+            seen.append(artifact_id)
+            return original(artifact_id=artifact_id)
+
+        monkeypatch.setattr(store, "get", counting_get)
+        store.index()
+        return seen
+
+    def test_unchanged_file_is_not_reparsed(self, store: ArtifactStore, reads: list[str]) -> None:
+        first = store.index()
+
+        assert (reads, [summary.title for summary in first]) == (
+            ["rollout-review"],
+            ["Rollout review"],
+        )
+
+    def test_changed_file_is_reparsed(self, store: ArtifactStore, reads: list[str]) -> None:
+        store.put(document=document(title="Changed title"), owner=OWNER)
+
+        titles = [summary.title for summary in store.index()]
+
+        assert (reads, titles) == (["rollout-review", "rollout-review"], ["Changed title"])
+
+    def test_deleted_file_is_pruned(self, store: ArtifactStore, reads: list[str]) -> None:
+        store.document_path(artifact_id="rollout-review").unlink()
+
+        assert (store.index(), store._summaries) == ([], {})
+
+    def test_unreadable_file_is_cached_as_skipped(
+        self, store: ArtifactStore, reads: list[str]
+    ) -> None:
+        store.document_path(artifact_id="broken").write_text("{nope")
+        store.index()
+
+        assert (store.index()[0].id, reads) == ("rollout-review", ["rollout-review", "broken"])
+
+    def test_vanishing_file_is_skipped(
+        self, store: ArtifactStore, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        ghost = tmp_path / "artifacts" / "ghost.json"
+        store.root.mkdir(parents=True)
+        monkeypatch.setattr(Path, "glob", lambda self, pattern: iter([ghost]))
+
+        assert store.index() == []
+
+
 class TestShares:
     def test_unknown_artifact(self, store: ArtifactStore) -> None:
         assert store.add_share(artifact_id="nope", publisher="p", url="u") == err(

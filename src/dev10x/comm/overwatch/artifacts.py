@@ -372,10 +372,28 @@ def _foreign(*, stored: object, caller: dict[str, str]) -> bool:
     return bool(held_by) and held_by != _session_id(owner=caller)
 
 
+def _summary(*, document: dict[str, Any], fallback_id: str) -> ArtifactSummary:
+    owner = document.get("owner") or {}
+    return ArtifactSummary(
+        id=str(document.get("id", fallback_id)),
+        title=str(document.get("title", "")),
+        owner={
+            "session_id": str(owner.get("session_id", "")),
+            "name": str(owner.get("name", "")),
+        },
+        revision=int(document.get("revision", 0)),
+        updated_at=str(document.get("updated_at", "")),
+    )
+
+
+Fingerprint = tuple[int, int]
+
+
 class ArtifactStore:
     def __init__(self, *, root: Path, now: Callable[[], datetime] = _local_now) -> None:
         self.root = root
         self._now = now
+        self._summaries: dict[Path, tuple[Fingerprint, ArtifactSummary | None]] = {}
 
     def document_path(self, *, artifact_id: str) -> Path:
         return self.root / f"{artifact_id}.json"
@@ -433,25 +451,28 @@ class ArtifactStore:
             return None
         return document if isinstance(document, dict) else None
 
+    def _cached_summary(self, *, target: Path) -> tuple[Fingerprint, ArtifactSummary | None]:
+        try:
+            status = target.stat()
+        except OSError:
+            return (0, 0), None
+        fingerprint = (status.st_mtime_ns, status.st_size)
+        cached = self._summaries.get(target)
+        if cached is not None and cached[0] == fingerprint:
+            return cached
+        document = self.get(artifact_id=target.stem)
+        summary = (
+            None if document is None else _summary(document=document, fallback_id=target.stem)
+        )
+        return fingerprint, summary
+
     def index(self) -> list[ArtifactSummary]:
-        found = []
-        for target in sorted(self.root.glob("*.json")):
-            document = self.get(artifact_id=target.stem)
-            if document is None:
-                continue
-            owner = document.get("owner") or {}
-            found.append(
-                ArtifactSummary(
-                    id=str(document.get("id", target.stem)),
-                    title=str(document.get("title", "")),
-                    owner={
-                        "session_id": str(owner.get("session_id", "")),
-                        "name": str(owner.get("name", "")),
-                    },
-                    revision=int(document.get("revision", 0)),
-                    updated_at=str(document.get("updated_at", "")),
-                )
-            )
+        fresh = {
+            target: self._cached_summary(target=target)
+            for target in sorted(self.root.glob("*.json"))
+        }
+        self._summaries = fresh
+        found = [summary for _, summary in fresh.values() if summary is not None]
         return sorted(found, key=lambda summary: summary.updated_at, reverse=True)
 
     def add_share(
