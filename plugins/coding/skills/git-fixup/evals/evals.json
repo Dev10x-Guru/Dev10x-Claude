@@ -5,6 +5,11 @@
       "id": "standalone-confirm-gate",
       "name": "Standalone Fixup Confirmation Gate",
       "description": "When no comment ID or PR comment URL is provided and the invocation args do not carry an explicit target-commit + description, the skill fires AskUserQuestion to confirm a standalone fixup before creating any commit."
+    },
+    {
+      "id": "groom-continuation-gate",
+      "name": "Groom Continuation Gate",
+      "description": "After a standalone fixup on a PR with no human review and no parent pipeline, the skill resolves shipping_continuation and offers the groom (GH-1989)."
     }
   ],
   "evals": [
@@ -68,6 +73,31 @@
           "dimension": "standalone-confirm-gate",
           "check": "behavioral",
           "signal": "No git commit call runs; the response points to Skill(dev10x-coding:git-commit)"
+        }
+      ]
+    },
+    {
+      "id": "standalone-fixup-offers-groom-before-first-review",
+      "name": "Standalone fixup on a PR with no human review offers the groom continuation",
+      "description": "GH-1989: the supervisor asks for a change in the conversation, the fixup is pushed to a ready PR, and no human has reviewed it. The skill resolves the shipping_continuation gate and offers the groom instead of ending with 'squash after approval'.",
+      "input": "/dev10x-coding:git-fixup abc1234 Extract helper (PR open, no human review, no parent pipeline)",
+      "assertions": [
+        {
+          "dimension": "groom-continuation-gate",
+          "check": "tool_called",
+          "tool": "mcp__plugin_dev10x_cli__resolve_gate",
+          "signal": "resolve_gate is called with gate='shipping_continuation', not a new gate name"
+        },
+        {
+          "dimension": "groom-continuation-gate",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "AskUserQuestion leads with 'Groom + push + monitor (Recommended)' when effect is ask"
+        },
+        {
+          "dimension": "groom-continuation-gate",
+          "check": "plain_text",
+          "signal": "The turn does not end with 'the fixup stays separate until you approve'"
         }
       ]
     }
