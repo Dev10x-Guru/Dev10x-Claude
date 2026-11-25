@@ -9,6 +9,7 @@
     formatRoute,
     isPending,
     navGroups,
+    navLayout,
     pickView,
     sendControl,
     sentKey,
@@ -45,11 +46,14 @@
   let sending = $state<Record<string, boolean>>({});
   let failures = $state<Record<string, string>>({});
   let sharing = $state("");
+  let viewport = $state(0);
+  let pane = $state(0);
 
   const live = $derived(entry?.owner_live ?? false);
   const owner = $derived(entry?.owner.name || artifact.owner.name || "The owner session");
   const active = $derived(pickView(artifact, view));
   const groups = $derived(navGroups(artifact.views));
+  const tabs = $derived(navLayout(viewport, pane) === "tabs");
   const recent = $derived([...(artifact.events ?? [])].reverse().slice(0, 8));
   const meta = $derived(
     [
@@ -112,7 +116,9 @@
   });
 </script>
 
-<article class="artifact">
+<svelte:window bind:innerWidth={viewport} />
+
+<article class={["artifact", { tabs }]} bind:clientWidth={pane}>
   <header class="head">
     <div class="titles">
       <p class="eyebrow">
@@ -374,52 +380,56 @@
     }
 
     .body {
-      grid-template-columns: 1fr;
-    }
-
-    .nav {
-      z-index: 3;
-      display: flex;
-      gap: var(--space-3);
-      padding: var(--space-2) var(--space-4);
-      overflow-x: auto;
-      background: var(--paper);
-      border-bottom: 1px solid var(--rule);
-      scrollbar-width: thin;
-    }
-
-    .nav-group {
-      display: flex;
-      align-items: center;
-      gap: var(--space-1);
-      flex: none;
-    }
-
-    .nav-head {
-      margin: 0;
-    }
-
-    .nav ul {
-      display: flex;
-      gap: var(--space-1);
-    }
-
-    .nav a {
-      white-space: nowrap;
-      border-left: none;
-      border-bottom: 2px solid transparent;
-    }
-
-    .nav a.current {
-      border-bottom-color: var(--ink);
-    }
-
-    .activity {
-      display: none;
+      grid-template-columns: minmax(9rem, 12rem) minmax(0, 1fr);
     }
 
     .view {
       padding: var(--space-4);
     }
+  }
+
+  .tabs .body {
+    grid-template-columns: 1fr;
+  }
+
+  .tabs .nav {
+    z-index: 3;
+    display: flex;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-4);
+    overflow-x: auto;
+    background: var(--paper);
+    border-bottom: 1px solid var(--rule);
+    scrollbar-width: thin;
+  }
+
+  .tabs .nav-group {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    flex: none;
+  }
+
+  .tabs .nav-head {
+    margin: 0;
+  }
+
+  .tabs .nav ul {
+    display: flex;
+    gap: var(--space-1);
+  }
+
+  .tabs .nav a {
+    white-space: nowrap;
+    border-left: none;
+    border-bottom: 2px solid transparent;
+  }
+
+  .tabs .nav a.current {
+    border-bottom-color: var(--ink);
+  }
+
+  .tabs .activity {
+    display: none;
   }
 </style>
