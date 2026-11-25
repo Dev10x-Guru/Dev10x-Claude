@@ -26,12 +26,15 @@ from dev10x.core.db_script import db_script
 from dev10x.core.domain import HookInput, HookResult
 from dev10x.core.domain.common.bash_tokens import (
     ANY_CASE_ENV_VAR_RE,
+    CommandSegment,
     ProgramProbe,
     UntokenizableCommandError,
     command_position_re,
     command_segments,
     command_units,
+    nested_commands,
     strip_command_wrappers,
+    substitution_bodies,
 )
 from dev10x.core.domain.common.result import ErrorResult, Result, err, ok
 from dev10x.core.domain.profile_tier import ProfileTier
@@ -152,23 +155,46 @@ def _is_psql_binary(token: str) -> bool:
     return token == "psql" or token.endswith("/psql")
 
 
-# Programs that only search or print their operands, so a `psql` token after
-# one of them is a pattern or text: `rg -n 'psql' projects.yaml` (GH-1790).
-_TEXT_ONLY_EXECUTABLES = frozenset(
-    {"ack", "ag", "cat", "echo", "egrep", "fgrep", "grep", "head", "printf", "rg", "tail", "wc"}
-)
-# A segment that chains, substitutes, opens a subshell or process
-# substitution (`cat <( psql … )`) or backgrounds may run psql after the
-# search tool; `rg --pre`, `rg --hostname-bin` and `ag/ack --pager` run a
-# program of their own. None of these is exempt.
-_EXEMPTION_BREAKERS_RE = re.compile(r"&|;|\n|`|[()]|--pre|--pager|--hostname-bin")
+_PSQL_PROBE = ProgramProbe.for_program(program="psql")
+# Fail-closed fallback for a unit the segmenter cannot tokenize.
+_PSQL_COMMAND_POSITION_RE = command_position_re(program="psql")
 
 
-def _psql_is_an_operand(*, segment: str, parts: list[str]) -> bool:
-    if _EXEMPTION_BREAKERS_RE.search(segment):
-        return False
+def _runs_psql(parts: list[str]) -> bool:
     words = strip_command_wrappers(parts=parts)
-    return bool(words) and Path(words[0]).name in _TEXT_ONLY_EXECUTABLES
+    return bool(words) and _is_psql_binary(words[0])
+
+
+def _psql_units(*, command: str) -> Iterator[tuple[str, tuple[CommandSegment, ...] | None]]:
+    """Every unit ``command`` runs, with its segments (``None`` if untokenizable).
+
+    Like :func:`command_units`, but a ``docker exec`` / ``op run`` segment
+    hands over no nested unit: its psql is judged by the wrapped-write
+    check instead of the direct-psql gate (GH-1809). Every other runner
+    (``ssh``, ``watch``, ``eval``, ``kubectl exec`` …) nests as usual.
+    """
+    seen: set[str] = set()
+    pending = [command]
+    while pending:
+        unit = pending.pop()
+        if unit in seen or not unit.strip():
+            continue
+        seen.add(unit)
+        pending.extend(substitution_bodies(unit, include_backticks=True))
+        try:
+            segments = command_segments(command=unit)
+        except UntokenizableCommandError:
+            yield unit, None
+            continue
+        yield unit, segments
+        for segment in segments:
+            parts = list(segment.argv)
+            if _is_exempt_psql_wrapper(parts):
+                continue
+            pending.extend(
+                nested.command
+                for nested in nested_commands(parts=strip_command_wrappers(parts=parts))
+            )
 
 
 def _is_exempt_psql_wrapper(parts: list[str]) -> bool:
@@ -586,6 +612,7 @@ class SqlSafetyValidator(ValidatorBase):
         return (
             "db.sh" in cmd
             or "psql" in cmd
+            or _PSQL_PROBE.found_in(command=cmd)
             or "psycopg2" in cmd
             or "postgres://" in cmd
             or "postgresql://" in cmd
@@ -690,21 +717,28 @@ class SqlSafetyValidator(ValidatorBase):
         return None
 
     def _check_direct_psql(self, *, command: str) -> HookResult | None:
-        for seg in _split_pipe_segments(command):
-            seg = seg.strip()
-            try:
-                seg_parts = shlex.split(seg)
-            except ValueError:
-                seg_parts = []
-            if _is_exempt_psql_wrapper(seg_parts):
-                wrapped = _check_wrapped_psql_writes(parts=seg_parts)
-                if wrapped:
-                    return wrapped
+        """Block psql in command position, past wrappers and runners (GH-1809).
+
+        A ``psql`` word anywhere else is an operand (``rg psql src``,
+        ``echo psql``) and passes. An untokenizable unit fails closed on a
+        command-position match.
+        """
+        if not _PSQL_PROBE.found_in(command=command):
+            return None
+        for unit, segments in _psql_units(command=command):
+            if segments is None:
+                if _PSQL_COMMAND_POSITION_RE.search(unit):
+                    return HookResult(message=DIRECT_PSQL_MSG)
                 continue
-            if any(_is_psql_binary(t) for t in seg_parts) and not _psql_is_an_operand(
-                segment=seg, parts=seg_parts
-            ):
-                return HookResult(message=DIRECT_PSQL_MSG)
+            for segment in segments:
+                parts = list(segment.argv)
+                if _is_exempt_psql_wrapper(parts):
+                    wrapped = _check_wrapped_psql_writes(parts=parts)
+                    if wrapped:
+                        return wrapped
+                    continue
+                if _runs_psql(parts):
+                    return HookResult(message=DIRECT_PSQL_MSG)
         return None
 
     def _check_sql_content(self, *, command: str) -> HookResult | None:

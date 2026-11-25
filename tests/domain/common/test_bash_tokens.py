@@ -710,6 +710,13 @@ class TestNestedCommands:
             ("eval dropdb x", [NestedCommand(command="dropdb x")]),
             ("runuser -l app -c 'dropdb x'", [NestedCommand(command="dropdb x")]),
             ("op run --env-file=.env -- psql -c x", [NestedCommand(command="psql -c x")]),
+            ("rg --pre psql x src", [NestedCommand(command="psql")]),
+            ("rg --pre=./unzip.sh x src", [NestedCommand(command="./unzip.sh")]),
+            ("rg --hostname-bin psql x", [NestedCommand(command="psql")]),
+            ("rg -n x src --pre", []),
+            ("rg --pre-glob '*.gz' x src", []),
+            ("ag --pager 'less -R' x", [NestedCommand(command="less -R")]),
+            ("ack --pager=psql x", [NestedCommand(command="psql")]),
             (
                 "find . -name x -exec sed -i s/a/b/ {} ; -exec rm {} +",
                 [
