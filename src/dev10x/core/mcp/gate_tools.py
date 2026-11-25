@@ -129,7 +129,10 @@ async def resolve_gate(
         gate: Gate-class toggle name (e.g. "thread_resolution", "merge").
         context: Facts about this gate instance (author_type, destructive,
             overlap_signals, valid_fixup_count, ...). Omitted facts
-            resolve in the safe direction.
+            resolve in the safe direction. On gate="merge", pass
+            `base_red: true` only when every red CI leg fails the same
+            way on the base branch tip (GH-1891): the merge posture then
+            decides the override and the reason ends `base_red=true`.
         cwd: Effective working directory (GH-979).
 
     Returns:

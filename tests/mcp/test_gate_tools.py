@@ -208,6 +208,15 @@ class TestResolveGateForToplevel:
         assert payload["ignored_context_fields"] == ["vibe"]
 
     @pytest.mark.asyncio
+    async def test_base_red_context_reaches_resolver(self, tmp_path: Path) -> None:
+        result = await resolve_gate_for_toplevel(
+            gate="merge", context={"base_red": True}, toplevel=str(tmp_path)
+        )
+        payload = result.to_dict()
+        assert "ignored_context_fields" not in payload
+        assert payload["reason"].endswith("base_red=true")
+
+    @pytest.mark.asyncio
     async def test_unknown_gate_errors(self, tmp_path: Path) -> None:
         result = await resolve_gate_for_toplevel(
             gate="nonsense", context={}, toplevel=str(tmp_path)

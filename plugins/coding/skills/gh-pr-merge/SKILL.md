@@ -16,6 +16,10 @@ allowed-tools:
   - Skill(dev10x-coding:gh-pr-monitor)
   - Skill(dev10x-coding:gh-pr-respond)
   - Bash(gh pr checks:*)
+  - Bash(gh run list:*)
+  - Bash(gh run view:*)
+  - Bash(git fetch:*)
+  - Bash(git rev-parse:*)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/gh-pr-merge/scripts/:*)
   - mcp__plugin_dev10x_cli__pr_detect
   - mcp__plugin_dev10x_cli__pr_get
@@ -29,6 +33,8 @@ allowed-tools:
   - mcp__plugin_dev10x_cli__audit_handoff_report
   - mcp__plugin_dev10x_cli__reconcile_fixes_links
   - mcp__plugin_dev10x_cli__mktmp
+  - mcp__plugin_dev10x_cli__issue_list
+  - mcp__plugin_dev10x_cli__update_pr
   - Bash(/tmp/Dev10x/bin/mktmp.sh:*)
   - Bash(gh repo view:*)
   - Bash(git status:*)
