@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
@@ -273,8 +274,14 @@ RELAY_CHANNEL = "relay"
 SUPERVISOR = "Janusz"
 
 
+UNESCAPED_CONTROLS = re.compile("[\x7f-\x9f]")
+
+
 def _quoted(*, value: object) -> str:
-    return json.dumps(value, ensure_ascii=False)
+    return UNESCAPED_CONTROLS.sub(
+        lambda found: f"\\u{ord(found.group()):04x}",
+        json.dumps(value, ensure_ascii=False),
+    )
 
 
 def _cli(*, subcommand: str, instance_flag: str) -> str:
