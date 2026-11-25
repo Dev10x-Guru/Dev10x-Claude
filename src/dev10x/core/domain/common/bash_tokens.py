@@ -114,11 +114,15 @@ _COMMAND_WRAPPERS: dict[str, _Wrapper] = {
     "strace": _Wrapper(
         value_options=frozenset(
             {"-o", "-e", "-p", "-s", "-u", "-E", "-a", "-b", "-I", "-O", "-S", "-P", "-X", "-U"}
+            | {"--output", "--trace", "--signal", "--attach", "--string-limit", "--user"}
+            | {"--env", "--columns", "--detach-on", "--interruptible", "--overhead"}
+            | {"--summary-sort-by", "--trace-path", "--const-print-style", "--summary-columns"}
         )
     ),
     "ltrace": _Wrapper(
         value_options=frozenset(
             {"-o", "-e", "-p", "-s", "-u", "-a", "-n", "-l", "-L", "-x", "-A", "-D", "-F"}
+            | {"--output", "--align", "--indent", "--library", "--config"}
         )
     ),
     "valgrind": _Wrapper(),
@@ -131,9 +135,11 @@ _COMMAND_WRAPPERS: dict[str, _Wrapper] = {
         positionals=1,
     ),
     "unbuffer": _Wrapper(),
+    # rlwrap's -a, -i, -m, -n, -o and -p take only an attached optional
+    # value, so they are flags here.
     "rlwrap": _Wrapper(
         value_options=frozenset(
-            {"-b", "-C", "-D", "-e", "-f", "-g", "-H", "-l", "-m", "-O", "-P", "-q"}
+            {"-b", "-C", "-D", "-e", "-f", "-g", "-H", "-l", "-O", "-P", "-q"}
             | {"-s", "-S", "-t", "-w", "-z"}
         )
     ),
@@ -141,6 +147,9 @@ _COMMAND_WRAPPERS: dict[str, _Wrapper] = {
         value_options=frozenset(
             {"-u", "--unit", "-p", "--property", "-E", "--setenv", "--uid", "--gid"}
             | {"--nice", "--slice", "--description", "-M", "--machine", "-H", "--host"}
+            | {"--working-directory", "--service-type", "--path-property", "--socket-property"}
+            | {"--timer-property", "--on-active", "--on-boot", "--on-startup"}
+            | {"--on-unit-active", "--on-unit-inactive", "--on-calendar"}
         )
     ),
     "firejail": _Wrapper(),
