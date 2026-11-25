@@ -86,6 +86,15 @@ Return to the caller, without publishing:
 - one line per case: name, pass or fail, and the evidence file.
 
 Publishing is the caller's job: `dev10x-qa:review-pack` assembles the
-pack and publishes the video through `dev10x-qa:qa-publish` or
-`dev10x-qa:yt-upload`, each of which keeps its own external-publish
-gate.
+pack and uploads the video through `dev10x-qa:yt-upload`, each step
+keeping its own external-publish gate.
+
+**Hand off to the PR comment (GH-1991).** Every exploratory video ends
+as one QA comment on the PR — the linked YouTube poster frame, the
+verdict and the fixture caveat — whether or not a QA ticket exists.
+Say so in the hand-off: the video is not published until that comment
+is on the PR, and a text link in the PR body or the pack does not
+count. The comment format is `dev10x-qa:qa-publish` § 6; routing and
+the poster-frame wait are in `dev10x-qa:review-pack`'s
+`references/publishing.md`. `dev10x-qa:review-pack`'s pre-send gate
+verifies the comment before review is requested.

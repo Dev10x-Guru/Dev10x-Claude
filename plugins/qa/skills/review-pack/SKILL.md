@@ -32,6 +32,8 @@ allowed-tools:
   - mcp__plugin_dev10x_cli__pr_detect
   - mcp__plugin_dev10x_cli__pr_get
   - mcp__plugin_dev10x_cli__update_pr
+  - mcp__plugin_dev10x_cli__issue_comments
+  - mcp__plugin_dev10x_cli__pr_issue_comment
   - mcp__plugin_dev10x_cli__push_safe
   - mcp__plugin_dev10x_cli__mktmp
   - mcp__plugin_dev10x_cli__resolve_gate
@@ -144,18 +146,19 @@ Options:
 Every review video is a `dev10x-qa:qa-self` capture with **all three**:
 a visible cursor (the qa-self overlay), an on-screen caption per step,
 and `dev10x-qa:tts` voice narration muxed over it.
-Publish through `dev10x-qa:yt-upload` (or `dev10x-qa:qa-publish` when a ticket
-write-up is wanted too) — no hand-rolled upload or embed code.
+Upload through `dev10x-qa:yt-upload` — no hand-rolled upload or embed code.
 
-**Fallback — external failures only.** When a piece fails for a reason
-outside the recording — TTS balance or quota exhausted, a voice model
-that will not load, a cursor overlay that errors in this environment —
-try that piece **once**, then ship without it.
-State the reason in the video description **and** in the pack's video
-caption, e.g. *"No narration: TTS quota exhausted"*, so it is never
-silently missing.
-Never use this for a failure you caused: a broken script or a wrong
-locator is a bug to fix, not a piece to drop.
+**The video always ends as a PR QA comment (GH-1991).** `yt-upload`
+alone is never the end of the path: with or without a QA ticket, the PR
+gets one comment carrying the linked YouTube poster frame, the verdict
+and the fixture caveat. A ticket route goes through
+`dev10x-qa:qa-publish`; an exploratory run with no ticket posts the same
+comment shape itself. When `thumbnail_may_404` is true, keep the poster
+embed, wait and re-probe — never downgrade it to a text link.
+Routing, wait guidance and the external-failure fallback (one retry,
+then ship without the piece and state the reason in the video
+description and caption):
+[`references/publishing.md`](references/publishing.md).
 
 **Staging footage only, never production** (`dev10x-qa:yt-upload` gates
 this). Anything else in frame is your organisation's disclosure policy.
@@ -193,6 +196,11 @@ pack-only run hands the gaps on instead, as described below):
       merely correct.
 - [ ] Pack exists, is linked at the top of the PR body, renders, and the
       reviewer can open it.
+- [ ] When the pack has a video: a QA comment carrying its YouTube
+      poster frame is on the PR — read the PR's comments with
+      `mcp__plugin_dev10x_cli__issue_comments` and confirm the poster
+      is in it. A text link is not the poster. Post it first when
+      missing (GH-1991).
 - [ ] Every video post-dates the last UI-changing commit:
       `video-freshness.py` exits 0. On exit 1 the pack is **refused** —
       re-record, or re-run it with `--override "<reason>"` and put the

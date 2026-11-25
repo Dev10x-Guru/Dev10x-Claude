@@ -175,7 +175,8 @@ carrying poster frames that point at dead videos.
 `dev10x-qa:yt-upload` returns `thumbnail_may_404: true`: YouTube needs a
 minute or two to generate `maxresdefault.jpg`, so a comment posted
 immediately shows a broken image. It resolves itself — do not "fix" a
-correct embed.
+correct embed, and never downgrade it to a text link: wait, re-probe.
+Exploratory runs with no ticket post this same comment (GH-1991).
 
 Callout template, the dealer-label join the flag check needs, and the
 reasoning: [`references/pr-comment.md`](references/pr-comment.md).
