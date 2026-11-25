@@ -748,6 +748,7 @@ def clean(
     """Clean redundant permissions from project settings files."""
     from dev10x.core.skills.permission import clean_project_files as mod
     from dev10x.core.skills.permission.catalog_prune import prune_messages
+    from dev10x.core.skills.permission.catalog_write import partition_writable
     from dev10x.core.skills.permission.settings_discovery import vendored_dirs
 
     if restore:
@@ -784,6 +785,16 @@ def clean(
     global_file = ClaudeDir.settings_json() if include_global else None
     if global_file is not None and not global_file.is_file():
         global_file = None
+
+    settings_files, skip_messages = partition_writable(settings_files)
+    migration_layers, layer_skip_messages = partition_writable(
+        migration_layers,
+        allow_tracked_paths=(
+            frozenset({global_file.resolve()}) if global_file is not None else frozenset()
+        ),
+    )
+    for message in (*skip_messages, *layer_skip_messages):
+        click.echo(message)
 
     if not settings_files and not migration_layers:
         click.echo("No project settings files found.")
