@@ -5,7 +5,10 @@ import {
   controlState,
   deliveryReport,
   describeValue,
+  diagramLabel,
+  diagramSource,
   fetchArtifact,
+  isDiagram,
   findControl,
   formatRoute,
   isPending,
@@ -19,7 +22,38 @@ import {
   standaloneBlocks,
   type ArtifactDocument,
   type ArtifactView,
+  type Block,
+  type DiagramBlock,
 } from "./artifact";
+
+describe("diagram blocks", () => {
+  const mermaid: DiagramBlock = { type: "mermaid", source: "graph TD; A-->B" };
+  const bpmn: DiagramBlock = { type: "bpmn", xml: "<definitions/>", title: "Release flow" };
+
+  it.each<[Block, boolean]>([
+    [mermaid, true],
+    [bpmn, true],
+    [{ type: "claim", text: "x" }, false],
+  ])("isDiagram(%o) is %s", (block, expected) => {
+    expect(isDiagram(block)).toBe(expected);
+  });
+
+  it.each<[DiagramBlock, string]>([
+    [mermaid, "graph TD; A-->B"],
+    [bpmn, "<definitions/>"],
+  ])("diagramSource reads the block's own field", (block, expected) => {
+    expect(diagramSource(block)).toBe(expected);
+  });
+
+  it.each<[DiagramBlock, string]>([
+    [mermaid, "Mermaid diagram"],
+    [{ ...mermaid, title: "  " }, "Mermaid diagram"],
+    [{ type: "bpmn", xml: "<definitions/>" }, "BPMN diagram"],
+    [bpmn, "Release flow"],
+  ])("diagramLabel falls back to the diagram kind", (block, expected) => {
+    expect(diagramLabel(block)).toBe(expected);
+  });
+});
 
 afterEach(() => {
   vi.unstubAllGlobals();

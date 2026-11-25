@@ -93,7 +93,7 @@ the normal question or permission prompt.
 | 1 | **Full-width page.** Only prose lines stop at ~72ch. | Tables and diagrams need the width. |
 | 2 | **Sectioned nav**, one view per section, grouped under small labels with optional badges. | Each view can be linked; a long scroll buries the part someone asked about. |
 | 3 | **Summary first:** the answer as a claim, then the decisions needed (owner, control), then key facts. | Readers decide from the first screen. |
-| 4 | **Diagrams** as mermaid for flows, sequences, states and C4-style boxes. BPMN only on the export path. | Real diagrams render in both themes and stay editable as text. |
+| 4 | **Diagrams** as mermaid for flows, sequences, states and C4-style boxes; `bpmn` blocks for business processes. | Real diagrams render in both themes and stay editable as text. |
 | 5 | **Status as pills** (`ok` / `warn` / `bad` / `info`); stat tiles only when the numbers are the point. | Pills scan in a column. |
 | 6 | **Light and dark** — the local page follows Overwatch's theme; the export takes the project's brand skill. | Readers open the same page on a dark desktop and a light phone. |
 | 7 | **Content rules:** the project's spelling and unverified-claim prefix; one line saying the content is pattern-based and must be checked in the source system; no secrets, customer PII or internal identifiers — aggregates only. | Pages get forwarded to people who act on them. |

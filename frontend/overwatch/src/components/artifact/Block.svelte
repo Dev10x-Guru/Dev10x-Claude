@@ -1,4 +1,5 @@
 <script lang="ts">
+  import BpmnBlock from "./BpmnBlock.svelte";
   import CalloutBlock from "./CalloutBlock.svelte";
   import ClaimBlock from "./ClaimBlock.svelte";
   import Control from "./Control.svelte";
@@ -32,6 +33,8 @@
   <StatsBlock {block} />
 {:else if block.type === "mermaid"}
   <MermaidBlock {block} />
+{:else if block.type === "bpmn"}
+  <BpmnBlock {block} />
 {:else if block.type === "draft"}
   <DraftBlock {block} />
 {:else if block.type === "evidence"}

@@ -1,8 +1,14 @@
+import { mermaidConfig, type DiagramPalette } from "./diagram-theme";
+
 let counter = 0;
 
-export async function renderMermaid(source: string, dark: boolean): Promise<string> {
+export async function renderMermaid(
+  source: string,
+  palette: DiagramPalette,
+  dark: boolean,
+): Promise<string> {
   const { default: mermaid } = await import("mermaid");
-  mermaid.initialize({ startOnLoad: false, securityLevel: "strict", theme: dark ? "dark" : "default" });
+  mermaid.initialize(mermaidConfig(palette, dark));
   counter += 1;
   const id = `overwatch-mermaid-${counter}`;
   try {

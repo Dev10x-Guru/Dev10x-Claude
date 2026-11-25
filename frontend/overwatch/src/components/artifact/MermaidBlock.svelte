@@ -1,7 +1,8 @@
 <script lang="ts">
   import { MediaQuery } from "svelte/reactivity";
 
-  import type { MermaidBlock } from "../../lib/artifact";
+  import { diagramLabel, type MermaidBlock } from "../../lib/artifact";
+  import { pagePalette } from "../../lib/diagram-theme";
   import { renderMermaid } from "../../lib/mermaid";
 
   let { block }: { block: MermaidBlock } = $props();
@@ -13,21 +14,24 @@
     return forced ? forced === "dark" : prefersDark.current;
   });
 
-  const rendering = $derived(renderMermaid(block.source, dark));
+  const rendering = $derived(renderMermaid(block.source, pagePalette(dark), dark));
 
   function reason(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
   }
 </script>
 
-<figure class="diagram">
+<figure class="diagram" aria-label={diagramLabel(block)}>
+  {#if block.title}
+    <figcaption class="title">{block.title}</figcaption>
+  {/if}
   {#await rendering}
     <p class="loading">Drawing the diagram…</p>
   {:then svg}
     <!-- mermaid produced this SVG itself with securityLevel "strict" -->
     <div class="canvas">{@html svg}</div>
   {:catch error}
-    <figcaption class="failure">The diagram did not render: {reason(error)}</figcaption>
+    <p class="failure">The diagram did not render: {reason(error)}</p>
     <pre>{block.source}</pre>
   {/await}
 </figure>
@@ -43,6 +47,13 @@
     background: var(--paper);
   }
 
+  .title {
+    margin-bottom: var(--space-2);
+    color: var(--ink-soft);
+    font-size: var(--step--1);
+    font-weight: 600;
+  }
+
   .canvas {
     display: flex;
     justify-content: center;
@@ -54,7 +65,7 @@
   }
 
   .failure {
-    margin-bottom: var(--space-2);
+    margin: 0 0 var(--space-2);
     color: var(--danger);
     font-size: var(--step--1);
   }

@@ -37,10 +37,14 @@ count).
 | `table` | `columns: [str]`, `rows: [[cell]]` | A cell is a string or `{text, tone}` (a pill) |
 | `pills` | `items: [{text, tone}]` | Status at a glance |
 | `stats` | `items: [{label, value, note}]` | Only when the numbers are the point |
-| `mermaid` | `source` | Flows, sequences, states, C4-style boxes |
+| `mermaid` | `source`, `title` | Flows, sequences, states, C4-style boxes; `source` up to 20,000 characters, rendered with `securityLevel: "strict"` (no HTML labels, no click callbacks) |
+| `bpmn` | `xml`, `title` | A business process as BPMN 2.0 XML with diagram interchange (from dev10x-scoping:diagram-bpmn); up to 256,000 characters, no `DOCTYPE`; shown in the bpmn-js viewer |
 | `draft` | `label`, `text` | A ready-to-paste message; the page adds a copy button |
 | `evidence` | `items: [{claim, ref, check}]` | `ref` is `file:line@sha`, a ticket, a PR or a query |
 | `decisions` | `items: [{question, owner, control}]` | `control` names a control block that answers it |
+
+`title` is optional on both diagram blocks and becomes the caption.
+They take no other fields: an unknown key is rejected.
 
 ### Controls
 

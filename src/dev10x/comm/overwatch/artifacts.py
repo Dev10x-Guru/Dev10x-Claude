@@ -20,6 +20,8 @@ log = logging.getLogger(__name__)
 SCHEMA = "dev10x.artifact/v1"
 SLUG = re.compile(r"[a-z0-9][a-z0-9-]{0,63}")
 MAX_DOCUMENT_BYTES = 512 * 1024
+MAX_MERMAID_CHARS = 20_000
+MAX_BPMN_CHARS = 256_000
 RECENT_EVENTS = 20
 TONES = ("ok", "warn", "bad", "info")
 BUTTON_TONES = ("primary", "danger", "default")
@@ -165,8 +167,38 @@ def _stats(*, block: dict[str, Any], path: str) -> None:
         _text(owner=item, key="note", path=item_path, required=False)
 
 
+def _only_keys(*, block: dict[str, Any], path: str, allowed: tuple[str, ...]) -> None:
+    for key in block:
+        if key not in allowed:
+            raise _fail(path=f"{path}.{key}", message="is not a field of this block")
+
+
+def _capped(*, owner: dict[str, Any], key: str, path: str, limit: int) -> str:
+    value = _text(owner=owner, key=key, path=path)
+    if len(value) > limit:
+        raise _fail(
+            path=f"{path}.{key}",
+            message=f"is {len(value)} characters; the limit is {limit}",
+        )
+    return value
+
+
+def _diagram(*, block: dict[str, Any], path: str, key: str, limit: int) -> str:
+    _only_keys(block=block, path=path, allowed=("type", key, "title"))
+    _text(owner=block, key="title", path=path, required=False)
+    return _capped(owner=block, key=key, path=path, limit=limit)
+
+
 def _mermaid(*, block: dict[str, Any], path: str) -> None:
-    _text(owner=block, key="source", path=path)
+    _diagram(block=block, path=path, key="source", limit=MAX_MERMAID_CHARS)
+
+
+def _bpmn(*, block: dict[str, Any], path: str) -> None:
+    xml = _diagram(block=block, path=path, key="xml", limit=MAX_BPMN_CHARS)
+    if "<!DOCTYPE" in xml.upper():
+        raise _fail(path=f"{path}.xml", message="must not carry a DOCTYPE")
+    if "definitions" not in xml:
+        raise _fail(path=f"{path}.xml", message="must be BPMN 2.0 XML with <definitions>")
 
 
 def _draft(*, block: dict[str, Any], path: str) -> None:
@@ -230,6 +262,7 @@ BLOCKS: dict[str, Callable[..., None]] = {
     "pills": _pills,
     "stats": _stats,
     "mermaid": _mermaid,
+    "bpmn": _bpmn,
     "draft": _draft,
     "evidence": _evidence,
     "decisions": _decisions,
