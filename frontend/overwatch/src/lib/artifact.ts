@@ -219,6 +219,17 @@ export function navGroups(views: ArtifactView[]): NavGroup[] {
   return groups;
 }
 
+export type NavLayout = "column" | "tabs";
+
+const WIDE_VIEWPORT = 1280;
+const TABS_AT = 820;
+const WIDE_TABS_AT = 600;
+
+export function navLayout(viewport: number, pane: number): NavLayout {
+  if (pane <= 0) return "column";
+  return pane <= (viewport >= WIDE_VIEWPORT ? WIDE_TABS_AT : TABS_AT) ? "tabs" : "column";
+}
+
 export function findControl(document: ArtifactDocument, id: string): ControlBlock | null {
   for (const view of document.views) {
     for (const block of view.blocks) {

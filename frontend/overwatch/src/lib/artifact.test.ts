@@ -10,6 +10,7 @@ import {
   formatRoute,
   isPending,
   navGroups,
+  navLayout,
   parseRoute,
   pickView,
   sendControl,
@@ -106,6 +107,21 @@ describe("navGroups", () => {
       ["Detail", ["b"]],
       ["", ["d"]],
     ]);
+  });
+});
+
+describe("navLayout", () => {
+  it.each([
+    [1440, 768, "column"],
+    [1440, 600, "tabs"],
+    [1280, 601, "column"],
+    [1279, 768, "tabs"],
+    [1024, 820, "tabs"],
+    [1024, 821, "column"],
+    [390, 390, "tabs"],
+    [1440, 0, "column"],
+  ])("viewport %i, pane %i → %s", (viewport, pane, expected) => {
+    expect(navLayout(viewport, pane)).toBe(expected);
   });
 });
 
