@@ -18,6 +18,7 @@ from dev10x.commands import overwatch as command
 from dev10x.core.domain.common.result import err, ok
 
 OWNER = ArtifactOwner(session_id="sid-a", name="alpha", cwd="/a")
+BETA = ArtifactOwner(session_id="sid-b", name="beta", cwd="/b")
 
 
 @pytest.fixture
@@ -64,6 +65,40 @@ class TestPut:
         stored = json.loads((paths.artifacts_dir() / "rollout-review.json").read_text())
 
         assert stored["owner"] == OWNER.to_dict()
+
+    @pytest.mark.parametrize(
+        ("flags", "exit_code", "owner"),
+        [
+            ([], 1, OWNER),
+            (["--take-over"], 0, BETA),
+        ],
+        ids=["refused", "taken-over"],
+    )
+    def test_foreign_session(
+        self,
+        put_once: Result,
+        monkeypatch: pytest.MonkeyPatch,
+        doc_file: Path,
+        flags: list[str],
+        exit_code: int,
+        owner: ArtifactOwner,
+    ) -> None:
+        monkeypatch.setattr(command, "find_owner", lambda **kwargs: ok(BETA))
+
+        result = invoke("put", str(doc_file), *flags)
+        stored = json.loads((paths.artifacts_dir() / "rollout-review.json").read_text())
+
+        assert (result.exit_code, stored["owner"]) == (exit_code, owner.to_dict())
+
+    def test_foreign_session_refusal_names_the_flag(
+        self, put_once: Result, monkeypatch: pytest.MonkeyPatch, doc_file: Path
+    ) -> None:
+        monkeypatch.setattr(command, "find_owner", lambda **kwargs: ok(BETA))
+
+        assert invoke("put", str(doc_file)).output == (
+            'Error: Artifact "rollout-review" belongs to session alpha; '
+            "pass --take-over to publish it from this session.\n"
+        )
 
     def test_dev_instance_uses_its_token_and_port(
         self,

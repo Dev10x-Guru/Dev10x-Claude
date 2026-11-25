@@ -24,6 +24,7 @@ from dev10x.core.domain.common.result import ErrorResult, err, ok
 from tests.comm.overwatch.artifact_fixtures import DOCUMENT, OWNER, document
 from tests.comm.overwatch.conftest import NOW
 
+FOREIGN = {"session_id": "s2", "name": "n2", "cwd": "/n"}
 SLUG_ERROR = "must be a slug: lowercase letters, digits and '-', up to 64"
 
 
@@ -287,16 +288,39 @@ class TestPut:
         self, store: ArtifactStore, stored: dict[str, Any]
     ) -> None:
         store.add_share(artifact_id="rollout-review", publisher="claude-ai", url="https://a")
-        newer = {"session_id": "s2", "name": "n2", "cwd": "/n"}
+        moved = {**OWNER, "cwd": "/moved"}
 
-        saved = store.put(document=document(title="Again"), owner=newer).value  # type: ignore[union-attr]
+        saved = store.put(document=document(title="Again"), owner=moved).value  # type: ignore[union-attr]
 
         assert (saved["revision"], saved["title"], saved["owner"], len(saved["shares"])) == (
             3,
             "Again",
-            newer,
+            moved,
             1,
         )
+
+    def test_refuses_a_foreign_owner(self, store: ArtifactStore, stored: dict[str, Any]) -> None:
+        result = store.put(document=document(title="Hijack"), owner=FOREIGN)
+
+        assert (result, store.get(artifact_id="rollout-review")) == (
+            err(
+                'Artifact "rollout-review" belongs to session mc-updates; '
+                "pass --take-over to publish it from this session."
+            ),
+            stored,
+        )
+
+    def test_take_over_moves_the_owner(self, store: ArtifactStore, stored: dict[str, Any]) -> None:
+        saved = store.put(document=document(title="Mine"), owner=FOREIGN, take_over=True).value  # type: ignore[union-attr]
+
+        assert (saved["revision"], saved["owner"]) == (2, FOREIGN)
+
+    def test_claims_an_unowned_artifact(self, store: ArtifactStore) -> None:
+        store.put(document=document(), owner={})
+
+        saved = store.put(document=document(), owner=FOREIGN).value  # type: ignore[union-attr]
+
+        assert saved["owner"] == FOREIGN
 
     def test_rejects_an_invalid_document(self, store: ArtifactStore) -> None:
         assert store.put(document=document(title=""), owner=OWNER) == err(

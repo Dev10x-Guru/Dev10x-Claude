@@ -441,12 +441,21 @@ def artifact_group() -> None:
 @artifact_group.command(name="put")
 @click.argument("file", type=click.Path(path_type=Path, dir_okay=False, exists=True))
 @click.option("--session", default="", help="Owning session name or id; found from PIDs if unset.")
+@click.option(
+    "--take-over",
+    is_flag=True,
+    help="Publish over an artifact another session owns, and route its events here.",
+)
 @instance_option
-def artifact_put(*, file: Path, session: str, instance: str) -> None:
+def artifact_put(*, file: Path, session: str, take_over: bool, instance: str) -> None:
     """Validate FILE and publish it as the next revision of its artifact."""
     document = _read_document(file=file)
     owner: ArtifactOwner = _unwrap(result=find_owner(start_pid=os.getpid(), session=session))
-    saved = _unwrap(result=_store(instance=instance).put(document=document, owner=owner.to_dict()))
+    saved = _unwrap(
+        result=_store(instance=instance).put(
+            document=document, owner=owner.to_dict(), take_over=take_over
+        )
+    )
     url = artifact_url(artifact_id=saved["id"], instance=paths.Instance(instance))
     click.echo(f"Artifact {saved['id']} revision {saved['revision']}: {url}")
 
