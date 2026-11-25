@@ -358,6 +358,20 @@ class ArtifactSummary:
     updated_at: str
 
 
+class _ForeignOwner(Exception):
+    def __init__(self, *, owner: dict[str, Any]) -> None:
+        super().__init__(owner.get("name") or owner.get("session_id"))
+
+
+def _session_id(*, owner: object) -> str:
+    return str(owner.get("session_id", "")) if isinstance(owner, dict) else ""
+
+
+def _foreign(*, stored: object, caller: dict[str, str]) -> bool:
+    held_by = _session_id(owner=stored)
+    return bool(held_by) and held_by != _session_id(owner=caller)
+
+
 class ArtifactStore:
     def __init__(self, *, root: Path, now: Callable[[], datetime] = _local_now) -> None:
         self.root = root
@@ -372,7 +386,13 @@ class ArtifactStore:
     def _stamp(self) -> str:
         return self._now().isoformat(timespec="seconds")
 
-    def put(self, *, document: object, owner: dict[str, str]) -> Result[dict[str, Any]]:
+    def put(
+        self,
+        *,
+        document: object,
+        owner: dict[str, str],
+        take_over: bool = False,
+    ) -> Result[dict[str, Any]]:
         checked = validate_document(document=document)
         if isinstance(checked, ErrorResult):
             return checked
@@ -380,6 +400,8 @@ class ArtifactStore:
         target = self.document_path(artifact_id=fresh["id"])
         try:
             with locked_json_update(target) as stored:
+                if not take_over and _foreign(stored=stored.get("owner"), caller=owner):
+                    raise _ForeignOwner(owner=stored["owner"])
                 saved = {
                     **fresh,
                     "revision": int(stored.get("revision", 0)) + 1,
@@ -389,6 +411,11 @@ class ArtifactStore:
                 }
                 stored.clear()
                 stored.update(saved)
+        except _ForeignOwner as exc:
+            return err(
+                f'Artifact "{fresh["id"]}" belongs to session {exc}; '
+                "pass --take-over to publish it from this session."
+            )
         except (OSError, ValueError, TypeError) as exc:
             return err(f"Could not write {target}: {exc}")
         return ok(saved)
