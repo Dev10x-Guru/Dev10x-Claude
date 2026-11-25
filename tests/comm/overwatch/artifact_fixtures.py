@@ -7,6 +7,12 @@ from typing import Any
 
 OWNER = {"session_id": "sid-idle", "name": "mc-updates", "cwd": "/w"}
 
+BPMN_XML = (
+    '<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL">'
+    '<bpmn:process id="p"><bpmn:startEvent id="s"/></bpmn:process>'
+    "</bpmn:definitions>"
+)
+
 DOCUMENT: dict[str, Any] = {
     "schema": "dev10x.artifact/v1",
     "id": "rollout-review",
@@ -31,13 +37,14 @@ DOCUMENT: dict[str, Any] = {
                 },
                 {"type": "pills", "items": [{"text": "ready", "tone": "ok"}]},
                 {"type": "stats", "items": [{"label": "PRs", "value": "4", "note": "open"}]},
-                {"type": "mermaid", "source": "graph TD; A-->B"},
+                {"type": "mermaid", "source": "graph TD; A-->B", "title": "Flow"},
                 {"type": "draft", "label": "Reply", "text": "Thanks"},
                 {"type": "evidence", "items": [{"claim": "Green", "ref": "CI#1", "check": "ok"}]},
                 {
                     "type": "decisions",
                     "items": [{"question": "Ship?", "owner": "Janusz", "control": "ship"}],
                 },
+                {"type": "bpmn", "xml": BPMN_XML, "title": "Release flow"},
             ],
         },
         {

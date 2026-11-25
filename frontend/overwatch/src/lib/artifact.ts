@@ -50,7 +50,16 @@ export interface StatsBlock {
 export interface MermaidBlock {
   type: "mermaid";
   source: string;
+  title?: string;
 }
+
+export interface BpmnBlock {
+  type: "bpmn";
+  xml: string;
+  title?: string;
+}
+
+export type DiagramBlock = MermaidBlock | BpmnBlock;
 
 export interface DraftBlock {
   type: "draft";
@@ -109,7 +118,7 @@ export type Block =
   | TableBlock
   | PillsBlock
   | StatsBlock
-  | MermaidBlock
+  | DiagramBlock
   | DraftBlock
   | EvidenceBlock
   | DecisionsBlock
@@ -328,6 +337,20 @@ export function describeValue(value: unknown): string {
       .join("; ");
   }
   return value === undefined ? "" : String(value);
+}
+
+export function isDiagram(block: Block): block is DiagramBlock {
+  return block.type === "mermaid" || block.type === "bpmn";
+}
+
+export function diagramSource(block: DiagramBlock): string {
+  return block.type === "mermaid" ? block.source : block.xml;
+}
+
+export function diagramLabel(block: DiagramBlock): string {
+  const title = block.title?.trim();
+  if (title) return title;
+  return block.type === "mermaid" ? "Mermaid diagram" : "BPMN diagram";
 }
 
 export function cellText(cell: TableCell): ToneText {

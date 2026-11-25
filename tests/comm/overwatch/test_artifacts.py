@@ -12,6 +12,8 @@ import pytest
 
 from dev10x.comm.overwatch.artifacts import (
     CONTROL_EVENT,
+    MAX_BPMN_CHARS,
+    MAX_MERMAID_CHARS,
     SHARE_EVENT,
     ArtifactStore,
     ArtifactSummary,
@@ -65,6 +67,12 @@ class TestValidateDocument:
         bare = {key: value for key, value in DOCUMENT.items() if key != "meta"}
 
         assert validate_document(document=bare) == ok(bare)
+
+    def test_diagram_title_is_optional(self) -> None:
+        untitled = document()
+        del untitled["views"][0]["blocks"][11]["title"]
+
+        assert validate_document(document=untitled) == ok(untitled)
 
     def test_accepts_empty_optional_text(self) -> None:
         assert validate_document(document=document(description="")) == ok(document(description=""))
@@ -148,6 +156,48 @@ class TestValidateDocument:
                 ["views", 0, "blocks", 7, "source"],
                 "",
                 "views[0].blocks[7].source: must be a non-empty string",
+            ),
+            (
+                ["views", 0, "blocks", 7, "source"],
+                "x" * (MAX_MERMAID_CHARS + 1),
+                f"views[0].blocks[7].source: is {MAX_MERMAID_CHARS + 1} characters; "
+                f"the limit is {MAX_MERMAID_CHARS}",
+            ),
+            (
+                ["views", 0, "blocks", 7, "title"],
+                3,
+                "views[0].blocks[7].title: must be a non-empty string",
+            ),
+            (
+                ["views", 0, "blocks", 7, "onclick"],
+                "x",
+                "views[0].blocks[7].onclick: is not a field of this block",
+            ),
+            (
+                ["views", 0, "blocks", 11, "xml"],
+                "",
+                "views[0].blocks[11].xml: must be a non-empty string",
+            ),
+            (
+                ["views", 0, "blocks", 11, "xml"],
+                "x" * (MAX_BPMN_CHARS + 1),
+                f"views[0].blocks[11].xml: is {MAX_BPMN_CHARS + 1} characters; "
+                f"the limit is {MAX_BPMN_CHARS}",
+            ),
+            (
+                ["views", 0, "blocks", 11, "xml"],
+                '<!doctype x [<!ENTITY e "x">]><definitions/>',
+                "views[0].blocks[11].xml: must not carry a DOCTYPE",
+            ),
+            (
+                ["views", 0, "blocks", 11, "xml"],
+                "<svg/>",
+                "views[0].blocks[11].xml: must be BPMN 2.0 XML with <definitions>",
+            ),
+            (
+                ["views", 0, "blocks", 11, "source"],
+                "graph TD",
+                "views[0].blocks[11].source: is not a field of this block",
             ),
             (
                 ["views", 0, "blocks", 8, "label"],
