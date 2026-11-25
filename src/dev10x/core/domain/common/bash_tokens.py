@@ -1244,8 +1244,27 @@ _FIND_EXEC_TERMINATORS = frozenset({";", "+"})
 _FLOCK_VALUE_OPTIONS = frozenset({"-w", "--wait", "--timeout", "-E", "--conflict-exit-code"})
 _FLOCK_COMMAND_OPTIONS = frozenset({"-c", "--command"})
 _WATCH_VALUE_OPTIONS = frozenset({"-n", "--interval", "-q", "--equexit"})
+# Search tools with an option naming a program they run (GH-1809):
+# `rg --pre psql pattern` runs psql on every file it searches.
+_PROGRAM_OPTIONS: dict[str, frozenset[str]] = {
+    "rg": frozenset({"--pre", "--hostname-bin"}),
+    "ag": frozenset({"--pager"}),
+    "ack": frozenset({"--pager"}),
+}
 _RUNNER_NAMES = "|".join(
-    sorted({"ssh", "op", "find", "eval", "watch", "flock", *_CONTAINER_CLIS, *_SU_RUNNERS})
+    sorted(
+        {
+            "ssh",
+            "op",
+            "find",
+            "eval",
+            "watch",
+            "flock",
+            *_CONTAINER_CLIS,
+            *_SU_RUNNERS,
+            *_PROGRAM_OPTIONS,
+        }
+    )
 )
 _SHELL_QUOTING = str.maketrans("", "", "\"'\\")
 
@@ -1384,6 +1403,19 @@ def _watch_command(*, parts: list[str]) -> str:
     return " ".join(parts[idx:])
 
 
+def _program_option_commands(*, parts: list[str], options: frozenset[str]) -> list[str]:
+    commands: list[str] = []
+    for idx, token in enumerate(parts[1:], start=1):
+        name, equals, value = token.partition("=")
+        if name not in options:
+            continue
+        if equals:
+            commands.append(value)
+        elif idx + 1 < len(parts):
+            commands.append(parts[idx + 1])
+    return commands
+
+
 def _find_exec_commands(*, parts: list[str]) -> list[str]:
     commands: list[str] = []
     idx = 1
@@ -1423,6 +1455,8 @@ def nested_commands(*, parts: list[str]) -> list[NestedCommand]:
         commands = [_watch_command(parts=parts)]
     elif name == "flock":
         commands = [_flock_command(parts=parts)]
+    elif name in _PROGRAM_OPTIONS:
+        commands = _program_option_commands(parts=parts, options=_PROGRAM_OPTIONS[name])
     elif name == "ssh":
         return [NestedCommand(command=_ssh_command(parts=parts), remote=True)]
     elif name in _CONTAINER_CLIS:

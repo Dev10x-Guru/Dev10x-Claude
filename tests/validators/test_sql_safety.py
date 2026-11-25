@@ -393,6 +393,80 @@ class TestPsqlAsSearchOperand:
         assert "Direct psql calls" in result.message
 
 
+class TestPsqlCommandPosition:
+    """DX004 judges the program each unit runs, not every word (GH-1809)."""
+
+    @pytest.fixture()
+    def validator(self) -> SqlSafetyValidator:
+        return SqlSafetyValidator()
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "watch psql -c 'DROP TABLE t'",
+            "watch -n 5 psql -d mydb",
+            "setsid psql -d mydb",
+            "eval psql -d mydb",
+            "eval 'psql -d mydb'",
+            "flock /tmp/lock psql -d mydb",
+            "flock /tmp/lock -c 'psql -d mydb'",
+            "env -S 'psql -d mydb'",
+            "nsenter -t 1 psql -d mydb",
+            "xargs psql -d mydb",
+            "ssh db01 psql -d mydb",
+            "ssh db01 'psql -d mydb -c \"DELETE FROM t\"'",
+            "su postgres -c 'psql -d mydb'",
+            "find . -name x -exec psql -f {} \\;",
+            "kubectl exec pod -- psql -d mydb",
+            "docker run --rm img psql -d mydb",
+            "sudo docker exec c psql -d mydb",
+            "/usr/bin/psql -d mydb",
+            "p''sql -d mydb",
+            "echo $(psql -d mydb -c 'SELECT 1')",
+            "echo `psql -d mydb`",
+            "rg --pre=psql pattern src",
+            "rg --hostname-bin psql pattern src",
+            "ack --pager=psql pattern src",
+            "psql -d mydb -c 'SELECT 1",
+            "timeout 5 'psql -d mydb",
+        ],
+    )
+    def test_blocks_psql_run_by_a_runner(
+        self, validator: SqlSafetyValidator, command: str
+    ) -> None:
+        result = validator.validate(inp=_make_input(command=command))
+
+        assert result is not None
+        assert "Direct psql calls" in result.message
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "rg psql src",
+            "echo psql",
+            "git log --grep psql",
+            "which psql",
+            "ls /usr/bin/psql",
+            "rg --pre-glob '*.gz' psql src",
+            'rg psql "src',
+            "echo $(echo psql) $(echo psql) $( )",
+            "rg psql src; > out.txt",
+        ],
+    )
+    def test_allows_psql_as_an_operand(self, validator: SqlSafetyValidator, command: str) -> None:
+        assert validator.validate(inp=_make_input(command=command)) is None
+
+    def test_wrapped_psql_inside_a_substitution_is_checked_for_writes(
+        self, validator: SqlSafetyValidator
+    ) -> None:
+        command = "echo $(docker exec c psql -c 'DROP TABLE t')"
+
+        result = validator.validate(inp=_make_input(command=command))
+
+        assert result is not None
+        assert "DROP" in result.message
+
+
 class TestWrappedPsqlExemption:
     """psql wrapped by docker exec / op run is exempt (GH-474 #4)."""
 
