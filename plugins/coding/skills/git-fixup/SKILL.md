@@ -19,6 +19,10 @@ allowed-tools:
   - mcp__plugin_dev10x_cli__pr_detect
   - mcp__plugin_dev10x_cli__pr_comments
   - mcp__plugin_dev10x_cli__push_safe
+  - mcp__plugin_dev10x_cli__resolve_gate
+  - Skill(dev10x-coding:git-groom)
+  - Skill(dev10x-coding:git)
+  - Skill(dev10x-coding:gh-pr-monitor)
 ---
 
 # Create Fixup Commit
@@ -344,6 +348,14 @@ thinking the workflow is done when the parent still has steps.
 The caller reads these values from git state:
 - `commit_hash` — `git rev-parse --short HEAD`
 - `commit_url` — constructed from repo + PR number + full hash
+
+### Step 8: Groom continuation (standalone, GH-1989)
+
+**REQUIRED: In standalone mode with no parent pipeline and no human
+review on the PR yet, call `resolve_gate(gate="shipping_continuation",
+context={})` and offer the groom** — spec and options in
+[references/groom-continuation.md](./references/groom-continuation.md).
+Never defer the groom on posture alone.
 
 ## Pre-commit Hook Integration
 

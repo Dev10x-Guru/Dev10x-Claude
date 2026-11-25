@@ -428,6 +428,12 @@ after Verify-AC was closed, create a fresh "Verify acceptance criteria"
 task **before** starting the new work, so the task list never sits
 empty mid-session.
 
+**Late work while Verify-AC is still open (GH-1989).** If new supervisor
+work lands while the task is open but already reported green, that
+green is stale. Re-run every check — "No fixup commits" included —
+before the turn ends, and route a red one as above. A fixup pushed
+after the report must not reach the base branch unsquashed.
+
 ## Integration
 
 ```
