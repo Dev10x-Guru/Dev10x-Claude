@@ -109,6 +109,44 @@ _COMMAND_WRAPPERS: dict[str, _Wrapper] = {
     "nsenter": _Wrapper(
         value_options=frozenset({"-t", "--target", "-S", "--setuid", "-G", "--setgid"})
     ),
+    # Tracers, schedulers and terminal helpers that exec the rest of argv
+    # (GH-1998). taskset's and chrt's positional is the mask or priority.
+    "strace": _Wrapper(
+        value_options=frozenset(
+            {"-o", "-e", "-p", "-s", "-u", "-E", "-a", "-b", "-I", "-O", "-S", "-P", "-X", "-U"}
+        )
+    ),
+    "ltrace": _Wrapper(
+        value_options=frozenset(
+            {"-o", "-e", "-p", "-s", "-u", "-a", "-n", "-l", "-L", "-x", "-A", "-D", "-F"}
+        )
+    ),
+    "valgrind": _Wrapper(),
+    "ionice": _Wrapper(value_options=frozenset({"-c", "--class", "-n", "--classdata"})),
+    "taskset": _Wrapper(positionals=1),
+    "chrt": _Wrapper(
+        value_options=frozenset(
+            {"-T", "-P", "-D", "--sched-runtime", "--sched-period", "--sched-deadline"}
+        ),
+        positionals=1,
+    ),
+    "unbuffer": _Wrapper(),
+    "rlwrap": _Wrapper(
+        value_options=frozenset(
+            {"-b", "-C", "-D", "-e", "-f", "-g", "-H", "-l", "-m", "-O", "-P", "-q"}
+            | {"-s", "-S", "-t", "-w", "-z"}
+        )
+    ),
+    "systemd-run": _Wrapper(
+        value_options=frozenset(
+            {"-u", "--unit", "-p", "--property", "-E", "--setenv", "--uid", "--gid"}
+            | {"--nice", "--slice", "--description", "-M", "--machine", "-H", "--host"}
+        )
+    ),
+    "firejail": _Wrapper(),
+    "screen": _Wrapper(
+        value_options=frozenset({"-S", "-c", "-e", "-h", "-p", "-s", "-t", "-T", "-X"})
+    ),
     "xargs": _Wrapper(
         value_options=frozenset(
             {
@@ -1250,7 +1288,26 @@ _PROGRAM_OPTIONS: dict[str, frozenset[str]] = {
     "rg": frozenset({"--pre", "--hostname-bin"}),
     "ag": frozenset({"--pager"}),
     "ack": frozenset({"--pager"}),
+    "man": frozenset({"-P", "--pager"}),
+    # `script -c 'cmd'` runs a command string (GH-1998).
+    "script": frozenset({"-c", "--command"}),
 }
+# tmux subcommands whose trailing words are a shell command (GH-1998).
+_TMUX_COMMAND_SUBCOMMANDS = frozenset(
+    {"new-session", "new", "new-window", "neww", "split-window", "splitw"}
+    | {"respawn-pane", "respawnp", "respawn-window", "respawnw", "run-shell", "run"}
+    | {"send-keys", "send"}
+)
+_TMUX_VALUE_OPTIONS = frozenset(
+    {"-c", "-e", "-F", "-n", "-s", "-t", "-x", "-y", "-l", "-f", "-L", "-S", "-N"}
+)
+_TMUX_KEY_NAMES = frozenset({"Enter", "C-m", "KPEnter"})
+_PARALLEL_VALUE_OPTIONS = frozenset(
+    {"-j", "--jobs", "-S", "--sshlogin", "-a", "--arg-file", "-d", "--delimiter"}
+    | {"-E", "-I", "--colsep", "-C", "--joblog", "--results", "--tmpdir", "-n", "-N"}
+    | {"-L", "-P", "--timeout", "--delay"}
+)
+_PARALLEL_SEPARATORS = frozenset({":::", "::::", ":::+", "::::+"})
 _RUNNER_NAMES = "|".join(
     sorted(
         {
@@ -1260,6 +1317,9 @@ _RUNNER_NAMES = "|".join(
             "eval",
             "watch",
             "flock",
+            "gdb",
+            "tmux",
+            "parallel",
             *_CONTAINER_CLIS,
             *_SU_RUNNERS,
             *_PROGRAM_OPTIONS,
@@ -1403,9 +1463,20 @@ def _watch_command(*, parts: list[str]) -> str:
     return " ".join(parts[idx:])
 
 
+def _attached_short_value(*, token: str, options: frozenset[str]) -> str | None:
+    """``psql`` for ``-Ppsql`` when ``-P`` is a short option in ``options``."""
+    if token.startswith("--") or len(token) <= 2:
+        return None
+    return token[2:] if token[:2] in options else None
+
+
 def _program_option_commands(*, parts: list[str], options: frozenset[str]) -> list[str]:
     commands: list[str] = []
     for idx, token in enumerate(parts[1:], start=1):
+        attached = _attached_short_value(token=token, options=options)
+        if attached is not None:
+            commands.append(attached)
+            continue
         name, equals, value = token.partition("=")
         if name not in options:
             continue
@@ -1414,6 +1485,33 @@ def _program_option_commands(*, parts: list[str], options: frozenset[str]) -> li
         elif idx + 1 < len(parts):
             commands.append(parts[idx + 1])
     return commands
+
+
+def _gdb_command(*, parts: list[str]) -> str:
+    if "--args" not in parts:
+        return ""
+    return shlex.join(parts[parts.index("--args") + 1 :])
+
+
+def _tmux_command(*, parts: list[str]) -> str:
+    subcommand = next(
+        (idx for idx, token in enumerate(parts) if token in _TMUX_COMMAND_SUBCOMMANDS), None
+    )
+    if subcommand is None:
+        return ""
+    idx = _skip_options(parts=parts, idx=subcommand + 1, value_options=_TMUX_VALUE_OPTIONS)
+    words = [word for word in parts[idx:] if word not in _TMUX_KEY_NAMES]
+    return " ".join(words)
+
+
+def _parallel_commands(*, parts: list[str]) -> list[str]:
+    idx = _skip_options(parts=parts, idx=1, value_options=_PARALLEL_VALUE_OPTIONS)
+    rest = parts[idx:]
+    end = next((i for i, word in enumerate(rest) if word in _PARALLEL_SEPARATORS), len(rest))
+    if end:
+        return [shlex.join(rest[:end])]
+    # No command template: each argument is itself a command line.
+    return [word for word in rest[end:] if word not in _PARALLEL_SEPARATORS]
 
 
 def _find_exec_commands(*, parts: list[str]) -> list[str]:
@@ -1457,6 +1555,12 @@ def nested_commands(*, parts: list[str]) -> list[NestedCommand]:
         commands = [_flock_command(parts=parts)]
     elif name in _PROGRAM_OPTIONS:
         commands = _program_option_commands(parts=parts, options=_PROGRAM_OPTIONS[name])
+    elif name == "gdb":
+        commands = [_gdb_command(parts=parts)]
+    elif name == "tmux":
+        commands = [_tmux_command(parts=parts)]
+    elif name == "parallel":
+        commands = _parallel_commands(parts=parts)
     elif name == "ssh":
         return [NestedCommand(command=_ssh_command(parts=parts), remote=True)]
     elif name in _CONTAINER_CLIS:

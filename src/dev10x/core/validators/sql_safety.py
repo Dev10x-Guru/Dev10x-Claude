@@ -160,9 +160,29 @@ _PSQL_PROBE = ProgramProbe.for_program(program="psql")
 _PSQL_COMMAND_POSITION_RE = command_position_re(program="psql")
 
 
+# Programs that only search, print or look up their operands, so a bare
+# `psql` word after one of them names text, not a process (GH-1790). Any
+# other program handed a bare `psql` word may run it, through an option
+# or an unrecognised runner, so it fails closed (GH-1998). A program in
+# this set that can run one (`rg --pre`, `man -P`) nests it as a runner
+# body, judged on its own.
+_INSPECTION_PROGRAMS = frozenset(
+    {"ack", "ag", "cat", "echo", "egrep", "fgrep", "grep", "head", "printf", "rg", "tail", "wc"}
+    | {"which", "whereis", "type", "man", "apropos", "whatis", "git", "ls", "file", "stat"}
+)
+
+
 def _runs_psql(parts: list[str]) -> bool:
+    if _is_command_probe(parts=parts):
+        return False
     words = strip_command_wrappers(parts=parts)
-    return bool(words) and _is_psql_binary(words[0])
+    if not words:
+        return False
+    if _is_psql_binary(words[0]):
+        return True
+    if Path(words[0]).name in _INSPECTION_PROGRAMS:
+        return False
+    return any(_is_psql_binary(word) for word in words[1:])
 
 
 def _psql_units(*, command: str) -> Iterator[tuple[str, tuple[CommandSegment, ...] | None]]:
