@@ -64,11 +64,14 @@ clusters; it also brings `dev10x` with it:
 claude plugin install dev10x-infra@Dev10x-Guru
 ```
 
-The database skills (`db`, `db-psql`, `sql-handoff`) ship as
+The database skills (`db`, `db-psql`, `bq`, `sql-handoff`) ship as
 `dev10x-db`. Install it where you query databases; it also brings
 `dev10x` with it. The `mcp__plugin_dev10x_db__query` tool stays in
 `dev10x` under its old name, but it runs the `db.sh` script that
-`dev10x-db` ships, so queries need both plugins:
+`dev10x-db` ships, so queries need both plugins.
+The read-only BigQuery tools (`bq_query`, `bq_datasets`, `bq_tables`,
+`bq_schema`) also live on the `db` server and need only the `bq` CLI
+and `gcloud` credentials:
 
 ```bash
 claude plugin install dev10x-db@Dev10x-Guru

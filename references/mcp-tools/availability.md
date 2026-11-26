@@ -107,6 +107,10 @@ supporting each tool:
 | `review_stamp_write` | `cli` | GH-1830 | v0.114.0+ |
 | `worktree_prune_candidates` | `cli` | GH-1930 | v0.116.0+ (`gh` for PR state; `herdr` optional, for open workspaces) |
 | `query` | `db` | PR #126 | v0.25.0+ |
+| `bq_query` | `db` | GH-1633 | v0.117.0+ (needs the `bq` CLI and `gcloud` auth) |
+| `bq_datasets` | `db` | GH-1633 | v0.117.0+ (needs the `bq` CLI and `gcloud` auth) |
+| `bq_tables` | `db` | GH-1633 | v0.117.0+ (needs the `bq` CLI and `gcloud` auth) |
+| `bq_schema` | `db` | GH-1633 | v0.117.0+ (needs the `bq` CLI and `gcloud` auth) |
 
 When adding a new tool, update this table and note any dependencies on
 specific CLI commands or external programs. Skills should declare required

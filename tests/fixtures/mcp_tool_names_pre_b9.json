@@ -115,6 +115,10 @@
     "worktree_prune_candidates"
   ],
   "db": [
+    "bq_datasets",
+    "bq_query",
+    "bq_schema",
+    "bq_tables",
     "query"
   ]
 }

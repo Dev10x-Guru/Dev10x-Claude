@@ -4884,6 +4884,107 @@
     }
   },
   "db": {
+    "bq_datasets": {
+      "properties": {
+        "max_results": {
+          "default": 200,
+          "title": "Max Results",
+          "type": "integer"
+        },
+        "project_id": {
+          "title": "Project Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "project_id"
+      ],
+      "title": "bq_datasetsArguments",
+      "type": "object"
+    },
+    "bq_query": {
+      "properties": {
+        "dry_run": {
+          "default": false,
+          "title": "Dry Run",
+          "type": "boolean"
+        },
+        "location": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Location"
+        },
+        "max_rows": {
+          "default": 100,
+          "title": "Max Rows",
+          "type": "integer"
+        },
+        "maximum_bytes_billed": {
+          "default": 10737418240,
+          "title": "Maximum Bytes Billed",
+          "type": "integer"
+        },
+        "project_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Project Id"
+        },
+        "sql": {
+          "title": "Sql",
+          "type": "string"
+        }
+      },
+      "required": [
+        "sql"
+      ],
+      "title": "bq_queryArguments",
+      "type": "object"
+    },
+    "bq_schema": {
+      "properties": {
+        "table": {
+          "title": "Table",
+          "type": "string"
+        }
+      },
+      "required": [
+        "table"
+      ],
+      "title": "bq_schemaArguments",
+      "type": "object"
+    },
+    "bq_tables": {
+      "properties": {
+        "dataset": {
+          "title": "Dataset",
+          "type": "string"
+        },
+        "max_results": {
+          "default": 200,
+          "title": "Max Results",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "dataset"
+      ],
+      "title": "bq_tablesArguments",
+      "type": "object"
+    },
     "query": {
       "properties": {
         "database": {
