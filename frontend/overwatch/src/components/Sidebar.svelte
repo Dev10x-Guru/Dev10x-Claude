@@ -17,6 +17,7 @@
   } from "../lib/prefs";
   import { formatRoute, type ArtifactIndexEntry } from "../lib/artifact";
   import { BUS_ROUTE } from "../lib/chatbus";
+  import { OVERVIEW_HASH } from "../lib/overview";
   import { arrange, buildTree, isActive, markOf, matches } from "../lib/tree";
   import type { Session } from "../lib/types";
 
@@ -29,6 +30,7 @@
     artifacts?: ArtifactIndexEntry[];
     artifact?: string;
     bus?: boolean;
+    overview?: boolean;
     onselect: (sessionId: string) => void;
     onpin: (sessionId: string) => void;
     run: (path: string, body: Record<string, unknown>, what: string) => Promise<boolean>;
@@ -43,6 +45,7 @@
     artifacts = [],
     artifact = "",
     bus = false,
+    overview = false,
     onselect,
     onpin,
     run,
@@ -209,6 +212,20 @@
   </div>
 
   <div class="scroll">
+    <ul class="sessions flat">
+      <li class={["leaf", { current: overview }]}>
+        <a
+          class="pick page"
+          href={OVERVIEW_HASH}
+          title="Every session at a glance and the decisions waiting on you"
+          aria-current={overview ? "page" : undefined}
+        >
+          <span class="page-dot live" aria-hidden="true"></span>
+          <span class="leaf-name">Overview</span>
+        </a>
+      </li>
+    </ul>
+
     <section class="group" aria-label="Chat bus">
       <p class="group-head">Chat bus</p>
       <ul class="sessions flat">
