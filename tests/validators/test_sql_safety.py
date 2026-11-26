@@ -8,6 +8,7 @@ import time
 import pytest
 
 from dev10x.core.domain import HookResult
+from dev10x.core.validators import sql_safety
 from dev10x.core.validators.sql_safety import SqlSafetyValidator
 from tests.fakers import BashHookInputFaker
 
@@ -543,6 +544,23 @@ class TestPsqlCommandPosition:
             "git bisect run sh -c 'ls; psql -d mydb'",
             "./bin/run 'ls; psql -d mydb'",
             "GIT_CONFIG_PARAMETERS=\"'core.pager'='ls; psql'\" git log",
+            "bash --rcfile /dev/null -c 'cd /; psql -d mydb'",
+            "bash --init-file x -c 'cd /; psql -d mydb'",
+            "bash --unknown-long value -c 'cd /; psql -d mydb'",
+            "csh -c 'cd /; psql -d mydb'",
+            "tcsh -c 'cd /; psql -d mydb'",
+            "fish -c 'cd /; psql -d mydb'",
+            "fish -C 'cd /; psql -d mydb'",
+            "fish -C 'set x 1' -c 'cd /; psql -d mydb'",
+            "fish --command='cd /; psql -d mydb'",
+            "fish --init-command 'cd /; psql -d mydb'",
+            "ash -c 'cd /; psql -d mydb'",
+            "rbash -c 'cd /; psql -d mydb'",
+            "mksh -c 'cd /; psql -d mydb'",
+            "busybox sh -c 'cd /; psql -d mydb'",
+            "busybox ash <<< 'cd /; psql -d mydb'",
+            "op run --env-file=x -- bash -c 'cd /; psql -d mydb'",
+            "op run -- sh -c 'ls; psql -d mydb'",
         ],
     )
     def test_blocks_psql_in_a_script_a_shell_or_git_runs(
@@ -1201,6 +1219,27 @@ def _nested_shell_strings(*, payload: str, levels: int) -> str:
     return command
 
 
+class TestWordRuleSeam:
+    """Production really consults the word rule (GH-2005 review)."""
+
+    def test_an_always_firing_word_rule_blocks_an_innocent_command(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(sql_safety, "_psql_word_anywhere", _always_fires)
+
+        result = SqlSafetyValidator().validate(inp=_make_input(command="rg psql src"))
+
+        assert result is not None
+        assert "Direct psql calls" in result.message
+
+    def test_the_innocent_command_passes_with_the_real_word_rule(self) -> None:
+        assert SqlSafetyValidator().validate(inp=_make_input(command="rg psql src")) is None
+
+
+def _always_fires(*, command: str) -> bool:
+    return True
+
+
 class TestExpansionCaps:
     """GH-2005 review F1/F2: a command too nested to judge in time is blocked."""
 
@@ -1257,6 +1296,24 @@ class TestExpansionCaps:
 
         assert result is not None
         assert _TOO_COMPLEX in result.message
+
+    @pytest.mark.parametrize(
+        "head",
+        ["echo 'x psql", "dropdb 'x", "bq query 'x"],
+    )
+    def test_long_unparseable_part_blocks_quickly(self, head: str) -> None:
+        """An unparseable part over the fallback cap never reaches the regex."""
+        result, elapsed = _timed_validate(command=head + " -o a" * 1000)
+
+        assert result is not None
+        assert _TOO_COMPLEX in result.message
+        assert elapsed < _FAST_ENOUGH_SECONDS
+
+    def test_ssh_shaped_unparseable_part_under_the_cap_is_judged_quickly(self) -> None:
+        result, elapsed = _timed_validate(command="ssh" + " -o a" * 700 + " 'x psql")
+
+        assert result is not None
+        assert elapsed < _FAST_ENOUGH_SECONDS
 
     def test_unknown_program_operand_cap_blocks(self) -> None:
         result, _ = _timed_validate(command="./x " + "a " * 65 + "psql")

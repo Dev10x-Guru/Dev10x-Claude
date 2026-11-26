@@ -1251,10 +1251,18 @@ _DIRECTORY = r"(?:[\w./~-]*/)?"
 # An option with at most one value word, so `sudo -u app` and
 # `timeout 30` are both seen past. Over-reading a word is the safe
 # direction here: the program can still match after it.
-_WRAPPER_OPTIONS = r"(?:(?:-\S*|\d\S*)\s+(?:[^\s|;&-]\S*\s+)?)*"
+# Neither a value nor an ssh host starts with a digit or is a bare
+# wrapper name: such a word already parses as an option or as
+# the next wrapper. With one parse per word, a failed search is linear
+# instead of 2^n (GH-2005 review). The ssh host is optional, which only
+# widens what matches: the fail-closed direction.
+_NOT_A_WRAPPER = rf"(?!{_DIRECTORY}(?:{_WRAPPER_NAMES}|ssh)\s)"
+_WRAPPER_VALUE = rf"{_NOT_A_WRAPPER}[^\s|;&\d-]\S*\s+"
+_SSH_HOST = rf"{_NOT_A_WRAPPER}[^\s|;&\d-]\S*\s+"
+_WRAPPER_OPTIONS = rf"(?:(?:-\S*|\d\S*)\s+(?:{_WRAPPER_VALUE})?)*"
 _WRAPPER_PREFIX = (
     rf"(?:{_DIRECTORY}(?:{_WRAPPER_NAMES})\s+{_WRAPPER_OPTIONS}"
-    rf"|{_DIRECTORY}ssh\s+{_WRAPPER_OPTIONS}[^\s|;&-]\S*\s+{_WRAPPER_OPTIONS})*"
+    rf"|{_DIRECTORY}ssh\s+{_WRAPPER_OPTIONS}(?:{_SSH_HOST}{_WRAPPER_OPTIONS})?)*"
 )
 
 
@@ -2021,11 +2029,15 @@ def _runner_bodies(*, unit: str) -> list[NestedCommand]:
 
 # Shells that run a script given as a `-c` string, a heredoc or a
 # here-string, and the builtins that run a script file (GH-2005).
-_SHELLS = frozenset({"sh", "bash", "zsh", "dash", "ksh"})
+_SHELLS = frozenset(
+    {"sh", "bash", "zsh", "dash", "ksh", "csh", "tcsh", "fish", "ash", "rbash", "mksh"}
+)
 _SCRIPT_SOURCERS = frozenset({"source", "."})
-_SHELL_VALUE_OPTIONS = frozenset({"-o", "+o", "-O", "+O"})
+_BUSYBOX = "busybox"
 _SHELL_OPTION_PREFIXES = ("-", "+")
-_SHELL_COMMAND_LETTER = "c"
+# `-c` runs a command string; fish's `-C` runs an init command too.
+_SHELL_COMMAND_LETTERS = frozenset("cC")
+_SHELL_COMMAND_LONG_OPTIONS = frozenset({"--command", "--init-command"})
 _HERE_STRING_OPERATOR = "<<<"
 _PROCESS_SUBSTITUTION_PREFIXES = ("<(", ">(")
 
@@ -2034,34 +2046,46 @@ def _program_name(*, word: str) -> str:
     return word.rsplit("/", 1)[-1]
 
 
-def shell_command_strings(*, parts: list[str]) -> list[str]:
-    """The ``-c`` string a shell in ``parts`` runs (GH-2005).
-
-    ``bash -c 'ls; psql …'`` yields ``ls; psql …``. The string is the first
-    operand after the options when any short-option bundle holds ``c``
-    (``-c``, ``-lc``, ``-ec``). Wrappers are stripped first.
-    """
+def _shell_words(*, parts: list[str]) -> list[str]:
+    """``parts`` from the shell it runs, past wrappers and ``busybox``."""
     words = strip_command_wrappers(parts=parts)
+    if words and _program_name(word=words[0]) == _BUSYBOX:
+        return words[1:]
+    return words
+
+
+def _is_shell_option(*, word: str) -> bool:
+    return word.startswith(_SHELL_OPTION_PREFIXES) and len(word) > 1
+
+
+def shell_command_strings(*, parts: list[str]) -> list[str]:
+    """Every string a shell in ``parts`` may run as a command (GH-2005).
+
+    ``bash -c 'ls; psql …'`` yields ``ls; psql …``. Once any short-option
+    bundle holds ``c`` (or fish's ``C``), every later operand is returned,
+    so an unknown option's value (``--rcfile f``) or a second ``-c`` cannot
+    hide the string. Over-reading only hands the walk more units.
+    ``--command=x`` and ``--init-command x`` are read too. Wrappers and
+    ``busybox`` are stripped first.
+    """
+    words = _shell_words(parts=parts)
     if not words or _program_name(word=words[0]) not in _SHELLS:
         return []
+    strings: list[str] = []
     runs_string = False
-    idx = 1
-    while idx < len(words):
-        word = words[idx]
-        if word in _SHELL_VALUE_OPTIONS:
-            idx += 2
-            continue
-        if word == "--":
-            idx += 1
-            break
-        if not word.startswith(_SHELL_OPTION_PREFIXES) or len(word) < 2:
-            break
-        if not word.startswith("--"):
-            runs_string = runs_string or _SHELL_COMMAND_LETTER in word[1:]
-        idx += 1
-    if runs_string and idx < len(words):
-        return [words[idx]]
-    return []
+    for idx, word in enumerate(words[1:], start=1):
+        name, equals, value = word.partition("=")
+        if name in _SHELL_COMMAND_LONG_OPTIONS:
+            if equals:
+                strings.append(value)
+            else:
+                runs_string = True
+        elif _is_shell_option(word=word):
+            short = not word.startswith("--")
+            runs_string = runs_string or (short and bool(_SHELL_COMMAND_LETTERS & set(word[1:])))
+        elif runs_string:
+            strings.append(words[idx])
+    return strings
 
 
 def shell_stdin_scripts(*, segment: CommandSegment) -> list[str]:
@@ -2086,7 +2110,7 @@ def shell_stdin_scripts(*, segment: CommandSegment) -> list[str]:
 def runs_script_output(*, parts: list[str]) -> bool:
     """True when ``parts`` runs a shell or ``source``, which may read a script
     from a process substitution: ``source <(…)``, ``bash <(…)`` (GH-2005)."""
-    words = strip_command_wrappers(parts=parts)
+    words = _shell_words(parts=parts)
     return bool(words) and _program_name(word=words[0]) in _SHELLS | _SCRIPT_SOURCERS
 
 
