@@ -290,6 +290,12 @@ def strip_command_wrappers(*, parts: list[str]) -> list[str]:
     string ``env -S`` splits (GH-1798).
     A redirect may precede the program too: ``>/dev/null python -c …``.
     """
+    return _wrapper_walk(parts=parts)[0]
+
+
+def _wrapper_walk(*, parts: list[str]) -> tuple[list[str], list[list[str]]]:
+    """The program's argv, and the argv from each wrapper stripped on the way."""
+    stages: list[list[str]] = []
     idx = 0
     while idx < len(parts):
         token = parts[idx]
@@ -306,8 +312,9 @@ def strip_command_wrappers(*, parts: list[str]) -> list[str]:
             break
         if wrapper.split_options:
             parts = _splice_split_strings(parts=parts, idx=idx + 1, wrapper=wrapper)
+        stages.append(parts[idx:])
         idx = _skip_wrapper_options(parts=parts, idx=idx + 1, wrapper=wrapper)
-    return parts[idx:]
+    return parts[idx:], stages
 
 
 def split_tokens(*, command: str) -> list[str]:
@@ -1269,6 +1276,9 @@ class NestedCommand:
 
     command: str
     remote: bool = False
+    # Typed keystrokes that move the cursor or recall history, so the
+    # line the shell runs cannot be rebuilt from `command` (GH-2001).
+    opaque: bool = False
 
 
 _SSH_VALUE_OPTIONS = frozenset(
@@ -1310,7 +1320,32 @@ _TMUX_COMMAND_SUBCOMMANDS = frozenset(
 _TMUX_VALUE_OPTIONS = frozenset(
     {"-c", "-e", "-F", "-n", "-s", "-t", "-x", "-y", "-l", "-f", "-L", "-S", "-N"}
 )
-_TMUX_KEY_NAMES = frozenset({"Enter", "C-m", "KPEnter"})
+# Keystroke runners (GH-2001): `tmux send-keys` and `screen -X stuff`
+# type into a shell, so the typed line is a command. tmux's own `-c`
+# (before any subcommand) runs a shell command too.
+_LEGACY_TMUX_KEY_NAMES = frozenset({"Enter", "C-m", "KPEnter"})
+_TMUX_SEND_SUBCOMMANDS = frozenset({"send-keys", "send"})
+_TMUX_SEND_VALUE_OPTIONS = frozenset({"-c", "-N", "-t"})
+_TMUX_GLOBAL_COMMAND_OPTIONS = frozenset({"-c"})
+_TMUX_SEPARATOR = ";"
+_LINE_END_KEYS = frozenset(
+    {"Enter", "C-m", "C-M", "C-j", "C-J", "KPEnter", "^M", "^J", "\n", "\r"}
+)
+_BLANK_KEYS = {"Space": " ", "Tab": "\t", "C-i": "\t", "^I": "\t", "\t": "\t"}
+_ERASE_KEYS = frozenset({"BSpace", "C-h", "C-H", "^H", "C-?", "^?", "\b", "\x7f"})
+_KILL_LINE_KEYS = frozenset({"C-c", "C-C", "C-u", "C-U", "^C", "^U", "\x03", "\x15"})
+_NAMED_KEYS = frozenset(
+    {"Up", "Down", "Left", "Right", "Home", "End", "Escape", "BTab", "DC", "IC"}
+    | {"Delete", "Insert", "NPage", "PPage", "PageDown", "PageUp", "PgDn", "PgUp"}
+)
+_MODIFIED_KEY_RE = re.compile(r"^(?:[CMS]-)+.+$|^\^.$|^F\d{1,2}$")
+_SCREEN_STUFF = "stuff"
+_SCREEN_EVAL = "eval"
+_SCREEN_ESCAPE_RE = re.compile(r"\\([0-7]{1,3})|\\(.)|\^(.)", re.DOTALL)
+_SCREEN_BACKSLASH_ESCAPES = {"n": "\n", "r": "\r", "t": "\t", "e": "\x1b", "a": "\a"}
+_ASCII_CONTROL_MASK = 0x1F
+_HEX_BASE = 16
+_OCTAL_BASE = 8
 _PARALLEL_VALUE_OPTIONS = frozenset(
     {"-j", "--jobs", "-S", "--sshlogin", "-a", "--arg-file", "-d", "--delimiter"}
     | {"-E", "-I", "--colsep", "-C", "--joblog", "--results", "--tmpdir", "-n", "-N"}
@@ -1328,6 +1363,8 @@ _RUNNER_NAMES = "|".join(
             "flock",
             "gdb",
             "tmux",
+            "screen",
+            "git",
             "parallel",
             *_CONTAINER_CLIS,
             *_SU_RUNNERS,
@@ -1502,15 +1539,180 @@ def _gdb_command(*, parts: list[str]) -> str:
     return shlex.join(parts[parts.index("--args") + 1 :])
 
 
-def _tmux_command(*, parts: list[str]) -> str:
+@dataclass
+class _TypedLine:
+    """The text a terminal holds after a stream of keystrokes."""
+
+    text: list[str]
+    opaque: bool = False
+
+    def press(self, *, key: str) -> None:
+        if key in _LINE_END_KEYS:
+            self.text.append("\n")
+        elif key in _BLANK_KEYS:
+            self.text.append(_BLANK_KEYS[key])
+        elif key in _ERASE_KEYS:
+            if self.text and self.text[-1] != "\n":
+                self.text.pop()
+        elif key in _KILL_LINE_KEYS:
+            while self.text and self.text[-1] != "\n":
+                self.text.pop()
+        elif key in _NAMED_KEYS or _MODIFIED_KEY_RE.match(key) or _is_control(key=key):
+            self.opaque = True
+        else:
+            self.text.extend(key)
+
+    def nested(self) -> NestedCommand:
+        return NestedCommand(command="".join(self.text), opaque=self.opaque)
+
+
+def _is_control(*, key: str) -> bool:
+    return len(key) == 1 and (ord(key) <= _ASCII_CONTROL_MASK or key == "\x7f")
+
+
+def _typed(*, keys: list[str]) -> NestedCommand:
+    line = _TypedLine(text=[])
+    for key in keys:
+        line.press(key=key)
+    return line.nested()
+
+
+def _hex_keys(*, words: list[str]) -> list[str]:
+    keys: list[str] = []
+    for word in words:
+        try:
+            keys.append(chr(int(word, _HEX_BASE)))
+        except ValueError:
+            keys.append(word)
+    return keys
+
+
+def _send_keys_commands(*, chunk: list[str], subcommand: int) -> list[NestedCommand]:
+    """What ``tmux send-keys`` types, read three ways (GH-2001).
+
+    tmux sends each word as a key name or as literal text, with no blank
+    between words, so ``ps ql Enter`` types ``psql``. The space-joined
+    reading is kept too, so nothing judged before this change is lost.
+    """
+    idx = _skip_options(parts=chunk, idx=subcommand + 1, value_options=_TMUX_SEND_VALUE_OPTIONS)
+    flags = "".join(token[1:] for token in chunk[subcommand + 1 : idx] if token.startswith("-"))
+    words = chunk[idx:]
+    keys = _hex_keys(words=words) if "H" in flags else words
+    joined = " ".join("\n" if word in _LINE_END_KEYS else word for word in words)
+    return [_typed(keys=keys), NestedCommand(command=joined)]
+
+
+def _legacy_tmux_command(*, parts: list[str]) -> str:
+    """GH-1998's reading, kept so every command it judged is judged still."""
     subcommand = next(
         (idx for idx, token in enumerate(parts) if token in _TMUX_COMMAND_SUBCOMMANDS), None
     )
     if subcommand is None:
         return ""
     idx = _skip_options(parts=parts, idx=subcommand + 1, value_options=_TMUX_VALUE_OPTIONS)
-    words = [word for word in parts[idx:] if word not in _TMUX_KEY_NAMES]
+    words = [word for word in parts[idx:] if word not in _LEGACY_TMUX_KEY_NAMES]
     return " ".join(words)
+
+
+def _tmux_chunks(*, parts: list[str]) -> list[list[str]]:
+    """tmux's argv split into its ``;``-separated commands."""
+    chunks: list[list[str]] = [[]]
+    for word in parts[1:]:
+        if word == _TMUX_SEPARATOR:
+            chunks.append([])
+        elif word.endswith(_TMUX_SEPARATOR) and not word.endswith(f"\\{_TMUX_SEPARATOR}"):
+            chunks[-1].append(word[:-1])
+            chunks.append([])
+        else:
+            chunks[-1].append(word)
+    return chunks
+
+
+def _tmux_commands(*, parts: list[str]) -> list[NestedCommand]:
+    commands = [NestedCommand(command=_legacy_tmux_command(parts=parts))]
+    for position, chunk in enumerate(_tmux_chunks(parts=parts)):
+        subcommand = next(
+            (
+                idx
+                for idx, token in enumerate(chunk)
+                if token in _TMUX_COMMAND_SUBCOMMANDS or token in _TMUX_SEND_SUBCOMMANDS
+            ),
+            None,
+        )
+        if position == 0:
+            head = ["tmux", *chunk[: len(chunk) if subcommand is None else subcommand]]
+            commands.extend(
+                NestedCommand(command=command)
+                for command in _program_option_commands(
+                    parts=head, options=_TMUX_GLOBAL_COMMAND_OPTIONS
+                )
+            )
+        if subcommand is None:
+            continue
+        if chunk[subcommand] in _TMUX_SEND_SUBCOMMANDS:
+            commands.extend(_send_keys_commands(chunk=chunk, subcommand=subcommand))
+            continue
+        idx = _skip_options(parts=chunk, idx=subcommand + 1, value_options=_TMUX_VALUE_OPTIONS)
+        commands.append(NestedCommand(command=" ".join(chunk[idx:])))
+    return commands
+
+
+def _screen_keys(*, payload: str) -> list[str]:
+    """``payload`` as the keys ``screen -X stuff`` types (GH-2001).
+
+    screen expands ``\\NNN`` octal, ``\\n``-style and ``^X`` caret escapes
+    before typing, so ``'psql\\n'`` runs ``psql``.
+    """
+    keys: list[str] = []
+    position = 0
+    for match in _SCREEN_ESCAPE_RE.finditer(payload):
+        keys.extend(payload[position : match.start()])
+        octal, escaped, caret = match.groups()
+        if octal:
+            keys.append(chr(int(octal, _OCTAL_BASE)))
+        elif escaped is not None:
+            keys.append(_SCREEN_BACKSLASH_ESCAPES.get(escaped, escaped))
+        else:
+            keys.append("\x7f" if caret == "?" else chr(ord(caret.upper()) & _ASCII_CONTROL_MASK))
+        position = match.end()
+    keys.extend(payload[position:])
+    return keys
+
+
+def _screen_commands(*, parts: list[str]) -> list[NestedCommand]:
+    """Lines ``screen -X stuff`` types, also inside ``-X eval '…'``."""
+    commands: list[NestedCommand] = []
+    for idx, token in enumerate(parts[1:], start=1):
+        if token == _SCREEN_STUFF:
+            payload = " ".join(parts[idx + 1 :])
+            commands.append(_typed(keys=_screen_keys(payload=payload)))
+        elif token == _SCREEN_EVAL:
+            for screen_command in parts[idx + 1 :]:
+                commands.extend(
+                    _screen_commands(parts=["screen", *split_tokens(command=screen_command)])
+                )
+    return commands
+
+
+# git runs a configured value as a program: `core.pager`, `core.editor`,
+# `alias.x=!cmd`, `credential.helper=!cmd` … Every `-c key=value` value
+# and every `git config` word is a candidate, so an unlisted key cannot
+# slip through (GH-2001).
+_GIT_CONFIG_OPTIONS = frozenset({"-c"})
+_GIT_CONFIG_SUBCOMMAND = "config"
+_GIT_SHELL_ALIAS = "!"
+
+
+def _git_commands(*, parts: list[str]) -> list[str]:
+    values = [
+        value.partition("=")[2]
+        for value in _program_option_commands(parts=parts, options=_GIT_CONFIG_OPTIONS)
+        if "=" in value
+    ]
+    if _GIT_CONFIG_SUBCOMMAND in parts[1:]:
+        start = parts.index(_GIT_CONFIG_SUBCOMMAND, 1) + 1
+        values.extend(word for word in parts[start:] if not word.startswith("-"))
+    return [value.lstrip(_GIT_SHELL_ALIAS) for value in values]
 
 
 def _parallel_commands(*, parts: list[str]) -> list[str]:
@@ -1567,7 +1769,11 @@ def nested_commands(*, parts: list[str]) -> list[NestedCommand]:
     elif name == "gdb":
         commands = [_gdb_command(parts=parts)]
     elif name == "tmux":
-        commands = [_tmux_command(parts=parts)]
+        return _distinct(commands=_tmux_commands(parts=parts))
+    elif name == "screen":
+        return _distinct(commands=_screen_commands(parts=parts))
+    elif name == "git":
+        commands = _git_commands(parts=parts)
     elif name == "parallel":
         commands = _parallel_commands(parts=parts)
     elif name == "ssh":
@@ -1582,6 +1788,29 @@ def nested_commands(*, parts: list[str]) -> list[NestedCommand]:
     return [NestedCommand(command=command) for command in commands if command]
 
 
+def _distinct(*, commands: list[NestedCommand]) -> list[NestedCommand]:
+    """``commands`` trimmed and deduplicated; a duplicate keeps any opacity."""
+    merged: dict[str, NestedCommand] = {}
+    for nested in commands:
+        text = nested.command.strip()
+        if not text:
+            continue
+        opaque = nested.opaque or (text in merged and merged[text].opaque)
+        merged[text] = NestedCommand(command=text, remote=nested.remote, opaque=opaque)
+    return list(merged.values())
+
+
+def runner_commands(*, parts: list[str]) -> list[NestedCommand]:
+    """:func:`nested_commands` for one segment's raw argv, wrappers included.
+
+    ``screen`` is both a wrapper (``screen psql``) and a keystroke runner
+    (``screen -X stuff 'psql\\n'``), so each wrapper stripped on the way
+    to the program is asked for its nested commands too (GH-2001).
+    """
+    program, stages = _wrapper_walk(parts=parts)
+    return [nested for stage in (*stages, program) for nested in nested_commands(parts=stage)]
+
+
 def _runner_bodies(*, unit: str) -> list[NestedCommand]:
     # Cheap word probe first: the hook runs on every Bash call under a CI
     # latency benchmark, and most commands name no runner at all.
@@ -1591,8 +1820,4 @@ def _runner_bodies(*, unit: str) -> list[NestedCommand]:
         segments = command_segments(command=unit)
     except UntokenizableCommandError:
         return []
-    return [
-        nested
-        for segment in segments
-        for nested in nested_commands(parts=strip_command_wrappers(parts=list(segment.argv)))
-    ]
+    return [nested for segment in segments for nested in runner_commands(parts=list(segment.argv))]
