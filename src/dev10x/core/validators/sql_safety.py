@@ -102,82 +102,162 @@ BQ_BLOCKED_KEYWORDS = re.compile(
 
 # `bq query` flags that make even a SELECT write: its result lands in a
 # table, or it is registered to run again later.
-_BQ_WRITE_FLAGS = frozenset({"--destination_table", "--replace", "--append_table", "--schedule"})
+_BQ_WRITE_FLAGS = frozenset(
+    {"--destination_table", "--replace", "--replace_data", "--append_table", "--schedule"}
+)
 
-# `bq` flags that take their value as the NEXT token, so the value is not
-# mistaken for query text. `--flag=value` is one token and needs no entry.
-# An unknown spaced flag leaks its value into the SQL, which then fails
-# the SELECT-prefix check: the fail-closed direction.
-_BQ_VALUE_FLAGS = frozenset(
+# Flag tables from `bq --helpfull` and `command_query.py` (GH-1633). A
+# value flag takes the NEXT token unless spelled `--flag=value`. A flag in
+# none of these tables is refused, since the hook cannot tell what it eats.
+_BQ_GLOBAL_VALUE_FLAGS = frozenset(
     {
-        "--format",
-        "--max_rows",
-        "-n",
-        "--project_id",
-        "--dataset_id",
-        "--location",
-        "--parameter",
-        "--label",
-        "--job_id",
-        "--maximum_bytes_billed",
-        "--max_statement_results",
-        "--job_timeout_ms",
-        "--session_id",
-        "--connection_property",
-        "--reservation_id",
+        "--profile_file",
+        "--log_dir",
+        "--logger_levels",
+        "--stderrthreshold",
+        "--verbosity",
+        "-v",
+        "--application_default_credential_file",
+        "--credential_file",
+        "--oauth_access_token",
+        "--quota_project_id",
+        "--service_account",
+        "--service_account_credential_file",
+        "--service_account_private_key_file",
+        "--service_account_private_key_password",
+        "--alpha",
         "--api",
         "--api_version",
+        "--apilog",
+        "--bigquery_discovery_api_key",
         "--bigqueryrc",
-        "--service_account",
-        "--credential_file",
-        "--destination_table",
-        "--destination_kms_key",
-        "--schedule",
-        "--display_name",
-        "--target_dataset",
-        "--udf_resource",
-        "--external_table_definition",
+        "--ca_certificates_file",
+        "--dataset_id",
+        "--discovery_file",
+        "--format",
+        "--httplib2_debuglevel",
+        "--job_id",
+        "--job_property",
+        "--location",
+        "--max_rows_per_request",
+        "--project_id",
+        "--proxy_address",
+        "--proxy_password",
+        "--proxy_port",
+        "--proxy_username",
+        "--request_reason",
+        "--trace",
+        "--universe_domain",
+        "--flagfile",
+        "--undefok",
     }
 )
-
-_BQ_FLAG_FILE_FLAGS = frozenset({"--flagfile", "--bigqueryrc"})
-_BQ_RC_ENV = "BIGQUERYRC"
-
-# `bq` global flags that take no value, so the word after one is the verb.
-# absl's `--noX` spelling exists only for booleans and is read the same way.
-_BQ_BOOLEAN_FLAGS = frozenset(
+_BQ_GLOBAL_BOOLEAN_FLAGS = frozenset(
     {
+        "--enable_python_profilez",
         "--help",
-        "--helpshort",
+        "-?",
         "--helpfull",
+        "--helpshort",
         "--helpxml",
-        "-h",
+        "--only_check_args",
+        "--only_check_flags",
+        "--pdb",
+        "--pdb_post_mortem",
+        "--run_with_pdb",
+        "--run_with_profiling",
+        "--show_build_data",
+        "--use_cprofile_for_profiling",
+        "--version",
+        "--alsologtostderr",
+        "--logtostderr",
+        "--showprefixforinfo",
+        "--use_gce_service_account",
+        "--use_google_auth",
+        "--debug_mode",
+        "--disable_ssl_validation",
+        "--enable_gdrive",
+        "--enable_resumable_uploads",
+        "--fingerprint_job_id",
+        "--headless",
+        "--jobs_query_use_request_id",
+        "--jobs_query_use_results_from_response",
+        "--mtls",
         "--quiet",
         "-q",
-        "--headless",
-        "--sync",
         "--synchronous_mode",
-        "--debug_mode",
-        "--use_gce_service_account",
-        "--enable_gdrive",
+        "--sync",
+        "--use_gcloud_config",
+        "--use_gcloud_config_cache",
+        "--use_lep",
         "--use_regional_endpoints",
-        "--disable_ssl_validation",
-        "--fingerprint_job_id",
-        "--enable_resumable_uploads",
-        "--use_google_auth",
-        "--version",
+        "--use_rep",
+        "--log_unhashed_argv",
+        "--syslog_on_start",
     }
 )
-_BQ_GLOBAL_VALUE_FLAGS = _BQ_VALUE_FLAGS | {
-    "--apilog",
-    "--ca_certificates_file",
-    "--discovery_file",
-    "--trace",
-    "--httplib2_debuglevel",
-    "--application_default_credential_file",
-    "--oauth_access_token",
-    "--universe_domain",
+_BQ_QUERY_VALUE_FLAGS = _BQ_GLOBAL_VALUE_FLAGS | {
+    "--destination_table",
+    "--destination_schema",
+    "--start_row",
+    "-s",
+    "--max_rows",
+    "-n",
+    "--priority",
+    "--request_id",
+    "--min_completion_ratio",
+    "--external_table_definition",
+    "--udf_resource",
+    "--maximum_billing_tier",
+    "--maximum_bytes_billed",
+    "--schema_update_option",
+    "--label",
+    "--parameter",
+    "--time_partitioning_type",
+    "--time_partitioning_expiration",
+    "--time_partitioning_field",
+    "--range_partitioning",
+    "--clustering_fields",
+    "--destination_kms_key",
+    "--script_statement_timeout_ms",
+    "--script_statement_byte_budget",
+    "--max_statement_results",
+    "--max_child_jobs",
+    "--job_timeout_ms",
+    "--schedule",
+    "--display_name",
+    "--target_dataset",
+    "--connection_property",
+    "--session_id",
+    "--job_creation_mode",
+    "--max_slots",
+    "--reservation_id",
 }
+_BQ_QUERY_BOOLEAN_FLAGS = _BQ_GLOBAL_BOOLEAN_FLAGS | {
+    "--batch",
+    "--append_table",
+    "--rpc",
+    "--replace",
+    "--replace_data",
+    "--allow_large_results",
+    "--dry_run",
+    "--require_cache",
+    "--use_cache",
+    "--flatten_results",
+    "--use_legacy_sql",
+    "--require_partition_filter",
+    "--no_auto_scheduling",
+    "--create_session",
+    "--continuous",
+}
+
+# Ways to hand bq flags the command line does not show. absl here has no
+# `--fromenv`, but an absl that does would read `FLAGS_*` variables.
+_BQ_FLAG_FILE_FLAGS = frozenset({"--flagfile", "--bigqueryrc", "--fromenv", "--tryfromenv"})
+_BQ_RC_NAME_RE = re.compile(r"BIGQUERYRC|(?<![\w${])(?:HOME|FLAGS_\w*)\b")
+_EXPORTING_BUILTINS = frozenset({"export", "declare", "typeset", "readonly", "local", "env"})
+_COMPUTED_WORD_RE = re.compile(r"[$`]")
+_SIMPLE_COMMAND_END_RE = re.compile(r"[;&|\n]")
 
 # `bq` commands that change nothing. Every other verb (`rm`, `load`, `cp`,
 # `mk`, `update`, `insert`, `extract`, `truncate`, `undelete`, `cancel`,
@@ -190,12 +270,16 @@ _BQ_READ_ONLY_VERBS = frozenset(
 _BQ_WORD_RE = re.compile(r"(?<![\w.-])bq(?![\w.-])")
 _BQ_LETTERS_WINDOW = 1024
 _BQ_LETTERS_MAX_CALLS = 64
-_BQ_LETTERS_END_RE = re.compile(r"[;&|\n)`]")
+_BQ_LETTERS_ENDS = frozenset(";&|\n)`")
 
 BQ_FLAG_FILE_DETAIL = (
-    "--flagfile, --bigqueryrc and BIGQUERYRC load bq flags from a file this "
-    "hook cannot read, and such a file can turn a SELECT into a write. The "
-    "default ~/.bigqueryrc is outside this check."
+    "--flagfile, --bigqueryrc, --fromenv, BIGQUERYRC, HOME and FLAGS_* hand "
+    "bq flags this hook cannot read, and such flags can turn a SELECT into a "
+    "write. The default ~/.bigqueryrc is outside this check."
+)
+BQ_NO_VERB_DETAIL = "no bq command could be read from text the hook cannot split."
+BQ_COMPUTED_PROGRAM_DETAIL = (
+    "a substitution prints `bq`, so the program the command runs cannot be read."
 )
 
 BQ_STDIN_MSG = (
@@ -820,19 +904,6 @@ def _validate_sql(sql: str) -> Result[dict[str, Any]]:
     return ok({})
 
 
-def _bq_query_args(parts: list[str]) -> list[str] | None:
-    """Everything after ``query`` when ``parts`` runs ``bq query``, else ``None``.
-
-    Env assignments and process wrappers are stripped first, so
-    ``CLOUDSDK_CORE_PROJECT=p bq query …`` or ``timeout 60 bq query …``
-    is judged as the ``bq`` call it is.
-    """
-    parts = strip_command_wrappers(parts=parts)
-    if not parts or Path(parts[0]).name != "bq" or "query" not in parts[1:]:
-        return None
-    return parts[parts.index("query", 1) + 1 :]
-
-
 def _bq_flag_name(token: str) -> str:
     """``token``'s flag name in ``--long`` form.
 
@@ -844,6 +915,32 @@ def _bq_flag_name(token: str) -> str:
     if name.startswith("-") and not name.startswith("--") and len(name) > 2:
         return f"-{name}"
     return name
+
+
+_VALUE = "value"
+_BOOLEAN = "boolean"
+
+
+def _bq_flag_kind(
+    *,
+    flag: str,
+    values: frozenset[str],
+    booleans: frozenset[str],
+) -> str | None:
+    """Whether ``flag`` takes a value, is a boolean, or is unknown (``None``).
+
+    absl spells a false boolean ``--noX``, so ``--no`` only marks a
+    boolean when ``X`` is one.
+    """
+    if flag in values:
+        return _VALUE
+    if flag in booleans or (flag.startswith("--no") and f"--{flag[4:]}" in booleans):
+        return _BOOLEAN
+    return None
+
+
+def _unknown_bq_flag(*, flag: str) -> str:
+    return f"{flag} is not a known bq flag, so the words after it cannot be read."
 
 
 def _check_bq_query(*, args: list[str]) -> HookResult | None:
@@ -858,15 +955,22 @@ def _check_bq_query(*, args: list[str]) -> HookResult | None:
     sql_tokens: list[str] = []
     remaining = iter(args)
     for token in remaining:
+        if token == "--":
+            sql_tokens.extend(remaining)
+            break
+        if not token.startswith("-") or token == "-":
+            sql_tokens.append(token)
+            continue
         flag = _bq_flag_name(token)
         if flag in _BQ_WRITE_FLAGS:
             return HookResult(message=_bq_write_message(detail=f"{flag} writes a table."))
-        if "=" not in token and flag in _BQ_VALUE_FLAGS:
+        kind = _bq_flag_kind(
+            flag=flag, values=_BQ_QUERY_VALUE_FLAGS, booleans=_BQ_QUERY_BOOLEAN_FLAGS
+        )
+        if kind is None:
+            return HookResult(message=_bq_write_message(detail=_unknown_bq_flag(flag=flag)))
+        if kind == _VALUE and "=" not in token:
             next(remaining, None)
-            continue
-        if token.startswith("-"):
-            continue
-        sql_tokens.append(token)
 
     if not sql_tokens:
         return HookResult(message=BQ_STDIN_MSG)
@@ -904,12 +1008,13 @@ def _bq_call(*, args: list[str]) -> _BqCall:
         if not token.startswith("-") or token == "-":
             return _BqCall(verb=token, operands=tuple(tokens), unsure_flag=None)
         flag = _bq_flag_name(token)
-        if "=" in token or flag in _BQ_BOOLEAN_FLAGS or flag.startswith("--no"):
-            continue
-        if flag in _BQ_GLOBAL_VALUE_FLAGS:
+        kind = _bq_flag_kind(
+            flag=flag, values=_BQ_GLOBAL_VALUE_FLAGS, booleans=_BQ_GLOBAL_BOOLEAN_FLAGS
+        )
+        if kind is None:
+            return _BqCall(verb=None, operands=(), unsure_flag=flag)
+        if kind == _VALUE and "=" not in token:
             next(tokens, None)
-            continue
-        return _BqCall(verb=None, operands=(), unsure_flag=flag)
     return _BqCall(verb=None, operands=(), unsure_flag=None)
 
 
@@ -920,9 +1025,7 @@ def _bq_call_verdict(*, args: list[str]) -> HookResult | None:
     call = _bq_call(args=args)
     if call.unsure_flag:
         return HookResult(
-            message=_bq_write_message(
-                detail=f"{call.unsure_flag} before the bq command hides which command runs."
-            )
+            message=_bq_write_message(detail=_unknown_bq_flag(flag=call.unsure_flag))
         )
     if call.verb is not None and call.verb not in _BQ_READ_ONLY_VERBS:
         return HookResult(
@@ -938,8 +1041,10 @@ def _bq_call_verdict(*, args: list[str]) -> HookResult | None:
 
 
 def _check_bq_segment(*, parts: list[str]) -> HookResult | None:
+    """Judge one segment that runs ``bq``, or a program whose name is
+    computed (``$p rm ds.t``) in a command that names bq."""
     words = strip_command_wrappers(parts=parts)
-    if not words or Path(words[0]).name != "bq":
+    if not words or not (Path(words[0]).name == "bq" or _COMPUTED_WORD_RE.search(words[0])):
         return None
     result = _bq_call_verdict(args=words[1:])
     if result:
@@ -947,25 +1052,96 @@ def _check_bq_segment(*, parts: list[str]) -> HookResult | None:
     call = _bq_call(args=words[1:])
     if call.verb == "help" and len(call.operands) <= 1:
         return None
-    args = _bq_query_args(parts)
-    if args is None:
+    if "query" not in words[1:]:
         return None
-    return _check_bq_query(args=args)
+    return _check_bq_query(args=words[words.index("query", 1) + 1 :])
+
+
+def _assigns_a_computed_name(*, parts: list[str]) -> bool:
+    """True when ``parts`` may set a variable whose name is computed, such
+    as ``export ${v}RC=x``: no name check can read it (GH-1633)."""
+    exporting = bool(parts) and Path(parts[0]).name in _EXPORTING_BUILTINS
+    operands = parts[1:] if exporting else parts[:1]
+    return any(
+        "=" in word and _COMPUTED_WORD_RE.search(word.partition("=")[0]) for word in operands
+    )
+
+
+def _exports_a_computed_name(*, text: str) -> bool:
+    """:func:`_assigns_a_computed_name` on raw text, since the lexer drops a
+    backtick word from argv: ``typeset -x `echo BIGQUERY`RC=…`` (GH-1633)."""
+    for piece in _SIMPLE_COMMAND_END_RE.split(text):
+        words = piece.split()
+        if not any(word.strip("'\"") in _EXPORTING_BUILTINS for word in words):
+            continue
+        if any(_COMPUTED_WORD_RE.search(word.partition("=")[0]) for word in words if "=" in word):
+            return True
+    return False
+
+
+def _prints_bq(*, units: list[tuple[str, bool]]) -> bool:
+    """True when a substitution's output may name bq as a program:
+    ``$(echo bq) rm ds.t`` (GH-1633). A body that runs bq itself is judged
+    as a call instead."""
+    return any(
+        _BQ_WORD_RE.search(without_shell_quoting(text=body)) and not _BQ_POSITION_RE.search(body)
+        for unit, _ in units
+        for body in substitution_bodies(unit, include_backticks=True)
+    )
+
+
+def _bq_letter_words(*, text: str, start: int) -> list[str] | None:
+    """Words from ``start`` to the first command separator outside quotes.
+
+    ``None`` when no separator or end of text falls within the window.
+    """
+    words: list[str] = []
+    current: list[str] = []
+    quote = ""
+    for index in range(start, len(text)):
+        if index - start >= _BQ_LETTERS_WINDOW:
+            return None
+        char = text[index]
+        if quote:
+            if char == quote:
+                quote = ""
+            else:
+                current.append(char)
+            continue
+        if char in "'\"":
+            quote = char
+            continue
+        if char in _BQ_LETTERS_ENDS:
+            break
+        if char.isspace():
+            if current:
+                words.append("".join(current))
+                current = []
+            continue
+        current.append(char)
+    if current:
+        words.append("".join(current))
+    return words
 
 
 def _bq_letters_verdict(*, text: str, pattern: re.Pattern[str]) -> HookResult | None:
     """Judge each ``bq`` call in ``text`` by its words, for text the lexer
-    cannot split or whose output runs as a command (GH-1633)."""
+    cannot split or whose output runs as a command (GH-1633).
+
+    Only a readable read-only verb other than ``query`` passes: SQL read
+    from letters cannot be trusted.
+    """
     for count, match in enumerate(pattern.finditer(text)):
-        window = text[match.end() : match.end() + _BQ_LETTERS_WINDOW]
-        call_text = _BQ_LETTERS_END_RE.split(window, maxsplit=1)[0]
-        if count >= _BQ_LETTERS_MAX_CALLS or len(call_text) == _BQ_LETTERS_WINDOW:
+        words = _bq_letter_words(text=text, start=match.end())
+        if count >= _BQ_LETTERS_MAX_CALLS or words is None:
             return HookResult(message=TOO_COMPLEX_MSG)
-        args = [token.strip("'\"") for token in call_text.split()]
-        result = _bq_call_verdict(args=args)
+        result = _bq_call_verdict(args=words)
         if result:
             return result
-        if _bq_call(args=args).verb == "query":
+        verb = _bq_call(args=words).verb
+        if verb is None:
+            return HookResult(message=_bq_write_message(detail=BQ_NO_VERB_DETAIL))
+        if verb == "query":
             return HookResult(message=_bq_write_message(detail=BQ_UNTOKENIZABLE_DETAIL))
     return None
 
@@ -1278,12 +1454,16 @@ class SqlSafetyValidator(ValidatorBase):
         """
         if not _BQ_PROBE.found_in(command=command):
             return None
-        if _BQ_RC_ENV in command:
+        if _BQ_RC_NAME_RE.search(without_shell_quoting(text=command)):
             return HookResult(message=_bq_write_message(detail=BQ_FLAG_FILE_DETAIL))
         try:
             units = _bq_units(command=command)
         except _TooComplexError:
             return HookResult(message=TOO_COMPLEX_MSG)
+        if _exports_a_computed_name(text=command):
+            return HookResult(message=_bq_write_message(detail=BQ_FLAG_FILE_DETAIL))
+        if _prints_bq(units=units):
+            return HookResult(message=_bq_write_message(detail=BQ_COMPUTED_PROGRAM_DETAIL))
         for unit, opaque in units:
             result = self._check_bq_unit(unit=unit, opaque=opaque)
             if result:
@@ -1307,6 +1487,8 @@ class SqlSafetyValidator(ValidatorBase):
                 return HookResult(message=_bq_write_message(detail=BQ_UNTOKENIZABLE_DETAIL))
             return None
         for segment in segments:
+            if _assigns_a_computed_name(parts=list(segment.argv)):
+                return HookResult(message=_bq_write_message(detail=BQ_FLAG_FILE_DETAIL))
             result = _check_bq_segment(parts=list(segment.argv))
             if result:
                 return result

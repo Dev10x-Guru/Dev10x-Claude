@@ -325,6 +325,47 @@ class TestBigQueryReadOnly:
         assert validator.validate(inp=_make_input(command=command)) is None
 
 
+class TestBigQueryQueryPositionals:
+    """GH-1633: bq joins every positional into one query, so none may hide."""
+
+    @pytest.fixture()
+    def validator(self) -> SqlSafetyValidator:
+        return SqlSafetyValidator()
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "bq query -- 'SELECT 1' $'-- x\\n;DELETE FROM d.t WHERE TRUE'",
+            "bq query -- 'SELECT 1' 'DELETE FROM d.t WHERE TRUE'",
+            "bq query -- --replace",
+            "bq query 'SELECT 1' '-x;DELETE FROM d.t WHERE TRUE'",
+            "bq query '-- c' 'SELECT 1'",
+            "bq query --unknown_flag 'SELECT 1'",
+            "bq query --unknown_flag=1 'SELECT 1'",
+            "bq query --nounknown 'SELECT 1'",
+            "bq query --replace_data 'SELECT 1'",
+        ],
+    )
+    def test_blocks_hidden_positionals_and_unknown_flags(
+        self, validator: SqlSafetyValidator, command: str
+    ) -> None:
+        assert validator.validate(inp=_make_input(command=command)) is not None
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "bq query -- 'SELECT 1'",
+            "bq query --use_legacy_sql=false 'SELECT 1'",
+            "bq query --nouse_cache --dry_run -s 0 -n 5 --priority BATCH 'SELECT 1'",
+            "bq query --parameter x:INT64:1 'SELECT @x'",
+            "bq query --project_id p --location US 'SELECT 1'",
+            "bq query --noreplace 'SELECT 1'",
+        ],
+    )
+    def test_allows_known_flags(self, validator: SqlSafetyValidator, command: str) -> None:
+        assert validator.validate(inp=_make_input(command=command)) is None
+
+
 class TestBigQueryFlagFiles:
     """GH-1633: a flag file can carry `--destination_table` past the hook."""
 
@@ -343,6 +384,20 @@ class TestBigQueryFlagFiles:
             "bq ls --flagfile=f.txt ds",
             "bq --bigqueryrc=/tmp/rc query 'SELECT 1'",
             "bq --bigqueryrc /tmp/rc ls",
+            "export BIGQUERY''RC=/tmp/w.rc; bq query 'SELECT 1'",
+            "env BIGQUERY\\RC=/tmp/w.rc bq ls",
+            "HOME=/tmp/h bq query 'SELECT 1'",
+            "export HOME=/tmp/h; bq ls",
+            "env HO''ME=/tmp/h bq ls",
+            "bq --fromenv=project_id ls",
+            "bq --tryfromenv project_id ls",
+            "bq query -fromenv=destination_table 'SELECT 1'",
+            "FLAGS_destination_table=d.t bq query 'SELECT 1'",
+            "export FLAGS''_replace=1; bq query 'SELECT 1'",
+            "v=BIGQUERY; export ${v}RC=/tmp/w.rc; bq ls",
+            'n=HO; declare -x "${n}ME=/tmp/h"; bq ls',
+            "typeset -x `echo BIGQUERY`RC=/tmp/w.rc; bq ls",
+            'set -a; v=BIGQUERY; eval "${v}RC=/tmp/w.rc"; bq ls',
             "BIGQUERYRC=/tmp/rc bq query 'SELECT 1'",
             "env BIGQUERYRC=/tmp/rc bq ls",
             "export BIGQUERYRC=/tmp/rc; bq query 'SELECT 1'",
@@ -358,6 +413,20 @@ class TestBigQueryFlagFiles:
 
         assert result is not None
         assert "~/.bigqueryrc" in result.message
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            'cd "$HOME"; bq ls',
+            "bq ls ${HOME##*/}",
+            "export PATH=$PATH:/opt/bin; bq ls",
+            "export CLOUDSDK_CORE_PROJECT=p; bq ls",
+        ],
+    )
+    def test_allows_reading_home_and_other_exports(
+        self, validator: SqlSafetyValidator, command: str
+    ) -> None:
+        assert validator.validate(inp=_make_input(command=command)) is None
 
     def test_flag_file_lists_block_fast(self, validator: SqlSafetyValidator) -> None:
         command = "bq " + "--flagfile=f.txt " * 5000 + "query 'SELECT 1'"
@@ -386,6 +455,7 @@ class TestBigQueryHelp:
             "bq help",
             "bq --help",
             "bq",
+            "bq help rm x",
         ],
     )
     def test_allows_help(self, validator: SqlSafetyValidator, command: str) -> None:
@@ -461,6 +531,17 @@ class TestBigQueryWriteVerbs:
             "source <(echo bq rm -f ds.t)",
             "bq --unknown_flag rm ds.t",
             "bq --unknown_flag ls rm ds.t",
+            "bq --nounknown ls rm ds.t",
+            "bq -nounknown ls rm ds.t",
+            "bq -h ls rm ds.t",
+            "p=bq; $p rm ds.t",
+            "`echo bq` rm ds.t",
+            "bq --project_id 'a;b' rm ds.t",
+            "bq --project_id 'a;b' rm ds.t \"x",
+            "source <(echo \"bq --project_id 'a;b' rm ds.t\")",
+            "source <(echo bq --project_id 'a)b' rm ds.t)",
+            "source <(echo bq)",
+            'bq --project_id=p "',
             "bq rm 'ds.t",
             "x; bq --project_id=p load 'ds.t",
         ],
@@ -486,6 +567,8 @@ class TestBigQueryWriteVerbs:
             "bq wait job_1",
             "bq get-iam-policy ds.t",
             "bq show --format=json ds.t",
+            "bq --nosynchronous_mode --noquiet -sync -q ls",
+            "bq -v 1 --nouse_gcloud_config ls",
             "sudo bq ls",
             "bash -c 'bq ls ds'",
             "bq ls 'ds",
@@ -499,7 +582,8 @@ class TestBigQueryWriteVerbs:
         [
             ("source <(echo bq query 'SELECT 1')", "could not be tokenized"),
             ("bq --unknown_flag ls 'ds", "--unknown_flag"),
-            ("bq --format 'query", "could not be tokenized"),
+            ("bq ls query 'x", "could not be tokenized"),
+            ("bq --format 'query", "no bq command could be read"),
             ("bq " + "-q " * 400 + "ls 'ds", _TOO_COMPLEX),
             ("bq ls; " * 70 + "'", _TOO_COMPLEX),
         ],
