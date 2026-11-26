@@ -555,6 +555,203 @@ class TestPsqlCommandPosition:
         assert "DROP" in result.message
 
 
+class TestPsqlTypedOrConfiguredAsAProgram:
+    """psql typed into a terminal or named as a program to run (GH-2001)."""
+
+    @pytest.fixture()
+    def validator(self) -> SqlSafetyValidator:
+        return SqlSafetyValidator()
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "screen -S s -X stuff 'psql\\n'",
+            "screen -S s -X stuff 'psql -c \"DROP TABLE t\"\\n'",
+            'screen -X stuff "psql -d mydb\\r"',
+            "screen -X stuff 'psql -d mydb^M'",
+            "screen -X stuff 'psql -d mydb\\015'",
+            "screen -S s -p 0 -X stuff $'psql -d mydb\\n'",
+            "screen -X stuff 'echo hi\\npsql -d mydb\\n'",
+            "screen -X stuff 'cd /tmp; psql -d mydb\\n'",
+            "/usr/bin/screen -X stuff 'psql\\n'",
+            "screen -X stuff '/usr/bin/psql -d mydb\\n'",
+            "screen -X eval 'stuff \"psql -d mydb\\n\"'",
+            "sudo screen -S s -X stuff 'psql\\n'",
+            "ssh db01 \"screen -X stuff 'psql\\n'\"",
+            "screen -X stuff 'env PGHOST=x psql\\n'",
+            "screen -X stuff '\\160sql -d mydb\\n'",
+            "screen -X stuff 'psqlx^H -d mydb\\n'",
+            "screen -X stuff 'p\\163ql\\012'",
+        ],
+    )
+    def test_blocks_psql_stuffed_into_screen(
+        self, validator: SqlSafetyValidator, command: str
+    ) -> None:
+        result = validator.validate(inp=_make_input(command=command))
+
+        assert result is not None
+        assert "Direct psql calls" in result.message
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "tmux send-keys -l 'psql -d mydb' Enter",
+            "tmux send-keys -t db 'echo hi' Enter 'psql -d mydb' Enter",
+            "tmux send-keys -t db 'echo hi' C-m 'psql -d mydb' C-j",
+            "tmux send-keys -t db hi \\; send-keys -t db 'psql -d mydb' Enter",
+            "tmux send-keys -H 70 73 71 6c 0a",
+            "tmux send-keys -lt db 'psql -d mydb' Enter",
+            "tmux send -t db 'psql -d mydb\\n'",
+            "tmux send-keys -t db ps ql Enter",
+            "tmux send-keys -t db psqlx BSpace Enter",
+            "tmux send-keys -t db psql Space -d Space mydb Enter",
+            "tmux -c 'psql -d mydb'",
+            "tmux send-keys -t db C-c 'psql -d mydb' Enter",
+            "tmux send-keys -t db ql C-a ps Enter",
+            "screen -X stuff 'ql^Aps\\n'",
+            "screen -X stuff '\\003psql\\n'",
+            "tmux set-buffer $'psql -d mydb\\n' \\; paste-buffer -t db",
+            "tmux display-popup -E 'psql -d mydb'",
+            "tmux if-shell true 'run-shell \"psql -d mydb\"'",
+            "tmux pipe-pane -o 'psql -d mydb'",
+            "tmux bind-key x run-shell 'psql -d mydb'",
+            "screen -X register . 'psql -d mydb'",
+            "screen -X bind x exec 'psql -d mydb'",
+        ],
+    )
+    def test_blocks_psql_typed_into_tmux(
+        self, validator: SqlSafetyValidator, command: str
+    ) -> None:
+        result = validator.validate(inp=_make_input(command=command))
+
+        assert result is not None
+        assert "Direct psql calls" in result.message
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "git -c core.pager=psql log",
+            "git -c core.pager='psql -c \"DROP TABLE t\"' log",
+            'git -c core.pager="psql -d mydb" -p log',
+            "git -c core.pager=/usr/bin/psql log",
+            "git -c core.pager='env psql' log",
+            "git -c core.pager='less; psql -d mydb' log",
+            "git -c core.editor=psql commit",
+            "git -c sequence.editor=psql rebase -i HEAD~2",
+            "git -c pager.log=psql log",
+            "git -c diff.external=psql diff",
+            "git -c core.sshCommand='psql -d mydb' fetch",
+            "git -c credential.helper='!psql' fetch",
+            "git -c alias.x='!psql' x",
+            "git -c alias.x='!psql -c \"DROP TABLE t\"' x",
+            "git -c alias.x='!sh -c \"psql -d mydb\"' x",
+            "git -c alias.x='!f() { psql -d mydb; }; f' x",
+            "git -C /repo -c core.pager=psql log",
+            "/usr/bin/git -c core.pager=psql log",
+            "sudo git -c core.pager=psql log",
+            "env -S 'git -c core.pager=psql log'",
+            "ssh db01 git -c core.pager=psql log",
+            "git --paginate -c core.pager=psql log",
+            "git config core.pager 'psql -d mydb'",
+            "git config --global core.pager psql",
+            "git config set core.pager '/usr/bin/psql -d mydb'",
+            "git config alias.x '!psql -d mydb'",
+            "GIT_CONFIG_PARAMETERS=\"'core.pager'='psql'\" git log",
+        ],
+    )
+    def test_blocks_psql_set_as_a_git_program(
+        self, validator: SqlSafetyValidator, command: str
+    ) -> None:
+        result = validator.validate(inp=_make_input(command=command))
+
+        assert result is not None
+        assert "Direct psql calls" in result.message
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "GIT_PAGER=psql git log",
+            "GIT_PAGER='psql -d mydb' git log",
+            "PAGER=psql man ls",
+            "MANPAGER=psql man ls",
+            "EDITOR=psql crontab -e",
+            "VISUAL=psql git commit",
+            "GIT_EDITOR=/usr/bin/psql git commit",
+            "GIT_SEQUENCE_EDITOR=psql git rebase -i HEAD~2",
+            "GIT_SSH_COMMAND='psql -d mydb' git fetch",
+            "LESSOPEN='|psql %s' less notes.txt",
+            "env GIT_PAGER=psql git log",
+            "env -i GIT_PAGER=psql git log",
+            "sudo GIT_PAGER=psql git log",
+            "timeout 5 env PAGER=psql man ls",
+            "export GIT_PAGER=psql; git log",
+            "export GIT_PAGER='psql -d mydb'; git log",
+            "declare -x PAGER=psql; man ls",
+            "GIT_PAGER=psql; git log",
+            "alias g=psql; g -d mydb",
+            "P=psql git --config-env=core.pager=P log",
+            "GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.pager GIT_CONFIG_VALUE_0=psql git log",
+            "GIT_PAGER='env psql' git log",
+            "GIT_PAGER=$(echo psql) git log",
+            "GIT_PAGER=`echo psql` git log",
+            "git -c core.pager=$(printf psql) log",
+            'git -c core.pager="$(printf %s ps ql)" log',
+            "screen -X stuff \"$(printf 'ps%s\\n' ql)\"",
+        ],
+    )
+    def test_blocks_psql_set_as_a_program_variable(
+        self, validator: SqlSafetyValidator, command: str
+    ) -> None:
+        result = validator.validate(inp=_make_input(command=command))
+
+        assert result is not None
+        assert "Direct psql calls" in result.message
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "git -c core.pager=less log",
+            "git -c core.pager='less -R' log",
+            "git -c alias.st=status st",
+            "GIT_PAGER=cat git log",
+            "PAGER=less man ls",
+            "export EDITOR=vim",
+            "screen -S s -X stuff 'ls -la\\n'",
+            "tmux send-keys -t db 'ls -la' Enter",
+            "tmux send-keys -H 6c 73 0a",
+            "git config core.pager less",
+            "git commit -c HEAD",
+            "rg 'core.pager=psql' docs",
+            "screen -X stuff 'rg psql src\\n'",
+            "tmux send-keys -t db C-c",
+            "tmux send-keys -t db Up Enter",
+            "tmux -S /tmp/sock new-session -d -s db",
+            "tmux send-keys -t db 'rg psql src' Enter",
+            "tmux display-popup -E 'rg psql src'",
+            "echo tmux psql",
+            "rg 'screen psql' docs",
+            "GIT_PAGER=$(which less) git log",
+        ],
+    )
+    def test_allows_programs_other_than_psql(
+        self, validator: SqlSafetyValidator, command: str
+    ) -> None:
+        assert validator.validate(inp=_make_input(command=command)) is None
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "tmux send-keys -H 70 73 71 6c 0a",
+            "screen -X stuff '\\160\\163\\161\\154\\n'",
+            'git -c core.pager="$(printf %s ps ql)" log',
+        ],
+    )
+    def test_runs_on_keystrokes_that_spell_no_psql(
+        self, validator: SqlSafetyValidator, command: str
+    ) -> None:
+        assert validator.should_run(inp=_make_input(command=command))
+
+
 class TestWrappedPsqlExemption:
     """psql wrapped by docker exec / op run is exempt (GH-474 #4)."""
 

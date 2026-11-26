@@ -16,6 +16,7 @@ from dev10x.core.domain.common.bash_tokens import (
     command_units,
     is_simple_command,
     nested_commands,
+    runner_commands,
     segment_programs,
     split_tokens,
     strip_command_wrappers,
@@ -753,6 +754,63 @@ class TestNestedCommands:
         self, command: str, expected: list[NestedCommand]
     ) -> None:
         assert nested_commands(parts=split_tokens(command=command)) == expected
+
+    @pytest.mark.parametrize(
+        ("command", "expected"),
+        [
+            ("screen -X stuff 'dropdb x\\n'", "dropdb x"),
+            ("screen -X stuff 'drop\\144b x^M'", "dropdb x"),
+            ("screen -X stuff 'dropdbz^H x\\r'", "dropdb x"),
+            ("screen -X stuff 'ls\\ndropdb x'", "ls\ndropdb x"),
+            ("screen -X stuff 'ls -la^Udropdb x'", "dropdb x"),
+            ("screen -X stuff '^Hdropdb x'", "dropdb x"),
+            ("screen -X eval 'stuff \"dropdb x\\n\"'", "dropdb x"),
+            ("tmux send-keys -t s drop db Space x Enter", "dropdb x"),
+            ("tmux send-keys -t s dropdbz BSpace Space x C-m", "dropdb x"),
+            ("tmux send-keys -t s ls C-c 'dropdb x' Enter", "dropdb x"),
+            ("tmux send-keys -H 64 72 6f 70 64 62 0a", "dropdb"),
+            ("tmux send-keys -H 64 zz", "dzz"),
+            ("tmux send-keys -t s ls Tab Enter", "ls"),
+            ("tmux send-keys -t s ls Enter 'dropdb x' Enter", "ls \n dropdb x"),
+            ("tmux send-keys -t s ls \\; send-keys 'dropdb x' Enter", "dropdb x"),
+            ("tmux send-keys -t s ls\\; new 'dropdb x'", "dropdb x"),
+            ("tmux -c 'dropdb x'", "dropdb x"),
+            ("git -c core.pager='less -R' log", "less -R"),
+            ("git -c alias.x='!dropdb x' x", "dropdb x"),
+            ("git config alias.x '!dropdb x'", "dropdb x"),
+        ],
+    )
+    def test_keystroke_and_git_runner_candidates_include_the_command(
+        self, command: str, expected: str
+    ) -> None:
+        """GH-2001: typed keystrokes and git's configured programs."""
+        nested = nested_commands(parts=split_tokens(command=command))
+
+        assert expected in [candidate.command for candidate in nested]
+
+    @pytest.mark.parametrize(
+        ("command", "expected"),
+        [
+            ("tmux send-keys -t s ps C-a dq Enter", NestedCommand(command="psdq", opaque=True)),
+            ("screen -X stuff 'ps\\033[Dq'", NestedCommand(command="ps[Dq", opaque=True)),
+        ],
+    )
+    def test_cursor_keys_mark_the_typed_line_opaque(
+        self, command: str, expected: NestedCommand
+    ) -> None:
+        assert expected in nested_commands(parts=split_tokens(command=command))
+
+    @pytest.mark.parametrize(
+        "command",
+        ["git commit -c HEAD", "git grep -c x", "tmux ls", "screen -ls"],
+    )
+    def test_keystroke_and_git_runners_without_a_command(self, command: str) -> None:
+        assert nested_commands(parts=split_tokens(command=command)) == []
+
+    def test_runner_commands_asks_each_stripped_wrapper(self) -> None:
+        parts = split_tokens(command="sudo screen -S s -X stuff 'dropdb x\\n'")
+
+        assert runner_commands(parts=parts) == [NestedCommand(command="dropdb x")]
 
     @pytest.mark.parametrize(
         ("command", "expected"),

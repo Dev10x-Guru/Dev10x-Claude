@@ -26,13 +26,15 @@ from dev10x.core.db_script import db_script
 from dev10x.core.domain import HookInput, HookResult
 from dev10x.core.domain.common.bash_tokens import (
     ANY_CASE_ENV_VAR_RE,
+    SUBSTITUTION_WORD,
     CommandSegment,
     ProgramProbe,
     UntokenizableCommandError,
     command_position_re,
     command_segments,
     command_units,
-    nested_commands,
+    runner_commands,
+    split_tokens,
     strip_command_wrappers,
     substitution_bodies,
 )
@@ -155,7 +157,42 @@ def _is_psql_binary(token: str) -> bool:
     return token == "psql" or token.endswith("/psql")
 
 
+# A word that hands psql to something else to run (GH-2001): a command
+# string that opens on it (`tmux send-keys -l 'psql -d x'`, a trailing
+# `\n` typed into screen), or a value that names it as a program
+# (`core.pager=psql`, `GIT_PAGER=/usr/bin/psql`, `alias.x=!psql`).
+_PSQL_PATH = r"(?:[^\s'\"=!|]*/)?psql"
+_PSQL_LEADS_RE = re.compile(rf"^\s*{_PSQL_PATH}(?=$|\s|\\|\^|;|&|\|)")
+_PSQL_AS_VALUE_RE = re.compile(rf"[=!|]\s*['\"]?{_PSQL_PATH}(?![\w.-])")
+
+
+def _names_psql(token: str) -> bool:
+    return (
+        _is_psql_binary(token)
+        or bool(_PSQL_LEADS_RE.match(token))
+        or bool(_PSQL_AS_VALUE_RE.search(token))
+    )
+
+
+# A shell or `env` assignment whose value a program may run: GIT_PAGER,
+# EDITOR, LESSOPEN, GIT_CONFIG_VALUE_0 … Every name counts, not a list of
+# known ones, so an unlisted variable cannot slip through (GH-2001).
+# Unlike ANY_CASE_ENV_VAR_RE, a quoted value may hold blanks.
+_ASSIGNMENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=(.+)$", re.DOTALL)
+_ASSIGNED_PROGRAM_PREFIXES = "|!"
+# A value computed by a substitution: `GIT_PAGER=$(…)`, `core.pager=`…``.
+_SUBSTITUTED_VALUE_RE = re.compile(r"[=!]['\"]?(?:\$\(|`)")
+# A substitution left in a word: raw inside double quotes, or the
+# lexer's SUBSTITUTION_WORD placeholder.
+_SUBSTITUTION_RE = re.compile(rf"\$\(|`|{re.escape(SUBSTITUTION_WORD)}")
+# Keystrokes typed through an opaque runner (cursor moves, history keys)
+# can reorder what was typed, so its letters are judged as a multiset.
+_PSQL_LETTERS = frozenset("psql")
+
 _PSQL_PROBE = ProgramProbe.for_program(program="psql")
+# screen and tmux type keystrokes that may spell psql with no `psql` in
+# the raw text: `tmux send-keys -H 70 73 71 6c 0a`, `stuff '\160sql'`.
+_KEYSTROKE_RUNNER_PROBE = ProgramProbe.for_program(program="screen|tmux")
 # Fail-closed fallback for a unit the segmenter cannot tokenize.
 _PSQL_COMMAND_POSITION_RE = command_position_re(program="psql")
 
@@ -203,7 +240,7 @@ def _psql_word_anywhere(*, command: str) -> bool:
             parts = []
         if _is_exempt_psql_wrapper(parts):
             continue
-        if any(_is_psql_binary(token) for token in parts) and not _psql_is_an_operand(
+        if any(_names_psql(token) for token in parts) and not _psql_is_an_operand(
             segment=segment, parts=parts
         ):
             return True
@@ -215,36 +252,116 @@ def _runs_psql(parts: list[str]) -> bool:
     return bool(words) and _is_psql_binary(words[0])
 
 
-def _psql_units(*, command: str) -> Iterator[tuple[str, tuple[CommandSegment, ...] | None]]:
+@dataclass(frozen=True)
+class _PsqlUnit:
+    text: str
+    segments: tuple[CommandSegment, ...] | None
+    opaque: bool = False
+
+
+def _assigned_programs(*, parts: list[str]) -> list[str]:
+    """Values assigned anywhere in ``parts``, read as programs (GH-2001).
+
+    Covers the prefix (``GIT_PAGER=psql git log``), ``env``/``sudo``
+    assignments and ``export``/``declare``/``alias`` arguments. A text
+    tool's operand (``echo PAGER=psql``) is text, not an assignment.
+    """
+    program = strip_command_wrappers(parts=parts)
+    if program and _is_text_only_program(program[0]):
+        return []
+    return [
+        match.group(1).lstrip(_ASSIGNED_PROGRAM_PREFIXES)
+        for token in parts
+        if (match := _ASSIGNMENT_RE.match(token))
+    ]
+
+
+# tmux and screen commands whose arguments are themselves a tmux/screen
+# command line or a shell command: `if-shell true 'run-shell psql'`,
+# `bind x exec psql`. Every argument of a keystroke runner is judged as a
+# command (`display-popup -E psql`, `set-buffer` + `paste-buffer`,
+# `register` + `paste`), and these are read one level deeper (GH-2001).
+_KEYSTROKE_RUNNERS = frozenset({"tmux", "screen"})
+_KEYSTROKE_NESTING_COMMANDS = frozenset(
+    {"if-shell", "if", "run-shell", "run", "display-popup", "popup", "pipe-pane", "pipep"}
+    | {"bind-key", "bind", "confirm-before", "confirm", "command-prompt", "display-menu"}
+    | {"menu", "new-session", "new", "new-window", "neww", "split-window", "splitw"}
+    | {"respawn-pane", "respawnp", "respawn-window", "respawnw", "send-keys", "send"}
+    | {"set-buffer", "setb", "set-hook", "eval", "stuff", "register", "exec", "screen"}
+)
+
+
+def _runner_argument_words(*, words: list[str]) -> list[str]:
+    found: list[str] = []
+    for word in words:
+        if word.startswith("-"):
+            continue
+        found.append(word)
+        inner = split_tokens(command=word)
+        if len(inner) > 1 and inner[0] in _KEYSTROKE_NESTING_COMMANDS:
+            found.extend(_runner_argument_words(words=inner[1:]))
+    return found
+
+
+def _keystroke_runner_words(*, parts: list[str]) -> list[str]:
+    start = next(
+        (idx for idx, token in enumerate(parts) if Path(token).name in _KEYSTROKE_RUNNERS),
+        None,
+    )
+    program = strip_command_wrappers(parts=parts)
+    if start is None or (program and _is_text_only_program(program[0])):
+        return []
+    return _runner_argument_words(words=parts[start + 1 :])
+
+
+def _spells_psql(*, unit: _PsqlUnit) -> bool:
+    return unit.opaque and _PSQL_LETTERS <= set(unit.text)
+
+
+def _psql_units(*, command: str) -> Iterator[_PsqlUnit]:
     """Every unit ``command`` runs, with its segments (``None`` if untokenizable).
 
     Like :func:`command_units`, but a ``docker exec`` / ``op run`` segment
     hands over no nested unit: its psql is judged by the wrapped-write
     check instead of the direct-psql gate (GH-1809). Every other runner
-    (``ssh``, ``watch``, ``eval``, ``kubectl exec`` …) nests as usual.
+    (``ssh``, ``watch``, ``eval``, ``kubectl exec`` …) nests as usual, and
+    so do typed keystrokes, git's configured programs and assigned
+    variables (GH-2001).
     """
-    seen: set[str] = set()
-    pending = [command]
+    seen: set[tuple[str, bool]] = set()
+    pending: list[tuple[str, bool]] = [(command, False)]
     while pending:
-        unit = pending.pop()
-        if unit in seen or not unit.strip():
+        unit, opaque = pending.pop()
+        if (unit, opaque) in seen or not unit.strip():
             continue
-        seen.add(unit)
-        pending.extend(substitution_bodies(unit, include_backticks=True))
+        seen.add((unit, opaque))
+        pending.extend((body, False) for body in substitution_bodies(unit, include_backticks=True))
         try:
             segments = command_segments(command=unit)
         except UntokenizableCommandError:
-            yield unit, None
+            yield _PsqlUnit(text=unit, segments=None, opaque=opaque)
             continue
-        yield unit, segments
+        yield _PsqlUnit(text=unit, segments=segments, opaque=opaque)
         for segment in segments:
             parts = list(segment.argv)
             if _is_exempt_psql_wrapper(parts):
                 continue
-            pending.extend(
-                nested.command
-                for nested in nested_commands(parts=strip_command_wrappers(parts=parts))
-            )
+            nested = runner_commands(parts=parts)
+            slots = [
+                *(candidate.command for candidate in nested),
+                *_assigned_programs(parts=parts),
+                *_keystroke_runner_words(parts=parts),
+            ]
+            pending.extend((candidate.command, candidate.opaque) for candidate in nested)
+            pending.extend((slot, False) for slot in slots[len(nested) :])
+            if _SUBSTITUTED_VALUE_RE.search(unit) or any(
+                _SUBSTITUTION_RE.search(slot) for slot in slots
+            ):
+                # The output names the program (`GIT_PAGER=$(echo psql)`),
+                # so the producing body is judged by its letters.
+                pending.extend(
+                    (body, True) for body in substitution_bodies(unit, include_backticks=True)
+                )
 
 
 def _is_exempt_psql_wrapper(parts: list[str]) -> bool:
@@ -668,6 +785,8 @@ class SqlSafetyValidator(ValidatorBase):
             or "postgresql://" in cmd
             or _BQ_PROBE.found_in(command=cmd)
             or _PG_BINARY_PROBE.found_in(command=cmd)
+            or _KEYSTROKE_RUNNER_PROBE.found_in(command=cmd)
+            or bool(_SUBSTITUTED_VALUE_RE.search(cmd))
         )
 
     def validate(self, inp: HookInput) -> HookResult | None:
@@ -776,14 +895,22 @@ class SqlSafetyValidator(ValidatorBase):
         ``echo psql``). An untokenizable unit fails closed on a
         command-position match.
         """
-        if not _PSQL_PROBE.found_in(command=command):
+        if not (
+            _PSQL_PROBE.found_in(command=command)
+            or _KEYSTROKE_RUNNER_PROBE.found_in(command=command)
+            or _SUBSTITUTED_VALUE_RE.search(command)
+        ):
             return None
-        for unit, segments in _psql_units(command=command):
-            if segments is None:
-                if _PSQL_COMMAND_POSITION_RE.search(unit):
+        for unit in _psql_units(command=command):
+            if _spells_psql(unit=unit) or (
+                unit.text != command and _psql_word_anywhere(command=unit.text)
+            ):
+                return HookResult(message=DIRECT_PSQL_MSG)
+            if unit.segments is None:
+                if _PSQL_COMMAND_POSITION_RE.search(unit.text):
                     return HookResult(message=DIRECT_PSQL_MSG)
                 continue
-            for segment in segments:
+            for segment in unit.segments:
                 parts = list(segment.argv)
                 if _is_exempt_psql_wrapper(parts):
                     wrapped = _check_wrapped_psql_writes(parts=parts)
