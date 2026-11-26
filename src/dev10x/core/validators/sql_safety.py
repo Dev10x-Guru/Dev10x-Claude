@@ -369,6 +369,47 @@ def _spells_psql(*, unit: _PsqlUnit) -> bool:
     return unit.opaque and _PSQL_LETTERS <= set(unit.text)
 
 
+# Hard caps on what one hook call may expand. A hook that runs past its
+# timeout is killed, and a killed hook is not a block, so a command too
+# nested to judge in time is blocked up front instead (GH-2005).
+_MAX_COMMAND_CHARS = 64 * 1024
+_MAX_UNITS = 512
+_MAX_LEXED_CHARS = 256 * 1024
+_MAX_DEPTH = 32
+_MAX_OPERAND_SUFFIXES = 64
+
+TOO_COMPLEX_MSG = (
+    "BLOCKED: this command is too complex for DX004 to judge: it nests more "
+    f"runners, scripts or values than the hook can expand in time (over "
+    f"{_MAX_UNITS} units, depth {_MAX_DEPTH}, {_MAX_COMMAND_CHARS} characters, or "
+    f"{_MAX_OPERAND_SUFFIXES} operands of an unknown program).\n"
+    f"Split it into simpler commands, or use {DB_SH_PATH} for read-only queries."
+)
+
+
+class _TooComplexError(Exception):
+    """A command exceeded a DX004 expansion cap; the caller blocks it."""
+
+
+@dataclass
+class _WalkBudget:
+    """Units and characters one DX004 check has expanded so far."""
+
+    units: int = 0
+    chars: int = 0
+
+    def charge(self, *, text: str, depth: int) -> None:
+        self.units += 1
+        self.chars += len(text)
+        if (
+            self.units > _MAX_UNITS
+            or self.chars > _MAX_LEXED_CHARS
+            or depth > _MAX_DEPTH
+            or len(text) > _MAX_COMMAND_CHARS
+        ):
+            raise _TooComplexError
+
+
 def _unknown_program_operands(*, words: list[str]) -> list[str]:
     """Every operand suffix of a program run from a path the hook cannot vouch for.
 
@@ -383,11 +424,10 @@ def _unknown_program_operands(*, words: list[str]) -> list[str]:
     if directory in _SYSTEM_BIN_DIRS:
         return []
     operands = words[1:]
-    return [
-        " ".join(operands[start:])
-        for start, word in enumerate(operands)
-        if not word.startswith("-")
-    ]
+    starts = [start for start, word in enumerate(operands) if not word.startswith("-")]
+    if len(starts) > _MAX_OPERAND_SUFFIXES:
+        raise _TooComplexError
+    return [" ".join(operands[start:]) for start in starts]
 
 
 def _script_commands(*, segment: CommandSegment) -> list[str]:
@@ -404,7 +444,7 @@ def _script_commands(*, segment: CommandSegment) -> list[str]:
     ]
 
 
-def _psql_units(*, command: str) -> Iterator[_PsqlUnit]:
+def _psql_units(*, command: str, budget: _WalkBudget) -> Iterator[_PsqlUnit]:
     """Every unit ``command`` runs, with its segments (``None`` if untokenizable).
 
     Like :func:`command_units`, but a ``docker exec`` / ``op run`` segment
@@ -415,13 +455,16 @@ def _psql_units(*, command: str) -> Iterator[_PsqlUnit]:
     variables (GH-2001).
     """
     seen: set[tuple[str, bool]] = set()
-    pending: list[tuple[str, bool]] = [(command, False)]
+    pending: list[tuple[str, bool, int]] = [(command, False, 0)]
     while pending:
-        unit, opaque = pending.pop()
+        unit, opaque, depth = pending.pop()
         if (unit, opaque) in seen or not unit.strip():
             continue
         seen.add((unit, opaque))
-        pending.extend((body, False) for body in substitution_bodies(unit, include_backticks=True))
+        budget.charge(text=unit, depth=depth)
+        child = depth + 1
+        bodies = substitution_bodies(unit, include_backticks=True)
+        pending.extend((body, False, child) for body in bodies)
         try:
             segments = command_segments(command=unit)
         except UntokenizableCommandError:
@@ -429,9 +472,12 @@ def _psql_units(*, command: str) -> Iterator[_PsqlUnit]:
             continue
         yield _PsqlUnit(text=unit, segments=segments, opaque=opaque)
         pending.extend(
-            (stream.command, stream.opaque)
+            (stream.command, stream.opaque, child)
             for stream in typed_stream(segments=[segment.argv for segment in segments])
         )
+        runs_output = False
+        computes_value = False
+        substituted_value = bool(_SUBSTITUTED_VALUE_RE.search(unit))
         for segment in segments:
             parts = list(segment.argv)
             if _is_exempt_psql_wrapper(parts):
@@ -443,20 +489,22 @@ def _psql_units(*, command: str) -> Iterator[_PsqlUnit]:
                 *_keystroke_runner_words(parts=parts),
                 *_script_commands(segment=segment),
             ]
-            if runs_script_output(parts=parts):
-                # `source <(echo psql …)` runs what the body prints, so the
-                # body is judged by its letters (GH-2005).
-                pending.extend((body, True) for body in process_substitution_bodies(unit))
-            pending.extend((candidate.command, candidate.opaque) for candidate in nested)
-            pending.extend((slot, False) for slot in slots[len(nested) :])
-            if _SUBSTITUTED_VALUE_RE.search(unit) or any(
-                _SUBSTITUTION_RE.search(slot) for slot in slots
-            ):
-                # The output names the program (`GIT_PAGER=$(echo psql)`),
-                # so the producing body is judged by its letters.
-                pending.extend(
-                    (body, True) for body in substitution_bodies(unit, include_backticks=True)
-                )
+            runs_output = runs_output or runs_script_output(parts=parts)
+            pending.extend((candidate.command, candidate.opaque, child) for candidate in nested)
+            pending.extend((slot, False, child) for slot in slots[len(nested) :])
+            computes_value = (
+                computes_value
+                or substituted_value
+                or any(_SUBSTITUTION_RE.search(slot) for slot in slots)
+            )
+        if runs_output:
+            # `source <(echo psql …)` runs what the body prints, so the
+            # body is judged by its letters (GH-2005).
+            pending.extend((body, True, child) for body in process_substitution_bodies(unit))
+        if computes_value:
+            # The output names the program (`GIT_PAGER=$(echo psql)`),
+            # so the producing body is judged by its letters.
+            pending.extend((body, True, child) for body in bodies)
 
 
 def _is_exempt_psql_wrapper(parts: list[str]) -> bool:
@@ -843,28 +891,36 @@ def _pg_write_binary(parts: list[str]) -> str | None:
     return None
 
 
-def _pg_write_binaries_in(*, unit: str) -> Iterator[str]:
+def _pg_write_binaries_in(*, unit: str, budget: _WalkBudget) -> Iterator[str]:
     """Every Postgres write binary ``unit`` runs.
 
     A unit that cannot be tokenized fails closed on a command-position
-    match rather than being skipped.
+    match rather than being skipped. An assigned value already judged is
+    not expanded again (GH-2005), so `A=b=b=…` stays linear.
     """
-    try:
-        segments = command_segments(command=unit)
-    except UntokenizableCommandError:
-        match = _PG_COMMAND_POSITION_RE.search(unit)
-        if match:
-            # The match may open on the quote of a runner's command string.
-            yield Path(match.group(0).split()[-1].lstrip("'\"")).name
-        return
-    for segment in segments:
-        parts = list(segment.argv)
-        binary = _pg_write_binary(parts)
-        if binary:
-            yield binary
-        # `GIT_PAGER='dropdb prod' git -p log` runs the assigned value.
-        for value in _assigned_programs(parts=parts):
-            yield from _pg_write_binaries_in(unit=value)
+    seen: set[str] = set()
+    pending: list[tuple[str, int]] = [(unit, 0)]
+    while pending:
+        text, depth = pending.pop()
+        if text in seen:
+            continue
+        seen.add(text)
+        budget.charge(text=text, depth=depth)
+        try:
+            segments = command_segments(command=text)
+        except UntokenizableCommandError:
+            match = _PG_COMMAND_POSITION_RE.search(text)
+            if match:
+                # The match may open on the quote of a runner's command string.
+                yield Path(match.group(0).split()[-1].lstrip("'\"")).name
+            continue
+        for segment in segments:
+            parts = list(segment.argv)
+            binary = _pg_write_binary(parts)
+            if binary:
+                yield binary
+            # `GIT_PAGER='dropdb prod' git -p log` runs the assigned value.
+            pending.extend((value, depth + 1) for value in _assigned_programs(parts=parts))
 
 
 class _WordRule(Protocol):
@@ -876,7 +932,15 @@ def _direct_psql_verdict(*, command: str, word_rule: _WordRule) -> HookResult | 
 
     Production passes :func:`_psql_word_anywhere`; the corpus comparison
     (GH-2005) passes a rule that never fires, to see the walk on its own.
+    A command past an expansion cap is blocked, never allowed.
     """
+    try:
+        return _walk_verdict(command=command, word_rule=word_rule, budget=_WalkBudget())
+    except _TooComplexError:
+        return HookResult(message=TOO_COMPLEX_MSG)
+
+
+def _walk_verdict(*, command: str, word_rule: _WordRule, budget: _WalkBudget) -> HookResult | None:
     if not (
         _PSQL_PROBE.found_in(command=command)
         or _KEYSTROKE_RUNNER_PROBE.found_in(command=command)
@@ -885,7 +949,7 @@ def _direct_psql_verdict(*, command: str, word_rule: _WordRule) -> HookResult | 
     ):
         return None
     segmented: dict[str, list[tuple[str, ...]]] = {}
-    for unit in _psql_units(command=command):
+    for unit in _psql_units(command=command, budget=budget):
         if unit.segments is not None:
             segmented.setdefault(unit.text, [segment.argv for segment in unit.segments])
         if _spells_psql(unit=unit) or (unit.text != command and word_rule(command=unit.text)):
@@ -911,7 +975,7 @@ def _direct_psql_verdict(*, command: str, word_rule: _WordRule) -> HookResult | 
         stream_unit = _PsqlUnit(text=stream.command, segments=None, opaque=stream.opaque)
         if _spells_psql(unit=stream_unit):
             return HookResult(message=DIRECT_PSQL_MSG)
-        result = _direct_psql_verdict(command=stream.command, word_rule=word_rule)
+        result = _walk_verdict(command=stream.command, word_rule=word_rule, budget=budget)
         if result:
             return result
     if word_rule(command=command):
@@ -992,14 +1056,18 @@ class SqlSafetyValidator(ValidatorBase):
                 [segment.argv for segment in segments] for segments in _unit_segments(units=units)
             ]
         )
-        binary = next(
-            (
-                binary
-                for unit in (*units, *(stream.command for stream in streams))
-                for binary in _pg_write_binaries_in(unit=unit)
-            ),
-            None,
-        )
+        budget = _WalkBudget()
+        try:
+            binary = next(
+                (
+                    binary
+                    for unit in (*units, *(stream.command for stream in streams))
+                    for binary in _pg_write_binaries_in(unit=unit, budget=budget)
+                ),
+                None,
+            )
+        except _TooComplexError:
+            return HookResult(message=TOO_COMPLEX_MSG)
         if binary is None:
             return None
         return HookResult(message=PG_WRITE_BINARY_MSG.format(binary=binary))

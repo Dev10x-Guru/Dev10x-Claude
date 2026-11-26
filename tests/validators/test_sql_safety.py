@@ -2,10 +2,18 @@
 
 from __future__ import annotations
 
+import shlex
+import time
+
 import pytest
 
+from dev10x.core.domain import HookResult
 from dev10x.core.validators.sql_safety import SqlSafetyValidator
 from tests.fakers import BashHookInputFaker
+
+# Generous: the hook is killed at 10 s, and a killed hook is not a block.
+_FAST_ENOUGH_SECONDS = 1.0
+_TOO_COMPLEX = "too complex for DX004"
 
 
 def _make_input(*, command: str) -> BashHookInputFaker:
@@ -1178,3 +1186,86 @@ class TestSqlValidation:
         inp = _make_input(command=f'db.sh pp "{sql}"')
         result = validator.validate(inp=inp)
         assert result is not None
+
+
+def _timed_validate(*, command: str) -> tuple[HookResult | None, float]:
+    start = time.perf_counter()
+    result = SqlSafetyValidator().validate(inp=_make_input(command=command))
+    return result, time.perf_counter() - start
+
+
+def _nested_shell_strings(*, payload: str, levels: int) -> str:
+    command = payload
+    for _ in range(levels):
+        command = f"bash -c {shlex.quote(command)}"
+    return command
+
+
+class TestExpansionCaps:
+    """GH-2005 review F1/F2: a command too nested to judge in time is blocked."""
+
+    @pytest.mark.parametrize("size", [32, 64, 5000])
+    def test_assignment_chain_is_blocked_quickly(self, size: int) -> None:
+        result, elapsed = _timed_validate(
+            command="A" + "=b" * size + "; psql -d prod -c 'DROP TABLE t' #dropdb"
+        )
+
+        assert result is not None
+        assert elapsed < _FAST_ENOUGH_SECONDS
+
+    @pytest.mark.parametrize("size", [60, 1000, 2000])
+    def test_unknown_program_operands_are_blocked_quickly(self, size: int) -> None:
+        result, elapsed = _timed_validate(
+            command="bash -c 'cd /; psql -d prod -c \"DROP TABLE t\"'; ./x" + " ./a" * size
+        )
+
+        assert result is not None
+        assert elapsed < _FAST_ENOUGH_SECONDS
+
+    def test_unit_cap_blocks(self) -> None:
+        command = "; ".join(f"eval 'echo {i}'" for i in range(600)) + "; echo psql"
+
+        result, _ = _timed_validate(command=command)
+
+        assert result is not None
+        assert _TOO_COMPLEX in result.message
+
+    def test_lexed_characters_cap_blocks(self) -> None:
+        payload = "echo " + "x" * 59_000 + "; psql"
+
+        result, _ = _timed_validate(command=_nested_shell_strings(payload=payload, levels=4))
+
+        assert result is not None
+        assert _TOO_COMPLEX in result.message
+
+    @pytest.mark.parametrize(
+        "suffix",
+        [
+            "=dropdb",
+            "=x; eval $(echo hi)",
+        ],
+    )
+    def test_depth_cap_blocks(self, suffix: str) -> None:
+        """The first wakes the write-binary check, the second the psql walk."""
+        result, _ = _timed_validate(command="A" + "=b" * 100 + suffix)
+
+        assert result is not None
+        assert _TOO_COMPLEX in result.message
+
+    def test_input_length_cap_blocks(self) -> None:
+        result, _ = _timed_validate(command="echo " + "x" * 70_000 + " psql")
+
+        assert result is not None
+        assert _TOO_COMPLEX in result.message
+
+    def test_unknown_program_operand_cap_blocks(self) -> None:
+        result, _ = _timed_validate(command="./x " + "a " * 65 + "psql")
+
+        assert result is not None
+        assert _TOO_COMPLEX in result.message
+
+    def test_unknown_program_under_the_operand_cap_is_judged(self) -> None:
+        result, _ = _timed_validate(command="./x " + "a " * 63 + "psql")
+
+        assert result is not None
+        assert "Direct psql calls" in result.message
