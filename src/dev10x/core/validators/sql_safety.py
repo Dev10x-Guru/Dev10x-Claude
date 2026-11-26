@@ -8,8 +8,9 @@ Blocks direct psycopg2 / postgres:// connections.
 ``bq query`` gets the same read-only contract (GH-1633): a blanket
 ``Bash(bq query:*)`` allow auto-approved ``DELETE``/``MERGE`` against
 BigQuery while every Postgres path was guarded. This closes that hole at
-the hook; a schema-first ``bq`` wrapper skill, after which the raw
-command moves to deny, is the remaining scope on GH-1633.
+the hook. Every other ``bq`` verb that writes is refused too, and so is a
+flag file the hook cannot read. A schema-first ``bq`` wrapper skill, after
+which the raw command moves to deny, is the remaining scope on GH-1633.
 """
 
 from __future__ import annotations
@@ -137,6 +138,64 @@ _BQ_VALUE_FLAGS = frozenset(
         "--udf_resource",
         "--external_table_definition",
     }
+)
+
+_BQ_FLAG_FILE_FLAGS = frozenset({"--flagfile", "--bigqueryrc"})
+_BQ_RC_ENV = "BIGQUERYRC"
+
+# `bq` global flags that take no value, so the word after one is the verb.
+# absl's `--noX` spelling exists only for booleans and is read the same way.
+_BQ_BOOLEAN_FLAGS = frozenset(
+    {
+        "--help",
+        "--helpshort",
+        "--helpfull",
+        "--helpxml",
+        "-h",
+        "--quiet",
+        "-q",
+        "--headless",
+        "--sync",
+        "--synchronous_mode",
+        "--debug_mode",
+        "--use_gce_service_account",
+        "--enable_gdrive",
+        "--use_regional_endpoints",
+        "--disable_ssl_validation",
+        "--fingerprint_job_id",
+        "--enable_resumable_uploads",
+        "--use_google_auth",
+        "--version",
+    }
+)
+_BQ_GLOBAL_VALUE_FLAGS = _BQ_VALUE_FLAGS | {
+    "--apilog",
+    "--ca_certificates_file",
+    "--discovery_file",
+    "--trace",
+    "--httplib2_debuglevel",
+    "--application_default_credential_file",
+    "--oauth_access_token",
+    "--universe_domain",
+}
+
+# `bq` commands that change nothing. Every other verb (`rm`, `load`, `cp`,
+# `mk`, `update`, `insert`, `extract`, `truncate`, `undelete`, `cancel`,
+# `init`, `shell`, `partition`, the IAM writers, and any verb added later)
+# is refused.
+_BQ_READ_ONLY_VERBS = frozenset(
+    {"ls", "show", "head", "query", "version", "help", "info", "wait", "get-iam-policy"}
+)
+
+_BQ_WORD_RE = re.compile(r"(?<![\w.-])bq(?![\w.-])")
+_BQ_LETTERS_WINDOW = 1024
+_BQ_LETTERS_MAX_CALLS = 64
+_BQ_LETTERS_END_RE = re.compile(r"[;&|\n)`]")
+
+BQ_FLAG_FILE_DETAIL = (
+    "--flagfile, --bigqueryrc and BIGQUERYRC load bq flags from a file this "
+    "hook cannot read, and such a file can turn a SELECT into a write. The "
+    "default ~/.bigqueryrc is outside this check."
 )
 
 BQ_STDIN_MSG = (
@@ -794,6 +853,8 @@ def _check_bq_query(*, args: list[str]) -> HookResult | None:
     redirect words (GH-1798), so ``bq query < q.sql`` reaches here with no
     SQL at all and is refused as a stdin read.
     """
+    if [_bq_flag_name(token) for token in args] == ["--help"]:
+        return None
     sql_tokens: list[str] = []
     remaining = iter(args)
     for token in remaining:
@@ -823,7 +884,109 @@ def _check_bq_query(*, args: list[str]) -> HookResult | None:
     return None
 
 
+@dataclass(frozen=True)
+class _BqCall:
+    verb: str | None
+    operands: tuple[str, ...]
+    unsure_flag: str | None
+
+
+def _bq_call(*, args: list[str]) -> _BqCall:
+    """The verb of ``bq <args>``, past its global flags.
+
+    A spaced flag the hook does not know may take the next word as its
+    value, so the verb cannot be told and ``unsure_flag`` names it.
+    """
+    tokens = iter(args)
+    for token in tokens:
+        if token == "--":
+            return _BqCall(verb=next(tokens, None), operands=tuple(tokens), unsure_flag=None)
+        if not token.startswith("-") or token == "-":
+            return _BqCall(verb=token, operands=tuple(tokens), unsure_flag=None)
+        flag = _bq_flag_name(token)
+        if "=" in token or flag in _BQ_BOOLEAN_FLAGS or flag.startswith("--no"):
+            continue
+        if flag in _BQ_GLOBAL_VALUE_FLAGS:
+            next(tokens, None)
+            continue
+        return _BqCall(verb=None, operands=(), unsure_flag=flag)
+    return _BqCall(verb=None, operands=(), unsure_flag=None)
+
+
+def _bq_call_verdict(*, args: list[str]) -> HookResult | None:
+    """Refuse a flag file, an unreadable verb or a verb that writes (GH-1633)."""
+    if any(_bq_flag_name(token) in _BQ_FLAG_FILE_FLAGS for token in args):
+        return HookResult(message=_bq_write_message(detail=BQ_FLAG_FILE_DETAIL))
+    call = _bq_call(args=args)
+    if call.unsure_flag:
+        return HookResult(
+            message=_bq_write_message(
+                detail=f"{call.unsure_flag} before the bq command hides which command runs."
+            )
+        )
+    if call.verb is not None and call.verb not in _BQ_READ_ONLY_VERBS:
+        return HookResult(
+            message=_bq_write_message(
+                detail=(
+                    f"`bq {call.verb}` is not a read-only bq command. Allowed: "
+                    + ", ".join(sorted(_BQ_READ_ONLY_VERBS))
+                    + "."
+                )
+            )
+        )
+    return None
+
+
+def _check_bq_segment(*, parts: list[str]) -> HookResult | None:
+    words = strip_command_wrappers(parts=parts)
+    if not words or Path(words[0]).name != "bq":
+        return None
+    result = _bq_call_verdict(args=words[1:])
+    if result:
+        return result
+    call = _bq_call(args=words[1:])
+    if call.verb == "help" and len(call.operands) <= 1:
+        return None
+    args = _bq_query_args(parts)
+    if args is None:
+        return None
+    return _check_bq_query(args=args)
+
+
+def _bq_letters_verdict(*, text: str, pattern: re.Pattern[str]) -> HookResult | None:
+    """Judge each ``bq`` call in ``text`` by its words, for text the lexer
+    cannot split or whose output runs as a command (GH-1633)."""
+    for count, match in enumerate(pattern.finditer(text)):
+        window = text[match.end() : match.end() + _BQ_LETTERS_WINDOW]
+        call_text = _BQ_LETTERS_END_RE.split(window, maxsplit=1)[0]
+        if count >= _BQ_LETTERS_MAX_CALLS or len(call_text) == _BQ_LETTERS_WINDOW:
+            return HookResult(message=TOO_COMPLEX_MSG)
+        args = [token.strip("'\"") for token in call_text.split()]
+        result = _bq_call_verdict(args=args)
+        if result:
+            return result
+        if _bq_call(args=args).verb == "query":
+            return HookResult(message=_bq_write_message(detail=BQ_UNTOKENIZABLE_DETAIL))
+    return None
+
+
+def _bq_units(*, command: str) -> list[tuple[str, bool]]:
+    """Every unit ``command`` runs, with whether its output runs too.
+
+    Joins the shared walk with DX004's own, which also reads shell ``-c``
+    strings, heredocs and git's exec forms (GH-2005).
+    """
+    units = dict.fromkeys((unit, False) for unit in command_units(command=command))
+    units.update(
+        dict.fromkeys(
+            (unit.text, unit.opaque) for unit in _psql_units(command=command, budget=_WalkBudget())
+        )
+    )
+    return list(units)
+
+
 _BQ_PROBE = ProgramProbe.for_program(program="bq")
+_BQ_POSITION_RE = command_position_re(program="bq")
 
 # Fail-closed fallback for a unit the segmenter cannot tokenize: a `bq`
 # call in command position that names the `query` subcommand.
@@ -1115,22 +1278,38 @@ class SqlSafetyValidator(ValidatorBase):
         """
         if not _BQ_PROBE.found_in(command=command):
             return None
-        for unit in command_units(command=command):
-            try:
-                segments = command_segments(command=unit)
-            except UntokenizableCommandError:
-                if len(unit) > _MAX_FALLBACK_CHARS:
-                    return HookResult(message=TOO_COMPLEX_MSG)
-                if _BQ_QUERY_POSITION_RE.search(unit):
-                    return HookResult(message=_bq_write_message(detail=BQ_UNTOKENIZABLE_DETAIL))
-                continue
-            for segment in segments:
-                args = _bq_query_args(list(segment.argv))
-                if args is None:
-                    continue
-                result = _check_bq_query(args=args)
-                if result:
-                    return result
+        if _BQ_RC_ENV in command:
+            return HookResult(message=_bq_write_message(detail=BQ_FLAG_FILE_DETAIL))
+        try:
+            units = _bq_units(command=command)
+        except _TooComplexError:
+            return HookResult(message=TOO_COMPLEX_MSG)
+        for unit, opaque in units:
+            result = self._check_bq_unit(unit=unit, opaque=opaque)
+            if result:
+                return result
+        return None
+
+    def _check_bq_unit(self, *, unit: str, opaque: bool) -> HookResult | None:
+        if opaque:
+            result = _bq_letters_verdict(text=unit, pattern=_BQ_WORD_RE)
+            if result:
+                return result
+        try:
+            segments = command_segments(command=unit)
+        except UntokenizableCommandError:
+            if len(unit) > _MAX_FALLBACK_CHARS:
+                return HookResult(message=TOO_COMPLEX_MSG)
+            result = _bq_letters_verdict(text=unit, pattern=_BQ_POSITION_RE)
+            if result:
+                return result
+            if _BQ_QUERY_POSITION_RE.search(unit):
+                return HookResult(message=_bq_write_message(detail=BQ_UNTOKENIZABLE_DETAIL))
+            return None
+        for segment in segments:
+            result = _check_bq_segment(parts=list(segment.argv))
+            if result:
+                return result
         return None
 
     def _check_direct_connection(self, *, command: str) -> HookResult | None:

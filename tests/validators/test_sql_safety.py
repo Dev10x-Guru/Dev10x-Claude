@@ -325,6 +325,225 @@ class TestBigQueryReadOnly:
         assert validator.validate(inp=_make_input(command=command)) is None
 
 
+class TestBigQueryFlagFiles:
+    """GH-1633: a flag file can carry `--destination_table` past the hook."""
+
+    @pytest.fixture()
+    def validator(self) -> SqlSafetyValidator:
+        return SqlSafetyValidator()
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "bq query --flagfile=f.txt 'SELECT 1'",
+            "bq query --flagfile f.txt 'SELECT 1'",
+            "bq query -flagfile=f.txt 'SELECT 1'",
+            "bq --flagfile=f.txt query 'SELECT 1'",
+            "bq --flagfile f.txt ls ds",
+            "bq ls --flagfile=f.txt ds",
+            "bq --bigqueryrc=/tmp/rc query 'SELECT 1'",
+            "bq --bigqueryrc /tmp/rc ls",
+            "BIGQUERYRC=/tmp/rc bq query 'SELECT 1'",
+            "env BIGQUERYRC=/tmp/rc bq ls",
+            "export BIGQUERYRC=/tmp/rc; bq query 'SELECT 1'",
+            "sudo bq query --flagfile=f.txt 'SELECT 1'",
+            "bash -c 'bq query --flagfile=f.txt \"SELECT 1\"'",
+            "bq query --flagfile=f.txt 'SELECT 1",
+        ],
+    )
+    def test_blocks_flags_loaded_from_a_file(
+        self, validator: SqlSafetyValidator, command: str
+    ) -> None:
+        result = validator.validate(inp=_make_input(command=command))
+
+        assert result is not None
+        assert "~/.bigqueryrc" in result.message
+
+    def test_flag_file_lists_block_fast(self, validator: SqlSafetyValidator) -> None:
+        command = "bq " + "--flagfile=f.txt " * 5000 + "query 'SELECT 1'"
+        started = time.perf_counter()
+
+        result = validator.validate(inp=_make_input(command=command))
+
+        assert result is not None
+        assert time.perf_counter() - started < _FAST_ENOUGH_SECONDS
+
+
+class TestBigQueryHelp:
+    """GH-1633: help shapes run no SQL, so they are not refused as stdin reads."""
+
+    @pytest.fixture()
+    def validator(self) -> SqlSafetyValidator:
+        return SqlSafetyValidator()
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "bq query --help",
+            "bq query -help",
+            "bq --project_id=p query --help",
+            "bq help query",
+            "bq help",
+            "bq --help",
+            "bq",
+        ],
+    )
+    def test_allows_help(self, validator: SqlSafetyValidator, command: str) -> None:
+        assert validator.validate(inp=_make_input(command=command)) is None
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "bq query --help 'DELETE FROM ds.t WHERE true'",
+            "bq query --help --destination_table=ds.t 'SELECT 1'",
+            "bq query --help --replace",
+            "bq help query 'DELETE FROM ds.t WHERE true'",
+            "bq help rm query",
+            "bq query",
+        ],
+    )
+    def test_judges_help_shapes_carrying_more(
+        self, validator: SqlSafetyValidator, command: str
+    ) -> None:
+        assert validator.validate(inp=_make_input(command=command)) is not None
+
+
+class TestBigQueryWriteVerbs:
+    """GH-1633: `bq` verbs other than `query` change resources or data."""
+
+    @pytest.fixture()
+    def validator(self) -> SqlSafetyValidator:
+        return SqlSafetyValidator()
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "bq rm -f ds.t",
+            "bq rm -r -f -d ds",
+            "bq load ds.t gs://b/f.csv",
+            "bq cp ds.a ds.b",
+            "bq mk ds",
+            "bq mk --table ds.t schema.json",
+            "bq update --description x ds.t",
+            "bq insert ds.t rows.json",
+            "bq extract ds.t gs://b/out.csv",
+            "bq truncate ds.t",
+            "bq undelete ds",
+            "bq cancel job_1",
+            "bq init",
+            "bq shell",
+            "bq partition ds.src ds.dst",
+            "bq set-iam-policy ds.t policy.json",
+            "bq add-iam-policy-binding --member=u --role=r ds.t",
+            "bq remove-iam-policy-binding --member=u --role=r ds.t",
+            "bq --project_id=p --location=US rm -f ds.t",
+            "bq --project_id p --location US rm -f ds.t",
+            "bq -q --headless --format=json load ds.t f.csv",
+            "bq --nosync cp ds.a ds.b",
+            "bq --apilog /tmp/log rm -f ds.t",
+            "bq -- rm ds.t",
+            "/usr/bin/bq rm -f ds.t",
+            "sudo bq rm -f ds.t",
+            "sudo -u svc bq rm -f ds.t",
+            "env X=y bq load ds.t f.csv",
+            "X=y bq load ds.t f.csv",
+            "timeout 60 bq cp ds.a ds.b",
+            "bash -c 'bq rm -f ds.t'",
+            "sh -c 'ls; bq rm -f ds.t'",
+            'bash -lc "bq mk ds"',
+            "bash <<'EOF'\nbq rm -f ds.t\nEOF",
+            "eval 'bq rm -f ds.t'",
+            "echo $(bq rm -f ds.t)",
+            "ls; bq rm -f ds.t",
+            "ssh host bq rm -f ds.t",
+            "docker exec c bq rm -f ds.t",
+            "git rebase -x 'bq rm -f ds.t' HEAD~1",
+            "source <(echo bq rm -f ds.t)",
+            "bq --unknown_flag rm ds.t",
+            "bq --unknown_flag ls rm ds.t",
+            "bq rm 'ds.t",
+            "x; bq --project_id=p load 'ds.t",
+        ],
+    )
+    def test_blocks_write_verbs(self, validator: SqlSafetyValidator, command: str) -> None:
+        inp = _make_input(command=command)
+
+        assert validator.should_run(inp=inp) is True
+        assert validator.validate(inp=inp) is not None
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "bq ls",
+            "bq ls -n 50 ds",
+            "bq --project_id=p ls ds",
+            "bq --project_id p --location US ls ds",
+            "bq -q --format=prettyjson show ds.t",
+            "bq --nosync show ds.t",
+            "bq head -n 10 ds.t",
+            "bq version",
+            "bq info",
+            "bq wait job_1",
+            "bq get-iam-policy ds.t",
+            "bq show --format=json ds.t",
+            "sudo bq ls",
+            "bash -c 'bq ls ds'",
+            "bq ls 'ds",
+        ],
+    )
+    def test_allows_read_only_verbs(self, validator: SqlSafetyValidator, command: str) -> None:
+        assert validator.validate(inp=_make_input(command=command)) is None
+
+    @pytest.mark.parametrize(
+        ("command", "expected"),
+        [
+            ("source <(echo bq query 'SELECT 1')", "could not be tokenized"),
+            ("bq --unknown_flag ls 'ds", "--unknown_flag"),
+            ("bq --format 'query", "could not be tokenized"),
+            ("bq " + "-q " * 400 + "ls 'ds", _TOO_COMPLEX),
+            ("bq ls; " * 70 + "'", _TOO_COMPLEX),
+        ],
+    )
+    def test_judges_unreadable_text_by_its_words(
+        self, validator: SqlSafetyValidator, command: str, expected: str
+    ) -> None:
+        result = validator.validate(inp=_make_input(command=command))
+
+        assert result is not None
+        assert expected in result.message
+
+    def test_allows_a_read_named_in_printed_output(self, validator: SqlSafetyValidator) -> None:
+        assert validator.validate(inp=_make_input(command="source <(echo bq ls ds)")) is None
+
+    def test_names_the_verb(self, validator: SqlSafetyValidator) -> None:
+        result = validator.validate(inp=_make_input(command="bq --location=US rm -f ds.t"))
+
+        assert result is not None
+        assert "`bq rm`" in result.message
+
+    def test_names_an_ambiguous_flag(self, validator: SqlSafetyValidator) -> None:
+        result = validator.validate(inp=_make_input(command="bq --unknown_flag ls"))
+
+        assert result is not None
+        assert "--unknown_flag" in result.message
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "bq " + "--project_id=p " * 20000 + "rm ds.t",
+            "bq " + "-q " * 20000 + "ls",
+            "bq " + "--project_id p " * 10000 + "ls",
+            "bash -c '" + "bq ls; " * 2000 + "bq rm ds.t'",
+        ],
+    )
+    def test_long_flag_runs_finish_fast(self, validator: SqlSafetyValidator, command: str) -> None:
+        started = time.perf_counter()
+
+        validator.validate(inp=_make_input(command=command))
+
+        assert time.perf_counter() - started < _FAST_ENOUGH_SECONDS
+
+
 class TestDirectConnection:
     @pytest.fixture()
     def validator(self) -> SqlSafetyValidator:
