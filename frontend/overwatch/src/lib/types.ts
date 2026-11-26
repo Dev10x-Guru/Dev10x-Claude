@@ -38,6 +38,14 @@ export interface Decision {
   held_elsewhere_until?: string;
 }
 
+export interface SessionRecap {
+  tasks_done: number;
+  tasks_total: number;
+  current_task: string;
+  last_said: string;
+  last_said_at: string;
+}
+
 export interface Session {
   session_id: string;
   name: string;
@@ -56,6 +64,7 @@ export interface Session {
   status_line_ansi: string;
   workspace: Workspace;
   decisions: Decision[];
+  recap?: SessionRecap;
 }
 
 export interface Workspace {

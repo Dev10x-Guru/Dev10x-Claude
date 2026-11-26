@@ -1,5 +1,6 @@
 <script lang="ts">
   import DetailPane from "./components/DetailPane.svelte";
+  import Overview from "./components/Overview.svelte";
   import PageSettings from "./components/PageSettings.svelte";
   import SessionPane from "./components/SessionPane.svelte";
   import Sidebar from "./components/Sidebar.svelte";
@@ -18,6 +19,7 @@
   } from "./lib/api";
   import { fetchArtifact, parseRoute, type ArtifactDocument } from "./lib/artifact";
   import { bucket, clockTime, headline } from "./lib/format";
+  import { isOverviewHash } from "./lib/overview";
   import {
     ASIDE,
     SIDE,
@@ -96,7 +98,9 @@
 
   let route = $state(initialRoute);
   let bus = $state(initialBus);
-  let chosen = $state(initialRoute || initialBus ? "" : sessionFromHash(location.hash));
+  const initialOverview = !initialRoute && !initialBus && isOverviewHash(location.hash);
+  let overview = $state(initialOverview);
+  let chosen = $state(initialRoute || initialBus || initialOverview ? "" : sessionFromHash(location.hash));
   let artifact = $state<ArtifactDocument | null>(null);
   let artifactError = $state("");
   let artifactReloads = $state(0);
@@ -120,7 +124,7 @@
   const artifactOwner = $derived(
     route ? (snapshot?.artifacts?.find((each) => each.id === route?.id)?.owner.session_id ?? "") : "",
   );
-  const current = $derived(pickSession(sessions, artifactOwner || chosen));
+  const current = $derived(overview ? null : pickSession(sessions, artifactOwner || chosen));
   const errors = $derived(Object.entries(snapshot?.errors ?? {}));
   const otherQuestions = $derived(
     sessions.filter((session) => {
@@ -146,7 +150,8 @@
     const follow = (): void => {
       bus = isBusRoute(location.hash);
       route = parseRoute(location.hash);
-      if (!route && !bus) chosen = sessionFromHash(location.hash);
+      overview = !route && !bus && isOverviewHash(location.hash);
+      if (!route && !bus) chosen = overview ? "" : sessionFromHash(location.hash);
     };
     window.addEventListener("hashchange", follow);
     return () => window.removeEventListener("hashchange", follow);
@@ -219,6 +224,7 @@
     if (sessionId === current?.session_id && !route && !bus) return;
     route = null;
     bus = false;
+    overview = false;
     chosen = sessionId;
     detail = null;
     history.replaceState(null, "", `${location.search}#${encodeURIComponent(sessionId)}`);
@@ -323,7 +329,7 @@
     ></button>
   {/snippet}
 
-  <div class={["desk", { dragging }]} style="--aside: {widths.aside}px; --side: {widths.side}px">
+  <div class={["desk", { dragging, wide: overview }]} style="--aside: {widths.aside}px; --side: {widths.side}px">
     <header class="brand">
       <p class="eyebrow">Session Overwatch</p>
       {#if waitingCount}
@@ -372,6 +378,7 @@
         {artifacts}
         artifact={route?.id ?? ""}
         {bus}
+        {overview}
         onselect={select}
         onpin={pin}
         {run}
@@ -379,7 +386,9 @@
     </div>
 
     {@render handle("aside", "session list")}
-    {@render handle("side", "details panel")}
+    {#if !overview}
+      {@render handle("side", "details panel")}
+    {/if}
 
     <main class="center">
       {#if bus}
@@ -401,6 +410,12 @@
           <p class="calm">This page did not load: {artifactError}</p>
         {:else}
           <p class="calm">Loading the page…</p>
+        {/if}
+      {:else if overview}
+        {#if snapshot}
+          <Overview {sessions} {now} onselect={select} />
+        {:else}
+          <p class="calm">Reading sessions…</p>
         {/if}
       {:else if current}
         {@const own = detail?.session_id === current.session_id ? detail : null}
@@ -460,6 +475,18 @@
       "index center side";
     height: 100dvh;
     overflow: hidden;
+  }
+
+  .desk.wide {
+    grid-template-columns: var(--aside) minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas:
+      "brand center"
+      "index center";
+  }
+
+  .desk.wide .side {
+    display: none;
   }
 
   .desk.dragging {
@@ -685,6 +712,19 @@
 
     .resize {
       display: none;
+    }
+
+    .desk.wide {
+      grid-template-columns: 1fr;
+      grid-template-rows: auto auto auto;
+      grid-template-areas:
+        "brand"
+        "index"
+        "center";
+    }
+
+    .desk.wide .center {
+      height: auto;
     }
 
     .index {

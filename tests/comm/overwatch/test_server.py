@@ -20,6 +20,7 @@ from dev10x.comm.overwatch.launcher import Checkout, Launched, LaunchError, Proj
 from dev10x.comm.overwatch.paths import TOKEN_HEADER
 from dev10x.comm.overwatch.pending import ConversationEntry, Preview, RecentTool
 from dev10x.comm.overwatch.probes import ProbeError, Snapshot
+from dev10x.comm.overwatch.recap import SessionRecap
 from dev10x.comm.overwatch.server import (
     MAX_BODY_BYTES,
     OverwatchApp,
@@ -100,6 +101,15 @@ WORKSPACES = {
         repo_url="https://github.com/Dev10x-Guru/Dev10x-Claude",
     )
 }
+RECAPS = {
+    "sid-perm": SessionRecap(
+        tasks_done=3,
+        tasks_total=5,
+        current_task="Cleaning",
+        last_said="Build cleaned; next the tests.",
+        last_said_at="2026-10-31T20:01:00Z",
+    )
+}
 WIDGET_TEXT = "Which hub?\n❯ 1. Relay\n  2. mc\n"
 PANES = {"w3:p1": WIDGET_TEXT, "w5:p1": PROMPT_TEXT, "w12:p1": ""}
 SOON = datetime.now().astimezone() + timedelta(minutes=5)
@@ -164,6 +174,7 @@ def app(tmp_path: Path, keys: KeySender, panes: dict[str, str], static_dir: Path
         conversation_reader=lambda session_id: CONVERSATION.get(session_id, []),
         tasks_reader=lambda session_id: TASKS.get(session_id, []),
         workspace_reader=lambda cwd: WORKSPACES.get(cwd, Workspace(project=cwd, root=cwd)),
+        recap_reader=lambda session_id: RECAPS.get(session_id, SessionRecap()),
         today=lambda: date(2026, 10, 31),
         static_dir=static_dir,
         settings=SettingsStore(path=tmp_path / "settings.json"),
@@ -1596,6 +1607,78 @@ class TestWorkspacePayload:
         refresh(app=app, provider=lambda: Snapshot(sessions=[IDLE], taken_at=NOW))
 
         assert cwds == ["/kb"]
+
+
+class TestRecapPayload:
+    def test_snapshot_carries_each_sessions_recap(self, app: OverwatchApp) -> None:
+        refresh(app=app, provider=lambda: Snapshot(sessions=[PERMISSION, IDLE], taken_at=NOW))
+
+        recaps = {
+            session["session_id"]: session["recap"]
+            for session in snapshot_payload(app=app)["sessions"]
+        }
+
+        assert recaps == {
+            "sid-perm": {
+                "tasks_done": 3,
+                "tasks_total": 5,
+                "current_task": "Cleaning",
+                "last_said": "Build cleaned; next the tests.",
+                "last_said_at": "2026-10-31T20:01:00Z",
+            },
+            "sid-idle": {
+                "tasks_done": 0,
+                "tasks_total": 0,
+                "current_task": "",
+                "last_said": "",
+                "last_said_at": "",
+            },
+        }
+
+    def test_recaps_cached_between_slow_reads(self, app: OverwatchApp) -> None:
+        read: list[str] = []
+
+        def reader(*, session_id: str) -> SessionRecap:
+            read.append(session_id)
+            return SessionRecap()
+
+        app.recap_reader = reader
+        app.clock = lambda: 5.0
+        refresh(app=app, provider=lambda: Snapshot(sessions=[IDLE], taken_at=NOW))
+        refresh(app=app, provider=lambda: Snapshot(sessions=[IDLE, WAITING], taken_at=NOW))
+
+        assert read == ["sid-idle", "sid-wait"]
+
+    def test_recaps_reread_after_the_interval(self, app: OverwatchApp) -> None:
+        read: list[str] = []
+        ticks = iter([5.0, 5.0 + server_module.STATUS_LINE_SECONDS])
+
+        def reader(*, session_id: str) -> SessionRecap:
+            read.append(session_id)
+            return SessionRecap()
+
+        app.recap_reader = reader
+        app.clock = lambda: next(ticks)
+        refresh(app=app, provider=lambda: Snapshot(sessions=[IDLE], taken_at=NOW))
+        refresh(app=app, provider=lambda: Snapshot(sessions=[IDLE], taken_at=NOW))
+
+        assert read == ["sid-idle", "sid-idle"]
+
+    def test_unreadable_recap_keeps_the_last_one(self, app: OverwatchApp) -> None:
+        ticks = iter([5.0, 5.0 + server_module.STATUS_LINE_SECONDS])
+
+        def unreadable(*, session_id: str) -> SessionRecap:
+            raise PermissionError(session_id)
+
+        app.clock = lambda: next(ticks)
+        app.recap_reader = lambda session_id: SessionRecap(tasks_total=2)
+        refresh(app=app, provider=lambda: Snapshot(sessions=[IDLE], taken_at=NOW))
+        app.recap_reader = unreadable
+        refresh(app=app, provider=lambda: Snapshot(sessions=[IDLE], taken_at=NOW))
+
+        [session] = snapshot_payload(app=app)["sessions"]
+
+        assert (app.version, session["recap"]["tasks_total"]) == (3, 2)
 
 
 class TestLessons:
