@@ -6,12 +6,10 @@ base_permissions:
   # --- Dev10x MCP tools: Herdr roster (GH-1984) ---
   # Read-only: lists Herdr workspaces and agents, never prompts a pane.
   - "mcp__plugin_dev10x_cli__herdr_roster"
-  # --- Herdr reads used by mission control (GH-1984) ---
-  # Inspecting a pane before prompting it is the Path C "never type over
-  # someone" check, so it must not stop on a prompt. `herdr agent prompt`
-  # is deliberately not seeded: it types into another person's session.
+  # --- Herdr calls used by mission control (GH-1984) ---
   - "Bash(printenv HERDR_ENV)"
   - "Bash(herdr agent get:*)"
   - "Bash(herdr agent read:*)"
+  - "Bash(herdr agent prompt:*)"
   # --- dev10x-herdr skills (GH-1984) ---
   - "Skill(dev10x-herdr:*)"
