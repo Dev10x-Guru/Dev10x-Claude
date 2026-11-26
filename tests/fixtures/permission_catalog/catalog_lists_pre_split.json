@@ -133,6 +133,7 @@
     "Bash(hash:*)",
     "Bash(head:*)",
     "Bash(herdr agent get:*)",
+    "Bash(herdr agent prompt:*)",
     "Bash(herdr agent read:*)",
     "Bash(identify:*)",
     "Bash(jq:*)",
