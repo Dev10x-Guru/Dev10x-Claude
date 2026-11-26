@@ -1198,6 +1198,28 @@ After all comments are processed (Mode A or Mode B), if fixup commits
 were created during this session, offer to continue the full shipping
 pipeline.
 
+### Ask the reviewer to sign off the squash (GH-2008)
+
+Fixups that answer a human (non-bot) comment are human-round: they
+stay so the reviewer reads only the fix, and that reviewer — not the
+operator — signs off their squash.
+**This step runs in standalone mode and under a parent orchestrator
+alike**; Parent Context Detection below skips only the shipping
+continuation gate, never this ask.
+
+When this session answered at least one human comment with a fixup,
+its fixups are pushed and every thread from the round has a reply, run
+`dev10x-coding:git-groom` `references/fixup-source.md` § Asking the
+human to sign off: skip on an existing sign-off, otherwise
+`AskUserQuestion` attended or one PR comment to the reviewers
+unattended.
+Report the outcome to the parent — `squash approved`,
+`asked <reviewers>` or `kept for another round` — so its Groom step
+runs git-groom on a yes and stays pending otherwise, instead of
+waiting passively.
+Bot-only rounds skip this step: their fixups are agent-owned and the
+groom squashes them without asking.
+
 ### Parent Context Detection
 
 **Before offering the shipping pipeline, check if a parent

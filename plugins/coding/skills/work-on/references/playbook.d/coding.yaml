@@ -31,7 +31,10 @@ fragments:
         creating the PR. Run with --unattended --loop: every round
         of fixes is re-reviewed by fresh reviewers until a round
         finds no defects, capped at 4 rounds (GH-1831). Auto-fix
-        findings. Auto-advance without supervisor gate. If the
+        findings. Auto-advance without supervisor gate. The clean
+        round signs off the loop's fixups and the loop squashes them
+        through dev10x-coding:git-groom before it ends (GH-2008), so
+        the PR is created without them. If the
         review ends "BLOCKED: review-loop", queue that decision for
         the supervisor and do not create or advance the PR until
         it is answered.
@@ -70,16 +73,17 @@ fragments:
       type: detailed
       prompt: >
         Watch CI checks on the draft PR. Fix any failures
-        with fixup commits and push. NOTE (GH-779, GH-1609 F3): if
-        the repo's CI skips draft PRs (no checks ever register on a
-        draft), read mcp__plugin_dev10x_cli__supervisor_review_status
-        first. When it is `none`, mark the PR ready BEFORE this step
-        via the `pr_ready` MCP wrapper — otherwise the monitor polls
-        a PR that never produces a verdict. When it is `required`,
-        do NOT call `pr_ready` (CODEOWNERS would auto-request
-        reviewers before the supervisor has read it): keep the
-        draft and record in the Verify-AC task that CI has not run
-        on the draft.
+        with fixup commits and push. A red history-lint caused only
+        by `fixup!` commits is never "expected": it routes to
+        dev10x-coding:git-groom. NOTE (GH-779, GH-2008): if the
+        repo's CI skips draft PRs (no checks ever register on a
+        draft), publishing is the only way to get a verdict, so
+        publish a clean branch: first invoke dev10x-coding:git-groom
+        so no agent-owned `fixup!` is left, then mark the PR ready
+        via the `pr_ready` MCP wrapper, then monitor. Under
+        mcp__plugin_dev10x_cli__supervisor_review_status `required`
+        record in the Verify-AC task that the PR was published for
+        CI, groomed, before the supervisor read it.
       skills: [dev10x-coding:gh-pr-monitor]
     - subject: Apply fixups to review comments
       type: epic
@@ -93,17 +97,18 @@ fragments:
     - subject: Groom commit history
       type: detailed
       prompt: >
-        Squash fixups, reorder for logical flow, ensure each
-        commit message follows gitmoji + JTBD conventions.
-        Mid-review guard (GH-1609 F2, GH-1990): defer grooming
-        only when the PR is published and a human (non-bot) review
-        or reply already exists on it, or any such reply references
-        a fixup SHA — keep the fixups so reviewers can follow
-        them, and leave this step pending until the PR is
-        approved. Posture alone never defers: with
-        mcp__plugin_dev10x_cli__supervisor_review_status `required`
-        but no human review yet, groom before the first review
-        request.
+        Always invoke dev10x-coding:git-groom; never park this step
+        yourself on PR state or posture (GH-2008). Squash fixups,
+        reorder for logical flow, ensure each commit message follows
+        gitmoji + JTBD conventions. The skill keys deferral on the
+        fixup's source: agent-owned fixups (review loop, CI fixes,
+        bot comments) are squashed before any review request;
+        human-round fixups (linked from an author reply on a
+        non-bot thread) stay until that reviewer signs off. When
+        the skill reports "Groom kept <n> human-round fixups", run
+        its sign-off ask (git-groom references/fixup-source.md §
+        Asking the human to sign off) and leave this step pending
+        until the answer.
       skills: [dev10x-coding:git-groom]
     - subject: Update PR description
       type: detailed
@@ -112,7 +117,8 @@ fragments:
         Story, linked commit list, and checklist. When all checks
         pass and `supervisor_review_status` reports `none`, mark
         the PR ready (`pr_ready`). Under `required` leave the PR
-        as a draft — readiness waits for the supervisor.
+        as a draft — readiness waits for the supervisor — unless
+        Monitor CI already published it for CI.
       skills: [dev10x-coding:gh-pr-create]
     - fragment: self-qa-evidence
     - subject: Request review
@@ -153,7 +159,7 @@ fragments:
         strategy from project settings (rebase preferred to
         preserve groomed commit history). If the DX019 review
         stamp gate denies, run dev10x-coding:review --unattended --loop
-        on the PR branch, push its fixups via dev10x-coding:git, wait for
+        on the PR branch, push its squashed result via dev10x-coding:git, wait for
         CI on the new head, then retry. If that review ends
         "BLOCKED: review-loop", stop and queue the decision for the
         supervisor. Never disable the rule.
@@ -164,7 +170,7 @@ fragments:
             Solo maintainer — no reviewers to wait for. Merge
             immediately after marking ready and CI passes. If the
             DX019 review stamp gate denies, run dev10x-coding:review
-            --unattended --loop on the PR branch, push its fixups via
+            --unattended --loop on the PR branch, push its squashed result via
             dev10x-coding:git, wait for CI on the new head, then retry. If
             that review ends "BLOCKED: review-loop", stop and queue
             the decision for the supervisor. Never disable the rule.
@@ -322,7 +328,9 @@ fragments:
       prompt: >
         Self-review changes to catch issues before pushing. Run
         with --unattended --loop so the fixups are re-reviewed by
-        fresh reviewers until a round is clean (GH-1831). If the
+        fresh reviewers until a round is clean (GH-1831). The loop
+        squashes its own fixups at its end (GH-2008) and leaves the
+        human-round fixups of this round in place. If the
         review ends "BLOCKED: review-loop", queue that decision for
         the supervisor and do not push or advance the PR until it
         is answered.
@@ -342,17 +350,17 @@ fragments:
     - subject: Groom commit history
       type: detailed
       prompt: >
-        Squash fixups into their parent commits. Choose the best
-        grooming option and auto-advance. No strategy gate —
-        select fixup autosquash if fixup commits exist, mass
-        rewrite otherwise. Mid-review guard (GH-1609 F2, GH-1990):
-        defer grooming only when the PR is published and a human
-        (non-bot) review or reply already exists on it, or any
-        such reply references a fixup SHA — keep the fixups and
-        leave this step pending until approval. Posture alone
-        never defers: with `supervisor_review_status` `required`
-        but no human review yet, groom before the first review
-        request.
+        Always invoke dev10x-coding:git-groom; never park this step
+        yourself (GH-2008). Squash fixups into their parent commits.
+        Choose the best grooming option and auto-advance. No
+        strategy gate — select fixup autosquash if fixup commits
+        exist, mass rewrite otherwise. The skill squashes
+        agent-owned fixups now and keeps human-round ones (linked
+        from an author reply on a non-bot thread) until that
+        reviewer signs off. When it reports "Groom kept <n>
+        human-round fixups", run its sign-off ask (git-groom
+        references/fixup-source.md § Asking the human to sign off)
+        and leave this step pending until the answer.
       skills: [dev10x-coding:git-groom]
     - subject: Update PR description
       type: detailed
@@ -380,7 +388,7 @@ fragments:
         strategy from project settings (rebase preferred to
         preserve groomed commit history). If the DX019 review
         stamp gate denies, run dev10x-coding:review --unattended --loop
-        on the PR branch, push its fixups via dev10x-coding:git, wait for
+        on the PR branch, push its squashed result via dev10x-coding:git, wait for
         CI on the new head, then retry. If that review ends
         "BLOCKED: review-loop", stop and queue the decision for the
         supervisor. Never disable the rule.
@@ -391,7 +399,7 @@ fragments:
             Solo maintainer — no reviewers to wait for. Merge
             immediately after marking ready and CI passes. If the
             DX019 review stamp gate denies, run dev10x-coding:review
-            --unattended --loop on the PR branch, push its fixups via
+            --unattended --loop on the PR branch, push its squashed result via
             dev10x-coding:git, wait for CI on the new head, then retry. If
             that review ends "BLOCKED: review-loop", stop and queue
             the decision for the supervisor. Never disable the rule.

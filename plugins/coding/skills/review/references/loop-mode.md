@@ -111,6 +111,31 @@ no delta there is nothing new to review, so the loop ends there with
 `BLOCKED: review-loop: <N> findings, fixer made no commit`, whether
 the fix set held defects or only round-1 polish.
 
+## Loop end: squash the loop's fixups (GH-2008)
+
+The clean round is the sign-off for every fixup the loop made, so they
+are squashed before the PR goes to a human, not after.
+A loop that ended clean and made at least one fixup runs this after
+SKILL.md Step 6c, as its last action:
+
+1. Its fixups are the `fixup!` commits in
+   `<round 1 round_start_sha>..HEAD`.
+   Every one is agent-owned
+   (`dev10x-coding:git-groom` `references/fixup-source.md`).
+2. Invoke `Skill(dev10x-coding:git-groom)`.
+   It resolves `history_rewrite` itself, squashes only agent-owned
+   fixups when human-round ones sit earlier on the branch, and pushes
+   with `--force-with-lease` only when the branch was already pushed.
+3. Report the post-squash HEAD in the summary.
+   The stamp still holds: DX019 accepts the same tree after a groom.
+
+A loop that ended at a no-commit round, at the cap or on a `BLOCKED:`
+line is not signed off, so it squashes nothing: the open defects, not
+the fixups, are what the supervisor must look at.
+The loop's caller never adds a second squash step for these fixups,
+and the shipping pipeline creates and publishes the PR only after the
+loop's squash.
+
 ## Escalation recommendation
 
 The recommended option at the round-cap gate is computed from the
@@ -136,3 +161,4 @@ On top of SKILL.md Step 7, a loop-mode summary reports:
 - the final polish list, any open defects and any declined findings,
   file:line each
 - the HEAD SHA the clean round reviewed (the SHA a review stamp pins)
+- the HEAD after the loop-end squash, or why nothing was squashed
