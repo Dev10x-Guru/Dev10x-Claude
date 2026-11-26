@@ -200,6 +200,49 @@
           "dimension": "fixup-source-guard",
           "check": "behavioral",
           "signal": "prints 'Groom kept 1 human-round fixups: awaiting <reviewer> sign-off' instead of deferring the whole groom on PR state"
+        },
+        {
+          "dimension": "fixup-source-guard",
+          "check": "behavioral",
+          "signal": "the squash runs through a rebase_groom sequence that keeps the human-linked fixup as pick; git autosquash-develop and --autosquash are never run"
+        }
+      ]
+    },
+    {
+      "id": "standalone-signoff-gate-uses-tool",
+      "name": "Standalone run asks the reviewer to sign off kept fixups",
+      "description": "GH-2008: the supervisor answered their own review comments with two fixups, linked from 'Fixed in' replies, and every thread is resolved. They invoke /dev10x-coding:git-groom directly. No approval exists, so the skill asks before squashing.",
+      "input": "/dev10x-coding:git-groom (standalone, attended; two human-round fixups by the supervisor's own threads, all resolved)",
+      "assertions": [
+        {
+          "dimension": "fixup-source-guard",
+          "check": "tool_called",
+          "tool": "AskUserQuestion",
+          "signal": "AskUserQuestion with header 'Squash' is called before any rebase"
+        },
+        {
+          "dimension": "fixup-source-guard",
+          "check": "behavioral",
+          "signal": "'Squash now (Recommended)' is listed first and is the only option marked Recommended, because every thread of the round is resolved"
+        },
+        {
+          "dimension": "fixup-source-guard",
+          "check": "plain_text",
+          "signal": "No plain-text 'May I squash?' question before the tool call"
+        }
+      ]
+    },
+    {
+      "id": "kept-pick-reply-keeps-its-marker",
+      "name": "Phase 4 re-points a kept pick's reply at its own new SHA",
+      "description": "GH-2008: an agent fixup squashed into an early commit moves the SHA of a later kept human-round fixup. Its 'Fixed in' reply links /commit/<old>. Phase 4 rewrites it to the kept pick's new SHA, not to a squashed-into parent.",
+      "input": "/dev10x-coding:git-groom (one agent-owned fixup squashed, one human-round fixup kept)",
+      "assertions": [
+        {
+          "dimension": "fixup-source-guard",
+          "check": "tool_called",
+          "tool": "mcp__plugin_dev10x_cli__pr_review_comment_edit",
+          "signal": "the reply is patched so both its full SHA and its 7-character label now name the kept fixup's new SHA"
         }
       ]
     }

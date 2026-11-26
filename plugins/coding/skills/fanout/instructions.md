@@ -240,8 +240,8 @@ item. Once fixup commits are addressing in-progress review
 threads, a rebase rewrites the base SHAs that review-thread
 permalinks reference (`/pull/N/commits/<sha>` → 404) and destroys
 the per-comment audit trail. This is the same invariant
-`dev10x-coding:git-groom` enforces in **Phase 0 (refuse pre-merge groom
-with open unresolved threads, GH-68 Fix E)**:
+`dev10x-coding:git-groom` enforces in **Phase 0 (refuse a background
+rebase onto a new base with open unresolved threads, GH-68 Fix E)**:
 
 - **Suppress** the re-sync for any item whose PR has an unresolved
   review thread or a review fixup.

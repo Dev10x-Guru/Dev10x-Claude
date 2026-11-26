@@ -113,25 +113,33 @@ the fix set held defects or only round-1 polish.
 
 ## Loop end: squash the loop's fixups (GH-2008)
 
-The clean round is the sign-off for every fixup the loop made, so they
-are squashed before the PR goes to a human, not after.
-A loop that ended clean and made at least one fixup runs this after
-SKILL.md Step 6c, as its last action:
+Every fixup the loop made is agent-owned, so it is squashed before the
+PR goes to a human, not after.
+A clean round also signs off a review stamp; the squash does not wait
+for one.
+A loop that made at least one fixup runs this after SKILL.md Step 6c,
+as its last action, **whatever the loop's verdict** — clean, capped,
+stopped at a no-commit round or ended on a `BLOCKED:` line:
 
 1. Its fixups are the `fixup!` commits in
    `<round 1 round_start_sha>..HEAD`.
    Every one is agent-owned
-   (`dev10x-coding:git-groom` `references/fixup-source.md`).
+   (`dev10x-coding:git-groom` `references/fixup-source.md`), unless
+   git-groom's anchored-lines fail-safe keeps one that touches a line
+   an open human thread sits on — that is git-groom's call, not the
+   loop's.
 2. Invoke `Skill(dev10x-coding:git-groom)`.
    It resolves `history_rewrite` itself, squashes only agent-owned
    fixups when human-round ones sit earlier on the branch, and pushes
    with `--force-with-lease` only when the branch was already pushed.
 3. Report the post-squash HEAD in the summary.
-   The stamp still holds: DX019 accepts the same tree after a groom.
+   A stamp, when Step 6c wrote one, still holds: DX019 accepts the
+   same tree after a groom.
 
-A loop that ended at a no-commit round, at the cap or on a `BLOCKED:`
-line is not signed off, so it squashes nothing: the open defects, not
-the fixups, are what the supervisor must look at.
+Open defects are a separate matter from the fixups. A loop that ended
+unclean still squashes the fixups it made, and its open defects stay
+listed in the summary and in the `BLOCKED: review-loop` line for the
+supervisor; the caller holds the PR on that line, not on the fixups.
 The loop's caller never adds a second squash step for these fixups,
 and the shipping pipeline creates and publishes the PR only after the
 loop's squash.

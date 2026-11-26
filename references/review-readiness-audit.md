@@ -60,7 +60,7 @@ arrival only, which dates bot problems:
 - a thread starts at its first comment; undated open threads become a
   separate problem with an unknown start.
 
-Treat the verdict as a lead to check against the PR, not a judgement.
+Treat the verdict as a lead to check against the PR, not a judgment.
 
 Run the audit with `/dev10x-coding:request-review --audit [--repo R]`. It
 writes nothing.

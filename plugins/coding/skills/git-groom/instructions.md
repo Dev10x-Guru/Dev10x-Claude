@@ -94,20 +94,30 @@ See Phase 2 for the auto-select rules.
 
 ## Workflow
 
-### Phase 0 Precondition: Refuse pre-merge groom with open threads (GH-68, Fix E)
+### Phase 0 Precondition: Refuse a background rebase onto a new base with open threads (GH-68, Fix E)
 
-Squashing a PR with unresolved review threads orphans every
-permalink in every reply: the old SHAs no longer exist on the
-branch, so `https://github.com/{owner}/{repo}/pull/{N}/commits/{sha}`
-URLs return 404 and the per-comment audit trail is destroyed.
-Reviewers who post fixups expect the SHAs they reference to
-remain reachable until they resolve their threads.
+Rebasing a PR onto a new base while review threads are open rewrites
+every SHA the replies link and moves the code under the reviewers'
+anchors. Reviewers who are mid-conversation expect the branch they
+are reading to stay on its base until they resolve their threads.
+
+**Scope (GH-2008).** This precondition covers only a **rebase onto a
+new base** (conflict resolution, a re-sync onto a moved base). A
+**fixup squash** is never refused here on open threads: which fixups
+may be squashed is a question of their source, answered in Phase 0a,
+which keeps every human-round fixup — including any fixup touching a
+line an open thread is anchored on — and lets Phase 4 re-point the
+replies. Refusing the squash on PR state alone left
+`dev10x-coding:gh-pr-monitor` with no route for a fixup-only
+history-lint failure. `references/fixup-source.md` records this as the
+one PR-state exception.
 
 **Hard rule:** When git-groom is invoked **as a nested skill from
-`dev10x-coding:gh-pr-monitor`** (or any other background agent), refuse
-to groom if any unresolved review thread exists. The supervisor's
-main session may still groom under their direct control — only
-agent-initiated grooming is blocked.
+`dev10x-coding:gh-pr-monitor`** (or any other background agent) to
+rebase onto a new base, refuse if any unresolved review thread
+exists. The supervisor's main session may still rebase under their
+direct control — only agent-initiated rebasing is blocked. A run whose
+only job is squashing fixups skips to Phase 0a.
 
 **Detection:**
 
@@ -135,16 +145,14 @@ agent-initiated grooming is blocked.
    BLOCKED: groom-refused-open-threads <count>
 
    git-groom refused: {count} unresolved review threads exist on
-   this PR. Squashing pre-merge would orphan every commit-link
-   permalink in the thread replies (the SHAs would no longer
-   exist on the branch) and destroy the per-comment audit trail
-   reviewers rely on.
+   this PR. Rebasing onto a new base now would move every SHA the
+   thread replies link and the code under the reviewers' anchors.
 
    Open threads mean a reviewer is mid-conversation. Wait for
-   thread resolution before grooming, or invoke git-groom from
+   thread resolution before rebasing, or invoke git-groom from
    the supervisor's main session (without
    `invoker=dev10x-coding:gh-pr-monitor`) if you explicitly want to
-   override.
+   override. Squashing fixups is not refused: it runs Phase 0a.
    ```
 
    Exit non-zero. Do NOT continue to Phase 1.
@@ -158,19 +166,28 @@ Fixups alone are not a sign that a human is mid-review: the review
 loop, CI fixes and bot-comment fixes make them too.
 Classify every `fixup!` / `squash!` on the branch as agent-owned or
 human-round with the one rule in
-[`references/fixup-source.md`](references/fixup-source.md) — a
-human-round fixup is one an author reply on a non-bot thread links.
+[`references/fixup-source.md`](references/fixup-source.md) — an author
+comment on a human thread holds a commit link to it, or (fail-safe) it
+touches a line an unresolved human thread is anchored on.
 
 1. **No human-round fixup** → continue; every fixup is squashable.
-2. **Human-round fixups, signed off** (that file § Asking the human to
-   sign off lists what counts) → continue; squash them all.
+2. **Human-round fixups, signed off** (that file § Sign-off check)
+   → continue; squash them all.
 3. **Human-round fixups, no sign-off** → squash only the agent-owned
    ones (that file § Squashing only agent-owned fixups) and keep the
    human-round ones as `pick`.
    With no agent-owned fixup to squash, make no rewrite.
    Either way print
-   `Groom kept <n> human-round fixups: awaiting <reviewer> sign-off`
-   so the caller runs the sign-off ask.
+   `Groom kept <n> human-round fixups: awaiting <reviewer> sign-off`.
+   Under a parent, the caller runs the sign-off ask. Invoked
+   standalone (no parent plan owns a Groom step), run that file §
+   Asking the human to sign off yourself, then stop.
+
+**The kept set binds every later phase.** Phase 2's auto-select, the
+strategy gate's **Fixup** option and Strategy A all read it: with a
+kept human-round fixup, "Fixup" means the `rebase_groom` sequence from
+that file, never `git autosquash-develop` or `--autosquash`, which
+squash every `fixup!` they find.
 
 This guard replaces any caller-side deferral: an orchestrator never
 parks the groom step on PR state, it invokes this skill, which reads
@@ -353,7 +370,9 @@ fixups, a full restructure is the probable request:
   within the groom skill rather than the orchestrator.
 - **Fixup commits present → auto-select "Fixup" and apply them.**
   The presence of `fixup!`/`squash!` commits is the strongest signal
-  the user wants targeted squashing, not a rebuild.
+  the user wants targeted squashing, not a rebuild. "Apply" covers
+  only the fixups Phase 0a left squashable: with a kept human-round
+  fixup, run the `rebase_groom` sequence, never plain autosquash.
 - **Rename-first candidates present → auto-select "Rename-first
   split" (GH-1629)**, after the Fixup pass when fixups also exist.
   It is deterministic and content-preserving — the tree-equality
@@ -440,14 +459,21 @@ have unstaged changes.` — which halts the entire groom pipeline.
 
 #### Strategy A: Fixup Commits (for small targeted changes)
 
-Use when making small fixes to specific commits:
+Use when making small fixes to specific commits.
+
+**Phase 0a decides the tool (GH-2008).** `git autosquash-develop` is
+allowed only when Phase 0a kept no human-round fixup. When it kept
+one, build the sequence file by hand — `fixup` for each squashable
+commit, moved under its target; `pick` for each kept human-round
+`fixup!` — and run it through `mcp__plugin_dev10x_cli__rebase_groom`
+(see `references/fixup-source.md` § Squashing only agent-owned fixups).
 
 ```bash
 # Create a fixup commit targeting a specific commit
 git add <files>
 git commit --fixup=<target-commit-sha>
 
-# Simple autosquash (fixup commits only, no reordering):
+# Simple autosquash — ONLY when Phase 0a kept no human-round fixup:
 git autosquash-develop
 
 # Custom sequence (reordering, message rewrites, splits):
@@ -788,7 +814,11 @@ the full rewrite lifecycle including reference updates.
 2. Get the new commit hash(es): `git log --oneline develop..HEAD`
    and record the mapping `old_sha → new_sha` for each commit that
    was rewritten (read it from the pre-rebase reflog snapshot
-   captured in Phase 3).
+   captured in Phase 3). A commit that survived as a `pick` maps to
+   its own new SHA; only a fixup that was actually squashed maps to
+   the commit it was squashed into (GH-2008). A human-round fixup
+   kept by Phase 0a is a `pick`, so its reply keeps pointing at that
+   fixup — the marker the next groom reads.
 3. Update the PR body commit links with new hashes via the
    `mcp__plugin_dev10x_cli__update_pr` MCP tool (auto-permitted under
    `mcp__plugin_dev10x_cli__*`; pass the rebuilt body string):
@@ -810,11 +840,15 @@ the full rewrite lifecycle including reference updates.
    - `mcp__plugin_dev10x_cli__pr_comments(action="list",
      pr_number=N)` → returns all review-thread comments with
      `id`, `body`, etc. Filter the returned list to those whose
-     body matches `/commits/[0-9a-f]{7,40}` (case-insensitive).
+     body matches `/commits?/[0-9a-f]{7,40}` (case-insensitive) —
+     both the `/pull/N/commits/<sha>` form and the bare
+     `/commit/<sha>` permalink `gh-pr-fixup` posts.
 
-   For each match, substitute `old_sha → new_sha` in the body
-   (full-SHA substring replace — careful not to match a prefix
-   of an unrelated hash) and patch the comment body via the MCP
+   For each match, substitute `old_sha → new_sha` in the body —
+   the full SHA, and any short form of it (7+ leading characters,
+   as in a `` [`abc1234`] `` link label), replaced by the same
+   length prefix of the new SHA; never match a prefix of an
+   unrelated hash — and patch the comment body via the MCP
    tool — never a raw REST PATCH call:
 
    ```

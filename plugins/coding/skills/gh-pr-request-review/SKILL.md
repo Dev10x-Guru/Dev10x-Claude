@@ -264,10 +264,12 @@ NOT notify the requested reviewers — the request is lost.
       (`Skill(dev10x-coding:git-groom)`, CI wait, re-run from item 3);
       any other failure refuses and stops.
       Attended, **REQUIRED: Call `AskUserQuestion`** (do NOT use plain
-      text) with **Stop — fix it first (Recommended)** and **Request
-      review anyway**, header `Readiness`; when the Fixups condition
-      fails (GH-1990), lead with **Groom first (Recommended)** instead
-      — `git-groom`, push, re-run.
+      text), header `Readiness`, with exactly one `(Recommended)`
+      option, listed first. Fixups condition passes: **Stop — fix it
+      first (Recommended)**, **Request review anyway**. Fixups fails
+      (GH-1990): **Groom first (Recommended)** — `git-groom`, push,
+      re-run — then **Stop — fix it first** and **Request review
+      anyway**, neither marked.
    6. **Stopping** → when this run flipped a draft — an unattended
       refusal or "Stop — fix it first" — return the PR to draft with
       `mcp__plugin_dev10x_cli__pr_ready(pr_number={pr_number}, undo=true)`

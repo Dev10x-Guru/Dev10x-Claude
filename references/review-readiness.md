@@ -115,8 +115,8 @@ attended one.
   "Stop — fix it first" is recommended and listed first, because
   every option that reaches this gate has a known problem.
   When the Fixups condition is among the failures, "Groom first"
-  leads instead and carries the recommendation: groom, push, re-run
-  the check.
+  leads instead and carries the only recommendation — "Stop" loses
+  its marker: groom, push, re-run the check.
   "Request review anyway" is the explicit override.
 
 When every condition the skill checks passes, print one line naming

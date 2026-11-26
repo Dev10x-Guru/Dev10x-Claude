@@ -109,11 +109,11 @@ or an error is attended, printed as `Run mode: undetermined ({basis})
   CI wait, re-run); refuse anything else — report, post nothing.
 - **Attended**: **REQUIRED: Call `AskUserQuestion`** (do NOT use plain
   text). Question: `"PR #{PR_NUMBER} is not ready for review:
-  {reasons}. Request review anyway?"`, header `Readiness`. Options:
+  {reasons}. Request review anyway?"`, header `Readiness`. One `(Recommended)`, first:
   - **Stop — fix it first (Recommended)** — end here; report the
     reasons. Nothing is assigned or posted.
   - **Request review anyway** — continue to Step 2; Steps 3.5/4 carry the reasons.
-  - **Groom first** (GH-1990) — leads as `(Recommended)` when Fixups fails.
+  - **Groom first** (GH-1990) — when Fixups fails it moves first and takes the sole marker.
 
 ### Step 2: Assign GitHub reviewers
 

@@ -7,7 +7,7 @@ AskUserQuestion(questions=[{
     options: [
         {label: "Fixup (Recommended)",
          description: "Small targeted fixes to specific commits",
-         preview: "git commit --fixup=<sha>\nGIT_SEQUENCE_EDITOR=true git rebase -i --autosquash"},
+         preview: "git autosquash-develop\n(or rebase_groom keeping human-round fixups as pick)"},
         {label: "Full restructure",
          description: "Reset all commits, rebuild from scratch",
          preview: "git reset --soft <base>\ngit reset HEAD\ngit add -p"},
@@ -30,6 +30,12 @@ and that option is listed first:
 | Rename-first candidates (GH-1629) | Rename-first split |
 | `fixup!` / `squash!` commits, no candidates | Fixup |
 | Neither | Full restructure |
+
+**Fixup honors Phase 0a (GH-2008).** Choosing **Fixup** squashes only
+the fixups Phase 0a left squashable. When it kept a human-round
+fixup, run the `rebase_groom` sequence from
+`references/fixup-source.md` — never `--autosquash`, which would squash
+the kept ones too. Say in the question how many fixups are kept.
 
 The block above shows the fixups-present order. When rename-first
 candidates exist, put this option first, drop "(Recommended)" from
