@@ -34,6 +34,7 @@ from dev10x.core.domain.common.bash_tokens import (
     command_segments,
     command_units,
     git_exec_commands,
+    nested_commands,
     process_substitution_bodies,
     runner_commands,
     runs_script_output,
@@ -197,7 +198,10 @@ _SUBSTITUTION_RE = re.compile(rf"\$\(|`|{re.escape(SUBSTITUTION_WORD)}")
 # A script runner handed a substitution's output: `eval "$(…)"`,
 # `source <(…)`, `bash <(…)`. The output may spell psql with no `psql` in
 # the raw text, so the walk runs (GH-2005).
-_SCRIPT_RUNNER_RE = re.compile(r"\b(?:eval|source|bash|sh|zsh|dash|ksh)\s|(?:^|[;&|(\n])\s*\.\s")
+_SCRIPT_RUNNER_RE = re.compile(
+    r"\b(?:eval|source|bash|sh|zsh|dash|ksh|csh|tcsh|fish|ash|rbash|mksh)\s"
+    r"|(?:^|[;&|(\n])\s*\.\s"
+)
 _ANY_SUBSTITUTION_RE = re.compile(r"\$\(|`|[<>]\(")
 
 
@@ -377,18 +381,27 @@ _MAX_UNITS = 512
 _MAX_LEXED_CHARS = 256 * 1024
 _MAX_DEPTH = 32
 _MAX_OPERAND_SUFFIXES = 64
+_MAX_FALLBACK_CHARS = 4 * 1024
 
 TOO_COMPLEX_MSG = (
     "BLOCKED: this command is too complex for DX004 to judge: it nests more "
     f"runners, scripts or values than the hook can expand in time (over "
-    f"{_MAX_UNITS} units, depth {_MAX_DEPTH}, {_MAX_COMMAND_CHARS} characters, or "
-    f"{_MAX_OPERAND_SUFFIXES} operands of an unknown program).\n"
+    f"{_MAX_UNITS} units, depth {_MAX_DEPTH}, {_MAX_COMMAND_CHARS} characters, "
+    f"{_MAX_OPERAND_SUFFIXES} operands of an unknown program, or an unparseable "
+    f"part over {_MAX_FALLBACK_CHARS} characters).\n"
     f"Split it into simpler commands, or use {DB_SH_PATH} for read-only queries."
 )
 
 
 class _TooComplexError(Exception):
     """A command exceeded a DX004 expansion cap; the caller blocks it."""
+
+
+def _cap_fallback(*, text: str) -> None:
+    """Refuse a long untokenizable unit before a command-position regex
+    reads it: that search is quadratic on `ssh -o a -o a …` (GH-2005)."""
+    if len(text) > _MAX_FALLBACK_CHARS:
+        raise _TooComplexError
 
 
 @dataclass
@@ -428,6 +441,23 @@ def _unknown_program_operands(*, words: list[str]) -> list[str]:
     if len(starts) > _MAX_OPERAND_SUFFIXES:
         raise _TooComplexError
     return [" ".join(operands[start:]) for start in starts]
+
+
+def _host_wrapped_commands(*, parts: list[str]) -> list[str]:
+    """What ``op run`` wraps, unless it is psql itself (GH-2005 review F5).
+
+    ``op run`` executes on this host, so ``op run -- bash -c 'psql …'`` is a
+    host shell. Only a wrapped psql keeps the exemption and goes to the
+    wrapped-write check. ``docker exec`` runs inside its container and
+    hands over nothing.
+    """
+    if Path(parts[0]).name != "op":
+        return []
+    return [
+        nested.command
+        for nested in nested_commands(parts=parts)
+        if not _runs_psql(split_tokens(command=nested.command))
+    ]
 
 
 def _script_commands(*, segment: CommandSegment) -> list[str]:
@@ -481,6 +511,9 @@ def _psql_units(*, command: str, budget: _WalkBudget) -> Iterator[_PsqlUnit]:
         for segment in segments:
             parts = list(segment.argv)
             if _is_exempt_psql_wrapper(parts):
+                pending.extend(
+                    (wrapped, False, child) for wrapped in _host_wrapped_commands(parts=parts)
+                )
                 continue
             nested = runner_commands(parts=parts)
             slots = [
@@ -909,6 +942,7 @@ def _pg_write_binaries_in(*, unit: str, budget: _WalkBudget) -> Iterator[str]:
         try:
             segments = command_segments(command=text)
         except UntokenizableCommandError:
+            _cap_fallback(text=text)
             match = _PG_COMMAND_POSITION_RE.search(text)
             if match:
                 # The match may open on the quote of a runner's command string.
@@ -955,6 +989,7 @@ def _walk_verdict(*, command: str, word_rule: _WordRule, budget: _WalkBudget) ->
         if _spells_psql(unit=unit) or (unit.text != command and word_rule(command=unit.text)):
             return HookResult(message=DIRECT_PSQL_MSG)
         if unit.segments is None:
+            _cap_fallback(text=unit.text)
             if _PSQL_COMMAND_POSITION_RE.search(unit.text):
                 return HookResult(message=DIRECT_PSQL_MSG)
             if _hides_a_program(text=unit.text):
@@ -1084,6 +1119,8 @@ class SqlSafetyValidator(ValidatorBase):
             try:
                 segments = command_segments(command=unit)
             except UntokenizableCommandError:
+                if len(unit) > _MAX_FALLBACK_CHARS:
+                    return HookResult(message=TOO_COMPLEX_MSG)
                 if _BQ_QUERY_POSITION_RE.search(unit):
                     return HookResult(message=_bq_write_message(detail=BQ_UNTOKENIZABLE_DETAIL))
                 continue

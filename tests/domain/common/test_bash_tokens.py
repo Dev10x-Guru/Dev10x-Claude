@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+
 import pytest
 
 from dev10x.core.domain.common.bash_tokens import (
@@ -692,10 +694,44 @@ class TestCommandPositionRe:
             ">/dev/null python -c 'x",
             "2> err.log FOO=1 python -c 'x",
             "true; > out python -c 'x",
+            "sudo -u sudo python -c 'x",
+            "sudo -o ssh python -c 'x",
+            "sudo -u 5 python -c 'x",
+            "timeout 30 python -c 'x",
+            "ssh -o x 10.0.0.1 python -c 'x",
+            "ssh sudo python -c 'x",
+            "ssh -o ssh db01 python -c 'x",
+            "sudo -x sudo -x sudo python -c 'x",
         ],
     )
     def test_matches_program_in_command_position(self, command: str) -> None:
         assert command_position_re(program="python").search(command)
+
+    @pytest.mark.parametrize(
+        ("head", "repeated", "size"),
+        [
+            ("sudo", " -1 1", 1280),
+            ("sudo", " -x sudo", 1280),
+            ("sudo", " -x ssh", 1280),
+            ("sudo", " 1", 1280),
+            ("ssh", " 1", 1280),
+            ("ssh", " -o 1", 640),
+            ("ssh", " -o a", 640),
+            ("", "ssh a ", 1280),
+            ("", "> a ", 1280),
+            ("", "A=1 ", 1280),
+            ("sudo", " -u a", 1280),
+        ],
+    )
+    def test_a_failed_search_is_not_exponential(self, head: str, repeated: str, size: int) -> None:
+        """GH-2005 review: `sudo -1 1 … 'x` took 3.9 s at 22 pairs."""
+        text = head + repeated * size + " 'x"
+
+        start = time.perf_counter()
+        found = command_position_re(program="psql").search(text)
+
+        assert found is None
+        assert time.perf_counter() - start < 1.0
 
     @pytest.mark.parametrize("command", ["grep -E 'a|b' bin/x.sh", "cat python.txt", "mypython"])
     def test_ignores_program_as_an_argument(self, command: str) -> None:
@@ -1187,6 +1223,17 @@ class TestShellCommandStrings:
             ("bash --norc -c psql", ["psql"]),
             ("bash -c -- psql", ["psql"]),
             ("sudo dash -c psql", ["psql"]),
+            ("bash --rcfile /dev/null -c psql", ["psql"]),
+            ("bash --init-file f --unknown v -c psql", ["psql"]),
+            ("bash -c 'echo' name psql", ["echo", "name", "psql"]),
+            ("fish -C init -c psql", ["init", "psql"]),
+            ("fish --command=psql", ["psql"]),
+            ("fish --init-command psql", ["psql"]),
+            ("tcsh -c psql", ["psql"]),
+            ("mksh -c psql", ["psql"]),
+            ("busybox sh -c psql", ["psql"]),
+            ("busybox ls -c x", []),
+            ("busybox", []),
             ("bash script.sh", []),
             ("bash -x script.sh", []),
             ("bash -c", []),
@@ -1230,6 +1277,8 @@ class TestRunsScriptOutput:
             (". x", True),
             ("/usr/bin/bash x", True),
             ("env zsh", True),
+            ("busybox ash", True),
+            ("fish x.fish", True),
             ("cat x", False),
             ("", False),
         ],
