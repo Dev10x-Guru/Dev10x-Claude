@@ -14,10 +14,15 @@ from dev10x.core.domain.common.bash_tokens import (
     command_position_re,
     command_segments,
     command_units,
+    git_exec_commands,
     is_simple_command,
     nested_commands,
+    process_substitution_bodies,
     runner_commands,
+    runs_script_output,
     segment_programs,
+    shell_command_strings,
+    shell_stdin_scripts,
     split_tokens,
     strip_command_wrappers,
     strip_line_continuations,
@@ -1136,3 +1141,145 @@ class TestStripLineContinuations:
 
     def test_no_continuation_is_a_no_op(self) -> None:
         assert strip_line_continuations(command="git status") == "git status"
+
+
+class TestHeredocBodies:
+    """GH-2005: a heredoc's body is kept on its redirect, never in argv."""
+
+    @pytest.mark.parametrize(
+        ("command", "expected"),
+        [
+            ("bash <<'EOF'\nls\npsql -d x\nEOF", "ls\npsql -d x"),
+            ("bash << EOF\nls\nEOF", "ls"),
+            ("bash <<-EOF\n\tls\n\tEOF", "ls"),
+            ("bash <<EOF\nls", "ls"),
+            ("bash <<EOF\nEOF", ""),
+        ],
+    )
+    def test_body_is_attached_to_the_redirect(self, command: str, expected: str) -> None:
+        (segment,) = command_segments(command=command)
+
+        assert segment.argv == ("bash",)
+        assert segment.redirects[0].body == expected
+
+    def test_body_does_not_change_redirect_equality(self) -> None:
+        (segment,) = command_segments(command="cat <<EOF\nhello\nEOF")
+
+        assert segment.redirects == (Redirect(operator="<<", target="EOF"),)
+
+    def test_two_heredocs_keep_their_own_bodies(self) -> None:
+        segments = command_segments(command="cat <<A <<B\none\nA\ntwo\nB")
+
+        assert [redirect.body for redirect in segments[0].redirects] == ["one", "two"]
+
+
+class TestShellCommandStrings:
+    """GH-2005: the `-c` string a shell runs."""
+
+    @pytest.mark.parametrize(
+        ("command", "expected"),
+        [
+            ("bash -c 'ls; psql'", ["ls; psql"]),
+            ("sh -lc 'psql'", ["psql"]),
+            ("/bin/zsh -e -c psql", ["psql"]),
+            ("bash -o pipefail -c 'ls | psql'", ["ls | psql"]),
+            ("bash +O extglob -c psql", ["psql"]),
+            ("bash --norc -c psql", ["psql"]),
+            ("bash -c -- psql", ["psql"]),
+            ("sudo dash -c psql", ["psql"]),
+            ("bash script.sh", []),
+            ("bash -x script.sh", []),
+            ("bash -c", []),
+            ("bash - script", []),
+            ("python -c x", []),
+            ("", []),
+        ],
+    )
+    def test_extracts_the_command_string(self, command: str, expected: list[str]) -> None:
+        assert shell_command_strings(parts=split_tokens(command=command)) == expected
+
+
+class TestShellStdinScripts:
+    """GH-2005: heredocs and here-strings a shell or `source` reads."""
+
+    @pytest.mark.parametrize(
+        ("command", "expected"),
+        [
+            ("bash <<< 'ls; psql'", ["ls; psql"]),
+            ("bash 0<<< psql", ["psql"]),
+            ("bash <<'EOF'\npsql\nEOF", ["psql"]),
+            ("source /dev/stdin <<< psql", ["psql"]),
+            (". /dev/stdin <<< psql", ["psql"]),
+            ("sudo sh <<< psql", ["psql"]),
+            ("bash < script.sh", []),
+            ("cat <<< hello", []),
+            ("<<< hello", []),
+        ],
+    )
+    def test_returns_the_script_text(self, command: str, expected: list[str]) -> None:
+        (segment,) = command_segments(command=command)
+
+        assert shell_stdin_scripts(segment=segment) == expected
+
+
+class TestRunsScriptOutput:
+    @pytest.mark.parametrize(
+        ("command", "expected"),
+        [
+            ("source x", True),
+            (". x", True),
+            ("/usr/bin/bash x", True),
+            ("env zsh", True),
+            ("cat x", False),
+            ("", False),
+        ],
+    )
+    def test_names_shells_and_sourcing_builtins(self, command: str, expected: bool) -> None:
+        assert runs_script_output(parts=split_tokens(command=command)) is expected
+
+
+class TestProcessSubstitutionBodies:
+    @pytest.mark.parametrize(
+        ("command", "expected"),
+        [
+            ("source <(echo psql)", ["echo psql"]),
+            ("diff <(a) >(b)", ["a", "b"]),
+            ("cat <(echo $(date))", ["echo $(date)"]),
+            ("cat <(unclosed", []),
+            ("echo $(date)", []),
+        ],
+    )
+    def test_returns_outermost_bodies(self, command: str, expected: list[str]) -> None:
+        assert process_substitution_bodies(command) == expected
+
+
+class TestGitExecCommands:
+    """GH-2005: git subcommands that run a command."""
+
+    @pytest.mark.parametrize(
+        ("command", "expected"),
+        [
+            ("git rebase -x psql main", ["psql"]),
+            ("git rebase -xpsql main", ["psql"]),
+            ("git rebase --exec='ls; psql' main", ["ls; psql"]),
+            ("git rebase --exec psql main", ["psql"]),
+            ("git difftool -x psql", ["psql"]),
+            ("git difftool --extcmd=psql", ["psql"]),
+            ("git filter-branch --tree-filter psql", ["psql"]),
+            ("git filter-branch --env-filter=psql --msg-filter cat", ["psql", "cat"]),
+            ("git filter-branch --setup psql", ["psql"]),
+            ("git filter-branch --tree-filter", []),
+            ("git submodule foreach psql -c x", ["psql -c x"]),
+            ("git submodule foreach --recursive -q 'psql -c x'", ["psql -c x"]),
+            ("git submodule update", []),
+            ("git bisect run psql -c 'DROP TABLE x'", ["psql -c 'DROP TABLE x'"]),
+            ("git bisect start", []),
+            ("/usr/bin/git bisect run psql", ["psql"]),
+            ("git log -x", []),
+            ("git status", []),
+            ("hg rebase -x make", []),
+            ("", []),
+        ],
+    )
+    def test_extracts_exec_commands(self, command: str, expected: list[str]) -> None:
+        assert git_exec_commands(parts=split_tokens(command=command)) == expected

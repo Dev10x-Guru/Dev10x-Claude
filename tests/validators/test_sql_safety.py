@@ -512,6 +512,61 @@ class TestPsqlCommandPosition:
     @pytest.mark.parametrize(
         "command",
         [
+            "bash -c 'ls; psql -c \"DROP TABLE x\"'",
+            "sh -c 'cd /tmp && psql -d mydb'",
+            "bash -lc 'ls; psql -d mydb'",
+            "bash -o pipefail -c 'ls | psql -d mydb'",
+            "sudo zsh -c 'ls; psql -d mydb'",
+            "bash <<'EOF'\nls; psql -c \"DROP TABLE x\"\nEOF",
+            "bash <<-EOF\n\tls\n\tpsql -d mydb\n\tEOF",
+            "sh << EOF\nls; psql -d mydb\nEOF",
+            "zsh <<< 'ls; psql -d mydb'",
+            "source /dev/stdin <<< 'ls; psql -d mydb'",
+            ". <(echo psql -d mydb)",
+            "bash <(printf 'ps%s' ql)",
+            'eval "$(printf ps%s ql) -d mydb"',
+            "eval `echo psql -d mydb`",
+            "git rebase --exec='ls; psql -d mydb' main",
+            "git rebase -x 'ls; psql -d mydb' main",
+            "git difftool --extcmd 'ls; psql -d mydb'",
+            "git filter-branch --env-filter 'ls; psql -d mydb'",
+            "git filter-branch --msg-filter='ls; psql -d mydb'",
+            "git submodule foreach --recursive 'ls; psql -d mydb'",
+            "git bisect run sh -c 'ls; psql -d mydb'",
+            "./bin/run 'ls; psql -d mydb'",
+            "GIT_CONFIG_PARAMETERS=\"'core.pager'='ls; psql'\" git log",
+        ],
+    )
+    def test_blocks_psql_in_a_script_a_shell_or_git_runs(
+        self, validator: SqlSafetyValidator, command: str
+    ) -> None:
+        """GH-2005: -c strings, heredocs, sourced output and git exec forms."""
+        result = validator.validate(inp=_make_input(command=command))
+
+        assert result is not None
+        assert "Direct psql calls" in result.message
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "bash -c 'ls -la'",
+            "bash <<'EOF'\necho hi\nEOF",
+            "bash <<< 'ls -la'",
+            "source <(kubectl completion bash)",
+            "git rebase -x 'make test' main",
+            "git submodule foreach git pull",
+            "git bisect run make test",
+            "./bin/run --flag value",
+        ],
+    )
+    def test_allows_scripts_that_run_no_psql(
+        self, validator: SqlSafetyValidator, command: str
+    ) -> None:
+        assert validator.validate(inp=_make_input(command=command)) is None
+
+    @pytest.mark.parametrize(
+        "command",
+        [
             "git log --grep psql",
             "which psql",
             "man psql",

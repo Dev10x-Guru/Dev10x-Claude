@@ -549,11 +549,13 @@ class UntokenizableCommandError(ValueError):
 class Redirect:
     """One redirection: its operator (fd number included) and target word.
 
-    A heredoc's target is its delimiter; the body never reaches a segment.
+    A heredoc's target is its delimiter; its body never reaches argv and
+    is kept in ``body`` for a guard that judges what a shell reads.
     """
 
     operator: str
     target: str = ""
+    body: str = field(default="", compare=False)
 
     @property
     def writes(self) -> bool:
@@ -608,6 +610,8 @@ class _Token:
     # No blank between this token and the previous one: `a$(b)c` is one
     # shell word made of three tokens.
     glued: bool = False
+    # The lines a heredoc delimiter word introduces.
+    heredoc_body: str = ""
 
 
 class _Glue(Enum):
@@ -644,7 +648,7 @@ class _Scanner:
 
     def tokens(self) -> list[_Token]:
         tokens: list[_Token] = []
-        heredocs: list[tuple[str, bool]] = []
+        heredocs: list[tuple[str, bool, int]] = []
         awaiting_delimiter: bool | None = None
         previous_end = -1
         while self.index < len(self.source):
@@ -669,7 +673,7 @@ class _Scanner:
                 operator = self._operator()
                 tokens.append(_Token(text=operator, is_operator=True, glued=glued))
                 if operator == "\n" and heredocs:
-                    self._skip_heredoc_bodies(heredocs=heredocs)
+                    self._read_heredoc_bodies(heredocs=heredocs, tokens=tokens)
                     heredocs = []
             else:
                 redirect = _REDIRECT_OPERATOR_RE.match(self.source, self.index)
@@ -678,13 +682,13 @@ class _Scanner:
                 tokens.append(_Token(text=word, redirect=operator, quoted=quoted, glued=glued))
                 heredoc_operator = operator.lstrip("0123456789")
                 if awaiting_delimiter is not None:
-                    heredocs.append((word, awaiting_delimiter))
+                    heredocs.append((word, awaiting_delimiter, len(tokens) - 1))
                     awaiting_delimiter = None
                 elif heredoc_operator in _HEREDOC_OPERATORS:
                     strip_tabs = heredoc_operator == "<<-"
                     delimiter = word[len(operator) :]
                     if delimiter:
-                        heredocs.append((delimiter, strip_tabs))
+                        heredocs.append((delimiter, strip_tabs, len(tokens) - 1))
                     else:
                         awaiting_delimiter = strip_tabs
             previous_end = self.index
@@ -840,15 +844,23 @@ class _Scanner:
             self.index += 1
         raise UntokenizableCommandError("unterminated double quote")
 
-    def _skip_heredoc_bodies(self, *, heredocs: list[tuple[str, bool]]) -> None:
-        for delimiter, strip_tabs in heredocs:
+    def _read_heredoc_bodies(
+        self, *, heredocs: list[tuple[str, bool, int]], tokens: list[_Token]
+    ) -> None:
+        """Consume each pending heredoc body and attach it to its delimiter token."""
+        for delimiter, strip_tabs, position in heredocs:
+            lines: list[str] = []
             while self.index < len(self.source):
                 end = self.source.find("\n", self.index)
                 line_end = len(self.source) if end == -1 else end
                 line = self.source[self.index : line_end]
                 self.index = line_end + 1 if end != -1 else line_end
-                if (line.lstrip("\t") if strip_tabs else line) == delimiter:
+                if strip_tabs:
+                    line = line.lstrip("\t")
+                if line == delimiter:
                     break
+                lines.append(line)
+            tokens[position] = replace(tokens[position], heredoc_body="\n".join(lines))
 
 
 @lru_cache(maxsize=_LEX_CACHE_SIZE)
@@ -1077,7 +1089,9 @@ class _Segmenter:
         glue, self.glue = self.glue, _Glue.NONE
         case_pattern, self.case_pattern = self.case_pattern, False
         if self.bare_operator is not None:
-            self.redirects.append(Redirect(operator=self.bare_operator, target=token.text))
+            self.redirects.append(
+                Redirect(operator=self.bare_operator, target=token.text, body=token.heredoc_body)
+            )
             self.bare_operator = None
             self.glue = _Glue.TARGET
             return
@@ -1088,7 +1102,9 @@ class _Segmenter:
         if token.redirect:
             target = token.text[len(token.redirect) :]
             if target:
-                self.redirects.append(Redirect(operator=token.redirect, target=target))
+                self.redirects.append(
+                    Redirect(operator=token.redirect, target=target, body=token.heredoc_body)
+                )
                 self.glue = _Glue.TARGET
             else:
                 self.bare_operator = token.redirect
@@ -2001,3 +2017,171 @@ def _runner_bodies(*, unit: str) -> list[NestedCommand]:
         nested for segment in segments for nested in runner_commands(parts=list(segment.argv))
     ]
     return [*nested, *typed_stream(segments=[segment.argv for segment in segments])]
+
+
+# Shells that run a script given as a `-c` string, a heredoc or a
+# here-string, and the builtins that run a script file (GH-2005).
+_SHELLS = frozenset({"sh", "bash", "zsh", "dash", "ksh"})
+_SCRIPT_SOURCERS = frozenset({"source", "."})
+_SHELL_VALUE_OPTIONS = frozenset({"-o", "+o", "-O", "+O"})
+_SHELL_OPTION_PREFIXES = ("-", "+")
+_SHELL_COMMAND_LETTER = "c"
+_HERE_STRING_OPERATOR = "<<<"
+_PROCESS_SUBSTITUTION_PREFIXES = ("<(", ">(")
+
+
+def _program_name(*, word: str) -> str:
+    return word.rsplit("/", 1)[-1]
+
+
+def shell_command_strings(*, parts: list[str]) -> list[str]:
+    """The ``-c`` string a shell in ``parts`` runs (GH-2005).
+
+    ``bash -c 'ls; psql …'`` yields ``ls; psql …``. The string is the first
+    operand after the options when any short-option bundle holds ``c``
+    (``-c``, ``-lc``, ``-ec``). Wrappers are stripped first.
+    """
+    words = strip_command_wrappers(parts=parts)
+    if not words or _program_name(word=words[0]) not in _SHELLS:
+        return []
+    runs_string = False
+    idx = 1
+    while idx < len(words):
+        word = words[idx]
+        if word in _SHELL_VALUE_OPTIONS:
+            idx += 2
+            continue
+        if word == "--":
+            idx += 1
+            break
+        if not word.startswith(_SHELL_OPTION_PREFIXES) or len(word) < 2:
+            break
+        if not word.startswith("--"):
+            runs_string = runs_string or _SHELL_COMMAND_LETTER in word[1:]
+        idx += 1
+    if runs_string and idx < len(words):
+        return [words[idx]]
+    return []
+
+
+def shell_stdin_scripts(*, segment: CommandSegment) -> list[str]:
+    """Heredoc bodies and here-strings a shell or ``source`` reads (GH-2005).
+
+    ``bash <<'EOF'`` runs every line of its body, and ``bash <<< 'psql'``
+    runs the string. The text is returned for any shell or sourcing
+    builtin, whatever its options: reading it as a script can only add
+    units to judge.
+    """
+    if not runs_script_output(parts=list(segment.argv)):
+        return []
+    return [
+        redirect.target
+        if redirect.operator.lstrip("0123456789") == _HERE_STRING_OPERATOR
+        else redirect.body
+        for redirect in segment.redirects
+        if redirect.feeds_inline_text
+    ]
+
+
+def runs_script_output(*, parts: list[str]) -> bool:
+    """True when ``parts`` runs a shell or ``source``, which may read a script
+    from a process substitution: ``source <(…)``, ``bash <(…)`` (GH-2005)."""
+    words = strip_command_wrappers(parts=parts)
+    return bool(words) and _program_name(word=words[0]) in _SHELLS | _SCRIPT_SOURCERS
+
+
+def process_substitution_bodies(command: str) -> list[str]:
+    """Bodies of the ``<(…)`` and ``>(…)`` spans in ``command``, outermost only.
+
+    Like :func:`substitution_bodies`, depth-aware and blind to quoting: a
+    caller uses it to over-read what a script source may run.
+    """
+    bodies: list[str] = []
+    index = 0
+    while index < len(command):
+        if not command.startswith(_PROCESS_SUBSTITUTION_PREFIXES, index):
+            index += 1
+            continue
+        depth = 1
+        cursor = index + 2
+        while cursor < len(command) and depth:
+            if command[cursor] == "(":
+                depth += 1
+            elif command[cursor] == ")":
+                depth -= 1
+            cursor += 1
+        if depth:
+            index += 1
+            continue
+        bodies.append(command[index + 2 : cursor - 1])
+        index = cursor
+    return bodies
+
+
+# git subcommands that run a command given as an option value or as their
+# trailing words (GH-2005): `rebase -x`, `difftool -x`, `bisect run`,
+# `submodule foreach` and every `filter-branch --*-filter`.
+_GIT_EXEC_OPTIONS: dict[str, frozenset[str]] = {
+    "rebase": frozenset({"-x", "--exec"}),
+    "difftool": frozenset({"-x", "--extcmd"}),
+}
+_GIT_FILTER_BRANCH = "filter-branch"
+_GIT_FILTER_OPTION_RE = re.compile(r"^--(?:[a-z-]+-filter|setup)$")
+_GIT_SUBMODULE = "submodule"
+_GIT_FOREACH = "foreach"
+_GIT_FOREACH_OPTIONS = frozenset({"--recursive", "--quiet", "-q"})
+_GIT_BISECT = "bisect"
+_GIT_BISECT_RUN = "run"
+
+
+def _git_filter_commands(*, words: list[str]) -> list[str]:
+    commands: list[str] = []
+    for idx, word in enumerate(words):
+        name, equals, value = word.partition("=")
+        if not _GIT_FILTER_OPTION_RE.match(name):
+            continue
+        if equals:
+            commands.append(value)
+        elif idx + 1 < len(words):
+            commands.append(words[idx + 1])
+    return commands
+
+
+def _git_foreach_command(*, words: list[str]) -> str:
+    start = words.index(_GIT_SUBMODULE)
+    if _GIT_FOREACH not in words[start:]:
+        return ""
+    rest = words[words.index(_GIT_FOREACH, start) + 1 :]
+    while rest and rest[0] in _GIT_FOREACH_OPTIONS:
+        rest = rest[1:]
+    return " ".join(rest)
+
+
+def _git_bisect_command(*, words: list[str]) -> str:
+    start = words.index(_GIT_BISECT)
+    if words[start + 1 : start + 2] != [_GIT_BISECT_RUN]:
+        return ""
+    return shlex.join(words[start + 2 :])
+
+
+def git_exec_commands(*, parts: list[str]) -> list[str]:
+    """Commands git's exec forms in ``parts`` run (GH-2005).
+
+    ``parts`` is a program argv after :func:`strip_command_wrappers`. Each
+    subcommand is found anywhere among the words rather than past git's
+    global options: over-reading only hands the walk more units to judge.
+    """
+    if not parts or _program_name(word=parts[0]) != "git":
+        return []
+    words = parts[1:]
+    commands: list[str] = []
+    for subcommand, options in _GIT_EXEC_OPTIONS.items():
+        if subcommand in words:
+            commands.extend(_program_option_commands(parts=parts, options=options))
+    if _GIT_FILTER_BRANCH in words:
+        commands.extend(_git_filter_commands(words=words))
+    if _GIT_SUBMODULE in words:
+        commands.append(_git_foreach_command(words=words))
+    if _GIT_BISECT in words:
+        commands.append(_git_bisect_command(words=words))
+    return [command for command in commands if command]
