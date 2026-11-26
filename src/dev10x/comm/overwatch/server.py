@@ -87,6 +87,7 @@ from dev10x.comm.overwatch.prompts import (
     strip_ansi,
 )
 from dev10x.comm.overwatch.publishers import PublisherConfig, builtin_publishers
+from dev10x.comm.overwatch.recap import RecapReader, SessionRecap
 from dev10x.comm.overwatch.session_tasks import SessionTask, read_session_tasks
 from dev10x.comm.overwatch.sessions import SessionView
 from dev10x.comm.overwatch.settings import PageSettings, SettingsStore
@@ -159,6 +160,7 @@ class OverwatchApp:
     conversation_reader: Callable[..., list[ConversationEntry]] = read_conversation
     tasks_reader: Callable[..., list[SessionTask]] = read_session_tasks
     workspace_reader: Callable[..., Workspace] = read_workspace
+    recap_reader: Callable[..., SessionRecap] = field(default_factory=lambda: RecapReader().read)
     renamer: Callable[..., None] = rename_session
     commander: Callable[..., None] = run_session_command
     project_reader: Callable[..., Project] = read_project
@@ -184,6 +186,7 @@ class OverwatchApp:
     status_lines: dict[str, str] = field(default_factory=dict)
     status_lines_read_at: float | None = None
     workspaces: dict[str, Workspace] = field(default_factory=dict)
+    recaps: dict[str, SessionRecap] = field(default_factory=dict)
     version: int = 0
     stopping: threading.Event = field(default_factory=threading.Event)
     changed: threading.Condition = field(default_factory=threading.Condition)
@@ -201,6 +204,7 @@ class OverwatchApp:
         previews: dict[str, Preview] | None = None,
         status_lines: dict[str, str] | None = None,
         workspaces: dict[str, Workspace] | None = None,
+        recaps: dict[str, SessionRecap] | None = None,
     ) -> None:
         with self.changed:
             self.snapshot = snapshot
@@ -208,6 +212,7 @@ class OverwatchApp:
             self.previews = previews or {}
             self.status_lines = status_lines or {}
             self.workspaces = workspaces or {}
+            self.recaps = recaps or {}
             self.version += 1
             self.changed.notify_all()
 
@@ -251,7 +256,7 @@ def snapshot_payload(*, app: OverwatchApp) -> dict[str, Any]:
     with app.changed:
         snapshot, pane_text, version = app.snapshot, dict(app.pane_text), app.version
         previews, status_lines = dict(app.previews), dict(app.status_lines)
-        workspaces = dict(app.workspaces)
+        workspaces, recaps = dict(app.workspaces), dict(app.recaps)
         artifacts, publishers = list(app.artifact_index), app.publishers
     open_decisions = [decision for decision in app.store.all() if decision.state == OPEN]
     now = app.now()
@@ -277,6 +282,7 @@ def snapshot_payload(*, app: OverwatchApp) -> dict[str, Any]:
                 "workspace": _workspace_payload(
                     workspace=workspaces.get(view.cwd), cwd=view.cwd, status_line=status_line
                 ),
+                "recap": asdict(recaps.get(view.session_id) or SessionRecap()),
                 "decisions": [
                     asdict(decision)
                     for decision in open_decisions
@@ -360,6 +366,36 @@ def _workspaces(
     return {cwd: cached[cwd] for cwd in cwds}
 
 
+def _recap(
+    *,
+    app: OverwatchApp,
+    session_id: str,
+    cached: dict[str, SessionRecap],
+) -> SessionRecap:
+    try:
+        return app.recap_reader(session_id=session_id)
+    except OSError:
+        log.warning("Could not read the recap of session %s", session_id, exc_info=True)
+        return cached.get(session_id, SessionRecap())
+
+
+def _recaps(
+    *,
+    app: OverwatchApp,
+    sessions: list[SessionView],
+    due: bool,
+) -> dict[str, SessionRecap]:
+    with app.changed:
+        cached = dict(app.recaps)
+    stale = [view.session_id for view in sessions if due or view.session_id not in cached]
+    with ThreadPoolExecutor(max_workers=STATUS_LINE_WORKERS) as pool:
+        read = pool.map(
+            lambda session_id: _recap(app=app, session_id=session_id, cached=cached), stale
+        )
+        cached.update(zip(stale, read, strict=True))
+    return {view.session_id: cached[view.session_id] for view in sessions}
+
+
 def refresh(*, app: OverwatchApp, provider: Callable[[], Snapshot]) -> None:
     snapshot = provider()
     with app.changed:
@@ -374,6 +410,7 @@ def refresh(*, app: OverwatchApp, provider: Callable[[], Snapshot]) -> None:
     due = _slow_read_due(app=app)
     status_lines = _status_lines(app=app, sessions=snapshot.sessions, pane_ansi=pane_ansi, due=due)
     workspaces = _workspaces(app=app, sessions=snapshot.sessions, due=due)
+    recaps = _recaps(app=app, sessions=snapshot.sessions, due=due)
     status = {view.session_id: view.status for view in snapshot.sessions}
     left_waiting: set[str] = set()
     for decision in app.store.all():
@@ -397,6 +434,7 @@ def refresh(*, app: OverwatchApp, provider: Callable[[], Snapshot]) -> None:
         previews=previews,
         status_lines=status_lines,
         workspaces=workspaces,
+        recaps=recaps,
     )
 
 
