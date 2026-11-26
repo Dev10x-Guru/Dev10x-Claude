@@ -220,6 +220,18 @@ confirmed not merged):
 3. If `dev10x-coding:git-groom` reports unresolved conflicts, stop the
    monitor and report the conflicting files to the user.
 
+   If it refuses with `BLOCKED: groom-refused-open-threads <count>`
+   (its Phase 0: a background rebase onto a moved base while threads
+   are open, GH-68 Fix E), do not retry and do not loop:
+   - reply once on each open thread with
+     `mcp__plugin_dev10x_cli__pr_comment_reply`, saying the branch
+     conflicts with `<base>` and will be rebased once the thread is
+     resolved (skip a thread that already holds such a reply);
+   - park: end the monitor with the status line
+     `BLOCKED: conflict-rebase-waits-on-threads <count>`;
+   - report the open threads and conflicting files to the user. The
+     supervisor's main session may rebase under direct control.
+
 4. After the wrapper completes the force-push, re-run the Phase 0.5
    readiness check: a push can draft a ready PR (GH-1731), and a draft
    gets no CI. Then wait 30 seconds for GitHub to re-compute

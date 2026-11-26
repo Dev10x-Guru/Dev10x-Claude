@@ -107,8 +107,10 @@ fragments:
         non-bot thread) stay until that reviewer signs off. When
         the skill reports "Groom kept <n> human-round fixups", run
         its sign-off ask (git-groom references/fixup-source.md §
-        Asking the human to sign off) and leave this step pending
-        until the answer.
+        Asking the human to sign off) and leave this step pending.
+        Nothing reads the answer automatically (GH-2014): the step
+        stays pending until a later session re-runs it and reads
+        the reply.
       skills: [dev10x-coding:git-groom]
     - subject: Update PR description
       type: detailed
@@ -365,7 +367,9 @@ fragments:
         reviewer signs off. When it reports "Groom kept <n>
         human-round fixups", run its sign-off ask (git-groom
         references/fixup-source.md § Asking the human to sign off)
-        and leave this step pending until the answer.
+        and leave this step pending. Nothing reads the answer
+        automatically (GH-2014): the step stays pending until a
+        later session re-runs it and reads the reply.
       skills: [dev10x-coding:git-groom]
     - subject: Update PR description
       type: detailed
