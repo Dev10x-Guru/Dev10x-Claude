@@ -20,7 +20,7 @@ import shlex
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Protocol
 
 from dev10x.core.db_script import db_script
 from dev10x.core.domain import HookInput, HookResult
@@ -33,7 +33,12 @@ from dev10x.core.domain.common.bash_tokens import (
     command_position_re,
     command_segments,
     command_units,
+    git_exec_commands,
+    process_substitution_bodies,
     runner_commands,
+    runs_script_output,
+    shell_command_strings,
+    shell_stdin_scripts,
     split_tokens,
     strip_command_wrappers,
     substitution_bodies,
@@ -189,6 +194,19 @@ _SUBSTITUTED_VALUE_RE = re.compile(r"[=!]['\"]?(?:\$\(|`)")
 # A substitution left in a word: raw inside double quotes, or the
 # lexer's SUBSTITUTION_WORD placeholder.
 _SUBSTITUTION_RE = re.compile(rf"\$\(|`|{re.escape(SUBSTITUTION_WORD)}")
+# A script runner handed a substitution's output: `eval "$(…)"`,
+# `source <(…)`, `bash <(…)`. The output may spell psql with no `psql` in
+# the raw text, so the walk runs (GH-2005).
+_SCRIPT_RUNNER_RE = re.compile(r"\b(?:eval|source|bash|sh|zsh|dash|ksh)\s|(?:^|[;&|(\n])\s*\.\s")
+_ANY_SUBSTITUTION_RE = re.compile(r"\$\(|`|[<>]\(")
+
+
+def _runs_substitution(*, command: str) -> bool:
+    return bool(_ANY_SUBSTITUTION_RE.search(command)) and bool(
+        _SCRIPT_RUNNER_RE.search(without_shell_quoting(text=command))
+    )
+
+
 # Keystrokes typed through an opaque runner (cursor moves, history keys)
 # can reorder what was typed, so its letters are judged as a multiset.
 _PSQL_LETTERS = frozenset("psql")
@@ -273,11 +291,16 @@ def _assigned_programs(*, parts: list[str]) -> list[str]:
     program = strip_command_wrappers(parts=parts)
     if program and _is_text_only_program(program[0]):
         return []
-    return [
-        match.group(1).lstrip(_ASSIGNED_PROGRAM_PREFIXES)
-        for token in parts
-        if (match := _ASSIGNMENT_RE.match(token))
+    values = [match.group(1) for token in parts if (match := _ASSIGNMENT_RE.match(token))]
+    # A value may itself list `key=value` pairs whose values git runs:
+    # GIT_CONFIG_PARAMETERS="'core.pager'='psql'" (GH-2005).
+    pairs = [
+        word.partition("=")[2]
+        for value in values
+        for word in split_tokens(command=value)
+        if "=" in word
     ]
+    return [value.lstrip(_ASSIGNED_PROGRAM_PREFIXES) for value in (*values, *pairs)]
 
 
 # tmux and screen commands whose arguments are themselves a tmux/screen
@@ -346,6 +369,41 @@ def _spells_psql(*, unit: _PsqlUnit) -> bool:
     return unit.opaque and _PSQL_LETTERS <= set(unit.text)
 
 
+def _unknown_program_operands(*, words: list[str]) -> list[str]:
+    """Every operand suffix of a program run from a path the hook cannot vouch for.
+
+    ``./git psql`` or ``/tmp/x/cat psql`` runs whatever that file is, so each
+    suffix starting at a plain word is a candidate command line, re-read
+    by the shell as ``ssh`` does (GH-2005). A bare name or a system bin
+    path is left to the runner tables.
+    """
+    if not words or "/" not in words[0]:
+        return []
+    directory = words[0].rpartition("/")[0]
+    if directory in _SYSTEM_BIN_DIRS:
+        return []
+    operands = words[1:]
+    return [
+        " ".join(operands[start:])
+        for start, word in enumerate(operands)
+        if not word.startswith("-")
+    ]
+
+
+def _script_commands(*, segment: CommandSegment) -> list[str]:
+    """Commands ``segment`` runs as a script: a shell's ``-c`` string, its
+    heredoc or here-string, git's exec forms, an unknown program's operands
+    (GH-2005)."""
+    parts = list(segment.argv)
+    words = strip_command_wrappers(parts=parts)
+    return [
+        *shell_command_strings(parts=parts),
+        *shell_stdin_scripts(segment=segment),
+        *git_exec_commands(parts=words),
+        *_unknown_program_operands(words=words),
+    ]
+
+
 def _psql_units(*, command: str) -> Iterator[_PsqlUnit]:
     """Every unit ``command`` runs, with its segments (``None`` if untokenizable).
 
@@ -383,7 +441,12 @@ def _psql_units(*, command: str) -> Iterator[_PsqlUnit]:
                 *(candidate.command for candidate in nested),
                 *_assigned_programs(parts=parts),
                 *_keystroke_runner_words(parts=parts),
+                *_script_commands(segment=segment),
             ]
+            if runs_script_output(parts=parts):
+                # `source <(echo psql …)` runs what the body prints, so the
+                # body is judged by its letters (GH-2005).
+                pending.extend((body, True) for body in process_substitution_bodies(unit))
             pending.extend((candidate.command, candidate.opaque) for candidate in nested)
             pending.extend((slot, False) for slot in slots[len(nested) :])
             if _SUBSTITUTED_VALUE_RE.search(unit) or any(
@@ -804,6 +867,58 @@ def _pg_write_binaries_in(*, unit: str) -> Iterator[str]:
             yield from _pg_write_binaries_in(unit=value)
 
 
+class _WordRule(Protocol):
+    def __call__(self, *, command: str) -> bool: ...
+
+
+def _direct_psql_verdict(*, command: str, word_rule: _WordRule) -> HookResult | None:
+    """The command-position walk, with ``word_rule`` judging each unit too.
+
+    Production passes :func:`_psql_word_anywhere`; the corpus comparison
+    (GH-2005) passes a rule that never fires, to see the walk on its own.
+    """
+    if not (
+        _PSQL_PROBE.found_in(command=command)
+        or _KEYSTROKE_RUNNER_PROBE.found_in(command=command)
+        or _SUBSTITUTED_VALUE_RE.search(command)
+        or _runs_substitution(command=command)
+    ):
+        return None
+    segmented: dict[str, list[tuple[str, ...]]] = {}
+    for unit in _psql_units(command=command):
+        if unit.segments is not None:
+            segmented.setdefault(unit.text, [segment.argv for segment in unit.segments])
+        if _spells_psql(unit=unit) or (unit.text != command and word_rule(command=unit.text)):
+            return HookResult(message=DIRECT_PSQL_MSG)
+        if unit.segments is None:
+            if _PSQL_COMMAND_POSITION_RE.search(unit.text):
+                return HookResult(message=DIRECT_PSQL_MSG)
+            if _hides_a_program(text=unit.text):
+                return HookResult(message=UNTOKENIZABLE_RUNNER_MSG)
+            continue
+        for segment in unit.segments:
+            parts = list(segment.argv)
+            if _is_exempt_psql_wrapper(parts):
+                wrapped = _check_wrapped_psql_writes(parts=parts)
+                if wrapped:
+                    return wrapped
+                continue
+            if _runs_psql(parts):
+                return HookResult(message=DIRECT_PSQL_MSG)
+    # Keystrokes typed from several units (`tmux send-keys ps; eval
+    # "tmux send-keys ql Enter"`) are replayed across them (GH-2001).
+    for stream in typed_streams(units=list(segmented.values())):
+        stream_unit = _PsqlUnit(text=stream.command, segments=None, opaque=stream.opaque)
+        if _spells_psql(unit=stream_unit):
+            return HookResult(message=DIRECT_PSQL_MSG)
+        result = _direct_psql_verdict(command=stream.command, word_rule=word_rule)
+        if result:
+            return result
+    if word_rule(command=command):
+        return HookResult(message=DIRECT_PSQL_MSG)
+    return None
+
+
 def _unit_segments(*, units: Iterable[str]) -> list[tuple[CommandSegment, ...]]:
     segmented: list[tuple[CommandSegment, ...]] = []
     for unit in units:
@@ -833,6 +948,7 @@ class SqlSafetyValidator(ValidatorBase):
             or _PG_BINARY_PROBE.found_in(command=cmd)
             or _KEYSTROKE_RUNNER_PROBE.found_in(command=cmd)
             or bool(_SUBSTITUTED_VALUE_RE.search(cmd))
+            or _runs_substitution(command=cmd)
         )
 
     def validate(self, inp: HookInput) -> HookResult | None:
@@ -952,47 +1068,7 @@ class SqlSafetyValidator(ValidatorBase):
         ``echo psql``). An untokenizable unit fails closed on a
         command-position match.
         """
-        if not (
-            _PSQL_PROBE.found_in(command=command)
-            or _KEYSTROKE_RUNNER_PROBE.found_in(command=command)
-            or _SUBSTITUTED_VALUE_RE.search(command)
-        ):
-            return None
-        segmented: dict[str, list[tuple[str, ...]]] = {}
-        for unit in _psql_units(command=command):
-            if unit.segments is not None:
-                segmented.setdefault(unit.text, [segment.argv for segment in unit.segments])
-            if _spells_psql(unit=unit) or (
-                unit.text != command and _psql_word_anywhere(command=unit.text)
-            ):
-                return HookResult(message=DIRECT_PSQL_MSG)
-            if unit.segments is None:
-                if _PSQL_COMMAND_POSITION_RE.search(unit.text):
-                    return HookResult(message=DIRECT_PSQL_MSG)
-                if _hides_a_program(text=unit.text):
-                    return HookResult(message=UNTOKENIZABLE_RUNNER_MSG)
-                continue
-            for segment in unit.segments:
-                parts = list(segment.argv)
-                if _is_exempt_psql_wrapper(parts):
-                    wrapped = _check_wrapped_psql_writes(parts=parts)
-                    if wrapped:
-                        return wrapped
-                    continue
-                if _runs_psql(parts):
-                    return HookResult(message=DIRECT_PSQL_MSG)
-        # Keystrokes typed from several units (`tmux send-keys ps; eval
-        # "tmux send-keys ql Enter"`) are replayed across them (GH-2001).
-        for stream in typed_streams(units=list(segmented.values())):
-            stream_unit = _PsqlUnit(text=stream.command, segments=None, opaque=stream.opaque)
-            if _spells_psql(unit=stream_unit):
-                return HookResult(message=DIRECT_PSQL_MSG)
-            result = self._check_direct_psql(command=stream.command)
-            if result:
-                return result
-        if _psql_word_anywhere(command=command):
-            return HookResult(message=DIRECT_PSQL_MSG)
-        return None
+        return _direct_psql_verdict(command=command, word_rule=_psql_word_anywhere)
 
     def _check_sql_content(self, *, command: str) -> HookResult | None:
         sql = _extract_sql_from_command(command)
