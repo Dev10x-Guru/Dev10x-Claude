@@ -832,6 +832,87 @@ class TestKeystrokeStreams:
 
         assert result is not None
 
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "tmux -L ru send-keys p s q l Enter",
+            "tmux -L ru send-keys d r o p d b Space x Enter",
+            "tmux -L sp send-keys p s q l Enter",
+            "tmux -S ru send-keys p s q l Enter",
+            "tmux -f ru send-keys p s q l Enter",
+            "tmux -T ru send-keys p s q l Enter",
+            "tmux -c true send-keys p s q l Enter",
+            "tmux -2u -L ru send-keys p s q l Enter",
+            "tmux -Lru send-keys p s q l Enter",
+            "tmux -2L ru send-keys p s q l Enter",
+            "tmux -L ru send-k p s q l Enter",
+            "tmux -L ru -S sp set-buffer ps \\; set-buffer -a ql \\; paste-buffer",
+        ],
+    )
+    def test_global_tmux_option_values_are_not_commands(
+        self, validator: SqlSafetyValidator, command: str
+    ) -> None:
+        """C1: a global option's value (`-L ru`) is not a run-shell prefix."""
+        result = validator.validate(inp=_make_input(command=command))
+
+        assert result is not None
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "tmux send-keys -t a ps; tmux send-keys -t a ql; tmux send-keys -t b C-u; "
+            "tmux send-keys -t a Enter",
+            "tmux send-keys -t a ps; tmux send-keys -t b BSpace; tmux send-keys -t a ql Enter",
+            "tmux set-buffer -b a ps; tmux set-buffer -b b x; tmux send-keys -t b BSpace; "
+            "tmux set-buffer -b a -a ql",
+            "screen -S a -X stuff ps; screen -S b -X stuff '^U'; screen -S a -X stuff 'ql\\n'",
+        ],
+    )
+    def test_erase_keys_across_targets_fail_closed(
+        self, validator: SqlSafetyValidator, command: str
+    ) -> None:
+        """H-A: an erase aimed at another pane must not wipe the stream."""
+        result = validator.validate(inp=_make_input(command=command))
+
+        assert result is not None
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            'tmux send-keys -l ps; eval "tmux send-keys -l ql Enter"',
+            "tmux send-keys -l ps; watch 'tmux send-keys -l ql Enter'",
+            "tmux send-keys -l ps; ssh host 'tmux send-keys -l ql Enter'",
+            "tmux send-keys -l ps; find . -maxdepth 0 -exec tmux send-keys -l ql Enter \\;",
+            "eval 'tmux send-keys -l dr'; tmux send-keys -l 'opdb x' Enter",
+            "eval 'tmux send-keys -t a -l ql'; tmux send-keys -t a -l ps; tmux send-keys -t b C-u",
+        ],
+    )
+    def test_keystrokes_across_nested_units_fail_closed(
+        self, validator: SqlSafetyValidator, command: str
+    ) -> None:
+        """H-B: pieces typed from the outer unit and a runner's body."""
+        result = validator.validate(inp=_make_input(command=command))
+
+        assert result is not None
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "GIT_PAGER='dropdb prod' git -p log",
+            "EDITOR='dropdb prod' git commit",
+            "export PAGER='createdb x'; man ls",
+            "env VISUAL=/usr/bin/dropuser crontab -e",
+        ],
+    )
+    def test_blocks_write_binaries_set_as_a_program_variable(
+        self, validator: SqlSafetyValidator, command: str
+    ) -> None:
+        """H-D: an assigned program is judged by the write-binary check too."""
+        result = validator.validate(inp=_make_input(command=command))
+
+        assert result is not None
+        assert "writes to a Postgres cluster" in result.message
+
     def test_oversized_hex_key_fails_closed(self, validator: SqlSafetyValidator) -> None:
         command = "tmux send-keys -H " + "f" * 400 + " 70 73 71 6c 0a"
 
@@ -846,6 +927,9 @@ class TestKeystrokeStreams:
             "tmux send-k -t db 'ls -la' Enter",
             "screen -X stuff 'cd /tmp\\n'; screen -X stuff 'ls\\n'",
             "tmux set-buffer hello; tmux paste-buffer",
+            "tmux -L work send-keys -t a 'ls' Enter",
+            "tmux send-keys -t a ls Enter; tmux send-keys -t b C-u",
+            "GIT_PAGER='less -R' git -p log",
         ],
     )
     def test_allows_harmless_keystroke_streams(
