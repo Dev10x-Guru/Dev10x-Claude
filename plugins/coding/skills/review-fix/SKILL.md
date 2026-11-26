@@ -155,10 +155,10 @@ dev10x-coding:review (produces findings JSON)
 ```
 
 After this skill completes, control returns to `dev10x-coding:review`.
-Under `--loop` the next round reviews these fixups, and the clean round
-squashes them through `dev10x-coding:git-groom` before the pipeline
-creates or publishes the PR (`dev10x-coding:review`
-`references/loop-mode.md` § Loop end, GH-2008).
+Under `--loop` the next round reviews these fixups, and the loop
+squashes them through `dev10x-coding:git-groom` when it ends, whatever
+its verdict, before the pipeline creates or publishes the PR
+(`dev10x-coding:review` `references/loop-mode.md` § Loop end, GH-2008).
 Never hand these fixups to a human reviewer unsquashed.
 
 Uses the `Standalone fixup` marker in the commit body so the

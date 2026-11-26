@@ -374,14 +374,23 @@ Refresh those replies before the merge gate.
 
 Sequence (runs between groom and push-monitor steps):
 
-1. Collect every reply this skill posted in the current session
-   that referenced a `fixup!` SHA or its pre-rebase parent. The
-   bundled-mode grouping (above) is the authoritative source.
+1. Collect every reply this skill or `dev10x-coding:gh-pr-fixup`
+   posted in the current session that referenced a `fixup!` SHA or
+   its pre-rebase parent — the bundled `Fix commit:` template and
+   the single-thread `Fixed in` reply alike, in either link form
+   (`/pull/N/commits/<sha>` or `/commit/<sha>`). The bundled-mode
+   grouping (above) is the authoritative source.
 2. For each tracked reply:
-   a. Resolve the new parent SHA (the squashed-into commit).
-   b. Rewrite the reply body using the bundled-reply template,
-      substituting the new parent SHA for `Fix commit:` and the
-      new branch-head SHA for the blob URL.
+   a. Resolve the new SHA from git-groom's Phase 4 `old_sha →
+      new_sha` map (GH-2008). A fixup that was **squashed** maps to
+      the commit it was squashed into. A fixup git-groom **kept** as
+      a `pick` (a human-round fixup awaiting sign-off) maps to its
+      own new SHA — it has no squashed-into parent, and rewriting it
+      to one would erase the marker that keeps the next groom from
+      squashing it unasked.
+   b. Rewrite the reply body, substituting that SHA (full and short
+      form) for the fixup link and the new branch-head SHA for the
+      blob URL.
    c. PATCH the reply via
       `mcp__plugin_dev10x_cli__pr_comments(action="edit", ...)`.
       Never drop to raw `gh api -X PATCH` — the `edit` action
@@ -1210,9 +1219,12 @@ continuation gate, never this ask.
 When this session answered at least one human comment with a fixup,
 its fixups are pushed and every thread from the round has a reply, run
 `dev10x-coding:git-groom` `references/fixup-source.md` § Asking the
-human to sign off: skip on an existing sign-off, otherwise
-`AskUserQuestion` attended or one PR comment to the reviewers
-unattended.
+human to sign off. Skip on an existing sign-off (that file § Sign-off
+check). Otherwise, attended, **REQUIRED: Call `AskUserQuestion`** (do
+NOT use plain text) with the `Squash` header and the two options that
+section defines — exactly one `(Recommended)`, listed first, computed
+from whether the round's threads are resolved. Unattended, post the
+one PR comment that section defines.
 Report the outcome to the parent — `squash approved`,
 `asked <reviewers>` or `kept for another round` — so its Groom step
 runs git-groom on a yes and stays pending otherwise, instead of
@@ -1256,9 +1268,12 @@ Options:
 - **"Full shipping pipeline" (Recommended)** — Execute the complete
   post-response shipping sequence. **REQUIRED: Use `Skill()` for
   each step** — never run raw git/gh commands directly:
-  1. `Skill(dev10x-coding:git-groom)` — squash fixup commits
+  1. `Skill(dev10x-coding:git-groom)` — squash agent-owned fixups,
+     plus human-round ones only once their reviewer signed off
+     (its Phase 0a keeps the rest as picks)
   2. **Post-Groom SHA Refresh** — PATCH any session-posted
-     replies that referenced pre-groom SHAs. See the
+     replies that referenced pre-groom SHAs: a squashed fixup maps
+     to its squashed-into commit, a kept pick to its own new SHA. See the
      **Bundled Fixup Mode → Post-Groom SHA Refresh** section
      above. Use `mcp__plugin_dev10x_cli__pr_comments(action="edit")`,
      never raw `gh api -X PATCH`. Skip when no replies were

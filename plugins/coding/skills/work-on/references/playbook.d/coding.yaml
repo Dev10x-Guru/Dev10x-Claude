@@ -129,7 +129,10 @@ fragments:
         is no list to read. Before requesting review, close what can
         be closed now — e.g. fix a non-UI defect (dev10x-coding:git-commit,
         push via dev10x-coding:git). After all fixes, run dev10x-coding:review
-        --unattended --loop once on the new HEAD, then re-run
+        --unattended --loop once on the new HEAD; if it ends
+        "BLOCKED: review-loop", stop, queue that decision for the
+        supervisor and do not request review until it is answered
+        (GH-2008). Otherwise re-run
         dev10x-qa:review-pack --no-request-review once so section 4
         matches that HEAD, and refresh the PR body's linked commit
         list the way Update PR description wrote it
@@ -353,8 +356,10 @@ fragments:
         Always invoke dev10x-coding:git-groom; never park this step
         yourself (GH-2008). Squash fixups into their parent commits.
         Choose the best grooming option and auto-advance. No
-        strategy gate — select fixup autosquash if fixup commits
-        exist, mass rewrite otherwise. The skill squashes
+        strategy gate — select the Fixup strategy if fixup commits
+        exist (autosquash only when no human-round fixup is kept,
+        else its rebase_groom sequence), mass rewrite otherwise.
+        The skill squashes
         agent-owned fixups now and keeps human-round ones (linked
         from an author reply on a non-bot thread) until that
         reviewer signs off. When it reports "Groom kept <n>

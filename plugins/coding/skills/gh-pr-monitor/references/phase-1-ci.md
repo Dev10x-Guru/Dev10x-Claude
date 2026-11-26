@@ -157,14 +157,16 @@ because the supervisor's reasoning capacity is in the loop.
 | pytest failures | Read the test + code; decide between fix and ticket; act |
 | Coverage < 100% | Add tests for uncovered lines |
 | gitlint (title > 72 chars) | Reword via `git commit --amend` or `Skill(dev10x-coding:git-groom)` |
-| git-history-linting (fixup! only) | Delegate to `Skill(dev10x-coding:git-groom)` — groom enforces its own preconditions, including the thread-open refusal (GH-68, Fix E) and the fixup-source guard (GH-2008) |
+| git-history-linting (fixup! only) | Delegate to `Skill(dev10x-coding:git-groom)` — groom runs its fixup-source guard (GH-2008): agent-owned fixups are squashed, human-round ones kept; open threads alone never refuse a squash (Phase 0 refuses only a rebase onto a new base, GH-68 Fix E) |
 
 **A red history-lint is never "expected" (GH-2008).** When the only
 failure is `git-history-linting` caused by `fixup!` commits, do not
 close the CI phase with it red and do not label it "fixup! by design
 until groom" — that label is how a PR reached the team still carrying
 an AI review's fixups.
-Delegate to `Skill(dev10x-coding:git-groom)` as the table says.
+Delegate to `Skill(dev10x-coding:git-groom)` as the table says, with
+`invoker=dev10x-coding:gh-pr-monitor`: a squash-only run goes straight
+to Phase 0a, so open threads do not block it.
 The skill decides what may be squashed: agent-owned fixups go now;
 human-round fixups stay only while their reviewer has not signed off
 (`dev10x-coding:git-groom` `references/fixup-source.md`).

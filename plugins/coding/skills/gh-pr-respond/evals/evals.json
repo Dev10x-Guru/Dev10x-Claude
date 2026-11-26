@@ -319,6 +319,40 @@
           "signals": ["issues/{pr_number}/comments", "top-level comment"]
         }
       ]
+    },
+    {
+      "id": 5,
+      "name": "squash-signoff-asks-the-reviewer",
+      "prompt": "/dev10x-coding:gh-pr-respond https://github.com/org/repo/pull/42",
+      "description": "GH-2008: the supervisor left two inline comments and runs the skill in the session. Both get fixups, are pushed and get replies, and one thread is still unresolved. The skill asks the supervisor (the reviewer) whether to squash instead of waiting passively, and recommends keeping the fixups because a thread is still open.",
+      "setup": {
+        "mode": "B (batch)",
+        "inline_comments": 2,
+        "comment_author": "the supervisor (human, in session)",
+        "unresolved_after_round": 1,
+        "note": "Requires PR #42 with two human inline comments and no approval"
+      },
+      "dimensions": ["decision-gates", "option-correctness", "post-response-continuation"],
+      "assertions": [
+        {
+          "id": "signoff-gate-uses-tool",
+          "text": "The squash sign-off question is an AskUserQuestion call with header 'Squash', not plain text",
+          "check": "tool_called",
+          "signals": ["AskUserQuestion", "Squash"]
+        },
+        {
+          "id": "signoff-recommendation-from-state",
+          "text": "'Keep the fixups for now (Recommended)' is listed first and is the only Recommended option, because one thread is still open",
+          "check": "behavioral",
+          "signals": ["Keep the fixups for now (Recommended)", "one Recommended"]
+        },
+        {
+          "id": "signoff-runs-under-parent",
+          "text": "The ask still runs when a work-on parent owns the shipping pipeline; only the continuation gate is skipped",
+          "check": "behavioral",
+          "signals": ["asked", "kept for another round", "squash approved"]
+        }
+      ]
     }
   ],
   "trigger_evals": {
