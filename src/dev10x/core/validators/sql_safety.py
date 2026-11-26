@@ -37,6 +37,9 @@ from dev10x.core.domain.common.bash_tokens import (
     split_tokens,
     strip_command_wrappers,
     substitution_bodies,
+    tmux_command_name,
+    typed_stream,
+    without_shell_quoting,
 )
 from dev10x.core.domain.common.result import ErrorResult, Result, err, ok
 from dev10x.core.domain.profile_tier import ProfileTier
@@ -298,7 +301,10 @@ def _runner_argument_words(*, words: list[str]) -> list[str]:
             continue
         found.append(word)
         inner = split_tokens(command=word)
-        if len(inner) > 1 and inner[0] in _KEYSTROKE_NESTING_COMMANDS:
+        if len(inner) > 1 and (
+            inner[0] in _KEYSTROKE_NESTING_COMMANDS
+            or tmux_command_name(token=inner[0]) in _KEYSTROKE_NESTING_COMMANDS
+        ):
             found.extend(_runner_argument_words(words=inner[1:]))
     return found
 
@@ -312,6 +318,27 @@ def _keystroke_runner_words(*, parts: list[str]) -> list[str]:
     if start is None or (program and _is_text_only_program(program[0])):
         return []
     return _runner_argument_words(words=parts[start + 1 :])
+
+
+UNTOKENIZABLE_RUNNER_MSG = (
+    "BLOCKED: this command types keystrokes into a terminal (screen/tmux) or "
+    "sets a program-running value (git -c, GIT_PAGER=…) next to psql, and it "
+    "could not be tokenized, so what it runs cannot be checked.\n"
+    f"Fix the quoting, or use {DB_SH_PATH} for read-only queries."
+)
+# Fail-closed reading of an untokenizable unit (GH-2001): a keystroke
+# runner in command position, or a git/assignment program slot beside the
+# letters of psql.
+_KEYSTROKE_POSITION_RE = command_position_re(program="screen|tmux")
+_PROGRAM_SLOT_RE = re.compile(r"\bgit\b|[A-Za-z_][A-Za-z0-9_]*=")
+
+
+def _hides_a_program(*, text: str) -> bool:
+    if _KEYSTROKE_POSITION_RE.search(text):
+        return True
+    return bool(_PROGRAM_SLOT_RE.search(text)) and _PSQL_LETTERS <= set(
+        without_shell_quoting(text=text)
+    )
 
 
 def _spells_psql(*, unit: _PsqlUnit) -> bool:
@@ -342,6 +369,9 @@ def _psql_units(*, command: str) -> Iterator[_PsqlUnit]:
             yield _PsqlUnit(text=unit, segments=None, opaque=opaque)
             continue
         yield _PsqlUnit(text=unit, segments=segments, opaque=opaque)
+        stream = typed_stream(segments=[segment.argv for segment in segments])
+        if stream is not None:
+            pending.append((stream.command, stream.opaque))
         for segment in segments:
             parts = list(segment.argv)
             if _is_exempt_psql_wrapper(parts):
@@ -817,7 +847,10 @@ class SqlSafetyValidator(ValidatorBase):
     def _check_pg_write_binaries(self, *, command: str) -> HookResult | None:
         # should_run also admits psql/bq/db.sh commands; only one naming a
         # Postgres binary pays for the substitution scan and the lexer.
-        if not _PG_BINARY_PROBE.found_in(command=command):
+        if not (
+            _PG_BINARY_PROBE.found_in(command=command)
+            or _KEYSTROKE_RUNNER_PROBE.found_in(command=command)
+        ):
             return None
         binary = next(
             (
@@ -909,6 +942,8 @@ class SqlSafetyValidator(ValidatorBase):
             if unit.segments is None:
                 if _PSQL_COMMAND_POSITION_RE.search(unit.text):
                     return HookResult(message=DIRECT_PSQL_MSG)
+                if _hides_a_program(text=unit.text):
+                    return HookResult(message=UNTOKENIZABLE_RUNNER_MSG)
                 continue
             for segment in unit.segments:
                 parts = list(segment.argv)
