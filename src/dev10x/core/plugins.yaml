@@ -64,6 +64,7 @@ plugins:
     - aws-vault
     - k8s
   db:
+    - bq
     - db
     - db-psql
     - sql-handoff

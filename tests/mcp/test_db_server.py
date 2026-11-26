@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -356,3 +357,54 @@ class TestServerDbWrapper:
 
         assert result.get("blocked") is True
         mock_run_script.assert_not_called()
+
+
+class TestServerDbBigqueryWrappers:
+    """The bq_* tools route to dev10x.db.bigquery (GH-1633); bq is stubbed."""
+
+    @pytest.fixture
+    def bq_run(self) -> Iterator[MagicMock]:
+        completed = MagicMock(returncode=0, stdout=json.dumps([{"n": 1}]), stderr="")
+        with patch("dev10x.db.bigquery.run", return_value=completed) as mock_run:
+            yield mock_run
+
+    @pytest.mark.asyncio
+    async def test_bq_query_returns_rows(self, bq_run: MagicMock) -> None:
+        from dev10x.db.mcp.server_db import bq_query
+
+        result = await bq_query(sql="SELECT 1 AS n", max_rows=10)
+
+        assert result == {"rows": [{"n": 1}], "row_count": 1, "max_rows": 10, "truncated": False}
+
+    @pytest.mark.asyncio
+    async def test_bq_query_blocks_writes(self, bq_run: MagicMock) -> None:
+        from dev10x.db.mcp.server_db import bq_query
+
+        result = await bq_query(sql="DELETE FROM p.d.t WHERE true")
+
+        assert result["blocked"] is True
+        bq_run.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_bq_datasets(self, bq_run: MagicMock) -> None:
+        from dev10x.db.mcp.server_db import bq_datasets
+
+        result = await bq_datasets(project_id="my-project")
+
+        assert result == {"project_id": "my-project", "datasets": [{"n": 1}]}
+
+    @pytest.mark.asyncio
+    async def test_bq_tables(self, bq_run: MagicMock) -> None:
+        from dev10x.db.mcp.server_db import bq_tables
+
+        result = await bq_tables(dataset="my-project.sales")
+
+        assert result == {"dataset": "my-project.sales", "tables": [{"n": 1}]}
+
+    @pytest.mark.asyncio
+    async def test_bq_schema(self, bq_run: MagicMock) -> None:
+        from dev10x.db.mcp.server_db import bq_schema
+
+        result = await bq_schema(table="my-project.sales.orders")
+
+        assert result == {"table": "my-project.sales.orders", "schema": [{"n": 1}]}

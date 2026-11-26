@@ -36,6 +36,7 @@ DEFAULT_STRATEGY_MODULES: tuple[str, ...] = (
     "dev10x.core.skills.doctor.strategies.sibling_only_grants",
     "dev10x.core.skills.doctor.strategies.satellite_dependencies",
     "dev10x.core.skills.doctor.strategies.extracted_skill_rules",
+    "dev10x.core.skills.doctor.strategies.raw_bq_allow",
 )
 
 _STRATEGY_MARKER = "STRATEGY"

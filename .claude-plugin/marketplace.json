@@ -35,7 +35,7 @@
     {
       "name": "dev10x-db",
       "source": "./plugins/db",
-      "description": "v0.117.0.dev0 — 3 skills for read-only database work: query planning, a validated psql wrapper, and SQL handoff for changes a person runs.",
+      "description": "v0.117.0.dev0 — 4 skills for read-only database work: query planning, a validated psql wrapper, read-only BigQuery queries, and SQL handoff for changes a person runs.",
       "version": "0.117.0.dev0",
       "keywords": ["database", "postgres", "psql", "sql", "read-only"]
     },

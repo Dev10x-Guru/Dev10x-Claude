@@ -205,6 +205,19 @@ class TestBigQueryReadOnly:
             "CLOUDSDK_CORE_PROJECT=p bq query 'DELETE FROM ds.t WHERE true'",
             "timeout 60 bq query 'DELETE FROM ds.t WHERE true'",
             "env bq query 'MERGE ds.t USING ds.s ON false WHEN MATCHED THEN DELETE'",
+            # GH-1633 PR #2022 review: quote-swallow, comment-split and \r tricks.
+            'bq query \'SELECT "\'"\'"\'"; EXECUTE/**/IMMEDIATE CONCAT("DEL","ETE x"); '
+            "SELECT \"'\"'\"'\"'",
+            "bq query $'SELECT 1 #x\\r; EXPORT/**/DATA OPTIONS(uri=\\'gs://b/*\\') AS SELECT 1'",
+            "bq query $'SELECT 1 #\\r; UNDROP SCHEMA p.d'",
+            "bq query 'WITH s AS (SELECT 1) EXPORT/**/DATA OPTIONS() AS SELECT 1'",
+            "bq query 'SELECT 1;'",
+            # Round 4: still refused exactly as on develop.
+            "bq query \"SELECT 'x merge y'\"",
+            "bq query \"SELECT * FROM t WHERE note = 'call me'\"",
+            "bq query 'SELECT 1 -- export data'",
+            "bq query $'SELECT \\'\\'\\'a\\'\\'\\'\\' ; CALL p(); SELECT 1 -- \\''",
+            'bq query \'SELECT """a"""" ; CALL p(); SELECT 1 -- "\'',
         ],
     )
     def test_blocks_bigquery_writes(self, validator: SqlSafetyValidator, command: str) -> None:

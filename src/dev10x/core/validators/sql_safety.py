@@ -9,8 +9,9 @@ Blocks direct psycopg2 / postgres:// connections.
 ``Bash(bq query:*)`` allow auto-approved ``DELETE``/``MERGE`` against
 BigQuery while every Postgres path was guarded. This closes that hole at
 the hook. Every other ``bq`` verb that writes is refused too, and so is a
-flag file the hook cannot read. A schema-first ``bq`` wrapper skill, after
-which the raw command moves to deny, is the remaining scope on GH-1633.
+flag file the hook cannot read. The SQL and verb rules live in
+``dev10x.core.domain.rules.read_only_sql``, shared with the ``bq_query``
+MCP tool behind the ``dev10x-db:bq`` skill.
 """
 
 from __future__ import annotations
@@ -21,7 +22,7 @@ import shlex
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, ClassVar, Protocol
+from typing import ClassVar, Protocol
 
 from dev10x.core.db_script import db_script
 from dev10x.core.domain import HookInput, HookResult
@@ -49,33 +50,18 @@ from dev10x.core.domain.common.bash_tokens import (
     typed_streams,
     without_shell_quoting,
 )
-from dev10x.core.domain.common.result import ErrorResult, Result, err, ok
+from dev10x.core.domain.common.result import ErrorResult
 from dev10x.core.domain.profile_tier import ProfileTier
+from dev10x.core.domain.rules.read_only_sql import (
+    BQ_READ_ONLY_VERBS,
+    validate_bigquery_sql,
+)
+from dev10x.core.domain.rules.read_only_sql import (
+    validate_read_only_sql as _validate_sql,
+)
 from dev10x.core.validators.base import ValidatorBase
 
 POSTGRES_CONN_RE = re.compile(r"postgres(?:ql)?://[^'\"\s]+:[^@'\"\s]+@[a-zA-Z0-9._-]+")
-
-BLOCKED_KEYWORDS = re.compile(
-    r"\b("
-    r"INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|TRUNCATE|"
-    r"GRANT|REVOKE|VACUUM|REINDEX|CLUSTER|COPY|"
-    r"DO\s*\$|BEGIN|COMMIT|ROLLBACK|SAVEPOINT|"
-    r"SET\s+(?!search_path|statement_timeout|default_transaction_read_only)|"
-    r"LOCK|DISCARD|RESET|"
-    r"COMMENT\s+ON|SECURITY\s+LABEL|REASSIGN|"
-    r"REFRESH\s+MATERIALIZED|"
-    # SELECT-shaped but destructive: these kill live sessions, and a
-    # teardown script reaches for them when a DROP fails on an open
-    # connection (GH-1034).
-    r"pg_terminate_backend|pg_cancel_backend"
-    r")\b",
-    re.IGNORECASE,
-)
-
-SAFE_PREFIXES = re.compile(
-    r"^\s*(SELECT|WITH|EXPLAIN|SHOW|\\d|\\dt|\\l)\b",
-    re.IGNORECASE,
-)
 
 _PLUGIN_ROOT = Path(
     os.environ.get(
@@ -91,13 +77,6 @@ DIRECT_CONN_MSG = (
     "Database writes are NEVER permitted. For read-only queries use "
     f"{DB_SH_PATH}.\n"
     "If database writes are needed, provide the SQL to the user to run manually."
-)
-
-# BigQuery statements the Postgres denylist does not name. `CALL` runs a
-# stored procedure whose body this hook cannot see.
-BQ_BLOCKED_KEYWORDS = re.compile(
-    r"\b(MERGE|EXPORT\s+DATA|LOAD\s+DATA|EXECUTE\s+IMMEDIATE|CALL)\b",
-    re.IGNORECASE,
 )
 
 # `bq query` flags that make even a SELECT write: its result lands in a
@@ -258,14 +237,6 @@ _BQ_RC_NAME_RE = re.compile(r"BIGQUERYRC|(?<![\w${])(?:HOME|FLAGS_\w*)\b")
 _EXPORTING_BUILTINS = frozenset({"export", "declare", "typeset", "readonly", "local", "env"})
 _COMPUTED_WORD_RE = re.compile(r"[$`]")
 _SIMPLE_COMMAND_END_RE = re.compile(r"[;&|\n]")
-
-# `bq` commands that change nothing. Every other verb (`rm`, `load`, `cp`,
-# `mk`, `update`, `insert`, `extract`, `truncate`, `undelete`, `cancel`,
-# `init`, `shell`, `partition`, the IAM writers, and any verb added later)
-# is refused.
-_BQ_READ_ONLY_VERBS = frozenset(
-    {"ls", "show", "head", "query", "version", "help", "info", "wait", "get-iam-policy"}
-)
 
 _BQ_WORD_RE = re.compile(r"(?<![\w.-])bq(?![\w.-])")
 _BQ_LETTERS_WINDOW = 1024
@@ -868,42 +839,6 @@ def _extract_sql_from_command(command: str) -> str | None:
     return None
 
 
-_SINGLE_QUOTED_RE = re.compile(r"'[^']*'")
-
-
-def _validate_sql(sql: str) -> Result[dict[str, Any]]:
-    stripped = sql.strip().rstrip(";").strip()
-
-    if not stripped:
-        return ok({})
-
-    without_strings = _SINGLE_QUOTED_RE.sub("", stripped)
-    if ";" in without_strings:
-        return err(
-            "Multi-statement SQL is not allowed.\n"
-            "Submit one statement at a time.\n\n"
-            f"Blocked SQL:\n{sql}"
-        )
-
-    if not SAFE_PREFIXES.match(stripped):
-        return err(
-            "Query does not start with SELECT/WITH/EXPLAIN/SHOW.\n"
-            "Only read-only queries are allowed.\n\n"
-            f"Blocked SQL:\n{sql}"
-        )
-
-    match = BLOCKED_KEYWORDS.search(stripped)
-    if match:
-        keyword = match.group(0).upper()
-        return err(
-            f"Query contains blocked keyword: {keyword}\n"
-            "Only read-only queries are allowed.\n\n"
-            f"Blocked SQL:\n{sql}"
-        )
-
-    return ok({})
-
-
 def _bq_flag_name(token: str) -> str:
     """``token``'s flag name in ``--long`` form.
 
@@ -975,16 +910,9 @@ def _check_bq_query(*, args: list[str]) -> HookResult | None:
     if not sql_tokens:
         return HookResult(message=BQ_STDIN_MSG)
 
-    sql = " ".join(sql_tokens)
-    result = _validate_sql(sql)
+    result = validate_bigquery_sql(" ".join(sql_tokens))
     if isinstance(result, ErrorResult):
         return HookResult(message=_bq_write_message(detail=result.error))
-    match = BQ_BLOCKED_KEYWORDS.search(sql)
-    if match:
-        keyword = " ".join(match.group(0).upper().split())
-        return HookResult(
-            message=_bq_write_message(detail=f"Query contains blocked keyword: {keyword}")
-        )
     return None
 
 
@@ -1027,12 +955,12 @@ def _bq_call_verdict(*, args: list[str]) -> HookResult | None:
         return HookResult(
             message=_bq_write_message(detail=_unknown_bq_flag(flag=call.unsure_flag))
         )
-    if call.verb is not None and call.verb not in _BQ_READ_ONLY_VERBS:
+    if call.verb is not None and call.verb not in BQ_READ_ONLY_VERBS:
         return HookResult(
             message=_bq_write_message(
                 detail=(
                     f"`bq {call.verb}` is not a read-only bq command. Allowed: "
-                    + ", ".join(sorted(_BQ_READ_ONLY_VERBS))
+                    + ", ".join(sorted(BQ_READ_ONLY_VERBS))
                     + "."
                 )
             )
