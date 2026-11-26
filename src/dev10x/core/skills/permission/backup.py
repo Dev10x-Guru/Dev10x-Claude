@@ -21,6 +21,7 @@ forgetting to copy the right three lines.
 
 from __future__ import annotations
 
+import re
 import shutil
 from collections.abc import Generator
 from contextlib import AbstractContextManager, contextmanager
@@ -32,6 +33,7 @@ from dev10x.core.skills.permission.file_lock import locked_json_update
 
 BACKUP_SUFFIX_PREFIX = ".bak."
 TIMESTAMP_FORMAT = "%Y%m%dT%H%M%SZ"
+MAX_BACKUPS_PER_FILE = 10
 
 
 def create_backup(path: Path) -> Path | None:
@@ -40,7 +42,32 @@ def create_backup(path: Path) -> Path | None:
     ts = datetime.now(tz=UTC).strftime(TIMESTAMP_FORMAT)
     backup_path = path.with_name(f"{path.name}{BACKUP_SUFFIX_PREFIX}{ts}")
     shutil.copy2(path, backup_path)
+    prune_backups(path=path)
     return backup_path
+
+
+def prune_backups(
+    *,
+    path: Path,
+    keep: int = MAX_BACKUPS_PER_FILE,
+) -> list[Path]:
+    own_backup = re.compile(
+        rf"^{re.escape(path.name)}{re.escape(BACKUP_SUFFIX_PREFIX)}\d{{8}}T\d{{6}}Z$"
+    )
+    ours = sorted(
+        candidate
+        for candidate in path.parent.glob(f"{path.name}{BACKUP_SUFFIX_PREFIX}*")
+        if own_backup.match(candidate.name) and candidate.is_file()
+    )
+    stale = ours[: max(len(ours) - max(keep, 1), 0)]
+    removed: list[Path] = []
+    for backup in stale:
+        try:
+            backup.unlink()
+        except OSError:
+            continue
+        removed.append(backup)
+    return removed
 
 
 def find_backups(path: Path) -> list[Path]:

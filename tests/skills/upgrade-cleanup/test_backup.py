@@ -7,10 +7,12 @@ from unittest.mock import patch
 import pytest
 
 from dev10x.core.skills.permission.backup import (
+    MAX_BACKUPS_PER_FILE,
     backed_up_write,
     create_backup,
     find_backups,
     find_latest_backup,
+    prune_backups,
     restore_all,
     restore_backup,
     restore_report,
@@ -244,3 +246,74 @@ class TestBackedUpWrite:
                 live_data["permissions"]["allow"].append("should-not-appear")
 
         assert json.loads(settings_file.read_text()) == original
+
+
+class TestPruneBackups:
+    @pytest.fixture()
+    def settings_file(self, tmp_path: Path) -> Path:
+        path = tmp_path / "settings.local.json"
+        path.write_text("{}")
+        return path
+
+    @pytest.fixture()
+    def stamps(self) -> list[str]:
+        return [f"20260414T1200{n:02d}Z" for n in range(15)]
+
+    @pytest.fixture()
+    def seeded(self, settings_file: Path, stamps: list[str]) -> None:
+        for stamp in stamps:
+            (settings_file.parent / f"{settings_file.name}.bak.{stamp}").write_text("{}")
+
+    @pytest.fixture()
+    def pruned(self, settings_file: Path, seeded: None) -> list[Path]:
+        return prune_backups(path=settings_file, keep=3)
+
+    def test_removes_oldest_beyond_keep(self, pruned: list[Path]) -> None:
+        assert len(pruned) == 12
+
+    def test_keeps_newest_backups(
+        self, settings_file: Path, pruned: list[Path], stamps: list[str]
+    ) -> None:
+        assert [p.name for p in find_backups(settings_file)] == [
+            f"settings.local.json.bak.{s}" for s in stamps[-3:]
+        ]
+
+    def test_never_touches_lookalike_files(self, settings_file: Path, seeded: None) -> None:
+        keepers = [
+            settings_file.parent / "settings.local.json.bak.manual",
+            settings_file.parent / "settings.local.json.bak.20260414T120000Z.orig",
+            settings_file.parent / "other.json.bak.20260101T000000Z",
+        ]
+        for keeper in keepers:
+            keeper.write_text("{}")
+
+        prune_backups(path=settings_file, keep=1)
+
+        assert all(keeper.exists() for keeper in keepers)
+
+    def test_always_keeps_newest_even_when_keep_is_zero(
+        self, settings_file: Path, seeded: None, stamps: list[str]
+    ) -> None:
+        prune_backups(path=settings_file, keep=0)
+
+        assert [p.name for p in find_backups(settings_file)] == [
+            f"settings.local.json.bak.{stamps[-1]}"
+        ]
+
+    def test_skips_directories_with_backup_name(self, settings_file: Path) -> None:
+        (settings_file.parent / "settings.local.json.bak.20260414T120000Z").mkdir()
+
+        assert prune_backups(path=settings_file, keep=1) == []
+
+    def test_unlink_failure_is_not_reported_as_removed(
+        self, settings_file: Path, seeded: None
+    ) -> None:
+        with patch.object(Path, "unlink", side_effect=OSError("denied")):
+            removed = prune_backups(path=settings_file, keep=3)
+
+        assert removed == []
+
+    def test_create_backup_caps_backups(self, settings_file: Path, seeded: None) -> None:
+        create_backup(settings_file)
+
+        assert len(find_backups(settings_file)) == MAX_BACKUPS_PER_FILE
