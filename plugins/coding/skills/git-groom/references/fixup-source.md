@@ -106,7 +106,9 @@ these, and nobody else's word counts:
    squashes does not void it, while any new content does. An
    approved commit that cannot be read locally after a force-push is
    not a sign-off.
-2. **Said yes to an ask for this round** (see § Reading a yes).
+2. **Said yes to the ask for the current tree** (see § Reading a
+   yes). A yes covers only the tree its ask named; a new human-round
+   fixup changes the tree and needs a new ask.
 3. **Said yes in this session**, only when the supervisor is that
    reviewer. The supervisor never signs off for a teammate's round.
 
@@ -115,14 +117,16 @@ fixups linked from their own threads.
 
 ## Asking the human to sign off
 
-Run this once per human round, when that round's fixups are pushed and
-every thread from it has a reply.
+Run this when a human round's fixups are pushed and every thread from
+it has a reply — again after each later human-round fixup, since that
+changes the tree a sign-off covers.
 The asker is whoever finished the round: `gh-pr-respond`, standalone
 or under a parent; the `work-on` Groom step when git-groom kept
 human-round fixups; or git-groom itself when invoked standalone.
 Skip when § Sign-off check already holds.
 Otherwise resolve the run mode the way
-`references/review-readiness.md` § When the PR is not ready orders it.
+[`review-readiness.md`](../../../../../references/review-readiness.md)
+§ When the PR is not ready orders it.
 
 - **Attended**, with the reviewer present in the session (the
   supervisor ran the round) → **REQUIRED: Call `AskUserQuestion`** (do
@@ -141,26 +145,39 @@ Otherwise resolve the run mode the way
   post one top-level PR comment with
   `mcp__plugin_dev10x_cli__pr_issue_comment`, addressed to the round's
   reviewers by login, that starts with the marker line
-  `<!-- squash-ask round=<n> -->`, says the round's fixups are
-  pushed and every thread is answered, and asks whether they are
-  satisfied and the agent may squash now — reply `squash` to approve.
-  Before posting, read the PR's comments and skip when an ask with the
-  same round number exists.
+  `<!-- squash-ask ask=<n> tree=<HEAD tree SHA> -->`, says the round's
+  fixups are pushed and every thread is answered, and asks whether
+  they are satisfied and the agent may squash now — reply `squash` to
+  approve.
+  `ask=<n>` numbers the asks on this PR: the count of earlier
+  `squash-ask` markers on it, plus one. It is unrelated to the review
+  loop's round number in `dev10x-coding:review` `loop-mode.md`.
+  `tree=` is `git rev-parse HEAD^{tree}` when the ask is posted.
+  Before posting, read the PR's comments and skip only when the latest
+  ask's `tree=` equals the current `HEAD^{tree}` — the same content
+  was already asked about. A new human-round fixup changes the tree,
+  so a second ask in the same human round is posted, never skipped.
 
 ### Reading a yes
 
-On the PR-comment path, a yes is a comment posted **after** the ask,
-by one of the reviewers it addressed, whose body — trimmed, case
-ignored — starts with `squash`, `yes` or `approve`.
-An `APPROVED` review by that reviewer after the ask also counts.
-Anything else, including silence, a question or a thumbs-up reaction,
-is not a yes.
+On the PR-comment path, a yes answers **one ask** and counts only
+while that ask's `tree=` equals the current `HEAD^{tree}`.
+It is a comment posted after the ask, by one of the reviewers it
+addressed, whose whole body — trimmed, case ignored, a trailing `.` or
+`!` dropped — is exactly one of: `yes`, `squash`, `yes, squash`,
+`ok to squash`, `lgtm squash`.
+Anything else is **not** a yes, and the fixups are kept: extra words
+(`squash? not yet`, `yes but fix X first`), any negation (`no`,
+`not`, `don't`, `wait`), a question, an emoji or reaction, or silence.
+When in doubt, it is not a yes.
+An `APPROVED` review by that reviewer counts only under § Sign-off
+check condition 1 — its commit's tree must equal `HEAD^{tree}`.
 
 ### Who reads the answer
 
-No component watches the PR for the answer yet (GH-2014).
-The step stays **pending** until a session reads it: the next run of
-`gh-pr-respond`, the `work-on` Groom step or git-groom applies §
-Sign-off check, and squashes on a yes.
+No component watches the PR for the answer (GH-2014 tracks one).
+Nothing reads it automatically: the step stays **pending** until a
+session runs `gh-pr-respond`, the `work-on` Groom step or git-groom,
+which applies § Sign-off check and squashes on a yes.
 Never wait silently for an approval nobody was asked for, and never
 report the squash as scheduled.

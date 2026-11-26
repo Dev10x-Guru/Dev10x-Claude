@@ -1227,8 +1227,9 @@ from whether the round's threads are resolved. Unattended, post the
 one PR comment that section defines.
 Report the outcome to the parent — `squash approved`,
 `asked <reviewers>` or `kept for another round` — so its Groom step
-runs git-groom on a yes and stays pending otherwise, instead of
-waiting passively.
+runs git-groom on a yes and stays pending otherwise. Nothing reads an
+unattended answer automatically (GH-2014): the step stays pending
+until a later session re-runs it and reads the reply.
 Bot-only rounds skip this step: their fixups are agent-owned and the
 groom squashes them without asking.
 

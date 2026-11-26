@@ -22,6 +22,7 @@ allowed-tools:
   - mcp__plugin_dev10x_cli__pr_notify
   - mcp__plugin_dev10x_cli__detect_tracker
   - mcp__plugin_dev10x_cli__pr_detect
+  - mcp__plugin_dev10x_cli__pr_comment_reply
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/gh-pr-monitor/scripts/:*)
   - Bash(${CLAUDE_PLUGIN_ROOT}/skills/gh-pr-merge/scripts/:*)
   - mcp__plugin_dev10x_cli__ci_check_status
