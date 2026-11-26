@@ -25,6 +25,11 @@
       "id": "rename-first-split",
       "name": "Rename-First Split for File Moves",
       "description": "A commit that moves and edits files is detected in Phase 1 and split into a pure R100 rename commit followed by the edit commit (GH-1629)"
+    },
+    {
+      "id": "fixup-source-guard",
+      "name": "Fixup Source Guard",
+      "description": "Deferral keys on each fixup's source, never on PR state: agent-owned fixups are squashed, human-round fixups (linked from an author reply on a non-bot thread) stay until their reviewer signs off (GH-2008)"
     }
   ],
   "evals": [
@@ -171,6 +176,30 @@
           "dimension": "tree-equality-gate",
           "check": "behavioral",
           "signal": "'git diff --cached --name-only <sha>' after the reset is compared against the branch's own file set; any extra path triggers 'git reset --hard groom-backup-<branch-slug>' and no rebuild"
+        }
+      ]
+    },
+    {
+      "id": "fixup-source-keeps-only-human-round",
+      "name": "Fixup source guard keeps only unsigned human-round fixups",
+      "description": "GH-2008: an open PR carries two fixups. A teammate's thread holds an author reply 'Fixed in <sha1>'; the other fixup came from a review loop and no reply links it. The work-on Groom step invokes the skill. The loop's fixup is squashed now; the teammate's stays until the teammate signs off.",
+      "input": "/dev10x-coding:git-groom (from work-on Groom step; PR has one human-linked fixup and one agent-owned fixup, no approval)",
+      "assertions": [
+        {
+          "dimension": "fixup-source-guard",
+          "check": "tool_called",
+          "tool": "mcp__plugin_dev10x_cli__pr_comments",
+          "signal": "PR comments are read to find which fixup SHAs an author reply on a non-bot thread links"
+        },
+        {
+          "dimension": "fixup-source-guard",
+          "check": "behavioral",
+          "signal": "the agent-owned fixup is squashed and the human-linked fixup stays as its own commit"
+        },
+        {
+          "dimension": "fixup-source-guard",
+          "check": "behavioral",
+          "signal": "prints 'Groom kept 1 human-round fixups: awaiting <reviewer> sign-off' instead of deferring the whole groom on PR state"
         }
       ]
     }

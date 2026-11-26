@@ -14,6 +14,7 @@ allowed-tools:
   - mcp__plugin_dev10x_cli__pr_comment_reply
   - mcp__plugin_dev10x_cli__pr_comments
   - mcp__plugin_dev10x_cli__pr_detect
+  - mcp__plugin_dev10x_cli__pr_get
   - mcp__plugin_dev10x_cli__pr_issue_comment
   - mcp__plugin_dev10x_cli__resolve_gate
   - mcp__plugin_dev10x_cli__unresolved_threads

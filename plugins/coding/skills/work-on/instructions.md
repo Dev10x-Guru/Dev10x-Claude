@@ -1562,6 +1562,18 @@ groom skill is expected to be a no-op, the skill must run
 its own logic. The orchestrator must not inspect commit
 history to predict the outcome.
 
+**No orchestrator-level deferral (GH-2008).** A step prompt that
+says when to keep fixups is input for the skill, not permission to
+park the step without it. Never mark the groom step "deferred until
+approval" from PR state, a human review or `supervisor_review:
+required` — invoke `Skill(dev10x-coding:git-groom)`, which keys
+deferral on each fixup's source in its Phase 0a and still resolves
+`history_rewrite`, so an `auto-advance` override on that gate takes
+effect. When the skill reports that it kept human-round fixups, run
+the sign-off ask in `dev10x-coding:git-groom`
+`references/fixup-source.md` § Asking the human to sign off — never
+wait silently for an approval nobody was asked for.
+
 ### CI Re-Monitoring After Force Push
 
 **Hard rule:** Force push (from `dev10x-coding:git-groom` or conflict

@@ -91,5 +91,5 @@ supervisor asks for it at Phase 0: once per periodic status, call
 `mcp__plugin_dev10x_cli__review_readiness_audit` per manifest repo and
 list its `SENT-NOT-READY` rows in the status. Read-only — never
 comment, request review or relabel. See
-[`references/review-readiness.md`](../../references/review-readiness.md)
+[`references/review-readiness-audit.md`](../../references/review-readiness-audit.md)
 § Periodic sweep under foreman.

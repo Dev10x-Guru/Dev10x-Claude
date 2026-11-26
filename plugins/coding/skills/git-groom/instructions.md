@@ -140,17 +140,41 @@ agent-initiated grooming is blocked.
    exist on the branch) and destroy the per-comment audit trail
    reviewers rely on.
 
-   The fact that fixup commits exist IS the signal that a
-   reviewer is mid-conversation. Wait for thread resolution
-   before grooming, or invoke git-groom from the supervisor's
-   main session (without `invoker=dev10x-coding:gh-pr-monitor`) if you
-   explicitly want to override.
+   Open threads mean a reviewer is mid-conversation. Wait for
+   thread resolution before grooming, or invoke git-groom from
+   the supervisor's main session (without
+   `invoker=dev10x-coding:gh-pr-monitor`) if you explicitly want to
+   override.
    ```
 
    Exit non-zero. Do NOT continue to Phase 1.
 
 4. If zero unresolved threads OR `invoker` indicates supervisor
-   session, proceed to Phase 0b normally.
+   session, proceed to Phase 0a normally.
+
+### Phase 0a: Fixup Source Guard (GH-2008)
+
+Fixups alone are not a sign that a human is mid-review: the review
+loop, CI fixes and bot-comment fixes make them too.
+Classify every `fixup!` / `squash!` on the branch as agent-owned or
+human-round with the one rule in
+[`references/fixup-source.md`](references/fixup-source.md) — a
+human-round fixup is one an author reply on a non-bot thread links.
+
+1. **No human-round fixup** → continue; every fixup is squashable.
+2. **Human-round fixups, signed off** (that file § Asking the human to
+   sign off lists what counts) → continue; squash them all.
+3. **Human-round fixups, no sign-off** → squash only the agent-owned
+   ones (that file § Squashing only agent-owned fixups) and keep the
+   human-round ones as `pick`.
+   With no agent-owned fixup to squash, make no rewrite.
+   Either way print
+   `Groom kept <n> human-round fixups: awaiting <reviewer> sign-off`
+   so the caller runs the sign-off ask.
+
+This guard replaces any caller-side deferral: an orchestrator never
+parks the groom step on PR state, it invokes this skill, which reads
+the source and still resolves the `history_rewrite` gate.
 
 ### Phase 0b Precondition: Pre-merge Spec Drift Check (GH-173)
 

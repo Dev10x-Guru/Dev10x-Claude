@@ -17,6 +17,7 @@ persona: >
   finding before reporting it.
 allowed-tools:
   - Skill(dev10x-coding:review-fix)
+  - Skill(dev10x-coding:git-groom)
   - Agent
   - Read
   - mcp__plugin_dev10x_cli__issue_get
@@ -528,6 +529,11 @@ The stamp records the HEAD and tree the clean pass reviewed. In repos
 whose `friction.yaml` entry sets `review_stamp: required`, the DX019
 hook denies `merge_pr`, `pr_ready` and `request_review` until the PR
 head matches that stamp (same commit, or same tree after a groom).
+
+**Loop end (GH-2008).** A loop that ended clean and made fixups then
+squashes them through `Skill(dev10x-coding:git-groom)` before Step 7
+(`references/loop-mode.md` § Loop end), so the PR never reaches a
+human with the loop's fixups on it.
 
 ### Step 7: Summary
 

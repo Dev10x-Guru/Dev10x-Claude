@@ -19,7 +19,7 @@
     {
       "id": "readiness-gate",
       "name": "Readiness Gate Before request_review",
-      "description": "Once reviewers are resolved and before request_review is called, the skill runs the readiness check (CI, unresolved threads, bots at head — the Draft State Check already handled the draft, and a just-flipped draft has CI pending). Unattended it refuses; attended it fires AskUserQuestion with 'Stop — fix it first (Recommended)' first. --readiness-checked skips it (GH-1834)."
+      "description": "Once reviewers are resolved and before request_review is called, the skill runs the readiness check (CI, unresolved threads, bots at head, agent-owned fixups — the Draft State Check already handled the draft, and a just-flipped draft has CI pending). The reads run in every mode. Unattended it grooms agent-owned fixups and refuses on anything else; attended it fires AskUserQuestion with 'Stop — fix it first (Recommended)' first. --readiness-checked skips it (GH-1834)."
     },
     {
       "id": "reviewer-resolution",
@@ -324,6 +324,44 @@
           "check": "tool_called",
           "tool": "AskUserQuestion",
           "signal": "the Readiness widget fires with 'Stop — fix it first (Recommended)' listed first"
+        }
+      ]
+    },
+    {
+      "id": "unattended-readiness-still-reads",
+      "name": "--unattended still reads every readiness condition",
+      "description": "GH-2008: --unattended is passed without --readiness-checked and CI is failing. The flag decides what a failure does, never whether the reads happen, so CI, threads, bots and fixups are all read before the refusal.",
+      "input": "/dev10x-coding:gh-pr-request-review --unattended",
+      "assertions": [
+        {
+          "dimension": "readiness-gate",
+          "check": "tool_called",
+          "tool": "mcp__plugin_dev10x_cli__ci_check_status",
+          "signal": "ci_check_status, unresolved_threads and bot_review_status are all called before the skill stops"
+        },
+        {
+          "dimension": "readiness-gate",
+          "check": "behavioral",
+          "signal": "request_review is NOT called and the run ends with a 'review_request_result:' line whose status is 'stopped' and whose reasons name the CI failure"
+        }
+      ]
+    },
+    {
+      "id": "unattended-agent-fixups-groomed",
+      "name": "Unattended run grooms agent-owned fixups instead of refusing",
+      "description": "GH-2008: everything is green except two review-loop fixups no thread reply links. Unattended, the skill grooms them, waits for CI once and re-runs the check instead of refusing.",
+      "input": "/dev10x-coding:gh-pr-request-review --unattended",
+      "assertions": [
+        {
+          "dimension": "readiness-gate",
+          "check": "tool_called",
+          "tool": "Skill",
+          "signal": "Skill(dev10x-coding:git-groom) is invoked before request_review"
+        },
+        {
+          "dimension": "readiness-gate",
+          "check": "behavioral",
+          "signal": "the readiness check runs again on the groomed head and review is requested only when it passes"
         }
       ]
     }

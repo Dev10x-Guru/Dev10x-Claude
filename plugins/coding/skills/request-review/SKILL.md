@@ -22,6 +22,9 @@ allowed-tools:
   - mcp__plugin_dev10x_cli__bot_review_status
   - mcp__plugin_dev10x_cli__review_readiness_audit
   - mcp__plugin_dev10x_cli__resolve_gate
+  - Bash(git log:*)
+  - mcp__plugin_dev10x_cli__pr_comments
+  - Skill(dev10x-coding:git-groom)
   - Skill(dev10x-coding:gh-pr-request-review)
   - Skill(dev10x-coding:slack-review-request)
   - Skill(dev10x-coding:gchat-review-request)
@@ -92,29 +95,25 @@ Skip this precheck on `--force` or when `dev10x-coding:gh-pr-monitor` Phase
 
 ### Step 1.6: Readiness check (GH-1834)
 
-Run the four conditions in
+Run the five conditions in
 [`references/review-readiness.md`](../../references/review-readiness.md)
-— draft, CI, unresolved threads, bots at head. A draft fails like the
-rest; never mark it ready here. `--force` does not skip this step.
-When any condition fails or cannot be read, resolve the run mode per
+— draft, CI, threads, bots at head, agent-owned fixups (GH-2008). A
+draft fails like the rest; never mark it ready here. `--force` and
+`--unattended` never skip this step. When any condition fails or cannot be read, resolve the run mode per
 that file's § "When the PR is not ready": `--unattended`, else `run_mode.mode` of `mcp__plugin_dev10x_cli__resolve_gate(gate=
 "external_notify", context={})` (read only `run_mode`). `undetermined`
 or an error is attended, printed as `Run mode: undetermined ({basis})
-— treated as attended`.
+— treated as attended`. A stop goes to Step 4 with `status: "stopped"`.
 
-- **Unattended**: refuse — stop, report each reason, post nothing.
+- **Unattended**: groom failing Fixups (`Skill(dev10x-coding:git-groom)`,
+  CI wait, re-run); refuse anything else — report, post nothing.
 - **Attended**: **REQUIRED: Call `AskUserQuestion`** (do NOT use plain
   text). Question: `"PR #{PR_NUMBER} is not ready for review:
   {reasons}. Request review anyway?"`, header `Readiness`. Options:
   - **Stop — fix it first (Recommended)** — end here; report the
     reasons. Nothing is assigned or posted.
-  - **Request review anyway** — continue to Step 2; Step 3.5 and the
-    Step 4 summary carry the reasons.
-  - **Groom first** (GH-1990) — when `fixup!` commits exist and no
-    human review yet, it leads as `(Recommended)`: `git-groom`,
-    push, re-run this step.
-
-A stop here goes straight to Step 4 with `status: "stopped"`.
+  - **Request review anyway** — continue to Step 2; Steps 3.5/4 carry the reasons.
+  - **Groom first** (GH-1990) — leads as `(Recommended)` when Fixups fails.
 
 ### Step 2: Assign GitHub reviewers
 

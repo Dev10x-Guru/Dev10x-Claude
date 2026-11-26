@@ -154,8 +154,12 @@ dev10x-coding:review (produces findings JSON)
    └─ git commit -F <msg-file> (one fixup! commit per finding)
 ```
 
-After this skill completes, the calling pipeline typically
-proceeds to commit, PR creation, or CI monitoring.
+After this skill completes, control returns to `dev10x-coding:review`.
+Under `--loop` the next round reviews these fixups, and the clean round
+squashes them through `dev10x-coding:git-groom` before the pipeline
+creates or publishes the PR (`dev10x-coding:review`
+`references/loop-mode.md` § Loop end, GH-2008).
+Never hand these fixups to a human reviewer unsquashed.
 
 Uses the `Standalone fixup` marker in the commit body so the
 pre-commit hook accepts fixup commits without a PR comment link.

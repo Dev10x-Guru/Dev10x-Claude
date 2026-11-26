@@ -18,6 +18,10 @@ allowed-tools:
   - mcp__plugin_dev10x_cli__ci_check_status
   - mcp__plugin_dev10x_cli__unresolved_threads
   - mcp__plugin_dev10x_cli__bot_review_status
+  # Readiness Fixups condition and its groom (GH-2008).
+  - Bash(git log:*)
+  - mcp__plugin_dev10x_cli__pr_comments
+  - Skill(dev10x-coding:git-groom)
   - Bash(gh pr view:*)
   - Bash(gh pr ready:*)
   - Bash(gh api orgs/:*)
@@ -232,38 +236,47 @@ NOT notify the requested reviewers — the request is lost.
      Defer path below (same clearance gate as the configured case)
    - **Not found, `default_action: skip`** → print "No reviewers
      configured for {repo}, skipping" and stop
-4. **Readiness check (GH-1834).** Reviewers are now known, so run the
-   CI, review-thread and bots-at-head conditions in
+4. **Readiness check (GH-1834).** Reviewers are now known; run the
+   check in
    [`references/review-readiness.md`](../../references/review-readiness.md)
-   — the Draft State Check above already handled the draft. When this
-   run flipped a draft, first wait once with
-   `mcp__plugin_dev10x_cli__ci_check_status(pr_number={pr_number},
-   repo="{repo}", wait=true)` so CI has run on the ready PR — a wait
-   ending in `infra_unavailable` is re-read once without `wait` and
-   judged by the normal rule, so a PR with no CI still passes — and run
-   this step even if `--readiness-checked` was passed: the caller
-   checked the PR before it was ready. Otherwise skip this step when
-   the caller passed `--readiness-checked` (`dev10x-coding:request-review`
-   already ran it). When a condition fails, resolve the run mode as
-   that file orders it: `--unattended`, else `run_mode.mode` from the
-   `resolve_gate(gate="request_review")` payload this skill already
-   read (`undetermined` is attended — print `Run mode: undetermined
-   ({basis}) — treated as attended`). Unattended: refuse and stop;
-   attended, **REQUIRED: Call
-   `AskUserQuestion`** (do NOT use plain text) with **Stop — fix it
-   first (Recommended)** and **Request review anyway**, header
-   `Readiness`; when `fixup!` commits exist and no human review yet
-   (GH-1990), lead with **Groom first (Recommended)** instead —
-   `git-groom`, push, re-run. When the run stops here after this run flipped a
-   draft — an unattended refusal or "Stop — fix it first" — return
-   the PR to draft with
-   `mcp__plugin_dev10x_cli__pr_ready(pr_number={pr_number}, undo=true)`
-   before stopping, so it is not left published with a known problem.
-   Whenever the run stops at this step, print `Readiness: stopped —
-   {reasons}` for humans, then end with the `review_request_result:`
-   line (`status: "stopped"`) from that file § Result for callers —
-   `dev10x-coding:request-review` reads its `status`, not the prose. Every
-   other ending of this skill emits that line too.
+   in this order. **`--unattended` never skips it** (GH-2008): the run
+   mode only decides what a failure does, after every read is made.
+   1. **Skip only on `--readiness-checked` with no flip.** When the
+      caller passed `--readiness-checked` (`dev10x-coding:request-review`
+      already ran it) and this run did not flip a draft, go to item 5
+      of the outer list. A flip voids the flag: the caller checked a PR
+      that was not ready yet.
+   2. **After a flip, wait once** with
+      `mcp__plugin_dev10x_cli__ci_check_status(pr_number={pr_number},
+      repo="{repo}", wait=true)` so CI has run on the ready PR — a wait
+      ending in `infra_unavailable` is re-read once without `wait` and
+      judged by the normal rule, so a PR with no CI still passes.
+   3. **Read the CI, review-thread, bots-at-head and Fixups
+      conditions** — four reads, made in every mode (the Draft State
+      Check above already handled the draft).
+   4. **All pass** → print the `Readiness: ready (…)` line and continue.
+   5. **A condition fails** → resolve the run mode as that file orders
+      it: `--unattended`, else `run_mode.mode` from the
+      `resolve_gate(gate="request_review")` payload this skill already
+      read (`undetermined` is attended — print `Run mode: undetermined
+      ({basis}) — treated as attended`).
+      Unattended: a failing Fixups condition is groomed, not refused
+      (`Skill(dev10x-coding:git-groom)`, CI wait, re-run from item 3);
+      any other failure refuses and stops.
+      Attended, **REQUIRED: Call `AskUserQuestion`** (do NOT use plain
+      text) with **Stop — fix it first (Recommended)** and **Request
+      review anyway**, header `Readiness`; when the Fixups condition
+      fails (GH-1990), lead with **Groom first (Recommended)** instead
+      — `git-groom`, push, re-run.
+   6. **Stopping** → when this run flipped a draft — an unattended
+      refusal or "Stop — fix it first" — return the PR to draft with
+      `mcp__plugin_dev10x_cli__pr_ready(pr_number={pr_number}, undo=true)`
+      first, so it is not left published with a known problem. Print
+      `Readiness: stopped — {reasons}` for humans, then end with the
+      `review_request_result:` line (`status: "stopped"`) from that
+      file § Result for callers — `dev10x-coding:request-review` reads its
+      `status`, not the prose. Every other ending of this skill emits
+      that line too.
 5. Call the `request_review` MCP tool with the resolved reviewers
 
 ### Stand-by / Defer path (GH-396, ADR-0019, GH-998)
