@@ -25,6 +25,7 @@ from dev10x.core.domain.common.bash_tokens import (
     tagged_command_units,
     tmux_command_name,
     typed_stream,
+    typed_streams,
 )
 
 
@@ -832,7 +833,7 @@ class TestNestedCommands:
     ) -> None:
         segments = [segment.argv for segment in command_segments(command=command)]
 
-        assert typed_stream(segments=segments) == expected
+        assert typed_stream(segments=segments) == [expected]
 
     @pytest.mark.parametrize(
         "command", ["tmux send-keys ls Enter", "screen -X stuff 'ls\\n'", "ls; pwd"]
@@ -840,7 +841,55 @@ class TestNestedCommands:
     def test_typed_stream_needs_two_pieces(self, command: str) -> None:
         segments = [segment.argv for segment in command_segments(command=command)]
 
-        assert typed_stream(segments=segments) is None
+        assert typed_stream(segments=segments) == []
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "tmux send-keys -t a ps; tmux send-keys -t b C-u; tmux send-keys -t a ql",
+            "screen -S a -X stuff ps; screen -S b -X stuff '^H'; screen -S a -X stuff ql",
+            "tmux -L x send-keys ps; tmux -L y send-keys BSpace; tmux -L x send-keys ql",
+        ],
+    )
+    def test_erase_across_targets_adds_an_opaque_letter_line(self, command: str) -> None:
+        segments = [segment.argv for segment in command_segments(command=command)]
+
+        assert NestedCommand(command="psql", opaque=True) in typed_stream(segments=segments)
+
+    def test_streams_across_units_replay_every_unit_order(self) -> None:
+        units = [
+            [segment.argv for segment in command_segments(command=unit)]
+            for unit in ["tmux send-keys opdb", "tmux send-keys dr", "ls"]
+        ]
+
+        streams = typed_streams(units=units)
+
+        assert NestedCommand(command="dropdb") in streams
+        assert NestedCommand(command="opdbdr", opaque=True) in streams
+
+    def test_streams_across_many_units_keep_only_the_letter_line(self) -> None:
+        units = [[("tmux", "send-keys", letter)] for letter in "psqlx"]
+
+        streams = typed_streams(units=units)
+
+        assert streams == [
+            NestedCommand(command="psqlx"),
+            NestedCommand(command="psqlx", opaque=True),
+        ]
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "tmux -L ru send-keys p s",
+            "tmux -2L ru send-keys p s",
+            "tmux -f sp -T ru send-keys p s",
+            "tmux -c true send-k p s",
+        ],
+    )
+    def test_global_option_values_are_not_tmux_commands(self, command: str) -> None:
+        assert "ps" in [
+            candidate.command for candidate in nested_commands(parts=split_tokens(command=command))
+        ]
 
     @pytest.mark.parametrize(
         ("token", "expected"),

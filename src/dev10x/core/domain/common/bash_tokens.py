@@ -16,6 +16,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
 from enum import Enum, auto
 from functools import lru_cache
+from itertools import permutations
 
 # Both lexing entry points are pure, and one hook process asks several
 # validators (and several checks inside DX003) about the same strings.
@@ -1359,6 +1360,13 @@ _TMUX_SET_BUFFER_VALUE_OPTIONS = frozenset({"-b", "-n", "-t"})
 # An unparseable -H word: typed as a control key, so the line turns opaque.
 _UNKNOWN_KEY = "\x00"
 _TMUX_GLOBAL_COMMAND_OPTIONS = frozenset({"-c"})
+_TMUX_GLOBAL_VALUE_OPTIONS = frozenset({"-c", "-f", "-L", "-S", "-T"})
+_TMUX_SERVER_OPTIONS = frozenset({"-L", "-S"})
+_TMUX_TARGET_OPTIONS = frozenset({"-t", "-b"})
+_SCREEN_TARGET_OPTIONS = frozenset({"-S", "-p"})
+# Units are visited in stack order, not text order, so up to this many
+# typing units are replayed in every order (4! = 24 lines at most).
+_MAX_REORDERED_UNITS = 4
 _TMUX_SEPARATOR = ";"
 _LINE_END_KEYS = frozenset(
     {"Enter", "C-m", "C-M", "C-j", "C-J", "KPEnter", "^M", "^J", "\n", "\r"}
@@ -1651,23 +1659,45 @@ def _tmux_chunk_keys(*, chunk: list[str], subcommand: int) -> tuple[list[str], l
     return (_hex_keys(words=words) if "H" in flags else words), words
 
 
-def _tmux_subcommand(*, chunk: list[str]) -> int | None:
-    wanted = _TMUX_SHELL_COMMANDS | {_TMUX_SEND_KEYS, _TMUX_SET_BUFFER}
-    return next(
-        (idx for idx, token in enumerate(chunk) if tmux_command_name(token=token) in wanted),
-        None,
+def _tmux_subcommand(*, chunk: list[str], first: bool) -> int | None:
+    """Index of the chunk's command, when it is one that runs or types.
+
+    Only the first word after tmux's global options names the command,
+    so an option value (`-L ru`) is never read as a prefix (GH-2001).
+    """
+    idx = (
+        _skip_options(parts=chunk, idx=0, value_options=_TMUX_GLOBAL_VALUE_OPTIONS) if first else 0
     )
+    wanted = _TMUX_SHELL_COMMANDS | {_TMUX_SEND_KEYS, _TMUX_SET_BUFFER}
+    if idx < len(chunk) and tmux_command_name(token=chunk[idx]) in wanted:
+        return idx
+    return None
 
 
-def _tmux_pieces(*, parts: list[str]) -> list[list[str]]:
-    pieces: list[list[str]] = []
-    for chunk in _tmux_chunks(parts=parts):
-        subcommand = _tmux_subcommand(chunk=chunk)
+def _option_values(*, parts: list[str], options: frozenset[str]) -> str:
+    """Every value ``options`` take in ``parts``, spaced or attached, joined."""
+    values: list[str] = []
+    for idx, token in enumerate(parts):
+        if token in options and idx + 1 < len(parts):
+            values.append(parts[idx + 1])
+        elif len(token) > 2 and token[:2] in options:
+            values.append(token[2:])
+    return "|".join(values)
+
+
+def _tmux_pieces(*, parts: list[str]) -> list[tuple[str, list[str]]]:
+    """``(target, keys)`` for each chunk that types; the target names the
+    server, pane or buffer the keys go to."""
+    server = _option_values(parts=parts, options=_TMUX_SERVER_OPTIONS)
+    pieces: list[tuple[str, list[str]]] = []
+    for position, chunk in enumerate(_tmux_chunks(parts=parts)):
+        subcommand = _tmux_subcommand(chunk=chunk, first=position == 0)
         typed = (
             None if subcommand is None else _tmux_chunk_keys(chunk=chunk, subcommand=subcommand)
         )
         if typed is not None:
-            pieces.append(typed[0])
+            target = _option_values(parts=chunk[subcommand:], options=_TMUX_TARGET_OPTIONS)
+            pieces.append((f"tmux:{server}:{target}", typed[0]))
     return pieces
 
 
@@ -1700,7 +1730,7 @@ def _tmux_chunks(*, parts: list[str]) -> list[list[str]]:
 def _tmux_commands(*, parts: list[str]) -> list[NestedCommand]:
     commands = [NestedCommand(command=_legacy_tmux_command(parts=parts))]
     for position, chunk in enumerate(_tmux_chunks(parts=parts)):
-        subcommand = _tmux_subcommand(chunk=chunk)
+        subcommand = _tmux_subcommand(chunk=chunk, first=position == 0)
         if position == 0:
             head = ["tmux", *chunk[: len(chunk) if subcommand is None else subcommand]]
             commands.extend(
@@ -1772,30 +1802,73 @@ def _screen_commands(*, parts: list[str]) -> list[NestedCommand]:
     return [_typed(keys=keys) for keys in _screen_pieces(parts=parts)]
 
 
-def _keystroke_pieces(*, parts: list[str]) -> list[list[str]]:
+def _keystroke_pieces(*, parts: list[str]) -> list[tuple[str, list[str]]]:
     program, stages = _wrapper_walk(parts=parts)
-    pieces: list[list[str]] = []
+    pieces: list[tuple[str, list[str]]] = []
     for stage in (*stages, program):
         name = stage[0].rsplit("/", 1)[-1] if stage else ""
         if name == "screen":
-            pieces.extend(_screen_pieces(parts=stage))
+            session = _option_values(parts=stage, options=_SCREEN_TARGET_OPTIONS)
+            pieces.extend((f"screen:{session}", keys) for keys in _screen_pieces(parts=stage))
         elif name == "tmux":
             pieces.extend(_tmux_pieces(parts=stage))
     return pieces
 
 
-def typed_stream(*, segments: Sequence[Sequence[str]]) -> NestedCommand | None:
+def _is_editing_key(*, key: str) -> bool:
+    return key in _ERASE_KEYS or key in _KILL_LINE_KEYS
+
+
+def _is_literal_key(*, key: str) -> bool:
+    return not (
+        key in _LINE_END_KEYS
+        or key in _BLANK_KEYS
+        or _is_editing_key(key=key)
+        or key in _NAMED_KEYS
+        or _MODIFIED_KEY_RE.match(key)
+        or _is_control(key=key)
+    )
+
+
+def typed_streams(*, units: Sequence[Sequence[Sequence[str]]]) -> list[NestedCommand]:
     """The text typed across several keystroke calls, as one line (GH-2001).
 
-    ``tmux send-keys ps; tmux send-keys ql Enter`` types ``psql`` although
-    neither call does, so every piece a unit types is replayed in order.
-    ``None`` when fewer than two pieces are typed: one piece is already
-    judged on its own by :func:`nested_commands`.
+    ``units`` holds each unit's segment argvs. ``tmux send-keys ps; tmux
+    send-keys ql Enter`` types ``psql`` although neither call does, so
+    every piece is replayed in order. The replay cannot be trusted when
+    pieces come from more than one unit (their order is not textual), or
+    when an erase or kill key may hit another pane or buffer. Then the
+    typed letters, erasures ignored, are added as an opaque line, which
+    DX004 judges as a multiset. Empty when fewer than two pieces are typed:
+    one piece is already judged on its own by :func:`nested_commands`.
     """
-    pieces = [piece for argv in segments for piece in _keystroke_pieces(parts=list(argv))]
+    grouped = [
+        [piece for argv in segments for piece in _keystroke_pieces(parts=list(argv))]
+        for segments in units
+    ]
+    pieces = [piece for group in grouped for piece in group]
     if len(pieces) < 2:
-        return None
-    return _typed(keys=[key for piece in pieces for key in piece])
+        return []
+    keys = [key for _, piece in pieces for key in piece]
+    streams = [_typed(keys=keys)]
+    typing_groups = [group for group in grouped if group]
+    spans_units = len(typing_groups) > 1
+    if spans_units and len(typing_groups) <= _MAX_REORDERED_UNITS:
+        streams.extend(
+            _typed(keys=[key for group in order for _, piece in group for key in piece])
+            for order in permutations(typing_groups)
+        )
+    targets = {target for target, _ in pieces}
+    erases_elsewhere = len(targets) > 1 and any(_is_editing_key(key=key) for key in keys)
+    if spans_units or erases_elsewhere:
+        letters = "".join(key for key in keys if _is_literal_key(key=key))
+        streams.append(NestedCommand(command=letters, opaque=True))
+    return streams
+
+
+def typed_stream(*, segments: Sequence[Sequence[str]]) -> list[NestedCommand]:
+    """:func:`typed_streams` for one unit's segments."""
+    return typed_streams(units=[segments])
 
 
 # git runs a configured value as a program: `core.pager`, `core.editor`,
@@ -1927,5 +2000,4 @@ def _runner_bodies(*, unit: str) -> list[NestedCommand]:
     nested = [
         nested for segment in segments for nested in runner_commands(parts=list(segment.argv))
     ]
-    stream = typed_stream(segments=[segment.argv for segment in segments])
-    return nested if stream is None else [*nested, stream]
+    return [*nested, *typed_stream(segments=[segment.argv for segment in segments])]

@@ -17,7 +17,7 @@ from __future__ import annotations
 import os
 import re
 import shlex
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, ClassVar
@@ -39,6 +39,7 @@ from dev10x.core.domain.common.bash_tokens import (
     substitution_bodies,
     tmux_command_name,
     typed_stream,
+    typed_streams,
     without_shell_quoting,
 )
 from dev10x.core.domain.common.result import ErrorResult, Result, err, ok
@@ -369,9 +370,10 @@ def _psql_units(*, command: str) -> Iterator[_PsqlUnit]:
             yield _PsqlUnit(text=unit, segments=None, opaque=opaque)
             continue
         yield _PsqlUnit(text=unit, segments=segments, opaque=opaque)
-        stream = typed_stream(segments=[segment.argv for segment in segments])
-        if stream is not None:
-            pending.append((stream.command, stream.opaque))
+        pending.extend(
+            (stream.command, stream.opaque)
+            for stream in typed_stream(segments=[segment.argv for segment in segments])
+        )
         for segment in segments:
             parts = list(segment.argv)
             if _is_exempt_psql_wrapper(parts):
@@ -793,9 +795,23 @@ def _pg_write_binaries_in(*, unit: str) -> Iterator[str]:
             yield Path(match.group(0).split()[-1].lstrip("'\"")).name
         return
     for segment in segments:
-        binary = _pg_write_binary(list(segment.argv))
+        parts = list(segment.argv)
+        binary = _pg_write_binary(parts)
         if binary:
             yield binary
+        # `GIT_PAGER='dropdb prod' git -p log` runs the assigned value.
+        for value in _assigned_programs(parts=parts):
+            yield from _pg_write_binaries_in(unit=value)
+
+
+def _unit_segments(*, units: Iterable[str]) -> list[tuple[CommandSegment, ...]]:
+    segmented: list[tuple[CommandSegment, ...]] = []
+    for unit in units:
+        try:
+            segmented.append(command_segments(command=unit))
+        except UntokenizableCommandError:
+            continue
+    return segmented
 
 
 @dataclass
@@ -852,10 +868,18 @@ class SqlSafetyValidator(ValidatorBase):
             or _KEYSTROKE_RUNNER_PROBE.found_in(command=command)
         ):
             return None
+        units = command_units(command=command)
+        # Keystrokes typed from several units (`eval 'tmux send-keys dr';
+        # tmux send-keys opdb …`) are replayed across them too (GH-2001).
+        streams = typed_streams(
+            units=[
+                [segment.argv for segment in segments] for segments in _unit_segments(units=units)
+            ]
+        )
         binary = next(
             (
                 binary
-                for unit in command_units(command=command)
+                for unit in (*units, *(stream.command for stream in streams))
                 for binary in _pg_write_binaries_in(unit=unit)
             ),
             None,
@@ -934,7 +958,10 @@ class SqlSafetyValidator(ValidatorBase):
             or _SUBSTITUTED_VALUE_RE.search(command)
         ):
             return None
+        segmented: dict[str, list[tuple[str, ...]]] = {}
         for unit in _psql_units(command=command):
+            if unit.segments is not None:
+                segmented.setdefault(unit.text, [segment.argv for segment in unit.segments])
             if _spells_psql(unit=unit) or (
                 unit.text != command and _psql_word_anywhere(command=unit.text)
             ):
@@ -954,6 +981,15 @@ class SqlSafetyValidator(ValidatorBase):
                     continue
                 if _runs_psql(parts):
                     return HookResult(message=DIRECT_PSQL_MSG)
+        # Keystrokes typed from several units (`tmux send-keys ps; eval
+        # "tmux send-keys ql Enter"`) are replayed across them (GH-2001).
+        for stream in typed_streams(units=list(segmented.values())):
+            stream_unit = _PsqlUnit(text=stream.command, segments=None, opaque=stream.opaque)
+            if _spells_psql(unit=stream_unit):
+                return HookResult(message=DIRECT_PSQL_MSG)
+            result = self._check_direct_psql(command=stream.command)
+            if result:
+                return result
         if _psql_word_anywhere(command=command):
             return HookResult(message=DIRECT_PSQL_MSG)
         return None
