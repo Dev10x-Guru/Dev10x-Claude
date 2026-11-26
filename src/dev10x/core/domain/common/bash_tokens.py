@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import re
 import shlex
+from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
 from enum import Enum, auto
 from functools import lru_cache
@@ -1324,8 +1325,39 @@ _TMUX_VALUE_OPTIONS = frozenset(
 # type into a shell, so the typed line is a command. tmux's own `-c`
 # (before any subcommand) runs a shell command too.
 _LEGACY_TMUX_KEY_NAMES = frozenset({"Enter", "C-m", "KPEnter"})
-_TMUX_SEND_SUBCOMMANDS = frozenset({"send-keys", "send"})
+# tmux resolves an alias, a full name or an unambiguous prefix
+# (`send-k`) to a command, so names are canonicalized before matching.
+_TMUX_ALIASES = {
+    "send": "send-keys",
+    "new": "new-session",
+    "neww": "new-window",
+    "splitw": "split-window",
+    "respawnp": "respawn-pane",
+    "respawnw": "respawn-window",
+    "run": "run-shell",
+    "setb": "set-buffer",
+    "pasteb": "paste-buffer",
+    "popup": "display-popup",
+    "if": "if-shell",
+    "pipep": "pipe-pane",
+    "bind": "bind-key",
+    "confirm": "confirm-before",
+    "menu": "display-menu",
+}
+_TMUX_COMMAND_NAMES = frozenset(_TMUX_ALIASES.values()) | {
+    "command-prompt",
+    "set-hook",
+    "load-buffer",
+}
+_TMUX_SHELL_COMMANDS = frozenset(
+    {"new-session", "new-window", "split-window", "respawn-pane", "respawn-window", "run-shell"}
+)
+_TMUX_SEND_KEYS = "send-keys"
+_TMUX_SET_BUFFER = "set-buffer"
 _TMUX_SEND_VALUE_OPTIONS = frozenset({"-c", "-N", "-t"})
+_TMUX_SET_BUFFER_VALUE_OPTIONS = frozenset({"-b", "-n", "-t"})
+# An unparseable -H word: typed as a control key, so the line turns opaque.
+_UNKNOWN_KEY = "\x00"
 _TMUX_GLOBAL_COMMAND_OPTIONS = frozenset({"-c"})
 _TMUX_SEPARATOR = ";"
 _LINE_END_KEYS = frozenset(
@@ -1341,6 +1373,8 @@ _NAMED_KEYS = frozenset(
 _MODIFIED_KEY_RE = re.compile(r"^(?:[CMS]-)+.+$|^\^.$|^F\d{1,2}$")
 _SCREEN_STUFF = "stuff"
 _SCREEN_EVAL = "eval"
+_SCREEN_REGISTER = "register"
+_SCREEN_REGISTER_VALUE_OPTIONS = frozenset({"-e"})
 _SCREEN_ESCAPE_RE = re.compile(r"\\([0-7]{1,3})|\\(.)|\^(.)", re.DOTALL)
 _SCREEN_BACKSLASH_ESCAPES = {"n": "\n", "r": "\r", "t": "\t", "e": "\x1b", "a": "\a"}
 _ASCII_CONTROL_MASK = 0x1F
@@ -1582,24 +1616,59 @@ def _hex_keys(*, words: list[str]) -> list[str]:
     for word in words:
         try:
             keys.append(chr(int(word, _HEX_BASE)))
-        except ValueError:
-            keys.append(word)
+        except (ValueError, OverflowError):
+            keys.append(_UNKNOWN_KEY)
     return keys
 
 
-def _send_keys_commands(*, chunk: list[str], subcommand: int) -> list[NestedCommand]:
-    """What ``tmux send-keys`` types, read three ways (GH-2001).
+def tmux_command_name(*, token: str) -> str:
+    """tmux's command for ``token``: an alias, a name or a unique prefix (GH-2001)."""
+    if token in _TMUX_ALIASES:
+        return _TMUX_ALIASES[token]
+    matches = [name for name in _TMUX_COMMAND_NAMES if token and name.startswith(token)]
+    return matches[0] if len(matches) == 1 else token
+
+
+def _tmux_chunk_keys(*, chunk: list[str], subcommand: int) -> tuple[list[str], list[str]] | None:
+    """Keys a ``send-keys`` or ``set-buffer`` chunk types, and its words.
 
     tmux sends each word as a key name or as literal text, with no blank
-    between words, so ``ps ql Enter`` types ``psql``. The space-joined
-    reading is kept too, so nothing judged before this change is lost.
+    between words, so ``ps ql Enter`` types ``psql``. ``set-buffer`` data
+    is counted as typed, since ``paste-buffer`` types it into a pane.
+    ``None`` for any other chunk.
     """
+    name = tmux_command_name(token=chunk[subcommand])
+    if name == _TMUX_SET_BUFFER:
+        idx = _skip_options(
+            parts=chunk, idx=subcommand + 1, value_options=_TMUX_SET_BUFFER_VALUE_OPTIONS
+        )
+        return list("".join(chunk[idx:])), chunk[idx:]
+    if name != _TMUX_SEND_KEYS:
+        return None
     idx = _skip_options(parts=chunk, idx=subcommand + 1, value_options=_TMUX_SEND_VALUE_OPTIONS)
     flags = "".join(token[1:] for token in chunk[subcommand + 1 : idx] if token.startswith("-"))
     words = chunk[idx:]
-    keys = _hex_keys(words=words) if "H" in flags else words
-    joined = " ".join("\n" if word in _LINE_END_KEYS else word for word in words)
-    return [_typed(keys=keys), NestedCommand(command=joined)]
+    return (_hex_keys(words=words) if "H" in flags else words), words
+
+
+def _tmux_subcommand(*, chunk: list[str]) -> int | None:
+    wanted = _TMUX_SHELL_COMMANDS | {_TMUX_SEND_KEYS, _TMUX_SET_BUFFER}
+    return next(
+        (idx for idx, token in enumerate(chunk) if tmux_command_name(token=token) in wanted),
+        None,
+    )
+
+
+def _tmux_pieces(*, parts: list[str]) -> list[list[str]]:
+    pieces: list[list[str]] = []
+    for chunk in _tmux_chunks(parts=parts):
+        subcommand = _tmux_subcommand(chunk=chunk)
+        typed = (
+            None if subcommand is None else _tmux_chunk_keys(chunk=chunk, subcommand=subcommand)
+        )
+        if typed is not None:
+            pieces.append(typed[0])
+    return pieces
 
 
 def _legacy_tmux_command(*, parts: list[str]) -> str:
@@ -1631,14 +1700,7 @@ def _tmux_chunks(*, parts: list[str]) -> list[list[str]]:
 def _tmux_commands(*, parts: list[str]) -> list[NestedCommand]:
     commands = [NestedCommand(command=_legacy_tmux_command(parts=parts))]
     for position, chunk in enumerate(_tmux_chunks(parts=parts)):
-        subcommand = next(
-            (
-                idx
-                for idx, token in enumerate(chunk)
-                if token in _TMUX_COMMAND_SUBCOMMANDS or token in _TMUX_SEND_SUBCOMMANDS
-            ),
-            None,
-        )
+        subcommand = _tmux_subcommand(chunk=chunk)
         if position == 0:
             head = ["tmux", *chunk[: len(chunk) if subcommand is None else subcommand]]
             commands.extend(
@@ -1649,8 +1711,13 @@ def _tmux_commands(*, parts: list[str]) -> list[NestedCommand]:
             )
         if subcommand is None:
             continue
-        if chunk[subcommand] in _TMUX_SEND_SUBCOMMANDS:
-            commands.extend(_send_keys_commands(chunk=chunk, subcommand=subcommand))
+        typed = _tmux_chunk_keys(chunk=chunk, subcommand=subcommand)
+        if typed is not None:
+            keys, words = typed
+            # The space-joined reading is kept too, so nothing judged
+            # before GH-2001 is lost.
+            joined = " ".join("\n" if word in _LINE_END_KEYS else word for word in words)
+            commands.extend([_typed(keys=keys), NestedCommand(command=joined)])
             continue
         idx = _skip_options(parts=chunk, idx=subcommand + 1, value_options=_TMUX_VALUE_OPTIONS)
         commands.append(NestedCommand(command=" ".join(chunk[idx:])))
@@ -1679,19 +1746,56 @@ def _screen_keys(*, payload: str) -> list[str]:
     return keys
 
 
-def _screen_commands(*, parts: list[str]) -> list[NestedCommand]:
-    """Lines ``screen -X stuff`` types, also inside ``-X eval '…'``."""
-    commands: list[NestedCommand] = []
+def _screen_pieces(*, parts: list[str]) -> list[list[str]]:
+    """Keys ``screen -X stuff`` types, or ``register`` stores for ``paste``.
+
+    Also read inside ``-X eval '…'``.
+    """
+    pieces: list[list[str]] = []
     for idx, token in enumerate(parts[1:], start=1):
         if token == _SCREEN_STUFF:
-            payload = " ".join(parts[idx + 1 :])
-            commands.append(_typed(keys=_screen_keys(payload=payload)))
+            pieces.append(_screen_keys(payload=" ".join(parts[idx + 1 :])))
+        elif token == _SCREEN_REGISTER:
+            start = _skip_options(
+                parts=parts, idx=idx + 1, value_options=_SCREEN_REGISTER_VALUE_OPTIONS
+            )
+            pieces.append(_screen_keys(payload=" ".join(parts[start + 1 :])))
         elif token == _SCREEN_EVAL:
             for screen_command in parts[idx + 1 :]:
-                commands.extend(
-                    _screen_commands(parts=["screen", *split_tokens(command=screen_command)])
+                pieces.extend(
+                    _screen_pieces(parts=["screen", *split_tokens(command=screen_command)])
                 )
-    return commands
+    return pieces
+
+
+def _screen_commands(*, parts: list[str]) -> list[NestedCommand]:
+    return [_typed(keys=keys) for keys in _screen_pieces(parts=parts)]
+
+
+def _keystroke_pieces(*, parts: list[str]) -> list[list[str]]:
+    program, stages = _wrapper_walk(parts=parts)
+    pieces: list[list[str]] = []
+    for stage in (*stages, program):
+        name = stage[0].rsplit("/", 1)[-1] if stage else ""
+        if name == "screen":
+            pieces.extend(_screen_pieces(parts=stage))
+        elif name == "tmux":
+            pieces.extend(_tmux_pieces(parts=stage))
+    return pieces
+
+
+def typed_stream(*, segments: Sequence[Sequence[str]]) -> NestedCommand | None:
+    """The text typed across several keystroke calls, as one line (GH-2001).
+
+    ``tmux send-keys ps; tmux send-keys ql Enter`` types ``psql`` although
+    neither call does, so every piece a unit types is replayed in order.
+    ``None`` when fewer than two pieces are typed: one piece is already
+    judged on its own by :func:`nested_commands`.
+    """
+    pieces = [piece for argv in segments for piece in _keystroke_pieces(parts=list(argv))]
+    if len(pieces) < 2:
+        return None
+    return _typed(keys=[key for piece in pieces for key in piece])
 
 
 # git runs a configured value as a program: `core.pager`, `core.editor`,
@@ -1820,4 +1924,8 @@ def _runner_bodies(*, unit: str) -> list[NestedCommand]:
         segments = command_segments(command=unit)
     except UntokenizableCommandError:
         return []
-    return [nested for segment in segments for nested in runner_commands(parts=list(segment.argv))]
+    nested = [
+        nested for segment in segments for nested in runner_commands(parts=list(segment.argv))
+    ]
+    stream = typed_stream(segments=[segment.argv for segment in segments])
+    return nested if stream is None else [*nested, stream]

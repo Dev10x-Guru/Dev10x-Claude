@@ -752,6 +752,108 @@ class TestPsqlTypedOrConfiguredAsAProgram:
         assert validator.should_run(inp=_make_input(command=command))
 
 
+class TestKeystrokeStreams:
+    """Typed text split across calls, untokenizable runners, write binaries (GH-2001)."""
+
+    @pytest.fixture()
+    def validator(self) -> SqlSafetyValidator:
+        return SqlSafetyValidator()
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "tmux send-keys -l ps; tmux send-keys -l ql; tmux send-keys Enter",
+            "tmux set-buffer ps; tmux set-buffer -a ql; tmux paste-buffer",
+            "screen -X stuff 'ps'; screen -X stuff 'ql\\n'",
+            "tmux send-keys ps \\; send-keys ql Enter",
+            "tmux send-keys -t db ps && tmux send-keys -t db 'ql -d mydb' Enter",
+            "screen -X register . ps; screen -X register . ql; screen -X paste .",
+            "tmux send-keys -H 70 73; tmux send-keys -H 71 6c 0a",
+        ],
+    )
+    def test_blocks_psql_typed_across_calls(
+        self, validator: SqlSafetyValidator, command: str
+    ) -> None:
+        result = validator.validate(inp=_make_input(command=command))
+
+        assert result is not None
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            'git -p -c core.pager=psql log\necho "',
+            'tmux send-keys -H 70 73 71 6c Enter\necho "',
+            'GIT_PAGER=psql git log\necho "',
+            "screen -X stuff 'psql\\n'\necho \"",
+            'tmux send-keys -H 64 72 6f 70 64 62 0a\necho "',
+        ],
+    )
+    def test_untokenizable_runner_fails_closed(
+        self, validator: SqlSafetyValidator, command: str
+    ) -> None:
+        result = validator.validate(inp=_make_input(command=command))
+
+        assert result is not None
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "tmux send-k ps ql Enter",
+            "tmux send-ke -t db ps ql Enter",
+            "tmux send-key ps ql Enter",
+            "tmux set-buf ps \\; set-buf -a ql \\; paste-buffer",
+            "tmux send-k -H 70 73 71 6c 0a",
+        ],
+    )
+    def test_blocks_tmux_command_prefixes(
+        self, validator: SqlSafetyValidator, command: str
+    ) -> None:
+        result = validator.validate(inp=_make_input(command=command))
+
+        assert result is not None
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "tmux send-keys -t db 'dropdb mydb' Enter",
+            "tmux send-keys -H 64 72 6f 70 64 62 20 6d 0a",
+            "screen -X stuff '\\144ropdb mydb\\n'",
+            "tmux send-keys drop db Space mydb Enter",
+            "screen -X stuff 'create'; screen -X stuff 'db x\\n'",
+            "screen -X stuff 'pg_restore -d app x.dump\\n'",
+            "tmux send-keys -H 70 67 5f 72 65 73 74 6f 72 65 20 2d 64 20 61 0a",
+            "tmux send-k vacuum db Enter",
+        ],
+    )
+    def test_blocks_write_binaries_typed_into_a_terminal(
+        self, validator: SqlSafetyValidator, command: str
+    ) -> None:
+        result = validator.validate(inp=_make_input(command=command))
+
+        assert result is not None
+
+    def test_oversized_hex_key_fails_closed(self, validator: SqlSafetyValidator) -> None:
+        command = "tmux send-keys -H " + "f" * 400 + " 70 73 71 6c 0a"
+
+        result = validator.validate(inp=_make_input(command=command))
+
+        assert result is not None
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "tmux send-keys -t a 'ls' Enter; tmux send-keys -t b 'git status' Enter",
+            "tmux send-k -t db 'ls -la' Enter",
+            "screen -X stuff 'cd /tmp\\n'; screen -X stuff 'ls\\n'",
+            "tmux set-buffer hello; tmux paste-buffer",
+        ],
+    )
+    def test_allows_harmless_keystroke_streams(
+        self, validator: SqlSafetyValidator, command: str
+    ) -> None:
+        assert validator.validate(inp=_make_input(command=command)) is None
+
+
 class TestWrappedPsqlExemption:
     """psql wrapped by docker exec / op run is exempt (GH-474 #4)."""
 

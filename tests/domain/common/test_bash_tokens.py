@@ -23,6 +23,8 @@ from dev10x.core.domain.common.bash_tokens import (
     strip_line_continuations,
     strip_quoted_spans,
     tagged_command_units,
+    tmux_command_name,
+    typed_stream,
 )
 
 
@@ -769,7 +771,10 @@ class TestNestedCommands:
             ("tmux send-keys -t s dropdbz BSpace Space x C-m", "dropdb x"),
             ("tmux send-keys -t s ls C-c 'dropdb x' Enter", "dropdb x"),
             ("tmux send-keys -H 64 72 6f 70 64 62 0a", "dropdb"),
-            ("tmux send-keys -H 64 zz", "dzz"),
+            ("tmux send-keys -H 64 zz", "d"),
+            ("tmux send-k -t s drop db Enter", "dropdb"),
+            ("tmux setb -b x 'dropdb x'", "dropdb x"),
+            ("screen -X register -e utf8 . 'dropdb x'", "dropdb x"),
             ("tmux send-keys -t s ls Tab Enter", "ls"),
             ("tmux send-keys -t s ls Enter 'dropdb x' Enter", "ls \n dropdb x"),
             ("tmux send-keys -t s ls \\; send-keys 'dropdb x' Enter", "dropdb x"),
@@ -806,6 +811,52 @@ class TestNestedCommands:
     )
     def test_keystroke_and_git_runners_without_a_command(self, command: str) -> None:
         assert nested_commands(parts=split_tokens(command=command)) == []
+
+    @pytest.mark.parametrize(
+        ("command", "expected"),
+        [
+            (
+                "tmux send-keys ps; tmux send-keys ql Enter",
+                NestedCommand(command="psql\n"),
+            ),
+            (
+                "screen -X stuff dr; sudo screen -X stuff 'opdb\\n'",
+                NestedCommand(command="dropdb\n"),
+            ),
+            ("tmux setb ps \\; setb -a ql", NestedCommand(command="psql")),
+            ("tmux send-keys ql; tmux send-keys -H ff", NestedCommand(command="qlÿ")),
+        ],
+    )
+    def test_typed_stream_joins_pieces_across_calls(
+        self, command: str, expected: NestedCommand
+    ) -> None:
+        segments = [segment.argv for segment in command_segments(command=command)]
+
+        assert typed_stream(segments=segments) == expected
+
+    @pytest.mark.parametrize(
+        "command", ["tmux send-keys ls Enter", "screen -X stuff 'ls\\n'", "ls; pwd"]
+    )
+    def test_typed_stream_needs_two_pieces(self, command: str) -> None:
+        segments = [segment.argv for segment in command_segments(command=command)]
+
+        assert typed_stream(segments=segments) is None
+
+    @pytest.mark.parametrize(
+        ("token", "expected"),
+        [
+            ("send", "send-keys"),
+            ("send-k", "send-keys"),
+            ("set-buf", "set-buffer"),
+            ("s", "s"),
+            ("", ""),
+            ("ls", "ls"),
+        ],
+    )
+    def test_tmux_command_name_resolves_aliases_and_prefixes(
+        self, token: str, expected: str
+    ) -> None:
+        assert tmux_command_name(token=token) == expected
 
     def test_runner_commands_asks_each_stripped_wrapper(self) -> None:
         parts = split_tokens(command="sudo screen -S s -X stuff 'dropdb x\\n'")
